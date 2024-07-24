@@ -26,6 +26,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/qbft"
+	qbftBackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
@@ -33,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/miner"
+	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -48,7 +51,12 @@ var FullNodeGPO = gasprice.Config{
 
 // Defaults contains default settings for use on the Ethereum main net.
 var Defaults = Config{
-	SyncMode:           downloader.SnapSync,
+	// ## Quorum QBFT START
+	//SyncMode: downloader.SnapSync,
+	// Quorum - make full sync the default sync mode in quorum (as opposed to upstream geth)
+	SyncMode: downloader.FullSync,
+	// ## Quorum QBFT END
+
 	NetworkId:          0, // enable auto configuration of networkID == chainID
 	TxLookupLimit:      2350000,
 	TransactionHistory: 2350000,
@@ -131,6 +139,9 @@ type Config struct {
 	// Mining options
 	Miner miner.Config
 
+	// Istanbul options
+	Istanbul qbft.Config // ## Quorum QBFT
+
 	// Transaction pool options
 	TxPool   legacypool.Config
 	BlobPool blobpool.Config
@@ -164,11 +175,52 @@ type Config struct {
 // CreateConsensusEngine creates a consensus engine for the given chain config.
 // Clique is allowed for now to live standalone, but ethash is forbidden and can
 // only exist on already merged networks.
-func CreateConsensusEngine(config *params.ChainConfig, db ethdb.Database) (consensus.Engine, error) {
+func CreateConsensusEngine(config *params.ChainConfig, qbftCfg *qbft.Config, stack *node.Node, db ethdb.Database) (consensus.Engine, error) {
 	// If proof-of-authority is requested, set it up
 	if config.Clique != nil {
 		return beacon.New(clique.New(config.Clique, db)), nil
 	}
+
+	// ## Quorum QBFT START
+	if config.QBFT != nil {
+		if qbftCfg == nil {
+			qbftCfg = new(qbft.Config)
+		}
+		if len(config.Transitions) > 0 {
+			qbftCfg.Transitions = config.Transitions
+		}
+		if config.QBFT.BlockPeriodSeconds != 0 {
+			qbftCfg.BlockPeriod = config.QBFT.BlockPeriodSeconds
+		}
+		if config.QBFT.EmptyBlockPeriodSeconds != nil {
+			qbftCfg.EmptyBlockPeriod = *config.QBFT.EmptyBlockPeriodSeconds
+		}
+		if config.QBFT.RequestTimeoutSeconds != 0 {
+			qbftCfg.RequestTimeout = config.QBFT.RequestTimeoutSeconds * 1000
+		}
+		if config.QBFT.EpochLength != 0 {
+			qbftCfg.Epoch = config.QBFT.EpochLength
+		}
+
+		qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.QBFT.ProposerPolicy))
+		if config.QBFT.Ceil2Nby3Block != nil {
+			qbftCfg.Ceil2Nby3Block = config.QBFT.Ceil2Nby3Block
+		}
+
+		qbftCfg.BlockReward = config.QBFT.BlockReward
+		qbftCfg.BeneficiaryMode = config.QBFT.BeneficiaryMode
+		qbftCfg.MiningBeneficiary = config.QBFT.MiningBeneficiary
+		qbftCfg.ValidatorSelectionMode = config.QBFT.ValidatorSelectionMode
+		qbftCfg.Validators = config.QBFT.Validators
+
+		if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
+			qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds
+		}
+
+		return beacon.New(qbftBackend.New(qbftCfg, stack.Config().NodeKey(), db)), nil
+	}
+	// ## Quorum QBFT END
+
 	// If defaulting to proof-of-work, enforce an already merged network since
 	// we cannot run PoW algorithms anymore, so we cannot even follow a chain
 	// not coordinated by a beacon node.

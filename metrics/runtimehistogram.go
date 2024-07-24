@@ -184,7 +184,7 @@ func (h *runtimeHistogramSnapshot) Variance() float64 {
 	for i, c := range h.internal.Counts {
 		midpoint := h.midpoint(i)
 		d := midpoint - h.mean
-		sum += float64(c) * (d * d)
+		sum += float64(float64(c) * (d * d)) // nolint
 	}
 	h.variance = sum / float64(h.count-1)
 	return h.variance

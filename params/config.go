@@ -365,6 +365,12 @@ type ChainConfig struct {
 	// Various consensus engines
 	Ethash *EthashConfig `json:"ethash,omitempty"`
 	Clique *CliqueConfig `json:"clique,omitempty"`
+
+	// ## Quorum QBFT START
+	QBFT *QBFTConfig `json:"qbft,omitempty"` // Quorum
+
+	Transitions []Transition `json:"transitions,omitempty"` // Quorum - transition config based on the block number
+	// ## Quorum QBFT END
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.

@@ -22,6 +22,9 @@ all:
 test: all
 	$(GORUN) build/ci.go test
 
+test-short: all
+	$(GORUN) build/ci.go test -short
+
 #? lint: Run certain pre-selected linters
 lint: ## Run linters.
 	$(GORUN) build/ci.go lint

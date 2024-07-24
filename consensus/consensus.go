@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -127,3 +128,32 @@ type PoW interface {
 	// Hashrate returns the current mining hashrate of a PoW consensus engine.
 	Hashrate() float64
 }
+
+// ## Quorum QBFT START
+// Handler should be implemented is the consensus needs to handle and send peer's message
+type Handler interface {
+	// NewChainHead handles a new head block comes
+	NewChainHead() error
+
+	// HandleMsg handles a message from peer
+	HandleMsg(address common.Address, data p2p.Msg) (bool, error)
+
+	// SetBroadcaster sets the broadcaster to send message to peers
+	SetBroadcaster(Broadcaster)
+}
+
+// Broadcaster defines the interface to enqueue blocks to fetcher and find peer
+type Broadcaster interface {
+	// Enqueue add a block into fetcher queue
+	Enqueue(id string, block *types.Block)
+	// FindPeers retrives peers by addresses
+	FindPeers(map[common.Address]bool) map[common.Address]Peer
+}
+
+// Peer defines the interface to communicate with peer
+type Peer interface {
+	// SendQBFTConsensus is used to send consensus subprotocol messages from an "eth" peer without encoding the payload
+	SendQBFTConsensus(msgcode uint64, payload []byte) error
+}
+
+// ## Quorum QBFT END

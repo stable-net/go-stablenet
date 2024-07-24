@@ -965,3 +965,11 @@ func ReadHeadBlock(db ethdb.Reader) *types.Block {
 	}
 	return ReadBlock(db, headBlockHash, *headBlockNumber)
 }
+
+// ## Quorum QBFT START
+// HasBadBlock returns whether the block with the hash is a bad block. dep: Istanbul
+func HasBadBlock(db ethdb.Reader, hash common.Hash) bool {
+	return ReadBadBlock(db, hash) != nil
+}
+
+// ## Quorum QBFT END

@@ -286,6 +286,14 @@ func (d *Downloader) Progress() ethereum.SyncProgress {
 	}
 }
 
+// ## Quorum QBFT START
+// Synchronising returns whether the downloader is currently retrieving blocks.
+func (d *Downloader) Synchronising() bool {
+	return d.synchronising.Load()
+}
+
+// ## Quorum QBFT END
+
 // RegisterPeer injects a new download peer into the set of block source to be
 // used for fetching hashes and blocks from.
 func (d *Downloader) RegisterPeer(id string, version uint, peer Peer) error {

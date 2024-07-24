@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
@@ -148,7 +149,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
-	engine, err := ethconfig.CreateConsensusEngine(chainConfig, chainDb)
+	engine, err := ethconfig.CreateConsensusEngine(chainConfig, &config.Istanbul, stack, chainDb) // ## Quorum QBFT
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +157,15 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if networkID == 0 {
 		networkID = chainConfig.ChainID.Uint64()
 	}
+
+	// ## Quorum QBFT START
+	etherbase := config.Miner.Etherbase
+	if chainConfig.QBFT != nil {
+		// force to set the istanbul etherbase to node key address
+		etherbase = crypto.PubkeyToAddress(stack.Config().NodeKey().PublicKey)
+	}
+	// ## Quorum QBFT END
+
 	eth := &Ethereum{
 		config:            config,
 		merger:            consensus.NewMerger(chainDb),
@@ -166,7 +176,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		closeBloomHandler: make(chan struct{}),
 		networkID:         networkID,
 		gasPrice:          config.Miner.GasPrice,
-		etherbase:         config.Miner.Etherbase,
+		etherbase:         etherbase,
 		bloomRequests:     make(chan chan *bloombits.Retrieval),
 		bloomIndexer:      core.NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms),
 		p2pServer:         stack.Server(),
@@ -245,12 +255,18 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		BloomCache:     uint64(cacheLimit),
 		EventMux:       eth.eventMux,
 		RequiredBlocks: config.RequiredBlocks,
+		Engine:         eth.engine, // ## Quorum QBFT
 	}); err != nil {
 		return nil, err
 	}
 
 	eth.miner = miner.New(eth, &config.Miner, eth.blockchain.Config(), eth.EventMux(), eth.engine, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
+	// ## Quorum QBFT START
+	if chainConfig.QBFT != nil {
+		eth.miner.SetEtherbase(eth.etherbase)
+	}
+	// ## Quorum QBFT END
 
 	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, eth, nil}
 	if eth.APIBackend.allowUnprotectedTxs {
@@ -499,6 +515,14 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 	if s.config.SnapshotCache > 0 {
 		protos = append(protos, snap.MakeProtocols((*snapHandler)(s.handler), s.snapDialCandidates)...)
 	}
+
+	// ## Quorum QBFT START
+	// add additional quorum consensus protocol if set and if not set to "eth", e.g. istanbul
+	if quorumConsensusProtocolName != "" && quorumConsensusProtocolName != eth.ProtocolName {
+		quorumProtos := s.quorumConsensusProtocols((*ethHandler)(s.handler), s.networkID, s.ethDialCandidates)
+		protos = append(protos, quorumProtos...)
+	}
+	// ## Quorum QBFT END
 	return protos
 }
 

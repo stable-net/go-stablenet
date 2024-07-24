@@ -26,9 +26,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	qbftBackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -375,11 +378,35 @@ func (w *worker) pendingBlockAndReceipts() (*types.Block, types.Receipts) {
 // start sets the running status as 1 and triggers new work submitting.
 func (w *worker) start() {
 	w.running.Store(true)
+
+	// ## Quorum QBFT START
+	var backend *qbftBackend.Backend
+	if backend, _ = w.engine.(*qbftBackend.Backend); backend == nil {
+		if beacon, ok := w.engine.(*beacon.Beacon); ok {
+			backend, _ = beacon.InnerEngine().(*qbftBackend.Backend)
+		}
+	}
+	if backend != nil {
+		backend.Start(w.chain, w.chain.CurrentFullBlock, rawdb.HasBadBlock)
+	}
+	// ## Quorum QBFT END
 	w.startCh <- struct{}{}
 }
 
 // stop sets the running status as 0.
 func (w *worker) stop() {
+	// ## Quorum QBFT START
+	var backend *qbftBackend.Backend
+	if backend, _ = w.engine.(*qbftBackend.Backend); backend == nil {
+		if beacon, ok := w.engine.(*beacon.Beacon); ok {
+			backend, _ = beacon.InnerEngine().(*qbftBackend.Backend)
+		}
+	}
+	if backend != nil {
+		backend.Stop()
+	}
+	// ## Quorum QBFT END
+
 	w.running.Store(false)
 }
 
@@ -464,6 +491,18 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			commit(commitInterruptNewHead)
 
 		case head := <-w.chainHeadCh:
+			// ## Quorum QBFT START
+			var handler consensus.Handler
+			if handler, _ = w.engine.(consensus.Handler); handler == nil {
+				if beacon, ok := w.engine.(*beacon.Beacon); ok {
+					handler, _ = beacon.InnerEngine().(consensus.Handler)
+				}
+			}
+			if handler != nil {
+				handler.NewChainHead()
+			}
+			// ## Quorum QBFT END
+
 			clearPending(head.Block.NumberU64())
 			timestamp = time.Now().Unix()
 			commit(commitInterruptNewHead)

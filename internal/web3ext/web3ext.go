@@ -31,6 +31,7 @@ var Modules = map[string]string{
 	"les":      LESJs,
 	"vflux":    VfluxJs,
 	"dev":      DevJs,
+	"istanbul": Istanbul_JS, // ## Quorum QBFT
 }
 
 const CliqueJs = `
@@ -911,3 +912,83 @@ web3._extend({
 	],
 });
 `
+
+// ## Quorum QBFT START
+const Istanbul_JS = `
+web3._extend({
+	property: 'istanbul',
+	methods:
+	[
+		new web3._extend.Method({
+			name: 'getSnapshot',
+			call: 'istanbul_getSnapshot',
+			params: 1,
+			inputFormatter: [null]
+		}),
+		new web3._extend.Method({
+			name: 'getSnapshotAtHash',
+			call: 'istanbul_getSnapshotAtHash',
+			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'getValidators',
+			call: 'istanbul_getValidators',
+			params: 1,
+			inputFormatter: [null]
+		}),
+		new web3._extend.Method({
+			name: 'getValidatorsAtHash',
+			call: 'istanbul_getValidatorsAtHash',
+			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'propose',
+			call: 'istanbul_propose',
+			params: 2
+		}),
+		new web3._extend.Method({
+			name: 'discard',
+			call: 'istanbul_discard',
+			params: 1
+		}),
+
+		new web3._extend.Method({
+			name: 'getSignersFromBlock',
+			call: 'istanbul_getSignersFromBlock',
+			params: 1,
+			inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
+		}),
+		new web3._extend.Method({
+			name: 'getSignersFromBlockByHash',
+			call: 'istanbul_getSignersFromBlockByHash',
+			params: 1
+		}),
+		new web3._extend.Method({
+			name: 'status',
+			call: 'istanbul_status',
+			params: 2,
+            inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter, web3._extend.formatters.inputBlockNumberFormatter]
+		}),
+		new web3._extend.Method({
+			name: 'isValidator',
+			call: 'istanbul_isValidator',
+			params: 1,
+            inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
+		}),
+
+	],
+	properties:
+	[
+		new web3._extend.Property({
+			name: 'candidates',
+			getter: 'istanbul_candidates'
+		}),
+		new web3._extend.Property({
+			name: 'nodeAddress',
+			getter: 'istanbul_nodeAddress'
+		}),
+	]
+});
+`
+
+// ## Quorum QBFT END
