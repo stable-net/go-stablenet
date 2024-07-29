@@ -1,3 +1,8 @@
+// Modification Copyright 2024 The Wemix Authors
+//
+// This file is derived from quorum/consensus/istanbul/qbft/core/justification_test.go (2024.07.25).
+// Modified and improved for the wemix development.
+
 package core
 
 import (

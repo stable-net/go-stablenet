@@ -1,3 +1,8 @@
+// Modification Copyright 2024 The Wemix Authors
+//
+// This file is derived from quorum/consensus/istanbul/testutils/genesis.go (2024.07.25).
+// Modified and improved for the wemix development.
+
 package testutils
 
 import (
@@ -14,7 +19,7 @@ import (
 )
 
 // ## Wemix QBFT START
-// 1. remove qbft engine related test code
+// 1. remove ibft engine related test code
 // ## Wemix QBFT END
 
 func Genesis(validators []common.Address) *core.Genesis {
