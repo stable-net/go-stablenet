@@ -423,6 +423,8 @@ func (c *ChainConfig) Description() string {
 		} else {
 			banner += "Consensus: Beacon (proof-of-stake), merged from Clique (proof-of-authority)\n"
 		}
+	case c.QBFT != nil:
+		banner += "Consensus: QBFT (quorum-byzantine-fault-tolerance)\n"
 	default:
 		banner += "Consensus: unknown\n"
 	}
