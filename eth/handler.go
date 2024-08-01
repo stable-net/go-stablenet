@@ -292,7 +292,16 @@ func newHandler(config *handlerConfig) (*handler, error) {
 			}
 			return 0, nil
 		}
-		return h.chain.InsertChain(blocks)
+
+		// ## Wemix START
+		idx, err := h.chain.InsertChain(blocks)
+		if err == nil && handler != nil {
+			header := blocks[len(blocks)-1].Header()
+			h.chain.SetFinalized(header)
+			h.chain.SetSafe(header)
+		}
+		// ## Wemix END
+		return idx, err
 	}
 	h.blockFetcher = fetcher.NewBlockFetcher(false, nil, h.chain.GetBlockByHash, validator, h.BroadcastBlock, heighter, nil, inserter, h.removePeer)
 
