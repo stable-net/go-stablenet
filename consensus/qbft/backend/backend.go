@@ -87,7 +87,7 @@ type Backend struct {
 	privateKey *ecdsa.PrivateKey
 	address    common.Address
 
-	core qbft.Core
+	core *qbftcore.Core
 
 	qbftEngine *qbftengine.Engine
 

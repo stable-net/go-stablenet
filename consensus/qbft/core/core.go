@@ -42,9 +42,9 @@ var (
 	consensusTimer = metrics.NewRegisteredTimer("consensus/qbft/core/consensus", nil)
 )
 
-// New creates an Istanbul consensus core
-func New(backend qbft.Backend, config *qbft.Config) qbft.Core {
-	c := &core{
+// New creates a QBFT consensus core
+func New(backend Backend, config *qbft.Config) *Core {
+	c := &Core{
 		config:             config,
 		address:            backend.Address(),
 		state:              StateAcceptRequest,
@@ -64,13 +64,13 @@ func New(backend qbft.Backend, config *qbft.Config) qbft.Core {
 
 // ----------------------------------------------------------------------------
 
-type core struct {
+type Core struct {
 	config  *qbft.Config
 	address common.Address
 	state   State
 	logger  log.Logger
 
-	backend               qbft.Backend
+	backend               Backend
 	events                *event.TypeMuxSubscription
 	finalCommittedSub     *event.TypeMuxSubscription
 	timeoutSub            *event.TypeMuxSubscription
@@ -100,14 +100,14 @@ type core struct {
 	newRoundTimer *time.Timer
 }
 
-func (c *core) currentView() *qbft.View {
+func (c *Core) currentView() *qbft.View {
 	return &qbft.View{
 		Sequence: new(big.Int).Set(c.current.Sequence()),
 		Round:    new(big.Int).Set(c.current.Round()),
 	}
 }
 
-func (c *core) IsProposer() bool {
+func (c *Core) IsProposer() bool {
 	v := c.valSet
 	if v == nil {
 		return false
@@ -115,12 +115,12 @@ func (c *core) IsProposer() bool {
 	return v.IsProposer(c.backend.Address())
 }
 
-func (c *core) IsCurrentProposal(blockHash common.Hash) bool {
+func (c *Core) IsCurrentProposal(blockHash common.Hash) bool {
 	return c.current != nil && c.current.pendingRequest != nil && c.current.pendingRequest.Proposal.Hash() == blockHash
 }
 
 // startNewRound starts a new round. if round equals to 0, it means to starts a new sequence
-func (c *core) startNewRound(round *big.Int) {
+func (c *Core) startNewRound(round *big.Int) {
 	c.currentMutex.Lock()
 	defer c.currentMutex.Unlock()
 
@@ -219,7 +219,7 @@ func (c *core) startNewRound(round *big.Int) {
 }
 
 // updateRoundState updates round state by checking if locking block is necessary
-func (c *core) updateRoundState(view *qbft.View, validatorSet qbft.ValidatorSet, roundChange bool) {
+func (c *Core) updateRoundState(view *qbft.View, validatorSet qbft.ValidatorSet, roundChange bool) {
 	if roundChange && c.current != nil {
 		c.current = newRoundState(view, validatorSet, c.current.Preprepare, c.current.preparedRound, c.current.preparedBlock, c.current.pendingRequest, c.backend.HasBadProposal)
 	} else {
@@ -227,7 +227,7 @@ func (c *core) updateRoundState(view *qbft.View, validatorSet qbft.ValidatorSet,
 	}
 }
 
-func (c *core) setState(state State) {
+func (c *Core) setState(state State) {
 	if c.state != state {
 		oldState := c.state
 		c.state = state
@@ -242,24 +242,24 @@ func (c *core) setState(state State) {
 	c.processBacklog()
 }
 
-func (c *core) Address() common.Address {
+func (c *Core) Address() common.Address {
 	return c.address
 }
 
-func (c *core) stopFuturePreprepareTimer() {
+func (c *Core) stopFuturePreprepareTimer() {
 	if c.futurePreprepareTimer != nil {
 		c.futurePreprepareTimer.Stop()
 	}
 }
 
-func (c *core) stopTimer() {
+func (c *Core) stopTimer() {
 	c.stopFuturePreprepareTimer()
 	if c.roundChangeTimer != nil {
 		c.roundChangeTimer.Stop()
 	}
 }
 
-func (c *core) newRoundChangeTimer() {
+func (c *Core) newRoundChangeTimer() {
 	c.stopTimer()
 
 	for c.current == nil { // wait because it is asynchronous in handleRequest
@@ -303,15 +303,11 @@ func (c *core) newRoundChangeTimer() {
 	})
 }
 
-func (c *core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
+func (c *Core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
 	return qbft.CheckValidatorSignature(c.valSet, data, sig)
 }
 
-func (c *core) QuorumSize() int {
-	if c.config.Get2FPlus1Enabled(c.current.sequence) || c.config.Ceil2Nby3Block == nil || (c.current != nil && c.current.sequence.Cmp(c.config.Ceil2Nby3Block) < 0) {
-		c.currentLogger(true, nil).Trace("QBFT: confirmation Formula used 2F+ 1")
-		return (2 * c.valSet.F()) + 1
-	}
+func (c *Core) QuorumSize() int {
 	c.currentLogger(true, nil).Trace("QBFT: confirmation Formula used ceil(2N/3)")
 	return int(math.Ceil(float64(2*c.valSet.Size()) / 3))
 }

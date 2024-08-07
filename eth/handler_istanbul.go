@@ -96,7 +96,7 @@ func (h *handler) makeQuorumConsensusProtocol(protoName string, version uint, le
 					// add the rw protocol for the quorum subprotocol to the eth peer.
 					ethPeer.AddConsensusProtoRW(rw)
 					peer := eth.NewPeer(version, p, rw, h.txpool)
-					return h.handleConsensusLoop(peer, rw, nil)
+					return h.handleConsensusLoop(peer, rw)
 				}
 				p.Log().Error("consensus subprotocol retrieved nil eth peer from peerset", "ethPeer.id", p2pPeerId)
 				return errEthPeerNil
@@ -115,10 +115,10 @@ func (h *handler) makeQuorumConsensusProtocol(protoName string, version uint, le
 	}
 }
 
-func (h *handler) handleConsensusLoop(p *eth.Peer, protoRW p2p.MsgReadWriter, fallThroughBackend eth.Backend) error {
+func (h *handler) handleConsensusLoop(p *eth.Peer, protoRW p2p.MsgReadWriter) error {
 	// Handle incoming messages until the connection is torn down
 	for {
-		if err := h.handleConsensus(p, protoRW, fallThroughBackend); err != nil {
+		if err := h.handleConsensus(p, protoRW); err != nil {
 			// allow the P2P connection to remain active during sync (when the engine is stopped)
 			if errors.Is(err, qbft.ErrStoppedEngine) && h.downloader.Synchronising() {
 				// should this be warn or debug
@@ -132,7 +132,7 @@ func (h *handler) handleConsensusLoop(p *eth.Peer, protoRW p2p.MsgReadWriter, fa
 }
 
 // This is a no-op because the eth handleMsg main loop handle ibf message as well.
-func (h *handler) handleConsensus(p *eth.Peer, protoRW p2p.MsgReadWriter, _ eth.Backend) error {
+func (h *handler) handleConsensus(p *eth.Peer, protoRW p2p.MsgReadWriter) error {
 	// Read the next message from the remote peer (in protoRW), and ensure it's fully consumed
 	msg, err := protoRW.ReadMsg()
 	if err != nil {
@@ -170,33 +170,6 @@ func (h *handler) handleConsensusMsg(p *eth.Peer, msg p2p.Msg) (bool, error) {
 		return handled, err
 	}
 	return false, nil
-}
-
-// makeLegacyProtocol is basically a copy of the eth makeProtocol, but for legacy subprotocols, e.g. "istanbul/99" "istabnul/64"
-// If support legacy subprotocols is removed, remove this and associated code as well.
-// If quorum is using a legacy protocol then the "eth" subprotocol should not be available.
-func (h *handler) makeLegacyProtocol(protoName string, version uint, length uint64, backend eth.Backend, network uint64, dnsdisc enode.Iterator) p2p.Protocol {
-	log.Debug("registering a legacy protocol ", "protoName", protoName, "version", version)
-	return p2p.Protocol{
-		Name:    protoName,
-		Version: version,
-		Length:  length,
-		Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
-			peer := eth.NewPeer(version, p, rw, h.txpool)
-			return h.runEthPeer(peer, func(peer *eth.Peer) error {
-				// We pass through the backend so that we can 'handle' messages that we can't handle
-				return h.handleConsensusLoop(peer, rw, backend)
-			})
-		},
-		NodeInfo: func() interface{} {
-			return eth.NodeInfoFunc(backend.Chain(), network)
-		},
-		PeerInfo: func(id enode.ID) interface{} {
-			return backend.PeerInfo(id)
-		},
-		Attributes:     []enr.Entry{eth.CurrentENREntry(backend.Chain())},
-		DialCandidates: dnsdisc,
-	}
 }
 
 // ## Quorum QBFT END

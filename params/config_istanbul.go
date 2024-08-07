@@ -27,7 +27,6 @@ type QBFTConfig struct {
 	EmptyBlockPeriodSeconds  *uint64               `json:"emptyblockperiodseconds,omitempty"` // Minimum time between two consecutive QBFT a block and empty block’ timestamps in seconds
 	RequestTimeoutSeconds    uint64                `json:"requesttimeoutseconds"`             // Minimum request timeout for each QBFT round in milliseconds
 	ProposerPolicy           uint64                `json:"policy"`                            // The policy for proposer selection
-	Ceil2Nby3Block           *big.Int              `json:"ceil2Nby3Block,omitempty"`          // Number of confirmations required to move from one state to next [2F + 1 to Ceil(2N/3)]
 	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`             // Reward from start, works only on QBFT consensus protocol
 	BeneficiaryMode          *string               `json:"beneficiaryMode,omitempty"`         // Mode for setting the beneficiary, either: list, besu, validators (beneficiary list is the list of validators)
 	MiningBeneficiary        *common.Address       `json:"miningBeneficiary,omitempty"`       // Wallet address that benefits at every new block (besu mode)
@@ -54,7 +53,6 @@ type Transition struct {
 	PrivacyPrecompileEnabled     *bool                 `json:"privacyPrecompileEnabled,omitempty"`     // enable marker transactions support
 	GasPriceEnabled              *bool                 `json:"gasPriceEnabled,omitempty"`              // enable gas price
 	MinerGasLimit                uint64                `json:"miner.gaslimit,omitempty"`               // Gas Limit
-	TwoFPlusOneEnabled           *bool                 `json:"2FPlus1Enabled,omitempty"`               // Ceil(2N/3) is the default you need to explicitly use 2F + 1
 	TransactionSizeLimit         uint64                `json:"transactionSizeLimit,omitempty"`         // Modify TransactionSizeLimit
 	BlockReward                  *math.HexOrDecimal256 `json:"blockReward,omitempty"`                  // validation rewards
 	BeneficiaryMode              *string               `json:"beneficiaryMode,omitempty"`              // Mode for setting the beneficiary, either: list, besu, validators (beneficiary list is the list of validators)

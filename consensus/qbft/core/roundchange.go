@@ -36,7 +36,7 @@ import (
 )
 
 // broadcastNextRoundChange sends the ROUND CHANGE message with current round + 1
-func (c *core) broadcastNextRoundChange() {
+func (c *Core) broadcastNextRoundChange() {
 	cv := c.currentView()
 	c.broadcastRoundChange(new(big.Int).Add(cv.Round, common.Big1))
 }
@@ -48,7 +48,7 @@ func (c *core) broadcastNextRoundChange() {
 // It
 // - Creates and sign ROUND-CHANGE message
 // - broadcast the ROUND-CHANGE message with the given round
-func (c *core) broadcastRoundChange(round *big.Int) {
+func (c *Core) broadcastRoundChange(round *big.Int) {
 	logger := c.currentLogger(true, nil)
 
 	// Validates new round corresponds to current view
@@ -95,10 +95,10 @@ func (c *core) broadcastRoundChange(round *big.Int) {
 	}
 }
 
-// handleRoundChange is called when receiving a ROUND-CHANGE message from another validator
+// handleRoundChangeMsg is called when receiving a ROUND-CHANGE message from another validator
 // - accumulates ROUND-CHANGE messages until reaching quorum for a given round
 // - when quorum of ROUND-CHANGE messages is reached then
-func (c *core) handleRoundChange(roundChange *qbftmessage.RoundChange) error {
+func (c *Core) handleRoundChangeMsg(roundChange *qbftmessage.RoundChange) error {
 	logger := c.currentLogger(true, roundChange)
 
 	view := roundChange.View()
@@ -191,7 +191,7 @@ func (c *core) handleRoundChange(roundChange *qbftmessage.RoundChange) error {
 }
 
 // highestPrepared returns the highest Prepared Round and the corresponding Prepared Block
-func (c *core) highestPrepared(round *big.Int) (*big.Int, qbft.Proposal) {
+func (c *Core) highestPrepared(round *big.Int) (*big.Int, qbft.Proposal) {
 	return c.roundChangeSet.highestPreparedRound[round.Uint64()], c.roundChangeSet.highestPreparedBlock[round.Uint64()]
 }
 

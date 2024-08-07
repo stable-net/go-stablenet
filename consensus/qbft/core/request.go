@@ -34,7 +34,7 @@ import (
 // It
 // - validates block proposal is not empty and number correspond to the current sequence
 // - creates and send PRE-PREPARE message to other validators
-func (c *core) handleRequest(request *Request) error {
+func (c *Core) handleRequest(request *Request) error {
 	logger := c.currentLogger(true, nil)
 
 	logger.Info("QBFT: handle block proposal request")
@@ -108,7 +108,7 @@ func (c *core) handleRequest(request *Request) error {
 // return errInvalidMessage if the message is invalid
 // return errFutureMessage if the sequence of proposal is larger than current sequence
 // return errOldMessage if the sequence of proposal is smaller than current sequence
-func (c *core) checkRequestMsg(request *Request) error {
+func (c *Core) checkRequestMsg(request *Request) error {
 	if request == nil || request.Proposal == nil {
 		return errInvalidMessage
 	}
@@ -125,7 +125,7 @@ func (c *core) checkRequestMsg(request *Request) error {
 	}
 }
 
-func (c *core) storeRequestMsg(request *Request) {
+func (c *Core) storeRequestMsg(request *Request) {
 	logger := c.currentLogger(true, nil).New("proposal.number", request.Proposal.Number(), "proposal.hash", request.Proposal.Hash())
 
 	logger.Trace("QBFT: store block proposal request for future treatment")
@@ -138,7 +138,7 @@ func (c *core) storeRequestMsg(request *Request) {
 
 // processPendingRequests is called each time QBFT state is re-initialized
 // it lookup over pending requests and re-input its so they can be treated
-func (c *core) processPendingRequests() {
+func (c *Core) processPendingRequests() {
 	c.pendingRequestsMu.Lock()
 	defer c.pendingRequestsMu.Unlock()
 

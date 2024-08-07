@@ -32,7 +32,7 @@ import (
 // It
 // - creates a COMMIT message from current proposal
 // - broadcast COMMIT message to other validators
-func (c *core) broadcastCommit() {
+func (c *Core) broadcastCommit() {
 	var err error
 
 	logger := c.currentLogger(true, nil)
@@ -89,7 +89,7 @@ func (c *core) broadcastCommit() {
 // - validates COMMIT message digest matches the current block proposal
 // - accumulates valid COMMIT messages until reaching quorum
 // - when quorum of COMMIT messages is reached then update state and commits
-func (c *core) handleCommitMsg(commit *qbftmessage.Commit) error {
+func (c *Core) handleCommitMsg(commit *qbftmessage.Commit) error {
 	logger := c.currentLogger(true, commit)
 
 	logger.Info("QBFT: handle COMMIT message", "commits.count", c.current.QBFTCommits.Size(), "quorum", c.QuorumSize())
@@ -123,7 +123,7 @@ func (c *core) handleCommitMsg(commit *qbftmessage.Commit) error {
 // - computes committedSeals from each received commit messages
 // - then commits block proposal to database with committed seals
 // - broadcast round change
-func (c *core) commitQBFT() {
+func (c *Core) commitQBFT() {
 	c.setState(StateCommitted)
 
 	proposal := c.current.Proposal()

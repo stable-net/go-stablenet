@@ -16,8 +16,8 @@
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 //
 // This file is derived from quorum/consensus/istanbul/types.go
-// and quorum/consensus/istanbul/events.go and quorum/consensus/istanbul/validator.go
-// and quorum/consensus/istanbul/backend.go (2024.07.25).
+// and quorum/consensus/istanbul/events.go
+// and quorum/consensus/istanbul/validator.go (2024.07.25).
 // Modified and improved for the wemix development.
 
 package qbft
@@ -30,11 +30,9 @@ import (
 	"math/big"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -261,75 +259,4 @@ type MessageEvent struct {
 
 // FinalCommittedEvent is posted when a proposal is committed
 type FinalCommittedEvent struct {
-}
-
-// ----------------------------------------------------------------------------
-
-type Core interface {
-	Start() error
-	Stop() error
-	IsProposer() bool
-
-	// verify if a hash is the same as the proposed block in the current pending request
-	//
-	// this is useful when the engine is currently the proposer
-	//
-	// pending request is populated right at the preprepare stage so this would give us the earliest verification
-	// to avoid any race condition of coming propagated blocks
-	IsCurrentProposal(blockHash common.Hash) bool
-}
-
-// ----------------------------------------------------------------------------
-
-// Backend provides application specific functions for Istanbul core
-type Backend interface {
-	// Address returns the owner's address
-	Address() common.Address
-
-	// Validators returns the validator set
-	Validators(proposal Proposal) ValidatorSet
-
-	// EventMux returns the event mux in backend
-	EventMux() *event.TypeMux
-
-	// Broadcast sends a message to all validators (include self)
-	Broadcast(valSet ValidatorSet, code uint64, payload []byte) error
-
-	// Gossip sends a message to all validators (exclude self)
-	Gossip(valSet ValidatorSet, code uint64, payload []byte) error
-
-	// Commit delivers an approved proposal to backend.
-	// The delivered proposal will be put into blockchain.
-	Commit(proposal Proposal, seals [][]byte, round *big.Int) error
-
-	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
-	// the time difference of the proposal and current time is also returned.
-	Verify(Proposal) (time.Duration, error)
-
-	// Sign signs input data with the backend's private key
-	Sign([]byte) ([]byte, error)
-
-	// SignWithoutHashing sign input data with the backend's private key without hashing the input data
-	SignWithoutHashing([]byte) ([]byte, error)
-
-	// CheckSignature verifies the signature by checking if it's signed by
-	// the given validator
-	CheckSignature(data []byte, addr common.Address, sig []byte) error
-
-	// LastProposal retrieves latest committed proposal and the address of proposer
-	LastProposal() (Proposal, common.Address)
-
-	// HasPropsal checks if the combination of the given hash and height matches any existing blocks
-	HasPropsal(hash common.Hash, number *big.Int) bool
-
-	// GetProposer returns the proposer of the given block height
-	GetProposer(number uint64) common.Address
-
-	// ParentValidators returns the validator set of the given proposal's parent block
-	ParentValidators(proposal Proposal) ValidatorSet
-
-	// HasBadProposal returns whether the block with the hash is a bad block
-	HasBadProposal(hash common.Hash) bool
-
-	Close() error
 }
