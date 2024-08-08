@@ -143,9 +143,9 @@ func (e *Engine) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 	}
 
 	// Ensure that the mix digest is zero as we don't have fork protection currently
-	if header.MixDigest != types.IstanbulDigest {
-		return qbftcommon.ErrInvalidMixDigest
-	}
+	//if header.MixDigest != types.IstanbulDigest {
+	//	return qbftcommon.ErrInvalidMixDigest
+	//}
 
 	// Ensure that the block doesn't contain any uncles which are meaningless in Istanbul
 	if header.UncleHash != nilUncleHash {
@@ -153,7 +153,7 @@ func (e *Engine) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 	}
 
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
-	if header.Difficulty == nil || header.Difficulty.Cmp(qbftcommon.DefaultDifficulty) != 0 {
+	if header.Difficulty == nil || header.Difficulty.Cmp(types.QBFTDefaultDifficulty) != 0 {
 		return qbftcommon.ErrInvalidDifficulty
 	}
 
@@ -311,7 +311,7 @@ func (e *Engine) VerifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 	}
 
 	// ensure that the difficulty equals to qbft.DefaultDifficulty
-	if header.Difficulty.Cmp(qbftcommon.DefaultDifficulty) != 0 {
+	if header.Difficulty.Cmp(types.QBFTDefaultDifficulty) != 0 {
 		return qbftcommon.ErrInvalidDifficulty
 	}
 
@@ -321,7 +321,6 @@ func (e *Engine) VerifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header, validators qbft.ValidatorSet) error {
 	header.Coinbase = common.Address{}
 	header.Nonce = qbftcommon.EmptyBlockNonce
-	header.MixDigest = types.IstanbulDigest
 
 	// copy the parent extra data as the header extra data
 	number := header.Number.Uint64()
@@ -332,7 +331,7 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	}
 
 	// use the same difficulty for all blocks
-	header.Difficulty = qbftcommon.DefaultDifficulty
+	header.Difficulty = types.QBFTDefaultDifficulty
 
 	// set header's timestamp
 	header.Time = parent.Time + e.cfg.GetConfig(header.Number).BlockPeriod

@@ -117,8 +117,8 @@ type headerMarshaling struct {
 // RLP encoding.
 func (h *Header) Hash() common.Hash {
 	// ## Quorum QBFT START
-	// If the mix digest is equivalent to the predefined Istanbul digest, use Istanbul specific hash calculation.
-	if h != nil && h.MixDigest == IstanbulDigest {
+	// If the header's difficulty is equivalent to the predefined QBFT difficulty, use Istanbul specific hash calculation.
+	if h != nil && h.Difficulty != nil && h.Difficulty.Cmp(QBFTDefaultDifficulty) == 0 {
 		// Seal is reserved in extra-data. To prove block is signed by the proposer.
 		if istanbulHeader := QBFTFilteredHeader(h); istanbulHeader != nil {
 			return rlpHash(istanbulHeader)

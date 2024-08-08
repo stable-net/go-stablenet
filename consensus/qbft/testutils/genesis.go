@@ -29,9 +29,8 @@ func Genesis(validators []common.Address) *core.Genesis {
 	// force enable QBFT engine
 	genesis.Config.QBFT = &params.QBFTConfig{}
 	genesis.Config.Ethash = nil
-	genesis.Difficulty = qbftcommon.DefaultDifficulty
+	genesis.Difficulty = types.QBFTDefaultDifficulty
 	genesis.Nonce = qbftcommon.EmptyBlockNonce.Uint64()
-	genesis.Mixhash = types.IstanbulDigest
 
 	appendValidators(genesis, validators)
 

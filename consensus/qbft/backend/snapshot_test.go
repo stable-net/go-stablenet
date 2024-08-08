@@ -29,7 +29,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
-	qbftcommon "github.com/ethereum/go-ethereum/consensus/qbft/common"
 	qbftengine "github.com/ethereum/go-ethereum/consensus/qbft/engine"
 	"github.com/ethereum/go-ethereum/consensus/qbft/testutils"
 	"github.com/ethereum/go-ethereum/consensus/qbft/validator"
@@ -353,8 +352,7 @@ func TestVoting(t *testing.T) {
 				Number:     blockNumber,
 				Time:       uint64(int64(j) * int64(config.GetConfig(blockNumber).BlockPeriod)),
 				Coinbase:   accounts.address(vote.validator),
-				Difficulty: qbftcommon.DefaultDifficulty,
-				MixDigest:  types.IstanbulDigest,
+				Difficulty: types.QBFTDefaultDifficulty,
 			}
 			_ = qbftengine.ApplyHeaderQBFTExtra(
 				headers[j],

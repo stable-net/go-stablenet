@@ -30,12 +30,12 @@ import (
 
 // ## Quorum QBFT START
 func TestHeaderHash(t *testing.T) {
-	// 0xcefefd3ade63a5955bca4562ed840b67f39e74df217f7e5f7241a6e9552cca70
+	// 0x06f58ebb96f233516c4a0eeedad007e8b8e0965b24c88d7407eb08a6ee7bc4ff
 	expectedExtra := common.FromHex("0x0000000000000000000000000000000000000000000000000000000000000000f89af8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0")
-	expectedHash := common.HexToHash("0xcefefd3ade63a5955bca4562ed840b67f39e74df217f7e5f7241a6e9552cca70")
+	expectedHash := common.HexToHash("0x06f58ebb96f233516c4a0eeedad007e8b8e0965b24c88d7407eb08a6ee7bc4ff")
 
 	// for istanbul consensus
-	header := &Header{MixDigest: IstanbulDigest, Extra: expectedExtra}
+	header := &Header{Difficulty: QBFTDefaultDifficulty, Extra: expectedExtra}
 	if !reflect.DeepEqual(header.Hash(), expectedHash) {
 		t.Errorf("expected: %v, but got: %v", expectedHash.Hex(), header.Hash().Hex())
 	}

@@ -123,7 +123,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 				return false, nil
 			}
 			newRequestedBlock := request.Block
-			if newRequestedBlock.Header().MixDigest == types.IstanbulDigest && sb.core.IsCurrentProposal(newRequestedBlock.Hash()) {
+			if newRequestedBlock.Header().Difficulty.Cmp(types.QBFTDefaultDifficulty) == 0 && sb.core.IsCurrentProposal(newRequestedBlock.Hash()) {
 				sb.logger.Debug("BFT: block already proposed", "hash", newRequestedBlock.Hash(), "sender", addr)
 				return true, nil
 			}
