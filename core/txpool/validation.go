@@ -69,6 +69,9 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	if !opts.Config.IsLondon(head.Number) && tx.Type() == types.DynamicFeeTxType {
 		return fmt.Errorf("%w: type %d rejected, pool not yet in London", core.ErrTxTypeNotSupported, tx.Type())
 	}
+	if !opts.Config.IsApplepie(head.Number) && tx.Type() == types.FeeDelegateDynamicFeeTxType {
+		return fmt.Errorf("%w: type %d rejected, pool not yet in Applepie", core.ErrTxTypeNotSupported, tx.Type())
+	}
 	if !opts.Config.IsCancun(head.Number, head.Time) && tx.Type() == types.BlobTxType {
 		return fmt.Errorf("%w: type %d rejected, pool not yet in Cancun", core.ErrTxTypeNotSupported, tx.Type())
 	}
@@ -113,6 +116,18 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	if tx.GasTipCapIntCmp(opts.MinTip) < 0 {
 		return fmt.Errorf("%w: gas tip cap %v, minimum needed %v", ErrUnderpriced, tx.GasTipCap(), opts.MinTip)
 	}
+
+	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
+		// Make sure the transaction is signed properly.
+		if tx.FeePayer() == nil {
+			return ErrInvalidFeePayer
+		}
+		feePayer, err := types.FeePayer(types.NewFeeDelegateSigner(opts.Config.ChainID), tx)
+		if err != nil || *tx.FeePayer() != feePayer {
+			return ErrInvalidFeePayer
+		}
+	}
+
 	if tx.Type() == types.BlobTxType {
 		// Ensure the blob fee cap satisfies the minimum blob gas price
 		if tx.BlobGasFeeCapIntCmp(blobTxMinBlobGasPrice) < 0 {
@@ -217,33 +232,43 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		}
 	}
 	// Ensure the transactor has enough funds to cover the transaction costs
-	var (
-		balance = opts.State.GetBalance(from).ToBig()
-		cost    = tx.Cost()
-	)
-	if balance.Cmp(cost) < 0 {
-		return fmt.Errorf("%w: balance %v, tx cost %v, overshot %v", core.ErrInsufficientFunds, balance, cost, new(big.Int).Sub(cost, balance))
-	}
-	// Ensure the transactor has enough funds to cover for replacements or nonce
-	// expansions without overdrafts
-	spent := opts.ExistingExpenditure(from)
-	if prev := opts.ExistingCost(from, tx.Nonce()); prev != nil {
-		bump := new(big.Int).Sub(cost, prev)
-		need := new(big.Int).Add(spent, bump)
-		if balance.Cmp(need) < 0 {
-			return fmt.Errorf("%w: balance %v, queued cost %v, tx bumped %v, overshot %v", core.ErrInsufficientFunds, balance, spent, bump, new(big.Int).Sub(need, balance))
+	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
+		if opts.State.GetBalance(from).ToBig().Cmp(tx.Value()) < 0 {
+			return ErrSenderInsufficientFunds
+		}
+		if opts.State.GetBalance(*tx.FeePayer()).ToBig().Cmp(tx.FeeCost()) < 0 {
+			return ErrFeePayerInsufficientFunds
 		}
 	} else {
-		need := new(big.Int).Add(spent, cost)
-		if balance.Cmp(need) < 0 {
-			return fmt.Errorf("%w: balance %v, queued cost %v, tx cost %v, overshot %v", core.ErrInsufficientFunds, balance, spent, cost, new(big.Int).Sub(need, balance))
-		}
-		// Transaction takes a new nonce value out of the pool. Ensure it doesn't
-		// overflow the number of permitted transactions from a single account
-		// (i.e. max cancellable via out-of-bound transaction).
-		if used, left := opts.UsedAndLeftSlots(from); left <= 0 {
-			return fmt.Errorf("%w: pooled %d txs", ErrAccountLimitExceeded, used)
+		var (
+			balance = opts.State.GetBalance(from).ToBig()
+			cost    = tx.Cost()
+		)
+		if opts.State.GetBalance(from).ToBig().Cmp(tx.Cost()) < 0 {
+			return fmt.Errorf("%w: balance %v, tx cost %v, overshot %v", core.ErrInsufficientFunds, balance, cost, new(big.Int).Sub(cost, balance))
 		}
 	}
+	// WEMIX does not support tx replacement so bumping cost is not checked
+	//// Ensure the transactor has enough funds to cover for replacements or nonce
+	//// expansions without overdrafts
+	//spent := opts.ExistingExpenditure(from)
+	//if prev := opts.ExistingCost(from, tx.Nonce()); prev != nil {
+	//	bump := new(big.Int).Sub(cost, prev)
+	//	need := new(big.Int).Add(spent, bump)
+	//	if balance.Cmp(need) < 0 {
+	//		return fmt.Errorf("%w: balance %v, queued cost %v, tx bumped %v, overshot %v", core.ErrInsufficientFunds, balance, spent, bump, new(big.Int).Sub(need, balance))
+	//	}
+	//} else {
+	//	need := new(big.Int).Add(spent, cost)
+	//	if balance.Cmp(need) < 0 {
+	//		return fmt.Errorf("%w: balance %v, queued cost %v, tx cost %v, overshot %v", core.ErrInsufficientFunds, balance, spent, cost, new(big.Int).Sub(need, balance))
+	//	}
+	//	// Transaction takes a new nonce value out of the pool. Ensure it doesn't
+	//	// overflow the number of permitted transactions from a single account
+	//	// (i.e. max cancellable via out-of-bound transaction).
+	//	if used, left := opts.UsedAndLeftSlots(from); left <= 0 {
+	//		return fmt.Errorf("%w: pooled %d txs", ErrAccountLimitExceeded, used)
+	//	}
+	//}
 	return nil
 }

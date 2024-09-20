@@ -22,7 +22,9 @@
 package ethconfig
 
 import (
+	"crypto/ecdsa"
 	"errors"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -32,6 +34,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
 	qbftBackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
+	"github.com/ethereum/go-ethereum/consensus/wemix"
+	"github.com/ethereum/go-ethereum/consensus/wpoa"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
@@ -39,8 +43,8 @@ import (
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/miner"
-	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/wemixgov"
 )
 
 // FullNodeGPO contains default gasprice oracle settings for full node.
@@ -179,14 +183,16 @@ type Config struct {
 // CreateConsensusEngine creates a consensus engine for the given chain config.
 // Clique is allowed for now to live standalone, but ethash is forbidden and can
 // only exist on already merged networks.
-func CreateConsensusEngine(config *params.ChainConfig, qbftCfg *qbft.Config, stack *node.Node, db ethdb.Database) (consensus.Engine, error) {
+func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfig, qbftCfg *qbft.Config, privKey *ecdsa.PrivateKey, db ethdb.Database) (consensus.Engine, error) {
 	// If proof-of-authority is requested, set it up
 	if config.Clique != nil {
 		return beacon.New(clique.New(config.Clique, db)), nil
 	}
 
-	// ## Quorum QBFT START
-	if config.QBFT != nil {
+	if config.MontBlancBlock != nil {
+		if config.QBFT == nil {
+			return nil, errors.New("montblanc hard fork is set but QBFT configuration is nil")
+		}
 		if qbftCfg == nil {
 			qbftCfg = new(qbft.Config)
 		}
@@ -216,16 +222,26 @@ func CreateConsensusEngine(config *params.ChainConfig, qbftCfg *qbft.Config, sta
 		if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
 			qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds
 		}
-
-		return beacon.New(qbftBackend.New(qbftCfg, stack.Config().NodeKey(), db)), nil
+		if config.IsMontBlanc(new(big.Int)) {
+			// only wbft engine
+			return qbftBackend.New(qbftCfg, privKey, db), nil
+		}
+		// wemix engine which can do `MontBlanc` hard fork
+		return wemix.NewWemixEngine(govCli, qbftCfg, privKey, db), nil
 	}
-	// ## Quorum QBFT END
+	// only WemixPoA engine; cannot mine a block
+	return wpoa.NewWemixPoAEngine(govCli), nil
+}
 
-	// If defaulting to proof-of-work, enforce an already merged network since
-	// we cannot run PoW algorithms anymore, so we cannot even follow a chain
-	// not coordinated by a beacon node.
+func CreateEthashFakeEngine(config *params.ChainConfig) (consensus.Engine, error) {
 	if !config.TerminalTotalDifficultyPassed {
 		return nil, errors.New("ethash is only supported as a historical component of already merged networks")
 	}
 	return beacon.New(ethash.NewFaker()), nil
+}
+
+func CreateFakeConsensusEngine(prvKey *ecdsa.PrivateKey, govCli wemixgov.GovBackend, config *params.ChainConfig, db ethdb.Database) (consensus.Engine, error) {
+	// If proof-of-authority is requested, set it up
+	engine := wpoa.NewWemixFakeEngine(prvKey, govCli)
+	return beacon.New(engine), nil
 }

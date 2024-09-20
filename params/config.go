@@ -25,21 +25,90 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/params/forks"
 )
 
 // Genesis hashes to enforce below configs on.
 var (
-	MainnetGenesisHash = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
-	HoleskyGenesisHash = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
-	SepoliaGenesisHash = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
-	GoerliGenesisHash  = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
+	WemixMainnetGenesisHash = common.HexToHash("0xa4e17f33b057aa2f78685aba4d6a60a79fc0a366fe8a521a3af1d6eceb1cf3cd")
+	WemixTestnetGenesisHash = common.HexToHash("0x15f522870e65c4e66230341b71b63ca421a61d4b5432f59d4906f021802435c6")
+	MainnetGenesisHash      = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
+	HoleskyGenesisHash      = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
+	SepoliaGenesisHash      = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
+	GoerliGenesisHash       = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
 )
 
 func newUint64(val uint64) *uint64 { return &val }
 
 var (
 	MainnetTerminalTotalDifficulty, _ = new(big.Int).SetString("58_750_000_000_000_000_000_000", 0)
+
+	WemixMainnetChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(1111),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        big.NewInt(0), // We shouldn't have applied DAO hard fork because we didn't have to
+		DAOForkSupport:      true,          // Why on earth?
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		ArrowGlacierBlock:   big.NewInt(0),
+		GrayGlacierBlock:    big.NewInt(0),
+		MergeNetsplitBlock:  nil,
+		ShanghaiTime:        nil,
+		CancunTime:          nil,
+		PragueTime:          nil,
+		VerkleTime:          nil,
+		PangyoBlock:         big.NewInt(0),
+		ApplepieBlock:       big.NewInt(20_476_911),
+		BriocheBlock:        big.NewInt(53_525_500), // target date: 24-07-01 00:00:00 (GMT+09)
+		Ethash:              new(EthashConfig),
+		Brioche: &BriocheConfig{
+			BlockReward:       big.NewInt(1e18),
+			FirstHalvingBlock: big.NewInt(53_525_500),
+			HalvingPeriod:     big.NewInt(63_115_200),
+			FinishRewardBlock: big.NewInt(2_467_714_000), // target date: 2101-01-01 00:00:00 (GMT+09)
+			HalvingTimes:      16,
+			HalvingRate:       50,
+		},
+	}
+
+	// WemixTestnetChainConfig contains the chain parameters to run a node on the Wemix test network.
+	WemixTestnetChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(1112),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        big.NewInt(0),
+		DAOForkSupport:      true,
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		PangyoBlock:         big.NewInt(10_000_000),
+		ApplepieBlock:       big.NewInt(26_240_268),
+		BriocheBlock:        big.NewInt(59_414_700), // target date: 24-06-04 11:00:41 (GMT+09)
+		Ethash:              new(EthashConfig),
+		Brioche: &BriocheConfig{
+			BlockReward:       big.NewInt(1e18),
+			FirstHalvingBlock: big.NewInt(59_414_700),
+			HalvingPeriod:     big.NewInt(63_115_200),
+			FinishRewardBlock: big.NewInt(2_473_258_000), // target date: 2100-12-01 11:02:21 (GMT+09)
+			HalvingTimes:      16,
+			HalvingRate:       50,
+		},
+	}
 
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
 	MainnetChainConfig = &ChainConfig{
@@ -171,24 +240,51 @@ var (
 		Clique:                        nil,
 	}
 
+	ebps = uint64(6)
+	bm   = "validator"
+	vsm  = "blockheader"
+	mb   = common.HexToAddress("0x0000000000000000000000000000000000000000")
+	mrts = uint64(4)
+
+	// customized for WEMIX chain
 	AllDevChainProtocolChanges = &ChainConfig{
-		ChainID:                       big.NewInt(1337),
-		HomesteadBlock:                big.NewInt(0),
-		EIP150Block:                   big.NewInt(0),
-		EIP155Block:                   big.NewInt(0),
-		EIP158Block:                   big.NewInt(0),
-		ByzantiumBlock:                big.NewInt(0),
-		ConstantinopleBlock:           big.NewInt(0),
-		PetersburgBlock:               big.NewInt(0),
-		IstanbulBlock:                 big.NewInt(0),
-		MuirGlacierBlock:              big.NewInt(0),
-		BerlinBlock:                   big.NewInt(0),
-		LondonBlock:                   big.NewInt(0),
-		ArrowGlacierBlock:             big.NewInt(0),
-		GrayGlacierBlock:              big.NewInt(0),
-		ShanghaiTime:                  newUint64(0),
-		TerminalTotalDifficulty:       big.NewInt(0),
-		TerminalTotalDifficultyPassed: true,
+		ChainID:             big.NewInt(1337),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		ArrowGlacierBlock:   big.NewInt(0),
+		GrayGlacierBlock:    big.NewInt(0),
+		BriocheBlock:        big.NewInt(0),
+		MontBlancBlock:      big.NewInt(0),
+		Brioche: &BriocheConfig{
+			BlockReward:       big.NewInt(1e18),
+			FirstHalvingBlock: big.NewInt(50),
+			HalvingPeriod:     big.NewInt(50),
+			FinishRewardBlock: big.NewInt(450),
+			HalvingTimes:      8,
+			HalvingRate:       50,
+		},
+		QBFT: &QBFTConfig{
+			EpochLength:              10,
+			BlockPeriodSeconds:       3,
+			EmptyBlockPeriodSeconds:  &ebps,
+			RequestTimeoutSeconds:    1000,
+			ProposerPolicy:           0,
+			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
+			BeneficiaryMode:          &bm,
+			MiningBeneficiary:        &mb,
+			ValidatorSelectionMode:   &vsm,
+			MaxRequestTimeoutSeconds: &mrts,
+			// You should assign `Validators` before using
+		},
 	}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
@@ -315,10 +411,11 @@ var (
 
 // NetworkNames are user friendly names to use in the chain spec banner.
 var NetworkNames = map[string]string{
-	MainnetChainConfig.ChainID.String(): "mainnet",
-	GoerliChainConfig.ChainID.String():  "goerli",
-	SepoliaChainConfig.ChainID.String(): "sepolia",
-	HoleskyChainConfig.ChainID.String(): "holesky",
+	WemixMainnetChainConfig.ChainID.String(): "mainnet",
+	WemixTestnetChainConfig.ChainID.String(): "testnet",
+	GoerliChainConfig.ChainID.String():       "goerli",
+	SepoliaChainConfig.ChainID.String():      "sepolia",
+	HoleskyChainConfig.ChainID.String():      "holesky",
 }
 
 // ChainConfig is the core config which determines the blockchain settings.
@@ -349,6 +446,10 @@ type ChainConfig struct {
 	ArrowGlacierBlock   *big.Int `json:"arrowGlacierBlock,omitempty"`   // Eip-4345 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	GrayGlacierBlock    *big.Int `json:"grayGlacierBlock,omitempty"`    // Eip-5133 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	MergeNetsplitBlock  *big.Int `json:"mergeNetsplitBlock,omitempty"`  // Virtual fork after The Merge to use as a network splitter
+	PangyoBlock         *big.Int `json:"pangyoBlock,omitempty"`         // Pangyo switch block (nil = no fork, 0 = already on Pangyo)
+	ApplepieBlock       *big.Int `json:"applepieBlock,omitempty"`       // Applepie switch block (nil = no fork, 0 = already on Applepie)
+	BriocheBlock        *big.Int `json:"briocheBlock,omitempty"`        // Brioche switch block (nil = no fork, 0 = already on Brioche)
+	MontBlancBlock      *big.Int `json:"montBlancBlock,omitempty"`      // MontBlanc switch block (nil = no fork, 0 = already on MontBlanc)
 
 	// Fork scheduling was switched from blocks to timestamps here
 
@@ -367,14 +468,68 @@ type ChainConfig struct {
 	TerminalTotalDifficultyPassed bool `json:"terminalTotalDifficultyPassed,omitempty"`
 
 	// Various consensus engines
-	Ethash *EthashConfig `json:"ethash,omitempty"`
-	Clique *CliqueConfig `json:"clique,omitempty"`
+	Ethash  *EthashConfig  `json:"ethash,omitempty"`
+	Clique  *CliqueConfig  `json:"clique,omitempty"`
+	Brioche *BriocheConfig `json:"brioche,omitempty"` // if this config is nil, brioche halving is not applied
 
 	// ## Quorum QBFT START
-	QBFT *QBFTConfig `json:"qbft,omitempty"` // Quorum
-
+	QBFT        *QBFTConfig  `json:"qbft,omitempty"`        // Quorum
 	Transitions []Transition `json:"transitions,omitempty"` // Quorum - transition config based on the block number
 	// ## Quorum QBFT END
+}
+
+// Brioche halving configuration
+type BriocheConfig struct {
+	// if the chain is on brioche hard fork, `RewardAmount` of gov contract is not used rather this BlockReward is used
+	BlockReward       *big.Int `json:"blockReward,omitempty"`       // nil - use default block reward(1e18)
+	FirstHalvingBlock *big.Int `json:"firstHalvingBlock,omitempty"` // nil - halving is not work. including this block
+	HalvingPeriod     *big.Int `json:"halvingPeriod,omitempty"`     // nil - halving is not work
+	FinishRewardBlock *big.Int `json:"finishRewardBlock,omitempty"` // nil - block reward goes on endlessly
+	HalvingTimes      uint64   `json:"halvingTimes,omitempty"`      // 0 - no halving
+	HalvingRate       uint32   `json:"halvingRate,omitempty"`       // 0 - no reward on halving; 100 - no halving; >100 - increasing reward
+}
+
+func (bc *BriocheConfig) GetBriocheBlockReward(defaultReward *big.Int, num *big.Int) *big.Int {
+	blockReward := new(big.Int).Set(defaultReward) // default brioche block reward
+	if bc != nil {
+		if bc.BlockReward != nil {
+			blockReward = new(big.Int).Set(bc.BlockReward)
+		}
+		if bc.FinishRewardBlock != nil &&
+			bc.FinishRewardBlock.Cmp(num) <= 0 {
+			blockReward = big.NewInt(0)
+		} else if bc.FirstHalvingBlock != nil &&
+			bc.HalvingPeriod != nil &&
+			bc.HalvingTimes > 0 &&
+			num.Cmp(bc.FirstHalvingBlock) >= 0 {
+			blockReward = bc.calcHalvedReward(blockReward, num)
+		}
+	}
+	return blockReward
+}
+
+func (bc *BriocheConfig) calcHalvedReward(baseReward *big.Int, num *big.Int) *big.Int {
+	elapsed := new(big.Int).Sub(num, bc.FirstHalvingBlock)
+	times := new(big.Int).Add(common.Big1, new(big.Int).Div(elapsed, bc.HalvingPeriod))
+	if times.Uint64() > bc.HalvingTimes {
+		times = big.NewInt(int64(bc.HalvingTimes))
+	}
+
+	reward := new(big.Int).Set(baseReward)
+	numerator := new(big.Int).Exp(big.NewInt(int64(bc.HalvingRate)), times, nil)
+	denominator := new(big.Int).Exp(big.NewInt(100), times, nil)
+	return reward.Div(reward.Mul(reward, numerator), denominator)
+}
+
+func (bc *BriocheConfig) String() string {
+	return fmt.Sprintf("{BlockReward: %v FirstHalvingBlock: %v HalvingPeriod: %v FinishRewardBlock: %v HalvingTimes: %v HalvingRate: %v}",
+		bc.BlockReward,
+		bc.FirstHalvingBlock,
+		bc.HalvingPeriod,
+		bc.FinishRewardBlock,
+		bc.HalvingTimes,
+		bc.HalvingRate,
+	)
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -426,7 +581,7 @@ func (c *ChainConfig) Description() string {
 	case c.QBFT != nil:
 		banner += "Consensus: QBFT (quorum-byzantine-fault-tolerance)\n"
 	default:
-		banner += "Consensus: unknown\n"
+		banner += "Consensus: WEMIX PoA\n"
 	}
 	banner += "\n"
 
@@ -456,20 +611,29 @@ func (c *ChainConfig) Description() string {
 	if c.GrayGlacierBlock != nil {
 		banner += fmt.Sprintf(" - Gray Glacier:                #%-8v (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/gray-glacier.md)\n", c.GrayGlacierBlock)
 	}
-	banner += "\n"
-
-	// Add a special section for the merge as it's non-obvious
-	if c.TerminalTotalDifficulty == nil {
-		banner += "The Merge is not yet available for this network!\n"
-		banner += " - Hard-fork specification: https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/paris.md\n"
-	} else {
-		banner += "Merge configured:\n"
-		banner += " - Hard-fork specification:    https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/paris.md\n"
-		banner += fmt.Sprintf(" - Network known to be merged: %v\n", c.TerminalTotalDifficultyPassed)
-		banner += fmt.Sprintf(" - Total terminal difficulty:  %v\n", c.TerminalTotalDifficulty)
-		if c.MergeNetsplitBlock != nil {
-			banner += fmt.Sprintf(" - Merge netsplit block:       #%-8v\n", c.MergeNetsplitBlock)
-		}
+	banner += fmt.Sprintf(" - Pangyo:                      #%-8v\n", c.PangyoBlock)
+	banner += fmt.Sprintf(" - Applepie:                    #%-8v\n", c.ApplepieBlock)
+	banner += fmt.Sprintf(" - Brioche:                     #%-8v\n", c.BriocheBlock)
+	if c.Brioche != nil {
+		banner += fmt.Sprintf("   - FirstHalvingBlock:         #%-8v\n", c.Brioche.FirstHalvingBlock)
+		banner += fmt.Sprintf("   - HalvingPeriod:             %-8v\n", c.Brioche.HalvingPeriod)
+		banner += fmt.Sprintf("   - FinishRewardBlock:         #%-8v\n", c.Brioche.FinishRewardBlock)
+		banner += fmt.Sprintf("   - HalvingTimes:              %-8v\n", c.Brioche.HalvingTimes)
+		banner += fmt.Sprintf("   - HalvingRate:               %-8v\n", c.Brioche.HalvingRate)
+	}
+	banner += fmt.Sprintf(" - MontBlanc:                   #%-8v\n", c.MontBlancBlock)
+	if c.QBFT != nil {
+		banner += fmt.Sprintf("   - EpochLength:               %-8v\n", c.QBFT.EpochLength)
+		banner += fmt.Sprintf("   - BlockPeriodSeconds:        %-8v\n", c.QBFT.BlockPeriodSeconds)
+		banner += fmt.Sprintf("   - EmptyBlockPeriodSeconds:   %-8v\n", *c.QBFT.EmptyBlockPeriodSeconds)
+		banner += fmt.Sprintf("   - RequestTimeoutSeconds:     %-8v\n", c.QBFT.RequestTimeoutSeconds)
+		banner += fmt.Sprintf("   - ProposerPolicy:            %-8v\n", c.QBFT.ProposerPolicy)
+		banner += fmt.Sprintf("   - BlockReward:               %-8v\n", ((*big.Int)(c.QBFT.BlockReward)).Int64())
+		banner += fmt.Sprintf("   - BeneficiaryMode:           %v\n", *c.QBFT.BeneficiaryMode)
+		banner += fmt.Sprintf("   - MiningBeneficiary:         %v\n", c.QBFT.MiningBeneficiary)
+		banner += fmt.Sprintf("   - ValidatorSelectionMode:    %v\n", *c.QBFT.ValidatorSelectionMode)
+		banner += fmt.Sprintf("   - Validators:                %v\n", c.QBFT.Validators)
+		banner += fmt.Sprintf("   - MaxRequestTimeoutSeconds:  %-8v\n", *c.QBFT.MaxRequestTimeoutSeconds)
 	}
 	banner += "\n"
 
@@ -550,6 +714,25 @@ func (c *ChainConfig) IsBerlin(num *big.Int) bool {
 // IsLondon returns whether num is either equal to the London fork block or greater.
 func (c *ChainConfig) IsLondon(num *big.Int) bool {
 	return isBlockForked(c.LondonBlock, num)
+}
+
+// IsPangyo returns whether num is either equal to the Pangyo fork block or greater.
+func (c *ChainConfig) IsPangyo(num *big.Int) bool {
+	return isBlockForked(c.PangyoBlock, num)
+}
+
+// fee delegation
+// IsApplepie returns whether num is either equal to the Applepie fork block or greater.
+func (c *ChainConfig) IsApplepie(num *big.Int) bool {
+	return isBlockForked(c.ApplepieBlock, num)
+}
+
+func (c *ChainConfig) IsBrioche(num *big.Int) bool {
+	return isBlockForked(c.BriocheBlock, num)
+}
+
+func (c *ChainConfig) IsMontBlanc(num *big.Int) bool {
+	return isBlockForked(c.MontBlancBlock, num)
 }
 
 // IsArrowGlacier returns whether num is either equal to the Arrow Glacier (EIP-4345) fork block or greater.
@@ -640,8 +823,11 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "londonBlock", block: c.LondonBlock},
 		{name: "arrowGlacierBlock", block: c.ArrowGlacierBlock, optional: true},
 		{name: "grayGlacierBlock", block: c.GrayGlacierBlock, optional: true},
+		{name: "pangyoBlock", block: c.PangyoBlock, optional: true},
+		{name: "applepieBlock", block: c.ApplepieBlock, optional: true},
+		{name: "briocheBlock", block: c.BriocheBlock, optional: true},
 		{name: "mergeNetsplitBlock", block: c.MergeNetsplitBlock, optional: true},
-		{name: "shanghaiTime", timestamp: c.ShanghaiTime},
+		{name: "shanghaiTime", timestamp: c.ShanghaiTime, optional: true},
 		{name: "cancunTime", timestamp: c.CancunTime, optional: true},
 		{name: "pragueTime", timestamp: c.PragueTime, optional: true},
 		{name: "verkleTime", timestamp: c.VerkleTime, optional: true},
@@ -735,6 +921,15 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkBlockIncompatible(c.GrayGlacierBlock, newcfg.GrayGlacierBlock, headNumber) {
 		return newBlockCompatError("Gray Glacier fork block", c.GrayGlacierBlock, newcfg.GrayGlacierBlock)
+	}
+	if isForkBlockIncompatible(c.PangyoBlock, newcfg.PangyoBlock, headNumber) {
+		return newBlockCompatError("Pangyo fork block", c.PangyoBlock, newcfg.PangyoBlock)
+	}
+	if isForkBlockIncompatible(c.ApplepieBlock, newcfg.ApplepieBlock, headNumber) {
+		return newBlockCompatError("Applepie fork block", c.ApplepieBlock, newcfg.ApplepieBlock)
+	}
+	if isForkBlockIncompatible(c.BriocheBlock, newcfg.BriocheBlock, headNumber) {
+		return newBlockCompatError("Brioche fork block", c.BriocheBlock, newcfg.BriocheBlock)
 	}
 	if isForkBlockIncompatible(c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock, headNumber) {
 		return newBlockCompatError("Merge netsplit fork block", c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock)
@@ -912,6 +1107,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
+	IsPangyo, IsApplepie, IsBrioche                         bool
 	IsMerge, IsShanghai, IsCancun, IsPrague                 bool
 	IsVerkle                                                bool
 }
@@ -936,6 +1132,9 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsIstanbul:       c.IsIstanbul(num),
 		IsBerlin:         c.IsBerlin(num),
 		IsLondon:         c.IsLondon(num),
+		IsPangyo:         c.IsPangyo(num),
+		IsApplepie:       c.IsApplepie(num),
+		IsBrioche:        c.IsBrioche(num),
 		IsMerge:          isMerge,
 		IsShanghai:       isMerge && c.IsShanghai(num, timestamp),
 		IsCancun:         isMerge && c.IsCancun(num, timestamp),

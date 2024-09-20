@@ -21,10 +21,11 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/holiman/uint256"
 )
 
 // Tests that transactions can be added to strict lists and list contents and
@@ -83,7 +84,7 @@ func BenchmarkListAdd(b *testing.B) {
 		list := newList(true)
 		for _, v := range rand.Perm(len(txs)) {
 			list.Add(txs[v], DefaultConfig.PriceBump)
-			list.Filter(priceLimit, DefaultConfig.PriceBump)
+			list.Filter(false, nil, priceLimit, DefaultConfig.PriceBump)
 		}
 	}
 }

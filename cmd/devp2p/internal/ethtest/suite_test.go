@@ -121,10 +121,6 @@ func runGeth(dir string, jwtPath string) (*node.Node, error) {
 		stack.Close()
 		return nil, err
 	}
-	if err = stack.Start(); err != nil {
-		stack.Close()
-		return nil, err
-	}
 	return stack, nil
 }
 
@@ -148,6 +144,13 @@ func setupGeth(stack *node.Node, dir string) error {
 	if err := catalyst.Register(stack, backend); err != nil {
 		return fmt.Errorf("failed to register catalyst service: %v", err)
 	}
+
+	if err = stack.Start(); err != nil {
+		stack.Close()
+		return err
+	}
+
+	// the `node` should be started before `InsertChain`
 	_, err = backend.BlockChain().InsertChain(chain.blocks[1:])
 	return err
 }

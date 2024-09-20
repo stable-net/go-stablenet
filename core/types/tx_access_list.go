@@ -120,6 +120,12 @@ func (tx *AccessListTx) setSignatureValues(chainID, v, r, s *big.Int) {
 	tx.ChainID, tx.V, tx.R, tx.S = chainID, v, r, s
 }
 
+// WEMIX fee delegation
+func (tx *AccessListTx) feePayer() *common.Address { return nil }
+func (tx *AccessListTx) rawFeePayerSignatureValues() (v, r, s *big.Int) {
+	return nil, nil, nil
+}
+
 func (tx *AccessListTx) encode(b *bytes.Buffer) error {
 	return rlp.Encode(b, tx)
 }

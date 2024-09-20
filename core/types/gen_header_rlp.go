@@ -38,11 +38,15 @@ func (obj *Header) EncodeRLP(_w io.Writer) error {
 	w.WriteBytes(obj.MixDigest[:])
 	w.WriteBytes(obj.Nonce[:])
 	_tmp1 := obj.BaseFee != nil
-	_tmp2 := obj.WithdrawalsHash != nil
-	_tmp3 := obj.BlobGasUsed != nil
-	_tmp4 := obj.ExcessBlobGas != nil
-	_tmp5 := obj.ParentBeaconRoot != nil
-	if _tmp1 || _tmp2 || _tmp3 || _tmp4 || _tmp5 {
+	_tmp2 := obj.Fees != nil
+	_tmp3 := len(obj.Rewards) > 0
+	_tmp4 := len(obj.MinerNodeId) > 0
+	_tmp5 := len(obj.MinerNodeSig) > 0
+	_tmp6 := obj.WithdrawalsHash != nil
+	_tmp7 := obj.BlobGasUsed != nil
+	_tmp8 := obj.ExcessBlobGas != nil
+	_tmp9 := obj.ParentBeaconRoot != nil
+	if _tmp1 || _tmp2 || _tmp3 || _tmp4 || _tmp5 || _tmp6 || _tmp7 || _tmp8 || _tmp9 {
 		if obj.BaseFee == nil {
 			w.Write(rlp.EmptyString)
 		} else {
@@ -52,28 +56,47 @@ func (obj *Header) EncodeRLP(_w io.Writer) error {
 			w.WriteBigInt(obj.BaseFee)
 		}
 	}
-	if _tmp2 || _tmp3 || _tmp4 || _tmp5 {
+	if _tmp2 || _tmp3 || _tmp4 || _tmp5 || _tmp6 || _tmp7 || _tmp8 || _tmp9 {
+		if obj.Fees == nil {
+			w.Write(rlp.EmptyString)
+		} else {
+			if obj.Fees.Sign() == -1 {
+				return rlp.ErrNegativeBigInt
+			}
+			w.WriteBigInt(obj.Fees)
+		}
+	}
+	if _tmp3 || _tmp4 || _tmp5 || _tmp6 || _tmp7 || _tmp8 || _tmp9 {
+		w.WriteBytes(obj.Rewards)
+	}
+	if _tmp4 || _tmp5 || _tmp6 || _tmp7 || _tmp8 || _tmp9 {
+		w.WriteBytes(obj.MinerNodeId)
+	}
+	if _tmp5 || _tmp6 || _tmp7 || _tmp8 || _tmp9 {
+		w.WriteBytes(obj.MinerNodeSig)
+	}
+	if _tmp6 || _tmp7 || _tmp8 || _tmp9 {
 		if obj.WithdrawalsHash == nil {
 			w.Write([]byte{0x80})
 		} else {
 			w.WriteBytes(obj.WithdrawalsHash[:])
 		}
 	}
-	if _tmp3 || _tmp4 || _tmp5 {
+	if _tmp7 || _tmp8 || _tmp9 {
 		if obj.BlobGasUsed == nil {
 			w.Write([]byte{0x80})
 		} else {
 			w.WriteUint64((*obj.BlobGasUsed))
 		}
 	}
-	if _tmp4 || _tmp5 {
+	if _tmp8 || _tmp9 {
 		if obj.ExcessBlobGas == nil {
 			w.Write([]byte{0x80})
 		} else {
 			w.WriteUint64((*obj.ExcessBlobGas))
 		}
 	}
-	if _tmp5 {
+	if _tmp9 {
 		if obj.ParentBeaconRoot == nil {
 			w.Write([]byte{0x80})
 		} else {

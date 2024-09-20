@@ -178,6 +178,12 @@ func (tx *BlobTx) rawSignatureValues() (v, r, s *big.Int) {
 	return tx.V.ToBig(), tx.R.ToBig(), tx.S.ToBig()
 }
 
+// fee delegation
+func (tx *BlobTx) feePayer() *common.Address { return nil }
+func (tx *BlobTx) rawFeePayerSignatureValues() (v, r, s *big.Int) {
+	return nil, nil, nil
+}
+
 func (tx *BlobTx) setSignatureValues(chainID, v, r, s *big.Int) {
 	tx.ChainID.SetFromBig(chainID)
 	tx.V.SetFromBig(v)

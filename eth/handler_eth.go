@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-// ethHandler implements the eth.Backend interface to handle the various network
+// ethHandler implements the eth.backend interface to handle the various network
 // packets that are sent as replies or broadcasts.
 type ethHandler handler
 

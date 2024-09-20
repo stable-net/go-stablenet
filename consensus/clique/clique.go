@@ -712,6 +712,11 @@ func (c *Clique) Close() error {
 	return nil
 }
 
+// CallEngineSpecific implements consensus.Engine
+func (c *Clique) CallEngineSpecific(method string, args ...interface{}) interface{} {
+	return nil
+}
+
 // APIs implements consensus.Engine, returning the user facing RPC API to allow
 // controlling the signer voting.
 func (c *Clique) APIs(chain consensus.ChainHeaderReader) []rpc.API {

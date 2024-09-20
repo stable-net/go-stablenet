@@ -32,11 +32,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/wemixgov"
+	"github.com/ethereum/go-ethereum/wemixgov/cli"
 	"github.com/gofrs/flock"
 )
 
@@ -63,6 +66,8 @@ type Node struct {
 	wsAuth        *httpServer //
 	ipc           *ipcServer  // Stores information about the ipc http server
 	inprocHandler *rpc.Server // In-process RPC request handler to process the API requests
+
+	govBackend wemixgov.GovBackend // gov api backend for consensus engine
 
 	databases map[*closeTrackingDB]struct{} // All open databases
 }
@@ -153,7 +158,10 @@ func New(conf *Config) (*Node, error) {
 	node.ws = newHTTPServer(node.log, rpc.DefaultHTTPTimeouts)
 	node.wsAuth = newHTTPServer(node.log, rpc.DefaultHTTPTimeouts)
 	node.ipc = newIPCServer(node.log, conf.IPCEndpoint())
-
+	node.govBackend, err = cli.NewGovCli(ethclient.NewClient(node.Attach()))
+	if err != nil {
+		return nil, err
+	}
 	return node, nil
 }
 
@@ -225,6 +233,10 @@ func (n *Node) Close() error {
 	default:
 		panic(fmt.Sprintf("node is in unknown state %d", state))
 	}
+}
+
+func (n *Node) GovBackend() wemixgov.GovBackend {
+	return n.govBackend
 }
 
 // doClose releases resources acquired by New(), collecting errors.

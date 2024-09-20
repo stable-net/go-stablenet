@@ -102,4 +102,6 @@ var (
 	ErrInvalidSigner = errors.New("message not signed by the sender")
 
 	ErrInvalidGenesis = errors.New("genesis must only specify single validator mode for block zero")
+
+	ErrInvalidSpecificCall = errors.New("invalid method name for engine specific function")
 )

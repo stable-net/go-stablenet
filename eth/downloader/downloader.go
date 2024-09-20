@@ -398,6 +398,7 @@ func (d *Downloader) synchronise(id string, hash common.Hash, td, ttd *big.Int, 
 	// Post a user notification of the sync (only once per session)
 	if d.notified.CompareAndSwap(false, true) {
 		log.Info("Block synchronisation started")
+		defer log.Info("Block synchronisation finished")
 	}
 	if mode == SnapSync {
 		// Snap sync will directly modify the persistent state, making the entire
@@ -650,7 +651,7 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td, ttd *
 		d.pivotHeader = pivot
 		d.pivotLock.Unlock()
 
-		fetchers = append(fetchers, func() error { return d.processSnapSyncContent() })
+		fetchers = append(fetchers, func() error { return d.processSnapSyncContent(beaconMode) })
 	} else if mode == FullSync {
 		fetchers = append(fetchers, func() error { return d.processFullSyncContent(ttd, beaconMode) })
 	}
@@ -1484,7 +1485,7 @@ func (d *Downloader) processFullSyncContent(ttd *big.Int, beaconMode bool) error
 				}
 			}
 		}
-		if err := d.importBlockResults(results); err != nil {
+		if err := d.importBlockResults(results, beaconMode); err != nil {
 			return err
 		}
 		if len(rejected) != 0 {
@@ -1494,7 +1495,7 @@ func (d *Downloader) processFullSyncContent(ttd *big.Int, beaconMode bool) error
 	}
 }
 
-func (d *Downloader) importBlockResults(results []*fetchResult) error {
+func (d *Downloader) importBlockResults(results []*fetchResult, beaconMode bool) error {
 	// Check for any early termination requests
 	if len(results) == 0 {
 		return nil
@@ -1522,7 +1523,7 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 			log.Debug("Downloaded item processing failed", "number", results[index].Header.Number, "hash", results[index].Header.Hash(), "err", err)
 
 			// In post-merge, notify the engine API of encountered bad chains
-			if d.badBlock != nil {
+			if beaconMode && d.badBlock != nil {
 				head, _, _, err := d.skeleton.Bounds()
 				if err != nil {
 					log.Error("Failed to retrieve beacon bounds for bad block reporting", "err", err)
@@ -1544,7 +1545,7 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 
 // processSnapSyncContent takes fetch results from the queue and writes them to the
 // database. It also controls the synchronisation of state nodes of the pivot block.
-func (d *Downloader) processSnapSyncContent() error {
+func (d *Downloader) processSnapSyncContent(beaconMode bool) error {
 	// Start syncing state of the reported head block. This should get us most of
 	// the state of the pivot block.
 	d.pivotLock.RLock()
@@ -1678,7 +1679,7 @@ func (d *Downloader) processSnapSyncContent() error {
 			}
 		}
 		// Fast sync done, pivot commit done, full import
-		if err := d.importBlockResults(afterP); err != nil {
+		if err := d.importBlockResults(afterP, beaconMode); err != nil {
 			return err
 		}
 	}

@@ -26,6 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // ## Quorum QBFT START
@@ -82,6 +83,18 @@ func TestExtractToQBFTExtra(t *testing.T) {
 			t.Errorf("expected: %v, but got: %v", test.expectedResult, istanbulExtra)
 		}
 	}
+}
+
+func TestGenerateExtra(t *testing.T) {
+	sampleExtra := &QBFTExtra{
+		VanityData: []byte("WEMIX MontBlanc chain block"),
+		Validators: []common.Address{
+			common.BytesToAddress(hexutil.MustDecode("0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697")),
+		},
+		Round: 0,
+	}
+	b, _ := rlp.EncodeToBytes(sampleExtra)
+	t.Logf("extra bytes: %v\n", hexutil.Encode(b))
 }
 
 // ## Quorum QBFT END

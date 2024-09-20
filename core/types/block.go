@@ -86,6 +86,12 @@ type Header struct {
 	// BaseFee was added by EIP-1559 and is ignored in legacy headers.
 	BaseFee *big.Int `json:"baseFeePerGas" rlp:"optional"`
 
+	// WEMIX fields
+	Fees         *big.Int `json:"fees" rlp:"optional"`
+	Rewards      []byte   `json:"rewards" rlp:"optional"`
+	MinerNodeId  []byte   `json:"minerNodeId" rlp:"optional"`
+	MinerNodeSig []byte   `json:"minerNodeSig" rlp:"optional"`
+
 	// WithdrawalsHash was added by EIP-4895 and is ignored in legacy headers.
 	WithdrawalsHash *common.Hash `json:"withdrawalsRoot" rlp:"optional"`
 
@@ -99,18 +105,19 @@ type Header struct {
 	ParentBeaconRoot *common.Hash `json:"parentBeaconBlockRoot" rlp:"optional"`
 }
 
-// field type overrides for gencodec
 type headerMarshaling struct {
-	Difficulty    *hexutil.Big
-	Number        *hexutil.Big
-	GasLimit      hexutil.Uint64
-	GasUsed       hexutil.Uint64
-	Time          hexutil.Uint64
-	Extra         hexutil.Bytes
-	BaseFee       *hexutil.Big
-	Hash          common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
-	BlobGasUsed   *hexutil.Uint64
-	ExcessBlobGas *hexutil.Uint64
+	Difficulty   *hexutil.Big
+	Number       *hexutil.Big
+	GasLimit     hexutil.Uint64
+	GasUsed      hexutil.Uint64
+	Fees         *hexutil.Big
+	Time         hexutil.Uint64
+	Extra        hexutil.Bytes
+	Rewards      hexutil.Bytes
+	MinerNodeId  hexutil.Bytes
+	MinerNodeSig hexutil.Bytes
+	BaseFee      *hexutil.Big
+	Hash         common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 }
 
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
@@ -138,7 +145,7 @@ func (h *Header) Size() common.StorageSize {
 	if h.BaseFee != nil {
 		baseFeeBits = h.BaseFee.BitLen()
 	}
-	return headerSize + common.StorageSize(len(h.Extra)+(h.Difficulty.BitLen()+h.Number.BitLen()+baseFeeBits)/8)
+	return headerSize + common.StorageSize(len(h.Extra)+len(h.Rewards)+(h.Difficulty.BitLen()+h.Number.BitLen()+baseFeeBits)/8)
 }
 
 // SanityCheck checks a few basic things -- these checks are way beyond what
@@ -310,6 +317,13 @@ func CopyHeader(h *Header) *Header {
 		cpy.Extra = make([]byte, len(h.Extra))
 		copy(cpy.Extra, h.Extra)
 	}
+	if len(h.Rewards) > 0 {
+		cpy.Rewards = make([]byte, len(h.Rewards))
+		copy(cpy.Rewards, h.Rewards)
+	}
+	if h.Fees != nil {
+		cpy.Fees = new(big.Int).Set(h.Fees)
+	}
 	if h.WithdrawalsHash != nil {
 		cpy.WithdrawalsHash = new(common.Hash)
 		*cpy.WithdrawalsHash = *h.WithdrawalsHash
@@ -397,6 +411,10 @@ func (b *Block) TxHash() common.Hash      { return b.header.TxHash }
 func (b *Block) ReceiptHash() common.Hash { return b.header.ReceiptHash }
 func (b *Block) UncleHash() common.Hash   { return b.header.UncleHash }
 func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.Extra) }
+func (b *Block) Fees() *big.Int           { return b.header.Fees }
+func (b *Block) Rewards() []byte          { return common.CopyBytes(b.header.Rewards) }
+func (b *Block) MinerNodeId() []byte      { return b.header.MinerNodeId }
+func (b *Block) MinerNodeSig() []byte     { return b.header.MinerNodeSig }
 
 func (b *Block) BaseFee() *big.Int {
 	if b.header.BaseFee == nil {

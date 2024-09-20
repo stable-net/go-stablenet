@@ -128,16 +128,19 @@ func toWordSize(size uint64) uint64 {
 // A Message contains the data derived from a single transaction that is relevant to state
 // processing.
 type Message struct {
-	To            *common.Address
-	From          common.Address
-	Nonce         uint64
-	Value         *big.Int
-	GasLimit      uint64
-	GasPrice      *big.Int
-	GasFeeCap     *big.Int
-	GasTipCap     *big.Int
-	Data          []byte
-	AccessList    types.AccessList
+	To         *common.Address
+	From       common.Address
+	Nonce      uint64
+	Value      *big.Int
+	GasLimit   uint64
+	GasPrice   *big.Int
+	GasFeeCap  *big.Int
+	GasTipCap  *big.Int
+	Data       []byte
+	AccessList types.AccessList
+	// WEMIX fee delegation
+	FeePayer *common.Address
+
 	BlobGasFeeCap *big.Int
 	BlobHashes    []common.Hash
 
@@ -166,6 +169,10 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee *big.In
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
 	if baseFee != nil {
 		msg.GasPrice = cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap)
+	}
+	// WEMIX fee delegation
+	if tx.FeePayer() != nil {
+		msg.FeePayer = tx.FeePayer()
 	}
 	var err error
 	msg.From, err = types.Sender(s, tx)
@@ -233,42 +240,96 @@ func (st *StateTransition) to() common.Address {
 }
 
 func (st *StateTransition) buyGas() error {
-	mgval := new(big.Int).SetUint64(st.msg.GasLimit)
-	mgval = mgval.Mul(mgval, st.msg.GasPrice)
-	balanceCheck := new(big.Int).Set(mgval)
-	if st.msg.GasFeeCap != nil {
-		balanceCheck.SetUint64(st.msg.GasLimit)
-		balanceCheck = balanceCheck.Mul(balanceCheck, st.msg.GasFeeCap)
-		balanceCheck.Add(balanceCheck, st.msg.Value)
-	}
-	if st.evm.ChainConfig().IsCancun(st.evm.Context.BlockNumber, st.evm.Context.Time) {
-		if blobGas := st.blobGasUsed(); blobGas > 0 {
-			// Check that the user has enough funds to cover blobGasUsed * tx.BlobGasFeeCap
-			blobBalanceCheck := new(big.Int).SetUint64(blobGas)
-			blobBalanceCheck.Mul(blobBalanceCheck, st.msg.BlobGasFeeCap)
-			balanceCheck.Add(balanceCheck, blobBalanceCheck)
-			// Pay for blobGasUsed * actual blob fee
-			blobFee := new(big.Int).SetUint64(blobGas)
-			blobFee.Mul(blobFee, st.evm.Context.BlobBaseFee)
-			mgval.Add(mgval, blobFee)
+	if st.msg.FeePayer == nil || *st.msg.FeePayer == st.msg.From {
+		mgval := new(big.Int).SetUint64(st.msg.GasLimit)
+		mgval.Mul(mgval, st.msg.GasPrice)
+		balanceCheck := new(big.Int).Set(mgval)
+		if st.msg.GasFeeCap != nil {
+			balanceCheck.SetUint64(st.msg.GasLimit)
+			balanceCheck = balanceCheck.Mul(balanceCheck, st.msg.GasFeeCap)
+			balanceCheck.Add(balanceCheck, st.msg.Value)
 		}
-	}
-	balanceCheckU256, overflow := uint256.FromBig(balanceCheck)
-	if overflow {
-		return fmt.Errorf("%w: address %v required balance exceeds 256 bits", ErrInsufficientFunds, st.msg.From.Hex())
-	}
-	if have, want := st.state.GetBalance(st.msg.From), balanceCheckU256; have.Cmp(want) < 0 {
-		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
-	}
-	if err := st.gp.SubGas(st.msg.GasLimit); err != nil {
-		return err
-	}
-	st.gasRemaining += st.msg.GasLimit
 
-	st.initialGas = st.msg.GasLimit
-	mgvalU256, _ := uint256.FromBig(mgval)
-	st.state.SubBalance(st.msg.From, mgvalU256)
-	return nil
+		if st.evm.ChainConfig().IsCancun(st.evm.Context.BlockNumber, st.evm.Context.Time) {
+			if blobGas := st.blobGasUsed(); blobGas > 0 {
+				// Check that the user has enough funds to cover blobGasUsed * tx.BlobGasFeeCap
+				blobBalanceCheck := new(big.Int).SetUint64(blobGas)
+				blobBalanceCheck.Mul(blobBalanceCheck, st.msg.BlobGasFeeCap)
+				balanceCheck.Add(balanceCheck, blobBalanceCheck)
+				// Pay for blobGasUsed * actual blob fee
+				blobFee := new(big.Int).SetUint64(blobGas)
+				blobFee.Mul(blobFee, st.evm.Context.BlobBaseFee)
+				mgval.Add(mgval, blobFee)
+			}
+		}
+		balanceCheckU256, overflow := uint256.FromBig(balanceCheck)
+		if overflow {
+			return fmt.Errorf("%w: address %v required balance exceeds 256 bits", ErrInsufficientFunds, st.msg.From.Hex())
+		}
+		if have, want := st.state.GetBalance(st.msg.From), balanceCheckU256; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
+		}
+		if err := st.gp.SubGas(st.msg.GasLimit); err != nil {
+			return err
+		}
+		st.gasRemaining += st.msg.GasLimit
+
+		st.initialGas = st.msg.GasLimit
+		mgvalU256, _ := uint256.FromBig(mgval)
+		st.state.SubBalance(st.msg.From, mgvalU256)
+		return nil
+	} else {
+		if !st.evm.ChainConfig().IsApplepie(st.evm.Context.BlockNumber) {
+			return fmt.Errorf("%w: fee delegation type not supported", ErrTxTypeNotSupported)
+		}
+
+		mgval := new(big.Int).SetUint64(st.msg.GasLimit)
+		mgval.Mul(mgval, st.msg.GasPrice)
+		feeCheck := new(big.Int).Set(mgval)
+		valCheck := new(big.Int)
+		if st.msg.GasFeeCap != nil {
+			feeCheck.SetUint64(st.msg.GasLimit)
+			feeCheck = feeCheck.Mul(feeCheck, st.msg.GasFeeCap)
+			valCheck.Set(st.msg.Value)
+		}
+
+		if st.evm.ChainConfig().IsCancun(st.evm.Context.BlockNumber, st.evm.Context.Time) {
+			if blobGas := st.blobGasUsed(); blobGas > 0 {
+				// Check that the user has enough funds to cover blobGasUsed * tx.BlobGasFeeCap
+				blobBalanceCheck := new(big.Int).SetUint64(blobGas)
+				blobBalanceCheck.Mul(blobBalanceCheck, st.msg.BlobGasFeeCap)
+				feeCheck.Add(feeCheck, blobBalanceCheck)
+				// Pay for blobGasUsed * actual blob fee
+				blobFee := new(big.Int).SetUint64(blobGas)
+				blobFee.Mul(blobFee, st.evm.Context.BlobBaseFee)
+				mgval.Add(mgval, blobFee)
+			}
+		}
+		feeCheckU256, overflow := uint256.FromBig(feeCheck)
+		if overflow {
+			return fmt.Errorf("%w: address %v required balance exceeds 256 bits", ErrInsufficientFunds, st.msg.From.Hex())
+		}
+		valCheckU256, overflow := uint256.FromBig(valCheck)
+		if overflow {
+			return fmt.Errorf("%w: address %v required balance exceeds 256 bits", ErrInsufficientFunds, st.msg.From.Hex())
+		}
+		if have, want := st.state.GetBalance(*st.msg.FeePayer), feeCheckU256; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.FeePayer.Hex(), have, want)
+		}
+		if have, want := st.state.GetBalance(st.msg.From), valCheckU256; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From.Hex(), have, want)
+		}
+		if err := st.gp.SubGas(st.msg.GasLimit); err != nil {
+			return err
+		}
+
+		st.gasRemaining += st.msg.GasLimit
+
+		st.initialGas = st.msg.GasLimit
+		mgvalU256, _ := uint256.FromBig(mgval)
+		st.state.SubBalance(*st.msg.FeePayer, mgvalU256)
+		return nil
+	}
 }
 
 func (st *StateTransition) preCheck() error {
@@ -443,22 +504,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		// After EIP-3529: refunds are capped to gasUsed / 5
 		gasRefund = st.refundGas(params.RefundQuotientEIP3529)
 	}
-	effectiveTip := msg.GasPrice
-	if rules.IsLondon {
-		effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
-	}
-	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
-	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
-		// Skip fee payment when NoBaseFee is set and the fee fields
-		// are 0. This avoids a negative effectiveTip being applied to
-		// the coinbase when simulating calls.
-	} else {
-		fee := new(uint256.Int).SetUint64(st.gasUsed())
-		fee.Mul(fee, effectiveTipU256)
-		st.state.AddBalance(st.evm.Context.Coinbase, fee)
-	}
-
+	// WEMIX
+	// fee is not paid to the coinbase in WEMIX
 	return &ExecutionResult{
 		UsedGas:     st.gasUsed(),
 		RefundedGas: gasRefund,
@@ -478,7 +526,13 @@ func (st *StateTransition) refundGas(refundQuotient uint64) uint64 {
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := uint256.NewInt(st.gasRemaining)
 	remaining = remaining.Mul(remaining, uint256.MustFromBig(st.msg.GasPrice))
-	st.state.AddBalance(st.msg.From, remaining)
+
+	// fee delegation
+	if st.msg.FeePayer != nil {
+		st.state.AddBalance(*st.msg.FeePayer, remaining)
+	} else {
+		st.state.AddBalance(st.msg.From, remaining)
+	}
 
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.

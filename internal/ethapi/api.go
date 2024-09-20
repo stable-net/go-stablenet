@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/consensus/wpoa"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -157,6 +158,10 @@ func (s *EthereumAPI) Syncing() (interface{}, error) {
 		"txIndexFinishedBlocks":  hexutil.Uint64(progress.TxIndexFinishedBlocks),
 		"txIndexRemainingBlocks": hexutil.Uint64(progress.TxIndexRemainingBlocks),
 	}, nil
+}
+
+func (b *EthereumAPI) WemixInfo() interface{} {
+	return wpoa.Info(b.b.CurrentHeader())
 }
 
 // TxPoolAPI offers and API for the transaction pool. It only operates on data that is non-confidential.
@@ -448,6 +453,10 @@ func (s *PersonalAccountAPI) LockAccount(addr common.Address) bool {
 func (s *PersonalAccountAPI) signTransaction(ctx context.Context, args *TransactionArgs, passwd string) (*types.Transaction, error) {
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.from()}
+	// WEMIX fee delegation
+	if args.FeePayer != nil {
+		account = accounts.Account{Address: *args.FeePayer}
+	}
 	wallet, err := s.am.Find(account)
 	if err != nil {
 		return nil, err
@@ -615,6 +624,69 @@ func (s *PersonalAccountAPI) Unpair(ctx context.Context, url string, pin string)
 	default:
 		return errors.New("specified wallet does not support pairing")
 	}
+}
+
+// WEMIX fee delegation
+// SignRawFeeDelegateTransaction will create a transaction from the given arguments and
+// tries to sign it with the key associated with args.feePayer. If the given passwd isn't
+// able to decrypt the key it fails. The transaction is returned in RLP-form, not broadcast
+// to other nodes
+func (s *PersonalAccountAPI) SignRawFeeDelegateTransaction(ctx context.Context, args TransactionArgs, input hexutil.Bytes, passwd string) (*SignTransactionResult, error) {
+	if args.FeePayer == nil {
+		return nil, fmt.Errorf("missing FeePayer")
+	}
+
+	// Look up the wallet containing the requested signer
+	account := accounts.Account{Address: *args.FeePayer}
+
+	wallet, err := s.am.Find(account)
+	if err != nil {
+		return nil, err
+	}
+
+	rawTx := new(types.Transaction)
+	if err := rawTx.UnmarshalBinary(input); err != nil {
+		return nil, err
+	}
+
+	V, R, S := rawTx.RawSignatureValues()
+	if rawTx.Type() == types.DynamicFeeTxType {
+		SenderTx := types.DynamicFeeTx{
+			To:         rawTx.To(),
+			ChainID:    rawTx.ChainId(),
+			Nonce:      rawTx.Nonce(),
+			Gas:        rawTx.Gas(),
+			GasFeeCap:  rawTx.GasFeeCap(),
+			GasTipCap:  rawTx.GasTipCap(),
+			Value:      rawTx.Value(),
+			Data:       rawTx.Data(),
+			AccessList: rawTx.AccessList(),
+			V:          V,
+			R:          R,
+			S:          S,
+		}
+
+		FeeDelegateDynamicFeeTx := &types.FeeDelegateDynamicFeeTx{
+			FeePayer: args.FeePayer,
+		}
+
+		FeeDelegateDynamicFeeTx.SetSenderTx(SenderTx)
+		tx := types.NewTx(FeeDelegateDynamicFeeTx)
+
+		signed, err := wallet.SignTxWithPassphrase(account, passwd, tx, s.b.ChainConfig().ChainID)
+
+		if err != nil {
+			return nil, err
+		}
+		data, err := signed.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+
+		return &SignTransactionResult{data, signed}, nil
+	}
+
+	return nil, fmt.Errorf("senderTx type error")
 }
 
 // BlockChainAPI provides an API to access Ethereum blockchain data.
@@ -1224,11 +1296,15 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		"miner":            head.Coinbase,
 		"difficulty":       (*hexutil.Big)(head.Difficulty),
 		"extraData":        hexutil.Bytes(head.Extra),
+		"rewards":          hexutil.Bytes(head.Rewards),
 		"gasLimit":         hexutil.Uint64(head.GasLimit),
 		"gasUsed":          hexutil.Uint64(head.GasUsed),
+		"fees":             (*hexutil.Big)(head.Fees),
 		"timestamp":        hexutil.Uint64(head.Time),
 		"transactionsRoot": head.TxHash,
 		"receiptsRoot":     head.ReceiptHash,
+		"minerNodeId":      hexutil.Bytes(head.MinerNodeId),
+		"minerNodeSig":     hexutil.Bytes(head.MinerNodeSig),
 	}
 	if head.BaseFee != nil {
 		result["baseFeePerGas"] = (*hexutil.Big)(head.BaseFee)
@@ -1325,6 +1401,11 @@ type RPCTransaction struct {
 	R                   *hexutil.Big      `json:"r"`
 	S                   *hexutil.Big      `json:"s"`
 	YParity             *hexutil.Uint64   `json:"yParity,omitempty"`
+	// WEMIX fee delegation
+	FeePayer *common.Address `json:"feePayer,omitempty"`
+	FV       *hexutil.Big    `json:"fv,omitempty"`
+	FR       *hexutil.Big    `json:"fr,omitempty"`
+	FS       *hexutil.Big    `json:"fs,omitempty"`
 }
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
@@ -1382,6 +1463,27 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		} else {
 			result.GasPrice = (*hexutil.Big)(tx.GasFeeCap())
 		}
+
+		// WEMIX fee delegation
+	case types.FeeDelegateDynamicFeeTxType:
+		al := tx.AccessList()
+		result.Accesses = &al
+		result.ChainID = (*hexutil.Big)(tx.ChainId())
+		result.GasFeeCap = (*hexutil.Big)(tx.GasFeeCap())
+		result.GasTipCap = (*hexutil.Big)(tx.GasTipCap())
+		// if the transaction has been mined, compute the effective gas price
+		if baseFee != nil && blockHash != (common.Hash{}) {
+			// price = min(tip, gasFeeCap - baseFee) + baseFee
+			price := math.BigMin(new(big.Int).Add(tx.GasTipCap(), baseFee), tx.GasFeeCap())
+			result.GasPrice = (*hexutil.Big)(price)
+		} else {
+			result.GasPrice = (*hexutil.Big)(tx.GasFeeCap())
+		}
+		result.FeePayer = tx.FeePayer()
+		fv, fr, fs := tx.RawFeePayerSignatureValues()
+		result.FV = (*hexutil.Big)(fv)
+		result.FR = (*hexutil.Big)(fr)
+		result.FS = (*hexutil.Big)(fs)
 
 	case types.BlobTxType:
 		al := tx.AccessList()
@@ -1748,6 +1850,10 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 		// Ensure only eip155 signed transactions are submitted if EIP155Required is set.
 		return common.Hash{}, errors.New("only replay-protected (EIP-155) transactions allowed over RPC")
 	}
+	// WEMIX fee delegation
+	if tx.Type() == types.FeeDelegateDynamicFeeTxType && tx.FeePayer() == nil {
+		return common.Hash{}, errors.New("FeePayer address is null")
+	}
 	if err := b.SendTx(ctx, tx); err != nil {
 		return common.Hash{}, err
 	}
@@ -1757,6 +1863,16 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 	from, err := types.Sender(signer, tx)
 	if err != nil {
 		return common.Hash{}, err
+	}
+	// WEMIX fee delegation
+	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
+		feePayer, err := types.FeePayer(types.NewFeeDelegateSigner(b.ChainConfig().ChainID), tx)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		if feePayer != *tx.FeePayer() {
+			return common.Hash{}, errors.New("FeePayer Signature error")
+		}
 	}
 
 	if tx.To() == nil {
@@ -1887,6 +2003,18 @@ func (s *TransactionAPI) SignTransaction(ctx context.Context, args TransactionAr
 	if err := checkTxFee(tx.GasPrice(), tx.Gas(), s.b.RPCTxFeeCap()); err != nil {
 		return nil, err
 	}
+	// WEMIX fee delegation
+	if args.FeePayer != nil {
+		signed, err := s.sign(*args.FeePayer, tx)
+		if err != nil {
+			return nil, err
+		}
+		data, err := signed.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		return &SignTransactionResult{data, signed}, nil
+	}
 	signed, err := s.sign(args.from(), tx)
 	if err != nil {
 		return nil, err
@@ -1972,6 +2100,78 @@ func (s *TransactionAPI) Resend(ctx context.Context, sendArgs TransactionArgs, g
 		}
 	}
 	return common.Hash{}, fmt.Errorf("transaction %#x not found", matchTx.Hash())
+}
+
+// SendRawTransactions will add the signed transactions to the transaction pool.
+// The sender is responsible for signing the transactions and using the correct nonces.
+func (s *TransactionAPI) SendRawTransactions(ctx context.Context, encodedTxs []hexutil.Bytes) ([]common.Hash, error) {
+	var hashes []common.Hash
+	for _, etx := range encodedTxs {
+		tx := new(types.Transaction)
+		if err := rlp.DecodeBytes(etx, tx); err != nil {
+			hashes = append(hashes, common.Hash{})
+			continue
+		}
+		hash, err := SubmitTransaction(ctx, s.b, tx)
+		if err == nil {
+			hashes = append(hashes, hash)
+		} else {
+			hashes = append(hashes, common.Hash{})
+		}
+	}
+	return hashes, nil
+}
+
+// WEMIX fee delegation
+// SignRawFeeDelegateTransaction will sign the given feeDelegate transaction with the feePayer account.
+// The node needs to have the private key of the account corresponding with
+// the given from address and it needs to be unlocked.
+func (s *TransactionAPI) SignRawFeeDelegateTransaction(ctx context.Context, args TransactionArgs, input hexutil.Bytes) (*SignTransactionResult, error) {
+	if args.FeePayer == nil {
+		return nil, fmt.Errorf("missing FeePayer")
+	}
+
+	rawTx := new(types.Transaction)
+	if err := rawTx.UnmarshalBinary(input); err != nil {
+		return nil, err
+	}
+
+	V, R, S := rawTx.RawSignatureValues()
+	if rawTx.Type() == types.DynamicFeeTxType {
+		SenderTx := types.DynamicFeeTx{
+			To:         rawTx.To(),
+			ChainID:    rawTx.ChainId(),
+			Nonce:      rawTx.Nonce(),
+			Gas:        rawTx.Gas(),
+			GasFeeCap:  rawTx.GasFeeCap(),
+			GasTipCap:  rawTx.GasTipCap(),
+			Value:      rawTx.Value(),
+			Data:       rawTx.Data(),
+			AccessList: rawTx.AccessList(),
+			V:          V,
+			R:          R,
+			S:          S,
+		}
+
+		FeeDelegateDynamicFeeTx := &types.FeeDelegateDynamicFeeTx{
+			FeePayer: args.FeePayer,
+		}
+
+		FeeDelegateDynamicFeeTx.SetSenderTx(SenderTx)
+		tx := types.NewTx(FeeDelegateDynamicFeeTx)
+
+		signed, err := s.sign(*args.FeePayer, tx)
+		if err != nil {
+			return nil, err
+		}
+		data, err := signed.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+
+		return &SignTransactionResult{data, signed}, nil
+	}
+	return nil, fmt.Errorf("senderTx type error")
 }
 
 // DebugAPI is the collection of Ethereum APIs exposed over the debugging

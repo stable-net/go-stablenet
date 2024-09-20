@@ -293,7 +293,8 @@ func (api *ConsensusAPI) forkchoiceUpdated(update engine.ForkchoiceStateV1, payl
 	}
 	// Block is known locally, just sanity check that the beacon client does not
 	// attempt to push us back to before the merge.
-	if block.Difficulty().BitLen() > 0 || block.NumberU64() == 0 {
+	// WEMIX does not use `forkchoiceUpdated` in normal process, but it uses this in test, so we skip ttd checking for testing
+	if api.eth.BlockChain().Config().TerminalTotalDifficulty != nil && (block.Difficulty().BitLen() > 0 || block.NumberU64() == 0) {
 		var (
 			td  = api.eth.BlockChain().GetTd(update.HeadBlockHash, block.NumberU64())
 			ptd = api.eth.BlockChain().GetTd(block.ParentHash(), block.NumberU64()-1)

@@ -106,7 +106,7 @@ func init() {
 	newTxs = append(newTxs, tx2)
 }
 
-// testWorkerBackend implements worker.Backend interfaces and wraps all information needed during the testing.
+// testWorkerBackend implements worker.backend interfaces and wraps all information needed during the testing.
 type testWorkerBackend struct {
 	db      ethdb.Database
 	txPool  *txpool.TxPool

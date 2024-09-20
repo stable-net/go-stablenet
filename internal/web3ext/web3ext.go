@@ -35,6 +35,7 @@ var Modules = map[string]string{
 	"les":      LESJs,
 	"vflux":    VfluxJs,
 	"dev":      DevJs,
+	"wemix":    WemixJs,
 	"istanbul": Istanbul_JS, // ## Quorum QBFT
 }
 
@@ -208,6 +209,10 @@ web3._extend({
 		new web3._extend.Property({
 			name: 'datadir',
 			getter: 'admin_datadir'
+		}),
+		new web3._extend.Property({
+			name: 'wemixInfo',
+			getter: 'admin_wemixInfo'
 		}),
 	]
 });
@@ -627,6 +632,11 @@ web3._extend({
 			call: 'eth_getBlockReceipts',
 			params: 1,
 		}),
+		new web3._extend.Method({
+			name: 'signRawFeeDelegateTransaction',
+			call: 'eth_signRawFeeDelegateTransaction',
+			params: 2,
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
@@ -757,7 +767,12 @@ web3._extend({
 			name: 'initializeWallet',
 			call: 'personal_initializeWallet',
 			params: 1
-		})
+		}),
+		new web3._extend.Method({
+			name: 'signRawFeeDelegateTransaction',
+			call: 'personal_signRawFeeDelegateTransaction',
+			params: 3,
+		}),
 	],
 	properties: [
 		new web3._extend.Property({
@@ -914,6 +929,30 @@ web3._extend({
 			params: 1
 		}),
 	],
+});
+`
+
+const WemixJs = `
+web3._extend({
+	property: 'wemix',
+	methods: [
+		new web3._extend.Method({
+			name: 'getBriocheBlockReward',
+			call: 'wemix_getBriocheBlockReward',
+			params: 1
+		})
+	],
+	properties:
+	[
+		new web3._extend.Property({
+			name: 'briocheConfig',
+			getter: 'wemix_briocheConfig'
+		}),
+		new web3._extend.Property({
+			name: 'halvingSchedule',
+			getter: 'wemix_halvingSchedule'
+		})
+	]
 });
 `
 

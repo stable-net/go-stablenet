@@ -17,12 +17,16 @@
 package simulated
 
 import (
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -80,25 +84,39 @@ func NewBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Config,
 
 	ethConf := ethconfig.Defaults
 	ethConf.Genesis = &core.Genesis{
-		Config:   params.AllDevChainProtocolChanges,
-		GasLimit: ethconfig.Defaults.Miner.GasCeil,
-		Alloc:    alloc,
+		Config:     params.AllDevChainProtocolChanges,
+		GasLimit:   ethconfig.Defaults.Miner.GasCeil,
+		Alloc:      alloc,
+		Difficulty: new(big.Int).SetUint64(1),
+		BaseFee:    big.NewInt(1000000000),
 	}
 	ethConf.SyncMode = downloader.FullSync
 	ethConf.TxPool.NoLocals = true
+	ethConf.Genesis.Config.QBFT.Validators = make([]common.Address, 1)
+	ethConf.Genesis.Config.QBFT.Validators[0] = crypto.PubkeyToAddress(nodeConf.NodeKey().PublicKey)
 
 	for _, option := range options {
 		option(&nodeConf, &ethConf)
 	}
+
 	// Assemble the Ethereum stack to run the chain with
 	stack, err := node.New(&nodeConf)
 	if err != nil {
 		panic(err) // this should never happen
 	}
+
 	sim, err := newWithNode(stack, &ethConf, 0)
 	if err != nil {
 		panic(err) // this should never happen
 	}
+
+	header := ethConf.Genesis.ToBlock().Header()
+	sim.Engine().CallEngineSpecific("SetExtra", ethConf.Genesis.Config.QBFT.Validators[0], header)
+	ethConf.Genesis.ExtraData = header.Extra
+
+	// start consensus engine
+	sim.Engine().CallEngineSpecific("Start", sim.eth.BlockChain(), sim.eth.BlockChain().CurrentFullBlock(), rawdb.HasBadBlock)
+
 	return sim
 }
 
@@ -148,6 +166,10 @@ func (n *Backend) Close() error {
 		return err
 	}
 	return nil
+}
+
+func (n *Backend) Engine() consensus.Engine {
+	return n.eth.Engine()
 }
 
 // Commit seals a block and moves the chain forward to a new empty block.

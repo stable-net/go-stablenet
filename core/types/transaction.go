@@ -45,10 +45,11 @@ var (
 
 // Transaction types.
 const (
-	LegacyTxType     = 0x00
-	AccessListTxType = 0x01
-	DynamicFeeTxType = 0x02
-	BlobTxType       = 0x03
+	LegacyTxType                = 0x00
+	AccessListTxType            = 0x01
+	DynamicFeeTxType            = 0x02
+	BlobTxType                  = 0x03
+	FeeDelegateDynamicFeeTxType = 0x16 // fee delegation(22)
 )
 
 // Transaction is an Ethereum transaction.
@@ -60,6 +61,9 @@ type Transaction struct {
 	hash atomic.Value
 	size atomic.Value
 	from atomic.Value
+
+	// WEMIX fee delegation
+	feePayer atomic.Value
 }
 
 // NewTx creates a new transaction.
@@ -89,6 +93,10 @@ type TxData interface {
 
 	rawSignatureValues() (v, r, s *big.Int)
 	setSignatureValues(chainID, v, r, s *big.Int)
+
+	// fee delegation
+	feePayer() *common.Address
+	rawFeePayerSignatureValues() (v, r, s *big.Int)
 
 	// effectiveGasPrice computes the gas price paid by the transaction, given
 	// the inclusion block baseFee.
@@ -206,6 +214,9 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		inner = new(DynamicFeeTx)
 	case BlobTxType:
 		inner = new(BlobTx)
+	// fee delegation
+	case FeeDelegateDynamicFeeTxType:
+		inner = new(FeeDelegateDynamicFeeTx)
 	default:
 		return nil, ErrTxTypeNotSupported
 	}
@@ -319,6 +330,13 @@ func (tx *Transaction) Cost() *big.Int {
 	return total
 }
 
+func (tx *Transaction) FeeCost() *big.Int {
+	feeCost := new(big.Int)
+	feeCost.Set(tx.Cost())
+	feeCost = feeCost.Sub(feeCost, tx.Value())
+	return feeCost
+}
+
 // RawSignatureValues returns the V, R, S signature values of the transaction.
 // The return values should not be modified by the caller.
 // The return values may be nil or zero, if the transaction is unsigned.
@@ -382,6 +400,16 @@ func (tx *Transaction) EffectiveGasTipIntCmp(other *big.Int, baseFee *big.Int) i
 		return tx.GasTipCapIntCmp(other)
 	}
 	return tx.EffectiveGasTipValue(baseFee).Cmp(other)
+}
+
+// fee delegation
+// FeePayer returns the feePayer's address of the transaction.
+func (tx *Transaction) FeePayer() *common.Address { return tx.inner.feePayer() }
+
+// RawFeePayerSignatureValues returns the feePayer's FV, FR, FS signature values of the transaction.
+// The return values should not be modified by the caller.
+func (tx *Transaction) RawFeePayerSignatureValues() (v, r, s *big.Int) {
+	return tx.inner.rawFeePayerSignatureValues()
 }
 
 // BlobGas returns the blob gas limit of the transaction for blob transactions, 0 otherwise.

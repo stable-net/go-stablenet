@@ -63,6 +63,13 @@ type TransactionArgs struct {
 	AccessList *types.AccessList `json:"accessList,omitempty"`
 	ChainID    *hexutil.Big      `json:"chainId,omitempty"`
 
+	// WEMIX fee delegation
+	FeePayer *common.Address `json:"feePayer"`
+	// Signature values
+	V *hexutil.Big `json:"v"`
+	R *hexutil.Big `json:"r"`
+	S *hexutil.Big `json:"s"`
+
 	// For BlobTxType
 	BlobFeeCap *hexutil.Big  `json:"maxFeePerBlobGas"`
 	BlobHashes []common.Hash `json:"blobVersionedHashes,omitempty"`
@@ -500,6 +507,29 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 			Value:      (*big.Int)(args.Value),
 			Data:       args.data(),
 			AccessList: al,
+		}
+		// WEMIX fee delegation
+		if args.FeePayer != nil && args.V != nil && args.R != nil && args.S != nil {
+			SenderTx := types.DynamicFeeTx{
+				To:         args.To,
+				ChainID:    (*big.Int)(args.ChainID),
+				Nonce:      uint64(*args.Nonce),
+				Gas:        uint64(*args.Gas),
+				GasFeeCap:  (*big.Int)(args.MaxFeePerGas),
+				GasTipCap:  (*big.Int)(args.MaxPriorityFeePerGas),
+				Value:      (*big.Int)(args.Value),
+				Data:       args.data(),
+				AccessList: al,
+				V:          (*big.Int)(args.V),
+				R:          (*big.Int)(args.R),
+				S:          (*big.Int)(args.S),
+			}
+			FeeDelegateDynamicFeeTx := &types.FeeDelegateDynamicFeeTx{
+				FeePayer: args.FeePayer,
+			}
+
+			FeeDelegateDynamicFeeTx.SetSenderTx(SenderTx)
+			return types.NewTx(FeeDelegateDynamicFeeTx)
 		}
 
 	case args.AccessList != nil:

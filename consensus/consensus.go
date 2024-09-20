@@ -124,6 +124,13 @@ type Engine interface {
 
 	// Close terminates any background threads maintained by the consensus engine.
 	Close() error
+
+	// CallEngineSpecific is special engine API as a kind of syntactic sugar.
+	// This function handles a wide variety of tasks specific to the consensus engine.
+	// Of course, conventional engines like ethash and clique won't do anything with this function.
+	// The main reason for defining this function is to avoid reference to a specific engine module in the upper module.
+	// Currently, it is only used in the test code.
+	CallEngineSpecific(method string, args ...interface{}) interface{}
 }
 
 // PoW is a consensus engine based on proof-of-work.

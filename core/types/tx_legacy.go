@@ -116,6 +116,12 @@ func (tx *LegacyTx) setSignatureValues(chainID, v, r, s *big.Int) {
 	tx.V, tx.R, tx.S = v, r, s
 }
 
+// fee delegation
+func (tx *LegacyTx) feePayer() *common.Address { return nil }
+func (tx *LegacyTx) rawFeePayerSignatureValues() (v, r, s *big.Int) {
+	return nil, nil, nil
+}
+
 func (tx *LegacyTx) encode(*bytes.Buffer) error {
 	panic("encode called on LegacyTx")
 }

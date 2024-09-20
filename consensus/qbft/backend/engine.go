@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
 	qbftcommon "github.com/ethereum/go-ethereum/consensus/qbft/common"
+	qbftengine "github.com/ethereum/go-ethereum/consensus/qbft/engine"
 	"github.com/ethereum/go-ethereum/consensus/qbft/validator"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -305,6 +306,74 @@ func (sb *Backend) Stop() error {
 	sb.coreStarted = false
 
 	return nil
+}
+
+// CallEngineSpecific implements consensus.Engine
+func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interface{} {
+	switch method {
+	case "Start":
+		if len(args) != 3 {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		chain, ok := args[0].(consensus.ChainHeaderReader)
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		currentBlock, ok := args[1].(func() *types.Block)
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		hasBadBlock, ok := args[2].(func(db ethdb.Reader, hash common.Hash) bool)
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		return sb.Start(chain, currentBlock, hasBadBlock)
+	case "SetExtra":
+		if len(args) != 2 {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		val, ok := args[0].(common.Address)
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		header, ok := args[1].(*types.Header)
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		vals := make([]common.Address, 1)
+		vals[0] = val
+		qbftengine.ApplyHeaderQBFTExtra(
+			header,
+			func(qbftExtra *types.QBFTExtra) error {
+				qbftExtra.Validators = vals
+				return nil
+			})
+		return nil
+	case "InheritExtra":
+		if len(args) != 2 {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		parent, ok := args[0].(*types.Header)
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		header, ok := args[1].(*types.Header)
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		extra, _ := types.ExtractQBFTExtra(parent)
+		qbftengine.ApplyHeaderQBFTExtra(
+			header,
+			func(qbftExtra *types.QBFTExtra) error {
+				qbftExtra.Validators = extra.Validators
+				return nil
+			})
+		return nil
+	case "NewChainHead":
+		return sb.NewChainHead()
+	default:
+		return qbftcommon.ErrInvalidSpecificCall
+	}
 }
 
 func addrsToString(addrs []common.Address) []string {

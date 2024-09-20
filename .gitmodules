@@ -6,3 +6,15 @@
 	path = tests/evm-benchmarks
 	url = https://github.com/ipsilon/evm-benchmarks
 	shallow = true
+[submodule "consensus/wpoa/governance-contract/contracts/openzeppelin/contracts-upgradeable"]
+	path = consensus/wpoa/governance-contract/contracts/openzeppelin/contracts-upgradeable
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
+[submodule "consensus/wpoa/governance-contract/contracts/openzeppelin/contracts"]
+	path = consensus/wpoa/governance-contract/contracts/openzeppelin/contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "wemixgov/governance-contract/contracts/openzeppelin/contracts"]
+	path = wemixgov/governance-contract/contracts/openzeppelin/contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "wemixgov/governance-contract/contracts/openzeppelin/contracts-upgradeable"]
+	path = wemixgov/governance-contract/contracts/openzeppelin/contracts-upgradeable
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable

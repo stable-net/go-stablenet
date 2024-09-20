@@ -425,7 +425,7 @@ func (ec *Client) NonceAtHash(ctx context.Context, account common.Address, block
 // FilterLogs executes a filter query.
 func (ec *Client) FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]types.Log, error) {
 	var result []types.Log
-	arg, err := toFilterArg(q)
+	arg, err := ToFilterArg(q)
 	if err != nil {
 		return nil, err
 	}
@@ -435,7 +435,7 @@ func (ec *Client) FilterLogs(ctx context.Context, q ethereum.FilterQuery) ([]typ
 
 // SubscribeFilterLogs subscribes to the results of a streaming filter query.
 func (ec *Client) SubscribeFilterLogs(ctx context.Context, q ethereum.FilterQuery, ch chan<- types.Log) (ethereum.Subscription, error) {
-	arg, err := toFilterArg(q)
+	arg, err := ToFilterArg(q)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +449,7 @@ func (ec *Client) SubscribeFilterLogs(ctx context.Context, q ethereum.FilterQuer
 	return sub, nil
 }
 
-func toFilterArg(q ethereum.FilterQuery) (interface{}, error) {
+func ToFilterArg(q ethereum.FilterQuery) (interface{}, error) {
 	arg := map[string]interface{}{
 		"address": q.Addresses,
 		"topics":  q.Topics,
@@ -664,6 +664,9 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 	}
 	if msg.AccessList != nil {
 		arg["accessList"] = msg.AccessList
+	}
+	if msg.FeePayer != nil {
+		arg["feePayer"] = msg.FeePayer
 	}
 	if msg.BlobGasFeeCap != nil {
 		arg["maxFeePerBlobGas"] = (*hexutil.Big)(msg.BlobGasFeeCap)

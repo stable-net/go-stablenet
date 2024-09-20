@@ -561,6 +561,11 @@ func (ethash *Ethash) SealHash(header *types.Header) (hash common.Hash) {
 	return hash
 }
 
+// CallEngineSpecific implements consensus.Engine
+func (ethash *Ethash) CallEngineSpecific(method string, args ...interface{}) interface{} {
+	return nil
+}
+
 // Some weird constants to avoid constant memory allocs for them.
 var (
 	u256_8  = uint256.NewInt(8)

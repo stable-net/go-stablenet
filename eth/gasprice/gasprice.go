@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/lru"
+	"github.com/ethereum/go-ethereum/consensus/wpoa"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
@@ -139,6 +140,10 @@ func NewOracle(backend OracleBackend, params Config) *Oracle {
 		maxBlockHistory:  maxBlockHistory,
 		historyCache:     cache,
 	}
+}
+
+func (oracle *Oracle) SuggestWemixTipCap(ctx context.Context) (*big.Int, error) {
+	return wpoa.SuggestGasPrice(), nil
 }
 
 // SuggestTipCap returns a tip cap so that newly created transaction can have a

@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	qbftBackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
+	"github.com/ethereum/go-ethereum/consensus/wemix"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -383,33 +384,21 @@ func (w *worker) pendingBlockAndReceipts() (*types.Block, types.Receipts) {
 func (w *worker) start() {
 	w.running.Store(true)
 
-	// ## Quorum QBFT START
-	var backend *qbftBackend.Backend
-	if backend, _ = w.engine.(*qbftBackend.Backend); backend == nil {
-		if beacon, ok := w.engine.(*beacon.Beacon); ok {
-			backend, _ = beacon.InnerEngine().(*qbftBackend.Backend)
-		}
+	if qbftEngine, ok := w.engine.(*qbftBackend.Backend); ok {
+		qbftEngine.Start(w.chain, w.chain.CurrentFullBlock, rawdb.HasBadBlock)
+	} else if wemixEngine, ok := w.engine.(*wemix.WemixConsensus); ok {
+		wemixEngine.Start(w.chainConfig, w.chain, w.chain.CurrentFullBlock, w.eth.BlockChain().SubscribeChainHeadEvent)
 	}
-	if backend != nil {
-		backend.Start(w.chain, w.chain.CurrentFullBlock, rawdb.HasBadBlock)
-	}
-	// ## Quorum QBFT END
 	w.startCh <- struct{}{}
 }
 
 // stop sets the running status as 0.
 func (w *worker) stop() {
-	// ## Quorum QBFT START
-	var backend *qbftBackend.Backend
-	if backend, _ = w.engine.(*qbftBackend.Backend); backend == nil {
-		if beacon, ok := w.engine.(*beacon.Beacon); ok {
-			backend, _ = beacon.InnerEngine().(*qbftBackend.Backend)
-		}
+	if qbftEngine, ok := w.engine.(*qbftBackend.Backend); ok {
+		qbftEngine.Stop()
+	} else if wemixEngine, ok := w.engine.(*wemix.WemixConsensus); ok {
+		wemixEngine.Stop()
 	}
-	if backend != nil {
-		backend.Stop()
-	}
-	// ## Quorum QBFT END
 
 	w.running.Store(false)
 }
