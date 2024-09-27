@@ -315,6 +315,15 @@ func (api *adminAPI) NodeInfo() (*p2p.NodeInfo, error) {
 	return server.NodeInfo(), nil
 }
 
+// PeerInfo retrieves all the information we know about the peer node
+func (api *adminAPI) PeerInfo(id enode.ID) (*p2p.PeerInfo, error) {
+	server := api.node.Server()
+	if server == nil {
+		return nil, ErrNodeStopped
+	}
+	return server.PeerInfo(id), nil
+}
+
 // Datadir retrieves the current data directory the node is using.
 func (api *adminAPI) Datadir() string {
 	return api.node.DataDir()
