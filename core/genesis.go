@@ -587,6 +587,28 @@ func DeveloperGenesisBlock(gasLimit uint64, faucet *common.Address) *Genesis {
 	return genesis
 }
 
+// TestGenesisBlock returns the genesis block for the test chain.
+func TestGenesisBlock() *Genesis {
+	return &Genesis{
+		Config:     params.TestChainConfig,
+		Nonce:      0,
+		ExtraData:  []byte("Test Chain"),
+		GasLimit:   4712388,
+		Difficulty: big.NewInt(1),
+		Alloc: map[common.Address]types.Account{
+			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
+			common.BytesToAddress([]byte{2}): {Balance: big.NewInt(1)}, // SHA256
+			common.BytesToAddress([]byte{3}): {Balance: big.NewInt(1)}, // RIPEMD
+			common.BytesToAddress([]byte{4}): {Balance: big.NewInt(1)}, // Identity
+			common.BytesToAddress([]byte{5}): {Balance: big.NewInt(1)}, // ModExp
+			common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
+			common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
+			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
+			common.BytesToAddress([]byte{9}): {Balance: big.NewInt(1)}, // BLAKE2b
+		},
+	}
+}
+
 func decodePrealloc(data string) types.GenesisAlloc {
 	var p []struct {
 		Addr    *big.Int

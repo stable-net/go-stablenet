@@ -7,6 +7,7 @@ package params
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"strings"
 
@@ -22,11 +23,11 @@ const (
 )
 
 type QBFTConfig struct {
-	EpochLength              uint64                `json:"epochlength"`                       // Number of blocks that should pass before pending validator votes are reset
-	BlockPeriodSeconds       uint64                `json:"blockperiodseconds"`                // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
-	EmptyBlockPeriodSeconds  *uint64               `json:"emptyblockperiodseconds,omitempty"` // Minimum time between two consecutive QBFT a block and empty block’ timestamps in seconds
-	RequestTimeoutSeconds    uint64                `json:"requesttimeoutseconds"`             // Minimum request timeout for each QBFT round in milliseconds
-	ProposerPolicy           uint64                `json:"policy"`                            // The policy for proposer selection
+	EpochLength              uint64                `json:"epochLength"`                       // Number of blocks that should pass before pending validator votes are reset
+	BlockPeriodSeconds       uint64                `json:"blockPeriodSeconds"`                // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
+	EmptyBlockPeriodSeconds  *uint64               `json:"emptyBlockPeriodSeconds,omitempty"` // Minimum time between two consecutive QBFT a block and empty block’ timestamps in seconds
+	RequestTimeoutSeconds    uint64                `json:"requestTimeoutSeconds"`             // Minimum request timeout for each QBFT round in milliseconds
+	ProposerPolicy           uint64                `json:"proposerPolicy"`                    // The policy for proposer selection
 	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`             // Reward from start, works only on QBFT consensus protocol
 	BeneficiaryMode          *string               `json:"beneficiaryMode,omitempty"`         // Mode for setting the beneficiary, either: list, besu, validators (beneficiary list is the list of validators)
 	MiningBeneficiary        *common.Address       `json:"miningBeneficiary,omitempty"`       // Wallet address that benefits at every new block (besu mode)
@@ -35,8 +36,58 @@ type QBFTConfig struct {
 	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds"`          // The max round time
 }
 
-func (c QBFTConfig) String() string {
-	return "qbft"
+func (c *QBFTConfig) String() string {
+	var emptyBlockPeriodSeconds, blockReward, beneficiaryMode, miningBeneficiary, validatorSelectionMode, maxRequestTimeoutSeconds string
+
+	if c.EmptyBlockPeriodSeconds != nil {
+		emptyBlockPeriodSeconds = fmt.Sprintf("%v", *c.EmptyBlockPeriodSeconds)
+	} else {
+		emptyBlockPeriodSeconds = "<nil>"
+	}
+
+	if c.BlockReward != nil {
+		blockReward = fmt.Sprintf("%v", c.BlockReward)
+	} else {
+		blockReward = "<nil>"
+	}
+
+	if c.BeneficiaryMode != nil {
+		beneficiaryMode = fmt.Sprintf("%v", *c.BeneficiaryMode)
+	} else {
+		beneficiaryMode = "<nil>"
+	}
+
+	if c.MiningBeneficiary != nil {
+		miningBeneficiary = fmt.Sprintf("%v", *c.MiningBeneficiary)
+	} else {
+		miningBeneficiary = "<nil>"
+	}
+
+	if c.ValidatorSelectionMode != nil {
+		validatorSelectionMode = fmt.Sprintf("%v", *c.ValidatorSelectionMode)
+	} else {
+		validatorSelectionMode = "<nil>"
+	}
+
+	if c.MaxRequestTimeoutSeconds != nil {
+		maxRequestTimeoutSeconds = fmt.Sprintf("%v", *c.MaxRequestTimeoutSeconds)
+	} else {
+		maxRequestTimeoutSeconds = "<nil>"
+	}
+
+	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v EmptyBlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, BlockReward: %v, BeneficiaryMode: %v, MiningBeneficiary: %v, ValidatorSelectionMode: %v, Validators: %v, MaxRequestTimeoutSeconds: %v}",
+		c.EpochLength,
+		c.BlockPeriodSeconds,
+		emptyBlockPeriodSeconds,
+		c.RequestTimeoutSeconds,
+		c.ProposerPolicy,
+		blockReward,
+		beneficiaryMode,
+		miningBeneficiary,
+		validatorSelectionMode,
+		c.Validators,
+		maxRequestTimeoutSeconds,
+	)
 }
 
 type Transition struct {

@@ -24,10 +24,8 @@ import (
 
 func Genesis(validators []common.Address) *core.Genesis {
 	// generate genesis block
-	genesis := core.DefaultGenesisBlock()
+	genesis := core.TestGenesisBlock()
 	genesis.Config = params.TestChainConfig
-	// force enable QBFT engine
-	genesis.Config.QBFT = &params.QBFTConfig{}
 	genesis.Config.Ethash = nil
 	genesis.Difficulty = types.QBFTDefaultDifficulty
 	genesis.Nonce = qbftcommon.EmptyBlockNonce.Uint64()
