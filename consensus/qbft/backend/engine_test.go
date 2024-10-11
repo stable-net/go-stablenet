@@ -110,9 +110,10 @@ func makeHeader(parent *types.Block, config *qbft.Config) *types.Header {
 
 func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	block := makeBlockWithoutSeal(chain, engine, parent)
-	stopCh := make(chan struct{})
+	state, _ := chain.StateAt(parent.Root())
+	block, _ = engine.FinalizeAndAssemble(chain, block.Header(), state, nil, nil, nil, nil)
 	resultCh := make(chan *types.Block, 10)
-	go engine.Seal(chain, block, resultCh, stopCh)
+	engine.Seal(chain, block, resultCh, nil)
 	blk := <-resultCh
 	return blk
 }

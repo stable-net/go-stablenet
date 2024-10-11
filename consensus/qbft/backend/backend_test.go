@@ -184,9 +184,12 @@ func TestGetProposer(t *testing.T) {
 	chain, engine := newBlockChain(1)
 	defer engine.Stop()
 	block := makeBlock(chain, engine, chain.Genesis())
-	chain.InsertChain(types.Blocks{block})
-	expected := engine.GetProposer(1)
+	_, err := chain.InsertChain(types.Blocks{block})
+	if err != nil {
+		t.Errorf("Error inserting block: %v", err)
+	}
 	actual := engine.Address()
+	expected := engine.GetProposer(1)
 	if actual != expected {
 		t.Errorf("proposer mismatch: have %v, want %v", actual.Hex(), expected.Hex())
 	}
