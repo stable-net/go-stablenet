@@ -22,7 +22,6 @@ package qbft
 
 import (
 	"math/big"
-	"sync"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -40,10 +39,8 @@ const (
 
 // ProposerPolicy represents the Validator Proposer Policy
 type ProposerPolicy struct {
-	Id         ProposerPolicyId    // Could be RoundRobin or Sticky
-	By         ValidatorSortByFunc // func that defines how the ValidatorSet should be sorted
-	registry   []ValidatorSet      // Holds the ValidatorSet for a given block height
-	registryMU *sync.Mutex         // Mutex to lock access to changes to Registry
+	Id ProposerPolicyId    // Could be RoundRobin or Sticky
+	By ValidatorSortByFunc // func that defines how the ValidatorSet should be sorted
 }
 
 // NewRoundRobinProposerPolicy returns a RoundRobin ProposerPolicy with ValidatorSortByString as default sort function
@@ -61,7 +58,7 @@ func NewProposerPolicy(id ProposerPolicyId) *ProposerPolicy {
 }
 
 func NewProposerPolicyByIdAndSortFunc(id ProposerPolicyId, by ValidatorSortByFunc) *ProposerPolicy {
-	return &ProposerPolicy{Id: id, By: by, registryMU: new(sync.Mutex)}
+	return &ProposerPolicy{Id: id, By: by}
 }
 
 type proposerPolicyToml struct {
@@ -99,30 +96,6 @@ func (p *ProposerPolicy) UnmarshalTOML(decode func(interface{}) error) error {
 // Use sets the ValidatorSortByFunc for the given ProposerPolicy and sorts the validatorSets according to it
 func (p *ProposerPolicy) Use(v ValidatorSortByFunc) {
 	p.By = v
-
-	for _, validatorSet := range p.registry {
-		validatorSet.SortValidators()
-	}
-}
-
-// RegisterValidatorSet stores the given ValidatorSet in the policy registry
-func (p *ProposerPolicy) RegisterValidatorSet(valSet ValidatorSet) {
-	p.registryMU.Lock()
-	defer p.registryMU.Unlock()
-
-	if len(p.registry) == 0 {
-		p.registry = []ValidatorSet{valSet}
-	} else {
-		p.registry = append(p.registry, valSet)
-	}
-}
-
-// ClearRegistry removes any ValidatorSet from the ProposerPolicy registry
-func (p *ProposerPolicy) ClearRegistry() {
-	p.registryMU.Lock()
-	defer p.registryMU.Unlock()
-
-	p.registry = nil
 }
 
 type Config struct {

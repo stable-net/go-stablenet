@@ -72,8 +72,6 @@ func newDefaultSet(addrs []common.Address, policy *qbft.ProposerPolicy) *default
 		valSet.selector = stickyProposer
 	}
 
-	policy.RegisterValidatorSet(valSet)
-
 	return valSet
 }
 

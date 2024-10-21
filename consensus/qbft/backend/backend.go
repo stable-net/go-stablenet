@@ -207,9 +207,6 @@ func (sb *Backend) Commit(proposal qbft.Proposal, seals [][]byte, round *big.Int
 		return
 	}
 
-	// Remove ValidatorSet added to ProposerPolicy registry, if not done, the registry keeps increasing size with each block height
-	sb.config.ProposerPolicy.ClearRegistry()
-
 	// update block's header
 	block = block.WithSeal(h)
 
