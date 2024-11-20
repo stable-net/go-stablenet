@@ -52,6 +52,10 @@ const (
 	fetcherID = "istanbul"
 )
 
+type SimApplier interface {
+	Apply(config *qbft.Config, blockNum *big.Int)
+}
+
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *qbft.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) *Backend {
 	// Allocate the snapshot caches and create the engine
@@ -75,7 +79,6 @@ func New(config *qbft.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) *
 	}
 
 	sb.qbftEngine = qbftengine.NewEngine(sb.config, sb.address, sb.Sign)
-
 	return sb
 }
 
@@ -120,6 +123,16 @@ type Backend struct {
 
 	recentMessages *lru.Cache[common.Address, *lru.Cache[common.Hash, bool]] // the cache of peer's messages
 	knownMessages  *lru.Cache[common.Hash, bool]                             // the cache of self messages
+
+	simApplier SimApplier
+}
+
+func (sb *Backend) InjectSimApplier(applier SimApplier) {
+	sb.simApplier = applier
+}
+
+func (sb *Backend) IsRunning() bool {
+	return sb.coreStarted
 }
 
 func (sb *Backend) Engine() *qbftengine.Engine {

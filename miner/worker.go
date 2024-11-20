@@ -248,6 +248,8 @@ type worker struct {
 	skipSealHook func(*task) bool                   // Method to decide whether skipping the sealing.
 	fullTaskHook func()                             // Method to call before pushing the full sealing task.
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
+
+	simSyncer *simSyncer
 }
 
 func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(header *types.Header) bool, init bool) *worker {
@@ -298,16 +300,21 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	}
 	worker.newpayloadTimeout = newpayloadTimeout
 
+	if worker.config.SimulatedEnabled {
+		worker.simSyncer = newSimSyncer(worker)
+	}
+
 	worker.wg.Add(4)
 	go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
 	go worker.resultLoop()
 	go worker.taskLoop()
 
-	// Submit first work to initialize pending state.
+	// init
 	if init {
 		worker.startCh <- struct{}{}
 	}
+
 	return worker
 }
 
@@ -564,6 +571,10 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case req := <-w.newWorkCh:
+			if w.config.SimulatedEnabled {
+				w.simSyncer.queueCommitReq(req)
+				continue
+			}
 			w.commitWork(req.interrupt, req.timestamp)
 
 		case req := <-w.getWorkCh:
@@ -740,7 +751,6 @@ func (w *worker) resultLoop() {
 
 			// Broadcast the block and announce chain insertion event
 			w.mux.Post(core.NewMinedBlockEvent{Block: block})
-
 		case <-w.exitCh:
 			return
 		}

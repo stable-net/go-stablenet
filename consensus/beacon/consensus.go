@@ -403,7 +403,10 @@ func (beacon *Beacon) Seal(chain consensus.ChainHeaderReader, block *types.Block
 	// return directly without pushing any block back. In another word
 	// beacon won't return any result by `results` channel which may
 	// blocks the receiver logic forever.
-	return nil
+	// return nil
+
+	// `Beacon.Seal` must return error for PoS block so the caller will not be blocked by `results` channel
+	return errors.New("PoS block doesn't need to be sealed by beacon engine")
 }
 
 // SealHash returns the hash of a block prior to it being sealed.

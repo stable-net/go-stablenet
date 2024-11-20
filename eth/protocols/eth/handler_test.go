@@ -341,16 +341,17 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 	t.Parallel()
 
 	gen := func(n int, g *core.BlockGen) {
-		if n%2 == 0 {
-			w := &types.Withdrawal{
-				Address: common.Address{0xaa},
-				Amount:  42,
-			}
-			g.AddWithdrawal(w)
-		}
+		// No support Shanghai Fork
+		// if n%2 == 0 {
+		// 	w := &types.Withdrawal{
+		// 		Address: common.Address{0xaa},
+		// 		Amount:  42,
+		// 	}
+		// 	g.AddWithdrawal(w)
+		// }
 	}
 
-	backend := newTestBackendWithGenerator(maxBodiesServe+15, true, gen)
+	backend := newTestBackendWithGenerator(maxBodiesServe+15, false, gen)
 	defer backend.close()
 
 	peer, _ := newTestPeer("peer", protocol, backend)

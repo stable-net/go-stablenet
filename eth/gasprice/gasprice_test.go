@@ -119,21 +119,24 @@ func (b *testBackend) teardown() {
 
 // newTestBackend creates a test backend. OBS: don't forget to invoke tearDown
 // after use, otherwise the blockchain instance will mem-leak via goroutines.
-func newTestBackend(t *testing.T, londonBlock *big.Int, pending bool) *testBackend {
+func newTestBackend(t *testing.T, montBlancBlock *big.Int, pending bool) *testBackend {
 	var (
 		key, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		addr   = crypto.PubkeyToAddress(key.PublicKey)
-		config = *params.TestChainConfig // needs copy because it is modified below
+		config = *params.AllDevChainProtocolChanges // needs copy because it is modified below
 		gspec  = &core.Genesis{
 			Config: &config,
 			Alloc:  types.GenesisAlloc{addr: {Balance: big.NewInt(math.MaxInt64)}},
 		}
 		signer = types.LatestSigner(gspec.Config)
 	)
-	config.LondonBlock = londonBlock
-	config.ArrowGlacierBlock = londonBlock
-	config.GrayGlacierBlock = londonBlock
-	config.TerminalTotalDifficulty = common.Big0
+	config.LondonBlock = montBlancBlock
+	config.ArrowGlacierBlock = montBlancBlock
+	config.GrayGlacierBlock = montBlancBlock
+	config.PangyoBlock = montBlancBlock
+	config.ApplepieBlock = montBlancBlock
+	config.BriocheBlock = montBlancBlock
+	config.MontBlancBlock = montBlancBlock
 	engine := ethash.NewFaker()
 
 	// Generate testing blocks
@@ -141,7 +144,7 @@ func newTestBackend(t *testing.T, londonBlock *big.Int, pending bool) *testBacke
 		b.SetCoinbase(common.Address{1})
 
 		var txdata types.TxData
-		if londonBlock != nil && b.Number().Cmp(londonBlock) >= 0 {
+		if montBlancBlock != nil && b.Number().Cmp(montBlancBlock) >= 0 {
 			txdata = &types.DynamicFeeTx{
 				ChainID:   gspec.Config.ChainID,
 				Nonce:     b.TxNonce(addr),

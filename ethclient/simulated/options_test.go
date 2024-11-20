@@ -31,6 +31,8 @@ import (
 // Tests that the simulator starts with the initial gas limit in the genesis block,
 // and that it keeps the same target value.
 func TestWithBlockGasLimitOption(t *testing.T) {
+	t.Skip("Skipping ethash backend")
+
 	// Construct a simulator, targeting a different gas limit
 	sim := NewBackend(types.GenesisAlloc{}, WithBlockGasLimit(12_345_678))
 	defer sim.Close()

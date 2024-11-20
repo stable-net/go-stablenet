@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -17,15 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
-
-type RevertError struct {
-	ABI    abi.Error
-	Output interface{}
-}
-
-func (r *RevertError) Error() string {
-	return fmt.Sprintf("%s: %s %v", vm.ErrExecutionReverted, r.ABI.Sig, r.Output)
-}
 
 func ExpectedRevert(t *testing.T, err error, args ...interface{}) {
 	require.Error(t, err)
@@ -48,7 +38,7 @@ func ExpectedRevert(t *testing.T, err error, args ...interface{}) {
 		}
 	} else {
 		if length > 0 {
-			errStr := strings.TrimLeft(err.Error(), vm.ErrExecutionReverted.Error()+":")
+			errStr, _ := strings.CutPrefix(err.Error(), vm.ErrExecutionReverted.Error()+":")
 			message, ok := args[0].(string)
 			require.True(t, ok)
 			require.Equal(t, strings.TrimSpace(message), strings.TrimSpace(errStr))

@@ -15,7 +15,7 @@ import (
 )
 
 func TestDeploy(t *testing.T) {
-	client, opts := func() (*simulated.Backend, *bind.TransactOpts) {
+	client, opts := func() (*simulated.WbftBackend, *bind.TransactOpts) {
 		g := NewGovernance(t)
 		return g.backend, g.owner
 	}()

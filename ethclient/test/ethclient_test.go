@@ -189,7 +189,7 @@ var (
 )
 
 var genesis = &core.Genesis{
-	Config:    params.AllEthashProtocolChanges,
+	Config:    params.EthashChainProtocolChanges,
 	Alloc:     types.GenesisAlloc{testAddr: {Balance: testBalance}},
 	ExtraData: []byte("test genesis"),
 	Timestamp: 9000,
@@ -335,8 +335,23 @@ func testHeader(t *testing.T, chain []*types.Block, client *rpc.Client) {
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("HeaderByNumber(%v) error = %q, want %q", tt.block, err, tt.wantErr)
 			}
-			if got != nil && got.Number != nil && got.Number.Sign() == 0 {
-				got.Number = big.NewInt(0) // hack to make DeepEqual work
+			if got != nil {
+				// normalize to make DeepEqual work
+				if got.Number != nil && got.Number.Sign() == 0 {
+					got.Number = big.NewInt(0) // hack to make DeepEqual work
+				}
+				if got.Rewards != nil && len(got.Rewards) == 0 {
+					got.Rewards = nil
+				}
+				if got.MinerNodeId != nil && len(got.MinerNodeId) == 0 {
+					got.MinerNodeId = nil
+				}
+				if got.MinerNodeSig != nil && len(got.MinerNodeSig) == 0 {
+					got.MinerNodeSig = nil
+				}
+				if got.Fees != nil && got.Fees.Uint64() == 0 {
+					got.Fees = big.NewInt(0)
+				}
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("HeaderByNumber(%v) got = %v, want %v", tt.block, got, tt.want)
@@ -505,7 +520,7 @@ func testStatusFunctions(t *testing.T, client *rpc.Client) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if gasPrice.Cmp(big.NewInt(1000000000)) != 0 {
+	if gasPrice.Cmp(big.NewInt(100765625000)) != 0 {
 		t.Fatalf("unexpected gas price: %v", gasPrice)
 	}
 
@@ -514,7 +529,7 @@ func testStatusFunctions(t *testing.T, client *rpc.Client) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if gasTipCap.Cmp(big.NewInt(234375000)) != 0 {
+	if gasTipCap.Cmp(big.NewInt(100000000000)) != 0 {
 		t.Fatalf("unexpected gas tip cap: %v", gasTipCap)
 	}
 

@@ -18,8 +18,10 @@ package simulated
 
 import (
 	"math/big"
+	"os"
 
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 )
 
@@ -51,5 +53,12 @@ func WithMinerMinTip(tip *big.Int) func(nodeConf *node.Config, ethConf *ethconfi
 	}
 	return func(nodeConf *node.Config, ethConf *ethconfig.Config) {
 		ethConf.Miner.GasPrice = tip
+	}
+}
+
+// WithGlobalLogger configures the simulated backend for logging
+func WithGlobalLogger() func(nodeConf *node.Config, ethConf *ethconfig.Config) {
+	return func(nodeConf *node.Config, ethConf *ethconfig.Config) {
+		log.SetDefault(log.NewLogger(log.NewTerminalHandlerWithLevel(os.Stdout, log.LevelInfo, true)))
 	}
 }

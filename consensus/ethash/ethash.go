@@ -20,6 +20,7 @@ package ethash
 import (
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -81,5 +82,12 @@ func (ethash *Ethash) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 // the result into the given channel. For the ethash engine, this method will
 // just panic as sealing is not supported anymore.
 func (ethash *Ethash) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	panic("ethash (pow) sealing not supported any more")
+	// only used for fake engine
+	header := block.Header()
+	header.Nonce, header.MixDigest = types.BlockNonce{}, common.Hash{}
+	select {
+	case results <- block.WithSeal(header):
+	default:
+	}
+	return nil
 }

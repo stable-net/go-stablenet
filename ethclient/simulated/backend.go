@@ -24,9 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -84,7 +82,7 @@ func NewBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Config,
 
 	ethConf := ethconfig.Defaults
 	ethConf.Genesis = &core.Genesis{
-		Config:     params.AllDevChainProtocolChanges,
+		Config:     params.BeaconEthashChainProtocolChanges,
 		GasLimit:   ethconfig.Defaults.Miner.GasCeil,
 		Alloc:      alloc,
 		Difficulty: new(big.Int).SetUint64(1),
@@ -92,8 +90,6 @@ func NewBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Config,
 	}
 	ethConf.SyncMode = downloader.FullSync
 	ethConf.TxPool.NoLocals = true
-	ethConf.Genesis.Config.QBFT.Validators = make([]common.Address, 1)
-	ethConf.Genesis.Config.QBFT.Validators[0] = crypto.PubkeyToAddress(nodeConf.NodeKey().PublicKey)
 
 	for _, option := range options {
 		option(&nodeConf, &ethConf)
@@ -109,13 +105,6 @@ func NewBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Config,
 	if err != nil {
 		panic(err) // this should never happen
 	}
-
-	header := ethConf.Genesis.ToBlock().Header()
-	sim.Engine().CallEngineSpecific("SetExtra", ethConf.Genesis.Config.QBFT.Validators[0], header)
-	ethConf.Genesis.ExtraData = header.Extra
-
-	// start consensus engine
-	sim.Engine().CallEngineSpecific("Start", sim.eth.BlockChain(), sim.eth.BlockChain().CurrentFullBlock(), rawdb.HasBadBlock)
 
 	return sim
 }

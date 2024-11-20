@@ -146,6 +146,10 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 		return err
 	}
 
+	if sb.simApplier != nil {
+		sb.simApplier.Apply(sb.config, header.Number)
+	}
+
 	err = sb.Engine().Prepare(chain, header, snap.ValSet)
 	if err != nil {
 		return err
@@ -210,6 +214,9 @@ func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 	}
 
 	delay := time.Until(time.Unix(int64(block.Header().Time), 0))
+	if sb.simApplier != nil {
+		delay = time.Duration(0)
+	}
 
 	go func() {
 		// wait for the timestamp of header, use this to adjust the block period

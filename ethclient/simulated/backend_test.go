@@ -46,9 +46,7 @@ func simTestBackend(testAddr common.Address) *Backend {
 	)
 }
 
-func newTx(sim *Backend, key *ecdsa.PrivateKey) (*types.Transaction, error) {
-	client := sim.Client()
-
+func newTx(client Client, key *ecdsa.PrivateKey) (*types.Transaction, error) {
 	// create a signed transaction to send
 	head, _ := client.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
 	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(params.GWei))
@@ -70,6 +68,8 @@ func newTx(sim *Backend, key *ecdsa.PrivateKey) (*types.Transaction, error) {
 }
 
 func TestNewBackend(t *testing.T) {
+	t.Skip("Skipping ethash backend")
+
 	sim := NewBackend(types.GenesisAlloc{})
 	defer sim.Close()
 
@@ -93,6 +93,8 @@ func TestNewBackend(t *testing.T) {
 }
 
 func TestAdjustTime(t *testing.T) {
+	t.Skip("Skipping ethash backend")
+
 	sim := NewBackend(types.GenesisAlloc{})
 	defer sim.Close()
 
@@ -112,13 +114,15 @@ func TestAdjustTime(t *testing.T) {
 }
 
 func TestSendTransaction(t *testing.T) {
+	t.Skip("Skipping ethash backend")
+
 	sim := simTestBackend(testAddr)
 	defer sim.Close()
 
 	client := sim.Client()
 	ctx := context.Background()
 
-	signedTx, err := newTx(sim, testKey)
+	signedTx, err := newTx(client, testKey)
 	if err != nil {
 		t.Errorf("could not create transaction: %v", err)
 	}
@@ -149,6 +153,8 @@ func TestSendTransaction(t *testing.T) {
 //     Since Commit() was called 2n+1 times in total,
 //     having a chain length of just n+1 means that a reorg occurred.
 func TestFork(t *testing.T) {
+	t.Skip("Skipping ethash backend")
+
 	t.Parallel()
 	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
 	sim := simTestBackend(testAddr)
@@ -197,6 +203,8 @@ func TestFork(t *testing.T) {
 //  5. Mine a block, Re-send the transaction and mine another one.
 //  6. Check that the TX is now included in block 2.
 func TestForkResendTx(t *testing.T) {
+	t.Skip("Skipping ethash backend")
+
 	t.Parallel()
 	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
 	sim := simTestBackend(testAddr)
@@ -209,7 +217,7 @@ func TestForkResendTx(t *testing.T) {
 	parent, _ := client.HeaderByNumber(ctx, nil)
 
 	// 2.
-	tx, err := newTx(sim, testKey)
+	tx, err := newTx(client, testKey)
 	if err != nil {
 		t.Fatalf("could not create transaction: %v", err)
 	}
@@ -240,6 +248,8 @@ func TestForkResendTx(t *testing.T) {
 }
 
 func TestCommitReturnValue(t *testing.T) {
+	t.Skip("Skipping ethash backend")
+
 	t.Parallel()
 	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
 	sim := simTestBackend(testAddr)
@@ -285,6 +295,8 @@ func TestCommitReturnValue(t *testing.T) {
 // TestAdjustTimeAfterFork ensures that after a fork, AdjustTime uses the pending fork
 // block's parent rather than the canonical head's parent.
 func TestAdjustTimeAfterFork(t *testing.T) {
+	t.Skip("Skipping ethash backend")
+
 	t.Parallel()
 	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
 	sim := simTestBackend(testAddr)

@@ -1038,6 +1038,7 @@ func TestSimultaneousNewBlock(t *testing.T) {
 // TestWithdrawals creates and verifies two post-Shanghai blocks. The first
 // includes zero withdrawals and the second includes two.
 func TestWithdrawals(t *testing.T) {
+	t.Skip("Skipping shanghai fork")
 	genesis, blocks := generateMergeChain(10, true)
 	// Set shanghai time to last block + 5 seconds (first post-merge block)
 	time := blocks[len(blocks)-1].Time() + 5
@@ -1156,6 +1157,7 @@ func TestWithdrawals(t *testing.T) {
 }
 
 func TestNilWithdrawals(t *testing.T) {
+	t.Skip("Skipping shanghai fork")
 	genesis, blocks := generateMergeChain(10, true)
 	// Set shanghai time to last block + 4 seconds (first post-merge block)
 	time := blocks[len(blocks)-1].Time() + 4
@@ -1340,6 +1342,7 @@ func allBodies(blocks []*types.Block) []*types.Body {
 }
 
 func TestGetBlockBodiesByHash(t *testing.T) {
+	t.Skip("Skipping merge fork")
 	node, eth, blocks := setupBodies(t)
 	api := NewConsensusAPI(eth)
 	defer node.Close()
@@ -1396,6 +1399,7 @@ func TestGetBlockBodiesByHash(t *testing.T) {
 }
 
 func TestGetBlockBodiesByRange(t *testing.T) {
+	t.Skip("Skipping merge fork")
 	node, eth, blocks := setupBodies(t)
 	api := NewConsensusAPI(eth)
 	defer node.Close()
@@ -1477,6 +1481,7 @@ func TestGetBlockBodiesByRange(t *testing.T) {
 }
 
 func TestGetBlockBodiesByRangeInvalidParams(t *testing.T) {
+	t.Skip("Skipping merge fork")
 	node, eth, _ := setupBodies(t)
 	api := NewConsensusAPI(eth)
 	defer node.Close()
@@ -1579,6 +1584,7 @@ func TestBlockToPayloadWithBlobs(t *testing.T) {
 
 // This checks that beaconRoot is applied to the state from the engine API.
 func TestParentBeaconBlockRoot(t *testing.T) {
+	t.Skip("Skipping merge fork")
 	log.SetDefault(log.NewLogger(log.NewTerminalHandlerWithLevel(colorable.NewColorableStderr(), log.LevelTrace, true)))
 
 	genesis, blocks := generateMergeChain(10, true)

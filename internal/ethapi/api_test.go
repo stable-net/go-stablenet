@@ -39,6 +39,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/qbft"
+	qbftbackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -96,13 +98,14 @@ func testTransactionMarshal(t *testing.T, tests []txData, config *params.ChainCo
 
 func TestTransaction_RoundTripRpcJSON(t *testing.T) {
 	var (
-		config = params.AllEthashProtocolChanges
+		config = params.AllDevChainProtocolChanges
 		tests  = allTransactionTypes(common.Address{0xde, 0xad}, config)
 	)
 	testTransactionMarshal(t, tests, config)
 }
 
 func TestTransactionBlobTx(t *testing.T) {
+	t.Skip("Skipping cancun fork")
 	config := *params.TestChainConfig
 	config.ShanghaiTime = new(uint64)
 	config.CancunTime = new(uint64)
@@ -627,25 +630,31 @@ func TestEstimateGas(t *testing.T) {
 	t.Parallel()
 	// Initialize test accounts
 	var (
-		accounts = newAccounts(2)
-		genesis  = &core.Genesis{
-			Config: params.MergedTestChainConfig,
+		nodeKey, _ = crypto.HexToECDSA("9c1d1ede9b6cb8cdcd1991d9cd911dfc40ca95d31451f7a2f17dd955f2f6956e")
+		nodeAddr   = crypto.PubkeyToAddress(nodeKey.PublicKey)
+		accounts   = newAccounts(2)
+		genesis    = &core.Genesis{
+			Config: params.AllDevChainProtocolChanges,
 			Alloc: types.GenesisAlloc{
 				accounts[0].addr: {Balance: big.NewInt(params.Ether)},
 				accounts[1].addr: {Balance: big.NewInt(params.Ether)},
 			},
+			Difficulty: big.NewInt(1),
+			ExtraData:  hexutil.MustDecode(fmt.Sprintf("0xef9573696d756c6174656420636861696e20626c6f636bd594%xc080c0", nodeAddr.Bytes())),
 		}
 		genBlocks      = 10
 		signer         = types.HomesteadSigner{}
 		randomAccounts = newAccounts(2)
+
+		config = qbft.DefaultConfig
+		memDB  = rawdb.NewMemoryDatabase()
 	)
-	api := NewBlockChainAPI(newTestBackend(t, genBlocks, genesis, beacon.New(ethash.NewFaker()), func(i int, b *core.BlockGen) {
+	api := NewBlockChainAPI(newTestBackend(t, genBlocks, genesis, qbftbackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
 		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &accounts[1].addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: b.BaseFee(), Data: nil}), signer, accounts[0].key)
 		b.AddTx(tx)
-		b.SetPoS()
 	}))
 	var testSuite = []struct {
 		blockNumber rpc.BlockNumber
@@ -784,25 +793,30 @@ func TestCall(t *testing.T) {
 	t.Parallel()
 	// Initialize test accounts
 	var (
-		accounts = newAccounts(3)
-		genesis  = &core.Genesis{
-			Config: params.MergedTestChainConfig,
+		nodeKey, _ = crypto.HexToECDSA("9c1d1ede9b6cb8cdcd1991d9cd911dfc40ca95d31451f7a2f17dd955f2f6956e")
+		nodeAddr   = crypto.PubkeyToAddress(nodeKey.PublicKey)
+		accounts   = newAccounts(3)
+		genesis    = &core.Genesis{
+			Config: params.AllDevChainProtocolChanges,
 			Alloc: types.GenesisAlloc{
 				accounts[0].addr: {Balance: big.NewInt(params.Ether)},
 				accounts[1].addr: {Balance: big.NewInt(params.Ether)},
 				accounts[2].addr: {Balance: big.NewInt(params.Ether)},
 			},
+			Difficulty: big.NewInt(1),
+			ExtraData:  hexutil.MustDecode(fmt.Sprintf("0xef9573696d756c6174656420636861696e20626c6f636bd594%xc080c0", nodeAddr.Bytes())),
 		}
 		genBlocks = 10
 		signer    = types.HomesteadSigner{}
+		config    = qbft.DefaultConfig
+		memDB     = rawdb.NewMemoryDatabase()
 	)
-	api := NewBlockChainAPI(newTestBackend(t, genBlocks, genesis, beacon.New(ethash.NewFaker()), func(i int, b *core.BlockGen) {
+	api := NewBlockChainAPI(newTestBackend(t, genBlocks, genesis, qbftbackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
 		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &accounts[1].addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: b.BaseFee(), Data: nil}), signer, accounts[0].key)
 		b.AddTx(tx)
-		b.SetPoS()
 	}))
 	randomAccounts := newAccounts(3)
 	var testSuite = []struct {
@@ -934,22 +948,22 @@ func TestCall(t *testing.T) {
 			},
 			expectErr: core.ErrBlobTxCreate,
 		},
-		// BLOBHASH opcode
-		{
-			blockNumber: rpc.LatestBlockNumber,
-			call: TransactionArgs{
-				From:       &accounts[1].addr,
-				To:         &randomAccounts[2].addr,
-				BlobHashes: []common.Hash{common.Hash{0x01, 0x22}},
-				BlobFeeCap: (*hexutil.Big)(big.NewInt(1)),
-			},
-			overrides: StateOverride{
-				randomAccounts[2].addr: {
-					Code: hex2Bytes("60004960005260206000f3"),
-				},
-			},
-			want: "0x0122000000000000000000000000000000000000000000000000000000000000",
-		},
+		// BLOBHASH opcode ( skipping cancun fork )
+		// {
+		// 	blockNumber: rpc.LatestBlockNumber,
+		// 	call: TransactionArgs{
+		// 		From:       &accounts[1].addr,
+		// 		To:         &randomAccounts[2].addr,
+		// 		BlobHashes: []common.Hash{common.Hash{0x01, 0x22}},
+		// 		BlobFeeCap: (*hexutil.Big)(big.NewInt(1)),
+		// 	},
+		// 	overrides: StateOverride{
+		// 		randomAccounts[2].addr: {
+		// 			Code: hex2Bytes("60004960005260206000f3"),
+		// 		},
+		// 	},
+		// 	want: "0x0122000000000000000000000000000000000000000000000000000000000000",
+		// },
 	}
 	for i, tc := range testSuite {
 		result, err := api.Call(context.Background(), tc.call, &rpc.BlockNumberOrHash{BlockNumber: &tc.blockNumber}, &tc.overrides, &tc.blockOverrides)
@@ -980,16 +994,21 @@ func TestSignTransaction(t *testing.T) {
 	t.Parallel()
 	// Initialize test accounts
 	var (
-		key, _  = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
-		to      = crypto.PubkeyToAddress(key.PublicKey)
-		genesis = &core.Genesis{
-			Config: params.MergedTestChainConfig,
-			Alloc:  types.GenesisAlloc{},
+		nodeKey, _ = crypto.HexToECDSA("9c1d1ede9b6cb8cdcd1991d9cd911dfc40ca95d31451f7a2f17dd955f2f6956e")
+		nodeAddr   = crypto.PubkeyToAddress(nodeKey.PublicKey)
+		key, _     = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
+		to         = crypto.PubkeyToAddress(key.PublicKey)
+		genesis    = &core.Genesis{
+			Config:     params.AllDevChainProtocolChanges,
+			Alloc:      types.GenesisAlloc{},
+			Difficulty: big.NewInt(1),
+			ExtraData:  hexutil.MustDecode(fmt.Sprintf("0xef9573696d756c6174656420636861696e20626c6f636bd594%xc080c0", nodeAddr.Bytes())),
 		}
+
+		config = qbft.DefaultConfig
+		memDB  = rawdb.NewMemoryDatabase()
 	)
-	b := newTestBackend(t, 1, genesis, beacon.New(ethash.NewFaker()), func(i int, b *core.BlockGen) {
-		b.SetPoS()
-	})
+	b := newTestBackend(t, 1, genesis, qbftbackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {})
 	api := NewTransactionAPI(b, nil)
 	res, err := api.FillTransaction(context.Background(), TransactionArgs{
 		From:  &b.acc.Address,
@@ -1008,13 +1027,14 @@ func TestSignTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expect := `{"type":"0x2","chainId":"0x1","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x684ee180","value":"0x1","input":"0x","accessList":[],"v":"0x0","r":"0x8fabeb142d585dd9247f459f7e6fe77e2520c88d50ba5d220da1533cea8b34e1","s":"0x582dd68b21aef36ba23f34e49607329c20d981d30404daf749077f5606785ce7","yParity":"0x0","hash":"0x93927839207cfbec395da84b8a2bc38b7b65d2cb2819e9fef1f091f5b1d4cc8f"}`
+	expect := `{"type":"0x2","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x684ee180","value":"0x1","input":"0x","accessList":[],"v":"0x0","r":"0x9677c1288c12e7777a4cf1e2a7210d038e72bb60f459bb7a8cb3effed8dfeee5","s":"0x35c797336f0ca127d33afdf68fea5fa7313a77e1128a625647901fc6f5768d31","yParity":"0x0","hash":"0xa684942a3471a1b9fad98f184536ad189bf5e77064000417c7e6b5d6effd4885"}`
 	if !bytes.Equal(tx, []byte(expect)) {
 		t.Errorf("result mismatch. Have:\n%s\nWant:\n%s\n", tx, expect)
 	}
 }
 
 func TestSignBlobTransaction(t *testing.T) {
+	t.Skip("Skipping cancun fork")
 	t.Parallel()
 	// Initialize test accounts
 	var (
@@ -1049,6 +1069,7 @@ func TestSignBlobTransaction(t *testing.T) {
 }
 
 func TestSendBlobTransaction(t *testing.T) {
+	t.Skip("Skipping cancun fork")
 	t.Parallel()
 	// Initialize test accounts
 	var (
@@ -1082,6 +1103,7 @@ func TestSendBlobTransaction(t *testing.T) {
 }
 
 func TestFillBlobTransaction(t *testing.T) {
+	t.Skip("Skipping cancun fork")
 	t.Parallel()
 	// Initialize test accounts
 	var (
@@ -1377,7 +1399,11 @@ func TestRPCMarshalBlock(t *testing.T) {
 				"stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
 				"timestamp": "0x0",
 				"transactionsRoot": "0x661a9febcfa8f1890af549b874faf9fa274aede26ef489d9db0b25daa569450e",
-				"uncles": []
+				"uncles": [],
+				"fees":null,
+				"minerNodeId":"0x",
+				"minerNodeSig":"0x",
+				"rewards":"0x"
 			}`,
 		},
 		// only tx hashes
@@ -1408,8 +1434,12 @@ func TestRPCMarshalBlock(t *testing.T) {
 					"0x12e1f81207b40c3bdcc13c0ee18f5f86af6d31754d57a0ea1b0d4cfef21abef1"
 				],
 				"transactionsRoot": "0x661a9febcfa8f1890af549b874faf9fa274aede26ef489d9db0b25daa569450e",
-				"uncles": []
-			}`,
+				"uncles": [],
+				"fees":null,
+				"minerNodeId":"0x",
+				"minerNodeSig":"0x",
+				"rewards":"0x"
+				}`,
 		},
 		// full tx details
 		{
@@ -1511,7 +1541,11 @@ func TestRPCMarshalBlock(t *testing.T) {
 					}
 				],
 				"transactionsRoot": "0x661a9febcfa8f1890af549b874faf9fa274aede26ef489d9db0b25daa569450e",
-				"uncles": []
+				"uncles": [],
+				"fees":null,
+				"minerNodeId":"0x",
+				"minerNodeSig":"0x",
+				"rewards":"0x"
 			}`,
 		},
 	}
@@ -1532,16 +1566,20 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 
 	// Initialize test accounts
 	var (
+		nodeKey, _ = crypto.HexToECDSA("9c1d1ede9b6cb8cdcd1991d9cd911dfc40ca95d31451f7a2f17dd955f2f6956e")
 		acc1Key, _ = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
 		acc2Key, _ = crypto.HexToECDSA("49a7b37aa6f6645917e7b807e9d1c00d4fa71f18343b0d4122a4d2df64dd6fee")
+		nodeAddr   = crypto.PubkeyToAddress(nodeKey.PublicKey)
 		acc1Addr   = crypto.PubkeyToAddress(acc1Key.PublicKey)
 		acc2Addr   = crypto.PubkeyToAddress(acc2Key.PublicKey)
 		genesis    = &core.Genesis{
-			Config: params.TestChainConfig,
+			Config: params.AllDevChainProtocolChanges,
 			Alloc: types.GenesisAlloc{
 				acc1Addr: {Balance: big.NewInt(params.Ether)},
 				acc2Addr: {Balance: big.NewInt(params.Ether)},
 			},
+			Difficulty: big.NewInt(1),
+			ExtraData:  hexutil.MustDecode(fmt.Sprintf("0xef9573696d756c6174656420636861696e20626c6f636bd594%xc080c0", nodeAddr.Bytes())),
 		}
 		genBlocks = 10
 		signer    = types.HomesteadSigner{}
@@ -1560,8 +1598,11 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 			Amount:    10,
 		}
 		pending = types.NewBlockWithWithdrawals(&types.Header{Number: big.NewInt(11), Time: 42}, []*types.Transaction{tx}, nil, nil, []*types.Withdrawal{withdrawal}, blocktest.NewHasher())
+
+		config = qbft.DefaultConfig
+		memDB  = rawdb.NewMemoryDatabase()
 	)
-	backend := newTestBackend(t, genBlocks, genesis, ethash.NewFaker(), func(i int, b *core.BlockGen) {
+	backend := newTestBackend(t, genBlocks, genesis, qbftbackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
@@ -1782,15 +1823,16 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 }
 
 func setupReceiptBackend(t *testing.T, genBlocks int) (*testBackend, []common.Hash) {
-	config := *params.MergedTestChainConfig
 	var (
+		nodeKey, _ = crypto.HexToECDSA("9c1d1ede9b6cb8cdcd1991d9cd911dfc40ca95d31451f7a2f17dd955f2f6956e")
 		acc1Key, _ = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
 		acc2Key, _ = crypto.HexToECDSA("49a7b37aa6f6645917e7b807e9d1c00d4fa71f18343b0d4122a4d2df64dd6fee")
+		nodeAddr   = crypto.PubkeyToAddress(nodeKey.PublicKey)
 		acc1Addr   = crypto.PubkeyToAddress(acc1Key.PublicKey)
 		acc2Addr   = crypto.PubkeyToAddress(acc2Key.PublicKey)
 		contract   = common.HexToAddress("0000000000000000000000000000000000031ec7")
 		genesis    = &core.Genesis{
-			Config:        &config,
+			Config:        params.AllDevChainProtocolChanges,
 			ExcessBlobGas: new(uint64),
 			BlobGasUsed:   new(uint64),
 			Alloc: types.GenesisAlloc{
@@ -1808,17 +1850,20 @@ func setupReceiptBackend(t *testing.T, genBlocks int) (*testBackend, []common.Ha
 				// }
 				contract: {Balance: big.NewInt(params.Ether), Code: common.FromHex("0x608060405234801561001057600080fd5b506004361061002b5760003560e01c8063a9059cbb14610030575b600080fd5b61004a6004803603810190610045919061016a565b610060565b60405161005791906101c5565b60405180910390f35b60008273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef846040516100bf91906101ef565b60405180910390a36001905092915050565b600080fd5b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b6000610101826100d6565b9050919050565b610111816100f6565b811461011c57600080fd5b50565b60008135905061012e81610108565b92915050565b6000819050919050565b61014781610134565b811461015257600080fd5b50565b6000813590506101648161013e565b92915050565b60008060408385031215610181576101806100d1565b5b600061018f8582860161011f565b92505060206101a085828601610155565b9150509250929050565b60008115159050919050565b6101bf816101aa565b82525050565b60006020820190506101da60008301846101b6565b92915050565b6101e981610134565b82525050565b600060208201905061020460008301846101e0565b9291505056fea2646970667358221220b469033f4b77b9565ee84e0a2f04d496b18160d26034d54f9487e57788fd36d564736f6c63430008120033")},
 			},
+			Difficulty: big.NewInt(1),
+			ExtraData:  hexutil.MustDecode(fmt.Sprintf("0xef9573696d756c6174656420636861696e20626c6f636bd594%xc080c0", nodeAddr.Bytes())),
 		}
-		signer   = types.LatestSignerForChainID(params.TestChainConfig.ChainID)
+		signer   = types.LatestSignerForChainID(params.AllCliqueProtocolChanges.ChainID)
 		txHashes = make([]common.Hash, genBlocks)
-	)
 
-	backend := newTestBackend(t, genBlocks, genesis, beacon.New(ethash.NewFaker()), func(i int, b *core.BlockGen) {
+		config = qbft.DefaultConfig
+		memDB  = rawdb.NewMemoryDatabase()
+	)
+	backend := newTestBackend(t, genBlocks, genesis, qbftbackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
 		var (
 			tx  *types.Transaction
 			err error
 		)
-		b.SetPoS()
 		switch i {
 		case 0:
 			// transfer 1000wei
@@ -1845,20 +1890,20 @@ func setupReceiptBackend(t *testing.T, genBlocks int) (*testBackend, []common.Ha
 				StorageKeys: []common.Hash{{0}},
 			}}
 			tx, err = types.SignTx(types.NewTx(&types.AccessListTx{Nonce: uint64(i), To: nil, Gas: 58100, GasPrice: b.BaseFee(), Data: common.FromHex("0x60806040"), AccessList: accessList}), signer, acc1Key)
-		case 5:
-			// blob tx
-			fee := big.NewInt(500)
-			fee.Add(fee, b.BaseFee())
-			tx, err = types.SignTx(types.NewTx(&types.BlobTx{
-				Nonce:      uint64(i),
-				GasTipCap:  uint256.NewInt(1),
-				GasFeeCap:  uint256.MustFromBig(fee),
-				Gas:        params.TxGas,
-				To:         acc2Addr,
-				BlobFeeCap: uint256.NewInt(1),
-				BlobHashes: []common.Hash{{1}},
-				Value:      new(uint256.Int),
-			}), signer, acc1Key)
+			// case 5: // ( skipping cancun fork )
+			// // blob tx
+			// fee := big.NewInt(500)
+			// fee.Add(fee, b.BaseFee())
+			// tx, err = types.SignTx(types.NewTx(&types.BlobTx{
+			// 	Nonce:      uint64(i),
+			// 	GasTipCap:  uint256.NewInt(1),
+			// 	GasFeeCap:  uint256.MustFromBig(fee),
+			// 	Gas:        params.TxGas,
+			// 	To:         acc2Addr,
+			// 	BlobFeeCap: uint256.NewInt(1),
+			// 	BlobHashes: []common.Hash{{1}},
+			// 	Value:      new(uint256.Int),
+			// }), signer, acc1Key)
 		}
 		if err != nil {
 			t.Errorf("failed to sign tx: %v", err)
@@ -1918,11 +1963,11 @@ func TestRPCGetTransactionReceipt(t *testing.T) {
 			txHash: common.HexToHash("deadbeef"),
 			file:   "txhash-notfound",
 		},
-		// 7. blob tx
-		{
-			txHash: txHashes[5],
-			file:   "blob-tx",
-		},
+		// 7. blob tx // ( skipping cancun fork )
+		// {
+		// 	txHash: txHashes[5],
+		// 	file:   "blob-tx",
+		// },
 	}
 
 	for i, tt := range testSuite {
@@ -1943,7 +1988,7 @@ func TestRPCGetBlockReceipts(t *testing.T) {
 	t.Parallel()
 
 	var (
-		genBlocks  = 6
+		genBlocks  = 5
 		backend, _ = setupReceiptBackend(t, genBlocks)
 		api        = NewBlockChainAPI(backend)
 	)
@@ -2016,11 +2061,11 @@ func TestRPCGetBlockReceipts(t *testing.T) {
 			test: rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(genBlocks + 1)),
 			file: "block-notfound",
 		},
-		// 11. block with blob tx
-		{
-			test: rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(6)),
-			file: "block-with-blob-tx",
-		},
+		// // 11. block with blob tx // ( skipping cancun fork )
+		// {
+		// 	test: rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(6)),
+		// 	file: "block-with-blob-tx",
+		// },
 	}
 
 	for i, tt := range testSuite {

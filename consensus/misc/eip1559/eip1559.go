@@ -34,9 +34,10 @@ import (
 func VerifyEIP1559Header(config *params.ChainConfig, parent, header *types.Header) error {
 	// Verify that the gas limit remains within allowed bounds
 	parentGasLimit := parent.GasLimit
-	if !config.IsLondon(parent.Number) {
-		parentGasLimit = parent.GasLimit * config.ElasticityMultiplier()
-	}
+	// WEMIX GasLimit policy
+	// if !config.IsLondon(parent.Number) {
+	// 	parentGasLimit = parent.GasLimit * config.ElasticityMultiplier()
+	// }
 	if err := misc.VerifyGaslimit(parentGasLimit, header.GasLimit); err != nil {
 		return err
 	}

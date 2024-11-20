@@ -22,7 +22,7 @@ import (
 )
 
 type Governance struct {
-	backend   *simulated.Backend
+	backend   *simulated.WbftBackend
 	owner     *bind.TransactOpts
 	nodeInfos []nodeInfo
 
@@ -44,7 +44,7 @@ type nodeInfo struct {
 
 func NewGovernance(t *testing.T) *Governance {
 	owner := getTxOpt(t, "owner")
-	backend := simulated.NewBackend(types.GenesisAlloc{
+	backend := simulated.NewWbftBackend(types.GenesisAlloc{
 		owner.From: {Balance: new(big.Int).Sub(new(big.Int).Lsh(common.Big1, 128), common.Big1)},
 	})
 
@@ -154,29 +154,45 @@ func (r *Governance) Deploy(address common.Address, tx *types.Transaction, contr
 }
 
 func (r *Governance) ExpectedOk(tx *types.Transaction, err error) error {
-	r.backend.Commit()
-	if err != nil {
-		return err
-	} else if receipt, err := bind.WaitMined(context.TODO(), r.backend.Client(), tx); err != nil {
-		return err
-	} else if receipt.Status != types.ReceiptStatusSuccessful {
-		panic(vm.ErrExecutionReverted)
-	} else {
-		return nil
-	}
+	_, err = expectedOk(r.backend, tx, err)
+	return err
 }
 
 func (r *Governance) ExpectedFail(tx *types.Transaction, err error) error {
-	r.backend.Commit()
+	_, err = expectedFail(r.backend, tx, err)
+	return err
+}
+
+func expectedOk(backend *simulated.WbftBackend, tx *types.Transaction, err error) (*types.Receipt, error) {
+	backend.Commit()
 	if err != nil {
-		return err
-	} else if receipt, err := bind.WaitMined(context.TODO(), r.backend.Client(), tx); err != nil {
-		return err
+		return nil, NewRevertError(err)
+	}
+
+	receipt, err := bind.WaitMined(context.TODO(), backend.Client(), tx)
+	if err != nil {
+		return nil, err
+	} else if receipt.Status != types.ReceiptStatusSuccessful {
+		panic(vm.ErrExecutionReverted)
+	}
+
+	return receipt, nil
+}
+
+func expectedFail(backend *simulated.WbftBackend, tx *types.Transaction, err error) (*types.Receipt, error) {
+	backend.Commit()
+	if err != nil {
+		return nil, NewRevertError(err)
+	}
+
+	receipt, err := bind.WaitMined(context.TODO(), backend.Client(), tx)
+	if err != nil {
+		return nil, err
 	} else if receipt.Status == types.ReceiptStatusSuccessful {
 		panic("execution not reverted")
-	} else {
-		return vm.ErrExecutionReverted
 	}
+
+	return receipt, nil
 }
 
 type MemberInfo struct {
@@ -214,6 +230,7 @@ func newBindContract(contract *compiler.Contract) (*bindContract, error) {
 		if !strings.HasPrefix(code, "0x") {
 			code = "0x" + code
 		}
+		collectErrors(parsedAbi)
 		return &bindContract{Bin: hexutil.MustDecode(code), Abi: *parsedAbi}, err
 	}
 }

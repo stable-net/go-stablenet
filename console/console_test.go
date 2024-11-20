@@ -28,16 +28,19 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/internal/jsre"
 	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p"
 )
 
 const (
 	testInstance = "console-tester"
-	testAddress  = "0x8605cdbbdb6d264aa742e77020dcbc58fcdce182"
+	testAddress  = "0x7908401c29f71c0417378c5bfddb3b7acc8c1a20" // test Node Address
+	testNodeKey  = "0e755c2805171de0997d52be69641852a90a08ea7ca17b103fdd8dc82ce8c41c"
 )
 
 // hookedPrompter implements UserPrompter to simulate use input via channels.
@@ -87,9 +90,10 @@ type tester struct {
 func newTester(t *testing.T, confOverride func(*ethconfig.Config)) *tester {
 	// Create a temporary storage for the node keys and initialize it
 	workspace := t.TempDir()
+	pKey, _ := crypto.HexToECDSA(testNodeKey)
 
 	// Create a networkless protocol stack and start an Ethereum service within
-	stack, err := node.New(&node.Config{DataDir: workspace, UseLightweightKDF: true, Name: testInstance})
+	stack, err := node.New(&node.Config{DataDir: workspace, UseLightweightKDF: true, Name: testInstance, P2P: p2p.Config{PrivateKey: pKey}})
 	if err != nil {
 		t.Fatalf("failed to create node: %v", err)
 	}

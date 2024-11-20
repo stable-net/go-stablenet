@@ -108,6 +108,9 @@ func (e *Engine) VerifyBlockProposal(chain consensus.ChainHeaderReader, block *t
 	}
 
 	parentHeader := chain.GetHeaderByHash(block.ParentHash())
+	if parentHeader == nil {
+		return 0, fmt.Errorf("unknown parent hash")
+	}
 	config := e.cfg.GetConfig(parentHeader.Number)
 
 	if config.EmptyBlockPeriod > config.BlockPeriod && len(block.Transactions()) == 0 {

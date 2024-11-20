@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
+	qbftBackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -53,6 +54,8 @@ type Config struct {
 	Recommit  time.Duration  // The time interval for miner to re-create mining work.
 
 	NewPayloadTimeout time.Duration // The maximum time allowance for creating a new payload
+
+	SimulatedEnabled bool `toml:",omitempty"`
 }
 
 // DefaultConfig contains default settings for miner.
@@ -248,4 +251,26 @@ func (miner *Miner) SubscribePendingLogs(ch chan<- []*types.Log) event.Subscript
 // BuildPayload builds the payload according to the provided parameters.
 func (miner *Miner) BuildPayload(args *BuildPayloadArgs) (*Payload, error) {
 	return miner.worker.buildPayload(args)
+}
+
+// Commit is function for simulation only.
+func (miner *Miner) CommitSimulated() common.Hash {
+	if !miner.worker.config.SimulatedEnabled {
+		panic("only simulated")
+	}
+	return miner.worker.simSyncer.commit()
+}
+
+func (miner *Miner) CommitSimulatedWithPeriod(duration time.Duration) common.Hash {
+	if !miner.worker.config.SimulatedEnabled {
+		panic("only simulated")
+	}
+	return miner.worker.simSyncer.commitWithPeriod(duration)
+}
+
+func (miner *Miner) InjectSimApplierTo(engine *qbftBackend.Backend) {
+	if !miner.worker.config.SimulatedEnabled {
+		panic("only simulated")
+	}
+	engine.InjectSimApplier(miner.worker.simSyncer)
 }

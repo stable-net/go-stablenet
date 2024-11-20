@@ -189,10 +189,7 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 		return beacon.New(clique.New(config.Clique, db)), nil
 	}
 
-	if config.MontBlancBlock != nil {
-		if config.QBFT == nil {
-			return nil, errors.New("montblanc hard fork is set but QBFT configuration is nil")
-		}
+	if config.QBFT != nil {
 		if qbftCfg == nil {
 			qbftCfg = new(qbft.Config)
 		}
@@ -222,15 +219,27 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 		if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
 			qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds
 		}
-		if config.IsMontBlanc(new(big.Int)) {
-			// only wbft engine
-			return qbftBackend.New(qbftCfg, privKey, db), nil
+
+		if config.MontBlancBlock != nil {
+			if config.IsMontBlanc(new(big.Int)) {
+				// only wbft engine
+				return qbftBackend.New(qbftCfg, privKey, db), nil
+			}
+			// wemix engine which can do `MontBlanc` hard fork
+			return wemix.NewWemixEngine(govCli, qbftCfg, privKey, db), nil
 		}
-		// wemix engine which can do `MontBlanc` hard fork
-		return wemix.NewWemixEngine(govCli, qbftCfg, privKey, db), nil
+		return beacon.New(qbftBackend.New(qbftCfg, privKey, db)), nil
 	}
-	// only WemixPoA engine; cannot mine a block
-	return wpoa.NewWemixPoAEngine(govCli), nil
+	// ## Quorum QBFT END
+
+	// If defaulting to proof-of-work, enforce an already merged network since
+	// we cannot run PoW algorithms anymore, so we cannot even follow a chain
+	// not coordinated by a beacon node.
+	if !config.TerminalTotalDifficultyPassed {
+		// no beacon and pure ethash faker
+		return ethash.NewFaker(), nil
+	}
+	return beacon.New(ethash.NewFaker()), nil
 }
 
 func CreateEthashFakeEngine(config *params.ChainConfig) (consensus.Engine, error) {
