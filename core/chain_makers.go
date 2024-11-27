@@ -355,13 +355,8 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			panic(err)
 		}
 
-		engine.CallEngineSpecific("NewChainHead")
-
 		results := make(chan *types.Block, 1)
-		err = b.engine.Seal(cm, block, results, nil)
-		if err == nil { // Clique, Ethash engine return error and they don't need to seal
-			block = <-results
-		}
+		sealErr := b.engine.Seal(cm, block, results, nil)
 
 		// Write state changes to db
 		root, err := statedb.Commit(b.header.Number.Uint64(), config.IsEIP158(b.header.Number))
@@ -370,6 +365,11 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		}
 		if err = triedb.Commit(root, false); err != nil {
 			panic(fmt.Sprintf("trie write error: %v", err))
+		}
+
+		engine.CallEngineSpecific("NewChainHead")
+		if sealErr == nil { // Clique, Ethash engine return error and they don't need to seal
+			block = <-results
 		}
 
 		return block, b.receipts
@@ -469,6 +469,7 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 	if err != nil {
 		panic("invalid call of InheritExtra")
 	}
+
 	return header
 }
 
@@ -519,12 +520,16 @@ type chainMaker struct {
 }
 
 func newChainMaker(bottom *types.Block, config *params.ChainConfig, engine consensus.Engine) *chainMaker {
-	return &chainMaker{
+	cm := &chainMaker{
 		bottom:      bottom,
 		config:      config,
 		engine:      engine,
 		chainByHash: make(map[common.Hash]*types.Block),
 	}
+	if bottom != nil {
+		cm.chainByHash[bottom.Hash()] = bottom // add genesis block hash to cache so as engine can get the parent block
+	}
+	return cm
 }
 
 func (cm *chainMaker) add(b *types.Block, r []*types.Receipt) {

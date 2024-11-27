@@ -23,6 +23,7 @@ package core
 import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	qbftmessage "github.com/ethereum/go-ethereum/consensus/qbft/messages"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -36,7 +37,19 @@ func (c *Core) broadcastPrepare() {
 
 	// Create PREPARE message from the current proposal
 	sub := c.current.Subject()
-	prepare := qbftmessage.NewPrepare(sub.View.Sequence, sub.View.Round, sub.Digest)
+
+	var header *types.Header
+	if block, ok := c.current.Proposal().(*types.Block); ok {
+		header = block.Header()
+	}
+	// Create Prepare Seal
+	prepareSeal, err := c.backend.SignWithoutHashing(PrepareSeal(header, uint32(c.currentView().Round.Uint64()), SealTypePrepare))
+	if err != nil {
+		logger.Error("QBFT: failed to create PREPARE seal", "sub", sub, "err", err)
+		return
+	}
+
+	prepare := qbftmessage.NewPrepare(sub.View.Sequence, sub.View.Round, sub.Digest, prepareSeal)
 	prepare.SetSource(c.Address())
 
 	// Sign Message
@@ -77,11 +90,21 @@ func (c *Core) broadcastPrepare() {
 func (c *Core) handlePrepareMsg(prepare *qbftmessage.Prepare) error {
 	logger := c.currentLogger(true, prepare).New()
 
-	logger.Info("QBFT: handle PREPARE message", "prepares.count", c.current.QBFTPrepares.Size(), "quorum", c.QuorumSize())
+	logger.Info("QBFT: handle PREPARE message", "prepares.count", c.current.QBFTPrepares.Size(), "quorum", c.valSet.QuorumSize())
 
 	// Check digest
 	if prepare.Digest != c.current.Proposal().Hash() {
 		logger.Error("QBFT: invalid PREPARE message digest")
+		return errInvalidMessage
+	}
+
+	// Check prepareSeal
+	block, ok := c.current.Proposal().(*types.Block)
+	if !ok {
+		return errInvalidMessage
+	}
+	if verifySeal(block.Header(), uint32(prepare.CommonPayload.Round.Uint64()), SealTypePrepare,
+		prepare.PrepareSeal, prepare.Source()) != nil {
 		return errInvalidMessage
 	}
 
@@ -91,11 +114,11 @@ func (c *Core) handlePrepareMsg(prepare *qbftmessage.Prepare) error {
 		return err
 	}
 
-	logger = logger.New("prepares.count", c.current.QBFTPrepares.Size(), "quorum", c.QuorumSize())
+	logger = logger.New("prepares.count", c.current.QBFTPrepares.Size(), "quorum", c.valSet.QuorumSize())
 
 	// Change to "Prepared" state if we've received quorum of PREPARE messages
 	// and we are in earlier state than "Prepared"
-	if (c.current.QBFTPrepares.Size() >= c.QuorumSize()) && c.state.Cmp(StatePrepared) < 0 {
+	if (c.current.QBFTPrepares.Size() >= c.valSet.QuorumSize()) && c.state.Cmp(StatePrepared) < 0 {
 		logger.Info("QBFT: received quorum of PREPARE messages")
 
 		// Accumulates PREPARE messages
@@ -105,7 +128,7 @@ func (c *Core) handlePrepareMsg(prepare *qbftmessage.Prepare) error {
 			c.QBFTPreparedPrepares = append(
 				c.QBFTPreparedPrepares,
 				qbftmessage.NewPrepareWithSigAndSource(
-					m.View().Sequence, m.View().Round, m.(*qbftmessage.Prepare).Digest, m.Signature(), m.Source()))
+					m.View().Sequence, m.View().Round, m.(*qbftmessage.Prepare).Digest, m.Signature(), m.Source(), m.(*qbftmessage.Prepare).PrepareSeal))
 		}
 
 		if c.current.Proposal() != nil && c.current.Proposal().Hash() == prepare.Digest {

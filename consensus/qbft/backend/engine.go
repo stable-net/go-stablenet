@@ -21,6 +21,7 @@
 package backend
 
 import (
+	"errors"
 	"math/big"
 	"math/rand"
 	"time"
@@ -58,11 +59,18 @@ func (sb *Backend) Author(header *types.Header) (common.Address, error) {
 	return sb.Engine().Author(header)
 }
 
-// Signers extracts all the addresses who have signed the given header
-// It will extract for each seal who signed it, regardless of if the seal is
-// repeated
-func (sb *Backend) Signers(header *types.Header) ([]common.Address, error) {
-	return sb.Engine().Signers(header)
+// PrepareSigners extracts all the addresses who have signed the given header
+// during the prepare phase. It will extract for each seal who signed it,
+// regardless of if the seal is repeated
+func (sb *Backend) PrepareSigners(header *types.Header) ([]common.Address, error) {
+	return sb.Engine().PrepareSigners(header)
+}
+
+// CommitSigners extracts all the addresses who have signed the given header
+// during the commit phase. It will extract for each seal who signed it,
+// regardless of if the seal is repeated
+func (sb *Backend) CommitSigners(header *types.Header) ([]common.Address, error) {
+	return sb.Engine().CommitSigners(header)
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules of a
@@ -74,12 +82,28 @@ func (sb *Backend) VerifyHeader(chain consensus.ChainHeaderReader, header *types
 
 func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	// Assemble the voting snapshot
-	snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, parents)
-	if err != nil {
+	var snap, prevSnap *Snapshot
+	var err error
+
+	if snap, err = sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, parents); err != nil {
 		return err
+	} else if header.Number.Uint64() < 2 {
+		return sb.Engine().VerifyHeader(chain, header, parents, snap.ValSet, snap.ValSet, true)
+	} else if len(parents) < 2 {
+		if prevSnap, err = sb.snapshot(chain, header.Number.Uint64()-2, chain.GetHeaderByNumber(header.Number.Uint64()-2).Hash(), nil); err != nil {
+			return err
+		}
+	} else {
+		h := parents[len(parents)-2]
+		if h.Number.Uint64() != header.Number.Uint64()-2 {
+			return errors.New("unexpected parents block")
+		}
+		if prevSnap, err = sb.snapshot(chain, h.Number.Uint64(), h.Hash(), nil); err != nil {
+			return err
+		}
 	}
 
-	return sb.Engine().VerifyHeader(chain, header, parents, snap.ValSet)
+	return sb.Engine().VerifyHeader(chain, header, parents, snap.ValSet, prevSnap.ValSet, true)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
@@ -176,7 +200,6 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -334,6 +357,9 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		if !ok {
 			return qbftcommon.ErrInvalidSpecificCall
 		}
+		if sb.coreStarted {
+			_ = sb.Stop()
+		}
 		return sb.Start(chain, currentBlock, hasBadBlock)
 	case "SetExtra":
 		if len(args) != 2 {
@@ -368,13 +394,24 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		if !ok {
 			return qbftcommon.ErrInvalidSpecificCall
 		}
-		extra, _ := types.ExtractQBFTExtra(parent)
+		extra, err := types.ExtractQBFTExtra(parent)
+		if err != nil {
+			return err
+		} else if extra.PreparedSeal == nil {
+			return qbftcommon.ErrEmptyPreparedSeals
+		} else if extra.CommittedSeal == nil {
+			// TODO : what if there is not committedSeal that node collected?
+			return qbftcommon.ErrEmptyCommittedSeals
+		}
+
+		prevPreparedSeal := extra.PreparedSeal
+		prevCommittedSeal := extra.CommittedSeal
+		// add validators in snapshot to extraData's validators section and lastBlock committers to extraData's prevCommittedSeal section
 		qbftengine.ApplyHeaderQBFTExtra(
 			header,
-			func(qbftExtra *types.QBFTExtra) error {
-				qbftExtra.Validators = extra.Validators
-				return nil
-			})
+			qbftengine.WriteValidators(extra.Validators),
+			qbftengine.WritePrevPreparedSeal(prevPreparedSeal),
+			qbftengine.WritePrevCommittedSeal(prevCommittedSeal))
 		return nil
 	case "NewChainHead":
 		return sb.NewChainHead()
@@ -438,7 +475,7 @@ func (sb *Backend) snapshot(chain consensus.ChainHeaderReader, number uint64, ha
 		// If we're at block zero, make a snapshot
 		if number == 0 {
 			genesis := chain.GetHeaderByNumber(0)
-			if err := sb.Engine().VerifyHeader(chain, genesis, nil, nil); err != nil {
+			if err := sb.Engine().VerifyHeader(chain, genesis, nil, nil, nil, false); err != nil {
 				sb.logger.Error("BFT: invalid genesis block", "err", err)
 				return nil, err
 			}

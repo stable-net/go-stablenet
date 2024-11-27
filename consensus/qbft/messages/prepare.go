@@ -17,22 +17,24 @@ import (
 // A QBFT PREPARE message.
 type Prepare struct {
 	CommonPayload
-	Digest common.Hash
+	Digest      common.Hash
+	PrepareSeal []byte
 }
 
-func NewPrepare(sequence *big.Int, round *big.Int, digest common.Hash) *Prepare {
+func NewPrepare(sequence *big.Int, round *big.Int, digest common.Hash, seal []byte) *Prepare {
 	return &Prepare{
 		CommonPayload: CommonPayload{
 			code:     PrepareCode,
 			Sequence: sequence,
 			Round:    round,
 		},
-		Digest: digest,
+		Digest:      digest,
+		PrepareSeal: seal,
 	}
 }
 
-func NewPrepareWithSigAndSource(sequence *big.Int, round *big.Int, digest common.Hash, signature []byte, source common.Address) *Prepare {
-	prepare := NewPrepare(sequence, round, digest)
+func NewPrepareWithSigAndSource(sequence *big.Int, round *big.Int, digest common.Hash, signature []byte, source common.Address, seal []byte) *Prepare {
+	prepare := NewPrepare(sequence, round, digest, seal)
 	prepare.signature = signature
 	prepare.source = source
 	return prepare
@@ -46,7 +48,7 @@ func (p *Prepare) EncodePayloadForSigning() ([]byte, error) {
 	return rlp.EncodeToBytes(
 		[]interface{}{
 			p.Code(),
-			[]interface{}{p.Sequence, p.Round, p.Digest},
+			[]interface{}{p.Sequence, p.Round, p.Digest, p.PrepareSeal},
 		})
 }
 
@@ -57,7 +59,8 @@ func (p *Prepare) EncodeRLP(w io.Writer) error {
 			[]interface{}{
 				p.Sequence,
 				p.Round,
-				p.Digest},
+				p.Digest,
+				p.PrepareSeal},
 			p.signature,
 		})
 }
@@ -65,9 +68,10 @@ func (p *Prepare) EncodeRLP(w io.Writer) error {
 func (p *Prepare) DecodeRLP(stream *rlp.Stream) error {
 	var message struct {
 		Payload struct {
-			Sequence *big.Int
-			Round    *big.Int
-			Digest   common.Hash
+			Sequence    *big.Int
+			Round       *big.Int
+			Digest      common.Hash
+			PrepareSeal []byte
 		}
 		Signature []byte
 	}
@@ -78,6 +82,7 @@ func (p *Prepare) DecodeRLP(stream *rlp.Stream) error {
 	p.Sequence = message.Payload.Sequence
 	p.Round = message.Payload.Round
 	p.Digest = message.Payload.Digest
+	p.PrepareSeal = message.Payload.PrepareSeal
 	p.signature = message.Signature
 	return nil
 }

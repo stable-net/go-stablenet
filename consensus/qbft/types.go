@@ -232,7 +232,9 @@ type ValidatorSet interface {
 	// Copy validator set
 	Copy() ValidatorSet
 	// Get the maximum number of faulty nodes
-	F() int
+	F() float64
+	// Get quorum size ( which is n-f)
+	QuorumSize() int
 	// Get proposer policy
 	Policy() ProposerPolicy
 

@@ -229,7 +229,7 @@ server to return no data because genesis is older than 127 blocks.`,
 			limitHash:    ffHash,
 			expAccounts:  68,
 			expFirst:     firstKey,
-			expLast:      common.HexToHash("0x7cf2a82cb777b7aa435dcddab99299165f8e46c83c1f9bd50206e428074143be"),
+			expLast:      common.HexToHash("0x8678559b30b321b0f0420a4a3e8cecfde90c6e56766b78c1723062c93c1f041f"),
 			desc: `This test requests data at a state root that is 127 blocks old.
 We expect the server to have this state available.`,
 		},

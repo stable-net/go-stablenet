@@ -205,7 +205,7 @@ func (sb *Backend) Gossip(valSet qbft.ValidatorSet, code uint64, payload []byte)
 }
 
 // Commit implements qbft.Backend.Commit
-func (sb *Backend) Commit(proposal qbft.Proposal, seals [][]byte, round *big.Int) (err error) {
+func (sb *Backend) Commit(proposal qbft.Proposal, preparedSeals, committedSeals [][]byte, round *big.Int) (err error) {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -215,7 +215,7 @@ func (sb *Backend) Commit(proposal qbft.Proposal, seals [][]byte, round *big.Int
 
 	// Commit header
 	h := block.Header()
-	err = sb.Engine().CommitHeader(h, seals, round)
+	err = sb.Engine().CommitHeader(h, preparedSeals, committedSeals, round)
 	if err != nil {
 		return
 	}
@@ -265,12 +265,16 @@ func (sb *Backend) Verify(proposal qbft.Proposal) (time.Duration, error) {
 	}
 
 	header := block.Header()
-	snap, err := sb.snapshot(sb.chain, header.Number.Uint64()-1, header.ParentHash, nil)
-	if err != nil {
+	var snap, prevSnap *Snapshot
+	var err error
+
+	if snap, err = sb.snapshot(sb.chain, header.Number.Uint64()-1, header.ParentHash, nil); err != nil {
+		return 0, err
+	} else if prevSnap, err = sb.snapshot(sb.chain, header.Number.Uint64()-2, header.ParentHash, nil); err != nil {
 		return 0, err
 	}
 
-	return sb.Engine().VerifyBlockProposal(sb.chain, block, snap.ValSet)
+	return sb.Engine().VerifyBlockProposal(sb.chain, block, snap.ValSet, prevSnap.ValSet)
 }
 
 // Sign implements qbft.Backend.Sign

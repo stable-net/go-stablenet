@@ -157,7 +157,7 @@ func createRoundChangeMessage(from common.Address, round int64, preparedRound in
 }
 
 func createPrepareMessage(from common.Address, round int64, preparedBlock qbft.Proposal) *qbftmessage.Prepare {
-	return qbftmessage.NewPrepareWithSigAndSource(big.NewInt(1), big.NewInt(round), preparedBlock.Hash(), nil, from)
+	return qbftmessage.NewPrepareWithSigAndSource(big.NewInt(1), big.NewInt(round), preparedBlock.Hash(), nil, from, nil)
 }
 
 func generateValidators(n int) []common.Address {

@@ -338,7 +338,7 @@ func TestVoting(t *testing.T) {
 			config.Epoch = tt.epoch
 		}
 
-		chain, backend := newBlockchainFromConfig(
+		chain, backend, _ := newBlockchainFromConfig(
 			genesis,
 			[]*ecdsa.PrivateKey{accounts.accounts[tt.validators[0]]},
 			config,

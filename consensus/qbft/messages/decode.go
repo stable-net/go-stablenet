@@ -41,6 +41,5 @@ func Decode(code uint64, data []byte) (QBFTMessage, error) {
 		roundChange.code = RoundChangeCode
 		return &roundChange, nil
 	}
-
 	return nil, qbftcommon.ErrInvalidMessage
 }

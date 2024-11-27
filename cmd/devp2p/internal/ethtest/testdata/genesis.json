@@ -2,8 +2,6 @@
   "config": {
     "chainId": 3503995874084926,
     "homesteadBlock": 0,
-    "daoForkBlock": 0,
-    "daoForkSupport": true,
     "eip150Block": 0,
     "eip155Block": 0,
     "eip158Block": 0,
@@ -30,24 +28,24 @@
       "halvingRate": 50
     },
     "qbft": {
-      "epochlength": 10,
-      "blockperiodseconds": 3,
-      "emptyblockperiodseconds": 6,
-      "requesttimeoutseconds": 1000,
-      "policy": 0,
+      "epochLength": 10,
+      "blockPeriodSeconds": 3,
+      "emptyBlockPeriodSeconds": 6,
+      "requestTimeoutSeconds": 1000,
+      "proposerPolicy": 0,
       "blockReward": "0xde0b6b3a7640000",
       "beneficiaryMode": "validator",
       "miningBeneficiary": "0x0000000000000000000000000000000000000000",
       "validatorselectionmode": "blockheader",
       "validators": [
-        "0xa0316f3745ef716a5ab3b4e55660acdb9b552445"
+        "0x2f33c2ab3813977e65e6fdcc665a45a68ae3feb1"
       ],
       "maxRequestTimeoutSeconds": 4
     }
   },
   "nonce": "0x0",
   "timestamp": "0x0",
-  "extraData": "0xf83aa00000000000000000000000000000000000000000000000000000000000000000d594a0316f3745ef716a5ab3b4e55660acdb9b552445c080c0",
+  "extraData": "0xf83da00000000000000000000000000000000000000000000000000000000000000000d5942f33c2ab3813977e65e6fdcc665a45a68ae3feb1c080c0c0c0c0",
   "gasLimit": "0x23f3e20",
   "difficulty": "0x1",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -73,6 +71,9 @@
       "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
     "2d389075be5be9f2246ad654ce152cf05990b209": {
+      "balance": "0xc097ce7bc90715b34b9f1000000000"
+    },
+    "2f33c2ab3813977e65e6fdcc665a45a68ae3feb1": {
       "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
     "3ae75c08b4c907eb63a8960c45b86e1e9ab6123c": {
@@ -117,9 +118,6 @@
       },
       "balance": "0x1",
       "nonce": "0x1"
-    },
-    "a0316f3745ef716a5ab3b4e55660acdb9b552445": {
-      "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
     "c7b99a164efd027a93f147376cc7da7c67c6bbe0": {
       "balance": "0xc097ce7bc90715b34b9f1000000000"

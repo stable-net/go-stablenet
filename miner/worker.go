@@ -1226,6 +1226,7 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		// Create a local environment copy, avoid the data race with snapshot state.
 		// https://github.com/ethereum/go-ethereum/issues/24299
 		env := env.copy()
+
 		// Withdrawals are set to nil here, because this is only called in PoW.
 		block, err := w.engine.FinalizeAndAssemble(w.chain, env.header, env.state, env.txs, nil, env.receipts, nil)
 		if err != nil {

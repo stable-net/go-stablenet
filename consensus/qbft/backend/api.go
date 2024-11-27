@@ -54,9 +54,9 @@ func (api *API) NodeAddress() common.Address {
 	return api.backend.Address()
 }
 
-// GetSignersFromBlock returns the signers and minter for a given block number, or the
+// GetCommitSignersFromBlock returns the signers and minter for a given block number, or the
 // latest block available if none is specified
-func (api *API) GetSignersFromBlock(number *rpc.BlockNumber) (*BlockSigners, error) {
+func (api *API) GetCommitSignersFromBlock(number *rpc.BlockNumber) (*BlockSigners, error) {
 	// Retrieve the requested block number (or current if none requested)
 	var header *types.Header
 	if number == nil || *number == rpc.LatestBlockNumber {
@@ -69,26 +69,26 @@ func (api *API) GetSignersFromBlock(number *rpc.BlockNumber) (*BlockSigners, err
 		return nil, qbftcommon.ErrUnknownBlock
 	}
 
-	return api.signers(header)
+	return api.commitSigners(header)
 }
 
 // GetSignersFromBlockByHash returns the signers and minter for a given block hash
-func (api *API) GetSignersFromBlockByHash(hash common.Hash) (*BlockSigners, error) {
+func (api *API) GetCommitSignersFromBlockByHash(hash common.Hash) (*BlockSigners, error) {
 	header := api.chain.GetHeaderByHash(hash)
 	if header == nil {
 		return nil, qbftcommon.ErrUnknownBlock
 	}
 
-	return api.signers(header)
+	return api.commitSigners(header)
 }
 
-func (api *API) signers(header *types.Header) (*BlockSigners, error) {
+func (api *API) commitSigners(header *types.Header) (*BlockSigners, error) {
 	author, err := api.backend.Author(header)
 	if err != nil {
 		return nil, err
 	}
 
-	committers, err := api.backend.Signers(header)
+	committers, err := api.backend.CommitSigners(header)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNum
 	}
 	for n := start; n < end; n++ {
 		blockNum := rpc.BlockNumber(int64(n))
-		s, _ := api.GetSignersFromBlock(&blockNum)
+		s, _ := api.GetCommitSignersFromBlock(&blockNum)
 		signStatus[s.Author]++
 	}
 	return &Status{

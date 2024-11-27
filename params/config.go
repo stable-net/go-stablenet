@@ -374,7 +374,7 @@ var (
 		GrayGlacierBlock:              big.NewInt(0),
 		MergeNetsplitBlock:            nil,
 		BriocheBlock:                  big.NewInt(0),
-		MontBlancBlock:                big.NewInt(0),
+		MontBlancBlock:                big.NewInt(1),
 		ShanghaiTime:                  nil,
 		CancunTime:                    nil,
 		PragueTime:                    nil,

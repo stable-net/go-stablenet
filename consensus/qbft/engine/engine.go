@@ -7,6 +7,7 @@ package qbftengine
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
 	qbftcommon "github.com/ethereum/go-ethereum/consensus/qbft/common"
+	"github.com/ethereum/go-ethereum/consensus/qbft/core"
 	"github.com/ethereum/go-ethereum/consensus/qbft/validator"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -50,12 +52,33 @@ func (e *Engine) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
 }
 
-func (e *Engine) CommitHeader(header *types.Header, seals [][]byte, round *big.Int) error {
+func (e *Engine) CommitHeader(header *types.Header, preparedSeals, committedSeals [][]byte, round *big.Int) error {
 	return ApplyHeaderQBFTExtra(
 		header,
-		writeCommittedSeals(seals),
+		writePreparedSeals(preparedSeals),
+		writeCommittedSeals(committedSeals),
 		writeRoundNumber(round),
 	)
+}
+
+// writePreparedSeals writes the extra-data field of a block header with given prepared seals.
+func writePreparedSeals(preparedSeals [][]byte) ApplyQBFTExtra {
+	return func(qbftExtra *types.QBFTExtra) error {
+		if len(preparedSeals) == 0 {
+			return qbftcommon.ErrInvalidPreparedSeals
+		}
+
+		for _, seal := range preparedSeals {
+			if len(seal) != types.IstanbulExtraSeal {
+				return qbftcommon.ErrInvalidPreparedSeals
+			}
+		}
+
+		qbftExtra.PreparedSeal = make([][]byte, len(preparedSeals))
+		copy(qbftExtra.PreparedSeal, preparedSeals)
+
+		return nil
+	}
 }
 
 // writeCommittedSeals writes the extra-data field of a block header with given committed seals.
@@ -86,7 +109,7 @@ func writeRoundNumber(round *big.Int) ApplyQBFTExtra {
 	}
 }
 
-func (e *Engine) VerifyBlockProposal(chain consensus.ChainHeaderReader, block *types.Block, validators qbft.ValidatorSet) (time.Duration, error) {
+func (e *Engine) VerifyBlockProposal(chain consensus.ChainHeaderReader, block *types.Block, validators qbft.ValidatorSet, prevValidators qbft.ValidatorSet) (time.Duration, error) {
 	// check block body
 	txnHash := types.DeriveSha(block.Transactions(), trie.NewStackTrie(nil))
 	if txnHash != block.Header().TxHash {
@@ -99,12 +122,11 @@ func (e *Engine) VerifyBlockProposal(chain consensus.ChainHeaderReader, block *t
 	}
 
 	// verify the header of proposed block
-	err := e.VerifyHeader(chain, block.Header(), nil, validators)
-	if err == nil || err == qbftcommon.ErrEmptyCommittedSeals {
-		// ignore errEmptyCommittedSeals error because we don't have the committed seals yet
-		return 0, nil
-	} else if err == consensus.ErrFutureBlock {
+	err := e.VerifyHeader(chain, block.Header(), nil, validators, prevValidators, false)
+	if errors.Is(err, consensus.ErrFutureBlock) {
 		return time.Until(time.Unix(int64(block.Header().Time), 0)), consensus.ErrFutureBlock
+	} else if err != nil {
+		return 0, err
 	}
 
 	parentHeader := chain.GetHeaderByHash(block.ParentHash())
@@ -119,18 +141,18 @@ func (e *Engine) VerifyBlockProposal(chain consensus.ChainHeaderReader, block *t
 		}
 	}
 
-	return 0, err
+	return 0, nil
 }
 
-func (e *Engine) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, validators qbft.ValidatorSet) error {
-	return e.verifyHeader(chain, header, parents, validators)
+func (e *Engine) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, validators qbft.ValidatorSet, prevValidators qbft.ValidatorSet, checkSeals bool) error {
+	return e.verifyHeader(chain, header, parents, validators, prevValidators, checkSeals)
 }
 
 // verifyHeader checks whether a header conforms to the consensus rules.The
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
-func (e *Engine) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, validators qbft.ValidatorSet) error {
+func (e *Engine) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, validators qbft.ValidatorSet, prevValidators qbft.ValidatorSet, checkSeals bool) error {
 	if header.Number == nil {
 		return qbftcommon.ErrUnknownBlock
 	}
@@ -160,41 +182,14 @@ func (e *Engine) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 		return qbftcommon.ErrInvalidDifficulty
 	}
 
-	return e.verifyCascadingFields(chain, header, validators, parents)
-}
-
-func (e *Engine) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool, validators qbft.ValidatorSet) (chan<- struct{}, <-chan error) {
-	abort := make(chan struct{})
-	results := make(chan error, len(headers))
-	go func() {
-		errored := false
-		for i, header := range headers {
-			var err error
-			if errored {
-				err = consensus.ErrUnknownAncestor
-			} else {
-				err = e.verifyHeader(chain, header, headers[:i], validators)
-			}
-
-			if err != nil {
-				errored = true
-			}
-
-			select {
-			case <-abort:
-				return
-			case results <- err:
-			}
-		}
-	}()
-	return abort, results
+	return e.verifyCascadingFields(chain, header, validators, prevValidators, parents, checkSeals)
 }
 
 // verifyCascadingFields verifies all the header fields that are not standalone,
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
 // database. This is useful for concurrently verifying a batch of new headers.
-func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, validators qbft.ValidatorSet, parents []*types.Header) error {
+func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, validators qbft.ValidatorSet, prevValidators qbft.ValidatorSet, parents []*types.Header, checkSeal bool) error {
 	// The genesis block is the always valid dead-end
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -226,7 +221,19 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		return err
 	}
 
-	return e.verifyCommittedSeals(chain, header, parents, validators)
+	// Verify seals
+	if checkSeal {
+		if err := e.verifySeals(header, validators); err != nil {
+			return err
+		}
+	}
+
+	// Verify prevPreparedSeals and prevCommittedSeals
+	if err := e.verifyPrevSeals(chain, header, parent, prevValidators); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, validators qbft.ValidatorSet) error {
@@ -250,8 +257,80 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 	return nil
 }
 
-// verifyCommittedSeals checks whether every committed seal is signed by one of the parent's validators
-func (e *Engine) verifyCommittedSeals(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, validators qbft.ValidatorSet) error {
+func verifySealers(sealers []common.Address, validators qbft.ValidatorSet) error {
+	validatorsCpy := validators.Copy()
+	validSealCnt := 0
+
+	for _, sealer := range sealers {
+		if validatorsCpy.RemoveValidator(sealer) {
+			validSealCnt++
+			continue
+		}
+		return fmt.Errorf("sealer is not validator")
+	}
+
+	if validSealCnt < validators.QuorumSize() {
+		return fmt.Errorf("lack of seal count")
+	}
+	return nil
+}
+
+// verifyPrevSeals checks whether every prevPreparedSeals and prevCommittedSeals are signed by one of the parent's validators
+func (e *Engine) verifyPrevSeals(chain consensus.ChainHeaderReader, header *types.Header, parent *types.Header, prevValidators qbft.ValidatorSet) error {
+	number := header.Number.Uint64()
+
+	if number == 0 {
+		// We don't need to verify prepared seals in the genesis block
+		return nil
+	}
+
+	extra, err := types.ExtractQBFTExtra(header)
+	if err != nil {
+		return err
+	}
+
+	prevPreparedSeal := extra.PrevPreparedSeal
+	if len(prevPreparedSeal) == 0 {
+		// prevPreparedSeal validation for monblanc block or first block after genesis is skipped because it's empty
+		if chain.Config().MontBlancBlock.Cmp(header.Number) != 0 && number != 1 {
+			return qbftcommon.ErrEmptyPrevPreparedSeals
+		}
+	} else {
+		//check whether prevPrepared seals are generated by prevValidators
+		var prevPreparers []common.Address
+		prevPreparers, err = e.GetSignerAddress(parent, prevPreparedSeal, core.SealTypePrepare)
+		if err != nil {
+			return err
+		}
+
+		if err := verifySealers(prevPreparers, prevValidators); err != nil {
+			return qbftcommon.ErrInvalidPrevPreparedSeals
+		}
+	}
+
+	prevCommittedSeal := extra.PrevCommittedSeal
+	if len(prevCommittedSeal) == 0 {
+		// prevCommittedSeal validation for monblanc block is skipped because it's empty
+		if chain.Config().MontBlancBlock.Cmp(header.Number) != 0 && number != 1 {
+			return qbftcommon.ErrEmptyPrevCommittedSeals
+		}
+	} else {
+		var prevCommitters []common.Address
+		prevCommitters, err = e.GetSignerAddress(parent, prevCommittedSeal, core.SealTypeCommit)
+		if err != nil {
+			return err
+		}
+
+		if err := verifySealers(prevCommitters, prevValidators); err != nil {
+			return qbftcommon.ErrInvalidPrevCommittedSeals
+		}
+	}
+
+	return nil
+}
+
+// verifySeals checks whether every prepared seals and committed seals are signed by one of validators
+func (e *Engine) verifySeals(header *types.Header, validators qbft.ValidatorSet) error {
 	number := header.Number.Uint64()
 
 	if number == 0 {
@@ -263,32 +342,36 @@ func (e *Engine) verifyCommittedSeals(chain consensus.ChainHeaderReader, header 
 	if err != nil {
 		return err
 	}
-	committedSeal := extra.CommittedSeal
 
+	preparedSeal := extra.PreparedSeal
+	// The length of Prepared seals should be larger than 0
+	if len(preparedSeal) == 0 {
+		return qbftcommon.ErrEmptyPreparedSeals
+	}
+
+	// Check whether the prepared seals are generated by validators
+	preparers, err := e.GetSignerAddress(header, preparedSeal, core.SealTypePrepare)
+	if err != nil {
+		return err
+	}
+
+	if err := verifySealers(preparers, validators); err != nil {
+		return qbftcommon.ErrInvalidPreparedSeals
+	}
+
+	committedSeal := extra.CommittedSeal
 	// The length of Committed seals should be larger than 0
 	if len(committedSeal) == 0 {
 		return qbftcommon.ErrEmptyCommittedSeals
 	}
 
-	validatorsCpy := validators.Copy()
-
-	// Check whether the committed seals are generated by validators
-	validSeal := 0
-	committers, err := e.Signers(header)
+	// Check whether the committed seals are generated by validator
+	committers, err := e.GetSignerAddress(header, committedSeal, core.SealTypeCommit)
 	if err != nil {
 		return err
 	}
 
-	for _, addr := range committers {
-		if validatorsCpy.RemoveValidator(addr) {
-			validSeal++
-			continue
-		}
-		return qbftcommon.ErrInvalidCommittedSeals
-	}
-
-	// The length of validSeal should be larger than number of faulty node + 1
-	if validSeal <= validators.F() {
+	if err := verifySealers(committers, validators); err != nil {
 		return qbftcommon.ErrInvalidCommittedSeals
 	}
 
@@ -367,17 +450,54 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 		}
 	}
 	validatorsList := validator.SortedAddresses(validators.List())
-	// add validators in snapshot to extraData's validators section
-	return ApplyHeaderQBFTExtra(
-		header,
-		WriteValidators(validatorsList),
-	)
-	// } // ## Wemix QBFT : removed
+	if chain.Config().MontBlancBlock.Cmp(header.Number) == 0 {
+		// monblac hardFork block has empty prevCommittedSeal
+		return ApplyHeaderQBFTExtra(
+			header,
+			WriteValidators(validatorsList),
+		)
+	} else {
+		lastCanonicalHeader := chain.GetHeaderByNumber(header.Number.Uint64() - 1)
+		extra, err := types.ExtractQBFTExtra(lastCanonicalHeader)
+		if err != nil {
+			return err
+		} else if extra.PreparedSeal == nil {
+			// TODO : what if there is not preparedSeal that node collected?
+			return qbftcommon.ErrEmptyPreparedSeals
+		} else if extra.CommittedSeal == nil {
+			// TODO : what if there is not committedSeal that node collected?
+			return qbftcommon.ErrEmptyCommittedSeals
+		}
+
+		prevPreparedSeal := extra.PreparedSeal
+		prevCommittedSeal := extra.CommittedSeal
+		// add validators in snapshot to extraData's validators section and lastBlock committers to extraData's prevCommittedSeal section
+		return ApplyHeaderQBFTExtra(
+			header,
+			WriteValidators(validatorsList),
+			WritePrevPreparedSeal(prevPreparedSeal),
+			WritePrevCommittedSeal(prevCommittedSeal),
+		)
+	}
 }
 
 func WriteValidators(validators []common.Address) ApplyQBFTExtra {
 	return func(qbftExtra *types.QBFTExtra) error {
 		qbftExtra.Validators = validators
+		return nil
+	}
+}
+
+func WritePrevPreparedSeal(prevPreparedSeal [][]byte) ApplyQBFTExtra {
+	return func(qbftExtra *types.QBFTExtra) error {
+		qbftExtra.PrevPreparedSeal = prevPreparedSeal
+		return nil
+	}
+}
+
+func WritePrevCommittedSeal(prevCommittedSeal [][]byte) ApplyQBFTExtra {
+	return func(qbftExtra *types.QBFTExtra) error {
+		qbftExtra.PrevCommittedSeal = prevCommittedSeal
 		return nil
 	}
 }
@@ -439,19 +559,17 @@ func (e *Engine) ExtractGenesisValidators(header *types.Header) ([]common.Addres
 	return extra.Validators, nil
 }
 
-func (e *Engine) Signers(header *types.Header) ([]common.Address, error) {
+func (e *Engine) GetSignerAddress(header *types.Header, signedSeal [][]byte, sealType core.SealType) ([]common.Address, error) {
 	extra, err := types.ExtractQBFTExtra(header)
 	if err != nil {
 		return []common.Address{}, err
 	}
-	committedSeal := extra.CommittedSeal
-	proposalSeal := PrepareCommittedSeal(header, extra.Round)
-
+	sealData := core.PrepareSeal(header, extra.Round, sealType)
 	var addrs []common.Address
-	// 1. Get committed seals from current header
-	for _, seal := range committedSeal {
-		// 2. Get the original address by seal and parent block hash
-		addr, err := qbft.GetSignatureAddressNoHashing(proposalSeal, seal)
+
+	for _, seal := range signedSeal {
+		// Get the original address by seal and block hash
+		addr, err := qbft.GetSignatureAddressNoHashing(sealData, seal)
 		if err != nil {
 			return nil, qbftcommon.ErrInvalidSignature
 		}
@@ -459,6 +577,24 @@ func (e *Engine) Signers(header *types.Header) ([]common.Address, error) {
 	}
 
 	return addrs, nil
+}
+
+func (e *Engine) PrepareSigners(header *types.Header) ([]common.Address, error) {
+	extra, err := types.ExtractQBFTExtra(header)
+	if err != nil {
+		return []common.Address{}, err
+	}
+	preparedSeal := extra.PreparedSeal
+	return e.GetSignerAddress(header, preparedSeal, core.SealTypePrepare)
+}
+
+func (e *Engine) CommitSigners(header *types.Header) ([]common.Address, error) {
+	extra, err := types.ExtractQBFTExtra(header)
+	if err != nil {
+		return []common.Address{}, err
+	}
+	committedSeal := extra.CommittedSeal
+	return e.GetSignerAddress(header, committedSeal, core.SealTypeCommit)
 }
 
 func (e *Engine) Address() common.Address {
@@ -478,12 +614,6 @@ func sigHash(header *types.Header) (hash common.Hash) {
 	rlp.Encode(hasher, types.QBFTFilteredHeader(header))
 	hasher.Sum(hash[:0])
 	return hash
-}
-
-// PrepareCommittedSeal returns a committed seal for the given hash
-func PrepareCommittedSeal(header *types.Header, round uint32) []byte {
-	h := types.CopyHeader(header)
-	return h.QBFTHashWithRoundNumber(round).Bytes()
 }
 
 func (e *Engine) WriteVote(header *types.Header, candidate common.Address, authorize bool) error {
@@ -537,11 +667,14 @@ func getExtra(header *types.Header) (*types.QBFTExtra, error) {
 		// In this scenario, the header extradata only contains client specific information, hence create a new qbftExtra and set vanity
 		vanity := append(header.Extra, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(header.Extra))...)
 		return &types.QBFTExtra{
-			VanityData:    vanity,
-			Validators:    []common.Address{},
-			CommittedSeal: [][]byte{},
-			Round:         0,
-			Vote:          nil,
+			VanityData:        vanity,
+			Validators:        []common.Address{},
+			PreparedSeal:      [][]byte{},
+			CommittedSeal:     [][]byte{},
+			PrevPreparedSeal:  [][]byte{},
+			PrevCommittedSeal: [][]byte{},
+			Round:             0,
+			Vote:              nil,
 		}, nil
 	}
 
@@ -554,7 +687,6 @@ func setExtra(h *types.Header, qbftExtra *types.QBFTExtra) error {
 	if err != nil {
 		return err
 	}
-
 	h.Extra = payload
 	return nil
 }
@@ -571,5 +703,72 @@ func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *sta
 		log.Trace("QBFT: accumulate rewards to", "rewardAccount", rewardAccount, "blockReward", blockReward)
 
 		state.AddBalance(rewardAccount, uint256.MustFromBig(&blockReward))
+
+		if err := e.calculateRewards(
+			chain,
+			header,
+			func(addr common.Address, amt *big.Int) { state.AddBalance(addr, uint256.MustFromBig(amt)) },
+			func(addr common.Address, amt *big.Int) { state.AddBalance(addr, uint256.MustFromBig(amt)) },
+		); err != nil {
+			// TODO: how to handle err here?
+			log.Warn("Error while calculating rewards", "err", err)
+		}
 	}
+}
+
+func (e *Engine) calculateRewards(chain consensus.ChainHeaderReader, header *types.Header, prepareRewardFn, commitRewardFn func(common.Address, *big.Int)) error {
+	// TODO : need proper calculation when distribution rule is decided. Current work is to get rewardee's address from preCommittedSeal
+
+	parentHeader := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
+	lastQbftExtra, err := types.ExtractQBFTExtra(parentHeader)
+	if err != nil {
+		return qbftcommon.ErrInvalidExtraDataFormat
+	}
+
+	// proposal seals of prior block
+	proposalPrepareSeal := core.PrepareSeal(parentHeader, lastQbftExtra.Round, core.SealTypePrepare)
+	proposalCommitSeal := core.PrepareSeal(parentHeader, lastQbftExtra.Round, core.SealTypeCommit)
+
+	var prepareRewardees []common.Address
+	var commitRewardees []common.Address
+
+	qbftExtra, err := types.ExtractQBFTExtra(header)
+	if err != nil {
+		return qbftcommon.ErrInvalidExtraDataFormat
+	}
+
+	// get prev prepared address
+	for _, seal := range qbftExtra.PrevPreparedSeal {
+		addr, err := qbft.GetSignatureAddressNoHashing(proposalPrepareSeal, seal)
+		if err != nil {
+			return qbftcommon.ErrInvalidSignature
+		}
+		prepareRewardees = append(prepareRewardees, addr)
+	}
+
+	// get prev committed address
+	for _, seal := range qbftExtra.PrevCommittedSeal {
+		addr, err := qbft.GetSignatureAddressNoHashing(proposalCommitSeal, seal)
+		if err != nil {
+			return qbftcommon.ErrInvalidSignature
+		}
+		commitRewardees = append(commitRewardees, addr)
+	}
+	log.Trace("Calculating block reward", "currentBlock", header.Number, "calculatingBlock", parentHeader.Number, "prepareReward", prepareRewardees, "commitReward", commitRewardees)
+	prepareReward := chain.Config().GetPrepareReward(header.Number)
+	commitReward := chain.Config().GetCommitReward(header.Number)
+
+	if prepareRewardFn != nil {
+		for _, addr := range prepareRewardees {
+			prepareRewardFn(addr, &prepareReward)
+		}
+	}
+
+	if commitRewardFn != nil {
+		for _, addr := range commitRewardees {
+			commitRewardFn(addr, &commitReward)
+		}
+	}
+
+	return nil
 }

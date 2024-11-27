@@ -53,11 +53,29 @@ var (
 	// allowed constants of 0x00..0 or 0xff..f.
 	ErrInvalidVote = errors.New("vote nonce not 0x00..0 or 0xff..f")
 
+	// ErrInvalidPreparedSeals is returned if the prepared seal is not signed by any of parent validators.
+	ErrInvalidPreparedSeals = errors.New("invalid prepared seals")
+
+	// ErrInvalidPrevPreparedSeals is returned if the prev prepared seal is not signed by any of parent validators or not enough seals.
+	ErrInvalidPrevPreparedSeals = errors.New("invalid prev prepared seals")
+
+	// ErrEmptyPreparedSeals is returned if the field of prepared seals is zero.
+	ErrEmptyPreparedSeals = errors.New("zero prepared seals")
+
+	// ErrEmptyPrevPreparedSeals is returned if the field of prepared seals is zero.
+	ErrEmptyPrevPreparedSeals = errors.New("zero prev prepared seals")
+
 	// ErrInvalidCommittedSeals is returned if the committed seal is not signed by any of parent validators.
 	ErrInvalidCommittedSeals = errors.New("invalid committed seals")
 
+	// ErrInvalidPrevCommittedSeals is returned if the prev committed seal is not signed by any of parent validators or not enough seals.
+	ErrInvalidPrevCommittedSeals = errors.New("invalid prev committed seals")
+
 	// ErrEmptyCommittedSeals is returned if the field of committed seals is zero.
 	ErrEmptyCommittedSeals = errors.New("zero committed seals")
+
+	// ErrEmptyPrevCommittedSeals is returned if the field of committed seals is zero.
+	ErrEmptyPrevCommittedSeals = errors.New("zero prev committed seals")
 
 	// ErrMismatchTxhashes is returned if the TxHash in header is mismatch.
 	ErrMismatchTxhashes = errors.New("mismatch transactions hashes")
@@ -72,10 +90,6 @@ var (
 
 	// ErrIgnored is returned when a message was ignored.
 	ErrIgnored = errors.New("message is ignored")
-
-	// ErrFutureMessage is returned when current view is earlier than the
-	// view of the received message.
-	ErrFutureMessage = errors.New("future message")
 
 	// ErrOldMessage is returned when the received message's view is earlier
 	// than current view.

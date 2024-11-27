@@ -44,7 +44,7 @@ func (c *Core) broadcastCommit() {
 		header = block.Header()
 	}
 	// Create Commit Seal
-	commitSeal, err := c.backend.SignWithoutHashing(PrepareCommittedSeal(header, uint32(c.currentView().Round.Uint64())))
+	commitSeal, err := c.backend.SignWithoutHashing(PrepareSeal(header, uint32(c.currentView().Round.Uint64()), SealTypeCommit))
 	if err != nil {
 		logger.Error("QBFT: failed to create COMMIT seal", "sub", sub, "err", err)
 		return
@@ -92,11 +92,21 @@ func (c *Core) broadcastCommit() {
 func (c *Core) handleCommitMsg(commit *qbftmessage.Commit) error {
 	logger := c.currentLogger(true, commit)
 
-	logger.Info("QBFT: handle COMMIT message", "commits.count", c.current.QBFTCommits.Size(), "quorum", c.QuorumSize())
+	logger.Info("QBFT: handle COMMIT message", "commits.count", c.current.QBFTCommits.Size(), "quorum", c.valSet.QuorumSize())
 
 	// Check digest
 	if commit.Digest != c.current.Proposal().Hash() {
 		logger.Error("QBFT: invalid COMMIT message digest", "digest", commit.Digest, "proposal", c.current.Proposal().Hash().String())
+		return errInvalidMessage
+	}
+
+	// Check commitSeal
+	block, ok := c.current.Proposal().(*types.Block)
+	if !ok {
+		return errInvalidMessage
+	}
+	if verifySeal(block.Header(), uint32(commit.CommonPayload.Round.Uint64()), SealTypeCommit,
+		commit.CommitSeal, commit.Source()) != nil {
 		return errInvalidMessage
 	}
 
@@ -106,10 +116,10 @@ func (c *Core) handleCommitMsg(commit *qbftmessage.Commit) error {
 		return err
 	}
 
-	logger = logger.New("commits.count", c.current.QBFTCommits.Size(), "quorum", c.QuorumSize())
+	logger = logger.New("commits.count", c.current.QBFTCommits.Size(), "quorum", c.valSet.QuorumSize())
 
 	// If we reached threshold
-	if c.current.QBFTCommits.Size() >= c.QuorumSize() {
+	if c.current.QBFTCommits.Size() >= c.valSet.QuorumSize() {
 		logger.Info("QBFT: received quorum of COMMIT messages")
 		c.commitQBFT()
 	} else {
@@ -128,6 +138,14 @@ func (c *Core) commitQBFT() {
 
 	proposal := c.current.Proposal()
 	if proposal != nil {
+		// Compute prepared seals
+		preparedSeals := make([][]byte, c.current.QBFTPrepares.Size())
+		for i, msg := range c.current.QBFTPrepares.Values() {
+			preparedSeals[i] = make([]byte, types.IstanbulExtraSeal)
+			prepareMsg := msg.(*qbftmessage.Prepare)
+			copy(preparedSeals[i][:], prepareMsg.PrepareSeal[:])
+		}
+
 		// Compute committed seals
 		committedSeals := make([][]byte, c.current.QBFTCommits.Size())
 		for i, msg := range c.current.QBFTCommits.Values() {
@@ -137,7 +155,7 @@ func (c *Core) commitQBFT() {
 		}
 
 		// Commit proposal to database
-		if err := c.backend.Commit(proposal, committedSeals, c.currentView().Round); err != nil {
+		if err := c.backend.Commit(proposal, preparedSeals, committedSeals, c.currentView().Round); err != nil {
 			c.currentLogger(true, nil).Error("QBFT: error committing proposal", "err", err)
 			c.broadcastNextRoundChange()
 			return

@@ -24,7 +24,7 @@ func TestPrepareExtra(t *testing.T) {
 	validators[2] = common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6"))
 	validators[3] = common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440"))
 
-	expectedResult := hexutil.MustDecode("0xf87aa00000000000000000000000000000000000000000000000000000000000000000f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c080c0")
+	expectedResult := hexutil.MustDecode("0xf87da00000000000000000000000000000000000000000000000000000000000000000f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c080c0c0c0c0")
 
 	h := &types.Header{}
 	err := ApplyHeaderQBFTExtra(
@@ -40,7 +40,7 @@ func TestPrepareExtra(t *testing.T) {
 }
 
 func TestWriteCommittedSeals(t *testing.T) {
-	istRawData := hexutil.MustDecode("0xf85a80f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c080c0")
+	istRawData := hexutil.MustDecode("0xf8a180f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c080c0f843b8410102030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0c0")
 	expectedCommittedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
 	expectedIstExtra := &types.QBFTExtra{
 		VanityData: []byte{},
@@ -50,9 +50,12 @@ func TestWriteCommittedSeals(t *testing.T) {
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 		},
-		CommittedSeal: [][]byte{expectedCommittedSeal},
-		Round:         0,
-		Vote:          nil,
+		CommittedSeal:     [][]byte{expectedCommittedSeal},
+		PreparedSeal:      [][]byte{},
+		PrevCommittedSeal: [][]byte{},
+		PrevPreparedSeal:  [][]byte{},
+		Round:             0,
+		Vote:              nil,
 	}
 
 	h := &types.Header{
@@ -88,8 +91,9 @@ func TestWriteCommittedSeals(t *testing.T) {
 	}
 }
 
-func TestWriteRoundNumber(t *testing.T) {
-	istRawData := hexutil.MustDecode("0xf85a80f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c005c0")
+func TestWritePreparedSeals(t *testing.T) {
+	istRawData := hexutil.MustDecode("0xf8a180f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c080f843b8410102030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0c0c0")
+	expectedPreparedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
 	expectedIstExtra := &types.QBFTExtra{
 		VanityData: []byte{},
 		Validators: []common.Address{
@@ -98,9 +102,63 @@ func TestWriteRoundNumber(t *testing.T) {
 			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 		},
-		CommittedSeal: [][]byte{},
-		Round:         5,
-		Vote:          nil,
+		CommittedSeal:     [][]byte{},
+		PreparedSeal:      [][]byte{expectedPreparedSeal},
+		PrevCommittedSeal: [][]byte{},
+		PrevPreparedSeal:  [][]byte{},
+		Round:             0,
+		Vote:              nil,
+	}
+
+	h := &types.Header{
+		Extra: istRawData,
+	}
+
+	// normal case
+	err := ApplyHeaderQBFTExtra(
+		h,
+		writePreparedSeals([][]byte{expectedPreparedSeal}),
+	)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want: nil", err)
+	}
+
+	// verify qbft extra-data
+	istExtra, err := getExtra(h)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want nil", err)
+	}
+	if !reflect.DeepEqual(istExtra, expectedIstExtra) {
+		t.Errorf("extra data mismatch: have %v, want %v", istExtra, expectedIstExtra)
+	}
+
+	// invalid seal
+	unexpectedPreparedSeal := append(expectedPreparedSeal, make([]byte, 1)...)
+	err = ApplyHeaderQBFTExtra(
+		h,
+		writePreparedSeals([][]byte{unexpectedPreparedSeal}),
+	)
+	if err != qbftcommon.ErrInvalidPreparedSeals {
+		t.Errorf("error mismatch: have %v, want %v", err, qbftcommon.ErrInvalidPreparedSeals)
+	}
+}
+
+func TestWriteRoundNumber(t *testing.T) {
+	istRawData := hexutil.MustDecode("0xf85d80f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c005c0c0c0c0")
+	expectedIstExtra := &types.QBFTExtra{
+		VanityData: []byte{},
+		Validators: []common.Address{
+			common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")),
+			common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")),
+			common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
+			common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
+		},
+		CommittedSeal:     [][]byte{},
+		PreparedSeal:      [][]byte{},
+		PrevCommittedSeal: [][]byte{},
+		PrevPreparedSeal:  [][]byte{},
+		Round:             5,
+		Vote:              nil,
 	}
 
 	var expectedErr error
@@ -130,14 +188,17 @@ func TestWriteRoundNumber(t *testing.T) {
 
 func TestWriteValidatorVote(t *testing.T) {
 	vanity := bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)
-	istRawData := hexutil.MustDecode("0xf85a80f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c005c0")
+	istRawData := hexutil.MustDecode("0xf83fa00000000000000000000000000000000000000000000000000000000000000000c0d79444add0ec310f115a0e603b2d7db9f0677712345681ff80c0c0c0c0")
 	vote := &types.ValidatorVote{RecipientAddress: common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f06777123456")), VoteType: types.QBFTAuthVote}
 	expectedIstExtra := &types.QBFTExtra{
-		VanityData:    vanity,
-		Validators:    []common.Address{},
-		CommittedSeal: [][]byte{},
-		Round:         0,
-		Vote:          vote,
+		VanityData:        vanity,
+		Validators:        []common.Address{},
+		CommittedSeal:     [][]byte{},
+		PreparedSeal:      [][]byte{},
+		PrevCommittedSeal: [][]byte{},
+		PrevPreparedSeal:  [][]byte{},
+		Round:             0,
+		Vote:              vote,
 	}
 
 	var expectedErr error

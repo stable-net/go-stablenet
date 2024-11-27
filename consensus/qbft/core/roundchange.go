@@ -122,7 +122,7 @@ func (c *Core) handleRoundChangeMsg(roundChange *qbftmessage.RoundChange) error 
 			pr = roundChange.PreparedRound
 			pb = roundChange.PreparedBlock
 		}
-		err := c.roundChangeSet.Add(view.Round, roundChange, pr, pb, prepareMessages, c.QuorumSize())
+		err := c.roundChangeSet.Add(view.Round, roundChange, pr, pb, prepareMessages, c.valSet.QuorumSize())
 		if err != nil {
 			logger.Warn("QBFT: failed to add ROUND-CHANGE message", "err", err)
 			return err
@@ -137,7 +137,7 @@ func (c *Core) handleRoundChangeMsg(roundChange *qbftmessage.RoundChange) error 
 
 	logger = logger.New("higherRoundChanges.count", num, "currentRoundChanges.count", currentRoundMessages)
 
-	if num == c.valSet.F()+1 {
+	if float64(num) > c.valSet.F() && float64(num) <= c.valSet.F()+1 {
 		// We received F+1 ROUND-CHANGE messages (this may happen before our timeout exprired)
 		// we start new round and broadcast ROUND-CHANGE message
 		newRound := c.roundChangeSet.getMinRoundChange(currentRound)
@@ -146,7 +146,7 @@ func (c *Core) handleRoundChangeMsg(roundChange *qbftmessage.RoundChange) error 
 
 		c.startNewRound(newRound)
 		c.broadcastRoundChange(newRound)
-	} else if currentRoundMessages >= c.QuorumSize() && c.IsProposer() && c.current.preprepareSent.Cmp(currentRound) < 0 {
+	} else if currentRoundMessages >= c.valSet.QuorumSize() && c.IsProposer() && c.current.preprepareSent.Cmp(currentRound) < 0 {
 		logger.Info("QBFT: received quorum of ROUND-CHANGE messages")
 
 		// We received quorum of ROUND-CHANGE for current round and we are proposer
@@ -173,7 +173,7 @@ func (c *Core) handleRoundChangeMsg(roundChange *qbftmessage.RoundChange) error 
 		}
 
 		prepareMessages := c.roundChangeSet.prepareMessages[currentRound.Uint64()]
-		if err := isJustified(proposal, rcSignedPayloads, prepareMessages, c.QuorumSize()); err != nil {
+		if err := isJustified(proposal, rcSignedPayloads, prepareMessages, c.valSet.QuorumSize()); err != nil {
 			logger.Error("QBFT: invalid ROUND-CHANGE message justification", "err", err)
 			return nil
 		}

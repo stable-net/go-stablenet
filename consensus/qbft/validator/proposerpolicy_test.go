@@ -38,7 +38,7 @@ func TestProposerPolicy(t *testing.T) {
 
 	addrSet := []common.Address{addr1, addr2, addr3, addr4, addr5, addr6}
 	addressSortedByByte := []common.Address{addr6, addr4, addr1, addr3, addr5, addr2}
-	addressSortedByString := []common.Address{addr6, addr4, addr1, addr2, addr5, addr3}
+	addressSortedByString := []common.Address{addr6, addr4, addr1, addr3, addr5, addr2}
 
 	pp := qbft.NewRoundRobinProposerPolicy()
 	pp.Use(qbft.ValidatorSortByByte())

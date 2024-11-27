@@ -40,7 +40,7 @@ import (
 // ## Wemix QBFT END
 
 func TestIstanbulMessage(t *testing.T) {
-	_, backend := newBlockChain(1)
+	_, backend, _ := newBlockChain(1)
 	defer backend.Stop()
 
 	// generate one msg
@@ -95,7 +95,7 @@ func tryUntilMessageIsHandled(backend *Backend, arbitraryAddress common.Address,
 }
 
 func TestHandleNewBlockMessage_whenTypical(t *testing.T) {
-	_, backend := newBlockChain(1)
+	_, backend, _ := newBlockChain(1)
 	defer backend.Stop()
 	arbitraryAddress := common.BytesToAddress([]byte("arbitrary"))
 	arbitraryBlock, arbitraryP2PMessage := buildArbitraryP2PNewBlockMessage(t, false)
@@ -114,7 +114,7 @@ func TestHandleNewBlockMessage_whenTypical(t *testing.T) {
 }
 
 func TestHandleNewBlockMessage_whenNotAProposedBlock(t *testing.T) {
-	_, backend := newBlockChain(1)
+	_, backend, _ := newBlockChain(1)
 	defer backend.Stop()
 	arbitraryAddress := common.BytesToAddress([]byte("arbitrary"))
 	_, arbitraryP2PMessage := buildArbitraryP2PNewBlockMessage(t, false)
@@ -138,7 +138,7 @@ func TestHandleNewBlockMessage_whenNotAProposedBlock(t *testing.T) {
 }
 
 func TestHandleNewBlockMessage_whenFailToDecode(t *testing.T) {
-	_, backend := newBlockChain(1)
+	_, backend, _ := newBlockChain(1)
 	defer backend.Stop()
 	arbitraryAddress := common.BytesToAddress([]byte("arbitrary"))
 	_, arbitraryP2PMessage := buildArbitraryP2PNewBlockMessage(t, true)

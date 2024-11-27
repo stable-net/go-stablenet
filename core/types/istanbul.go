@@ -47,11 +47,14 @@ var (
 
 // QBFTExtra represents header extradata for qbft protocol
 type QBFTExtra struct {
-	VanityData    []byte
-	Validators    []common.Address
-	Vote          *ValidatorVote
-	Round         uint32
-	CommittedSeal [][]byte
+	VanityData        []byte
+	Validators        []common.Address
+	Vote              *ValidatorVote
+	Round             uint32
+	PreparedSeal      [][]byte
+	CommittedSeal     [][]byte
+	PrevPreparedSeal  [][]byte
+	PrevCommittedSeal [][]byte // committedSeal of previous local block
 }
 
 type ValidatorVote struct {
@@ -66,23 +69,31 @@ func (qst *QBFTExtra) EncodeRLP(w io.Writer) error {
 		qst.Validators,
 		qst.Vote,
 		qst.Round,
+		qst.PreparedSeal,
 		qst.CommittedSeal,
+		qst.PrevPreparedSeal,
+		qst.PrevCommittedSeal,
 	})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the QBFTExtra fields from a RLP stream.
 func (qst *QBFTExtra) DecodeRLP(s *rlp.Stream) error {
 	var qbftExtra struct {
-		VanityData    []byte
-		Validators    []common.Address
-		Vote          *ValidatorVote `rlp:"nil"`
-		Round         uint32
-		CommittedSeal [][]byte
+		VanityData        []byte
+		Validators        []common.Address
+		Vote              *ValidatorVote `rlp:"nil"`
+		Round             uint32
+		PreparedSeal      [][]byte
+		CommittedSeal     [][]byte
+		PrevPreparedSeal  [][]byte
+		PrevCommittedSeal [][]byte
 	}
 	if err := s.Decode(&qbftExtra); err != nil {
 		return err
 	}
-	qst.VanityData, qst.Validators, qst.Vote, qst.Round, qst.CommittedSeal = qbftExtra.VanityData, qbftExtra.Validators, qbftExtra.Vote, qbftExtra.Round, qbftExtra.CommittedSeal
+
+	qst.VanityData, qst.Validators, qst.Vote, qst.Round, qst.PreparedSeal, qst.CommittedSeal, qst.PrevPreparedSeal, qst.PrevCommittedSeal =
+		qbftExtra.VanityData, qbftExtra.Validators, qbftExtra.Vote, qbftExtra.Round, qbftExtra.PreparedSeal, qbftExtra.CommittedSeal, qbftExtra.PrevPreparedSeal, qbftExtra.PrevCommittedSeal
 
 	return nil
 }
@@ -136,6 +147,7 @@ func QBFTFilteredHeaderWithRound(h *Header, round uint32) *Header {
 		return nil
 	}
 
+	qbftExtra.PreparedSeal = [][]byte{}
 	qbftExtra.CommittedSeal = [][]byte{}
 	qbftExtra.Round = round
 

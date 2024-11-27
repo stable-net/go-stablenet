@@ -126,26 +126,40 @@ func TestCommit(t *testing.T) {
 	commitCh := make(chan *types.Block)
 	// Case: it's a proposer, so the backend.commit will receive channel result from backend.Commit function
 	testCases := []struct {
-		expectedErr       error
-		expectedSignature [][]byte
-		expectedBlock     func() *types.Block
+		expectedErr              error
+		expectedPrepareSignature [][]byte
+		expectedCommitSignature  [][]byte
+		expectedBlock            func() *types.Block
 	}{
 		{
 			// normal case
 			nil,
 			[][]byte{append([]byte{1}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-1)...)},
+			[][]byte{append([]byte{1}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-1)...)},
 			func() *types.Block {
-				chain, engine := newBlockChain(1)
+				chain, engine, _ := newBlockChain(1)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 				return updateQBFTBlock(block, engine.Address())
 			},
 		},
 		{
-			// invalid signature
+			// invalid prepared signature
+			qbftcommon.ErrInvalidPreparedSeals,
+			nil,
+			[][]byte{append([]byte{1}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-1)...)},
+			func() *types.Block {
+				chain, engine, _ := newBlockChain(1)
+				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
+				return updateQBFTBlock(block, engine.Address())
+			},
+		},
+		{
+			// invalid commit signature
 			qbftcommon.ErrInvalidCommittedSeals,
+			[][]byte{append([]byte{1}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-1)...)},
 			nil,
 			func() *types.Block {
-				chain, engine := newBlockChain(1)
+				chain, engine, _ := newBlockChain(1)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 				return updateQBFTBlock(block, engine.Address())
 			},
@@ -160,7 +174,7 @@ func TestCommit(t *testing.T) {
 		}()
 
 		backend.proposedBlockHash = expBlock.Hash()
-		if err := backend.Commit(expBlock, test.expectedSignature, big.NewInt(0)); err != nil {
+		if err := backend.Commit(expBlock, test.expectedPrepareSignature, test.expectedCommitSignature, big.NewInt(0)); err != nil {
 			if err != test.expectedErr {
 				t.Errorf("error mismatch: have %v, want %v", err, test.expectedErr)
 			}
@@ -181,7 +195,7 @@ func TestCommit(t *testing.T) {
 }
 
 func TestGetProposer(t *testing.T) {
-	chain, engine := newBlockChain(1)
+	chain, engine, _ := newBlockChain(1)
 	defer engine.Stop()
 	block := makeBlock(chain, engine, chain.Genesis())
 	_, err := chain.InsertChain(types.Blocks{block})
@@ -201,7 +215,7 @@ func TestQBFTTransitionDeadlock(t *testing.T) {
 	timeout := time.After(1 * time.Minute)
 	done := make(chan bool)
 	go func() {
-		chain, engine := newBlockChain(1)
+		chain, engine, _ := newBlockChain(1)
 		defer engine.Stop()
 		// Create an insert a new block into the chain.
 		block := makeBlock(chain, engine, chain.Genesis())
@@ -272,7 +286,7 @@ func (slice Keys) Swap(i, j int) {
 }
 
 func newBackend() (b *Backend) {
-	_, b = newBlockChain(1)
+	_, b, _ = newBlockChain(1)
 	key, _ := generatePrivateKey()
 	b.privateKey = key
 	return
