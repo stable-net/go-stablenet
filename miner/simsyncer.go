@@ -13,7 +13,6 @@ type simSyncer struct {
 	worker              *worker
 	workCh              chan *newWorkReq
 	resultCh            chan common.Hash
-	latestBlockNum      *big.Int
 	adjustedBlockPeriod map[uint64]uint64
 }
 
@@ -26,12 +25,20 @@ func (ss *simSyncer) Apply(config *qbft.Config, num *big.Int) {
 	}
 }
 
+func (ss *simSyncer) close() {
+	close(ss.resultCh)
+	select {
+	case <-ss.workCh:
+	default:
+	}
+	close(ss.workCh)
+}
+
 func newSimSyncer(worker *worker) *simSyncer {
 	return &simSyncer{
 		worker:              worker,
 		workCh:              make(chan *newWorkReq),
 		resultCh:            make(chan common.Hash),
-		latestBlockNum:      new(big.Int),
 		adjustedBlockPeriod: make(map[uint64]uint64),
 	}
 }
@@ -41,36 +48,28 @@ func (ss *simSyncer) queueCommitReq(req *newWorkReq) {
 		ss.worker.updateSnapshot(work.copy())
 	}
 	currentBlock := ss.worker.chain.CurrentBlock()
-	if currentBlock.Number.Cmp(ss.latestBlockNum) > 0 {
-		ss.latestBlockNum = new(big.Int).Set(currentBlock.Number)
-		ss.notifyCommitResult(currentBlock.Hash())
+	if currentBlock.Number.Sign() > 0 {
+		ss.resultCh <- currentBlock.Hash()
 	}
 	ss.workCh <- req
 }
 
 func (ss *simSyncer) commit() common.Hash {
-	for {
-		select {
-		case req := <-ss.workCh:
-			ss.worker.commitWork(req.interrupt, req.timestamp)
-		case result := <-ss.resultCh:
-			return result
-		}
-	}
+	req := <-ss.workCh
+	ss.commitWork(req)
+	return <-ss.resultCh
 }
 
 func (ss *simSyncer) commitWithPeriod(duration time.Duration) common.Hash {
-	for {
-		select {
-		case req := <-ss.workCh:
-			ss.adjustedBlockPeriod[ss.worker.chain.CurrentBlock().Number.Uint64()+1] = uint64(duration.Seconds())
-			ss.worker.commitWork(req.interrupt, req.timestamp)
-		case result := <-ss.resultCh:
-			return result
-		}
-	}
+	req := <-ss.workCh
+	ss.adjustedBlockPeriod[ss.worker.chain.CurrentBlock().Number.Uint64()+1] = uint64(duration.Seconds())
+	ss.commitWork(req)
+	return <-ss.resultCh
 }
 
-func (ss *simSyncer) notifyCommitResult(head common.Hash) {
-	ss.resultCh <- head
+func (ss *simSyncer) commitWork(req *newWorkReq) {
+	if err := ss.worker.eth.TxPool().Sync(); err != nil {
+		panic(err)
+	}
+	ss.worker.commitWork(req.interrupt, req.timestamp)
 }

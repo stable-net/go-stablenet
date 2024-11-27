@@ -34,8 +34,6 @@ type QBFTConfig struct {
 	ValidatorSelectionMode   *string               `json:"validatorselectionmode,omitempty"`  // Select model for validators
 	Validators               []common.Address      `json:"validators"`                        // Validators list
 	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds"`          // The max round time
-
-	SimulatedEnabled bool `json:"simulatedEnabled,omitempty"`
 }
 
 func (c *QBFTConfig) String() string {

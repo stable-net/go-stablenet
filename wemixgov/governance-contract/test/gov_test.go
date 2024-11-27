@@ -33,6 +33,8 @@ func TestGov(t *testing.T) {
 	t.Run("Staker is voter", func(t *testing.T) {
 		t.Run("has enode and locked staking", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			var (
 				locked          *big.Int
 				idx             *big.Int
@@ -55,6 +57,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot init twice", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			node := gov.nodeInfos[0]
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(gov.owner, "init", gov.registry, LOCK_AMOUNT, node.name, node.enode, node.ip, node.port)),
@@ -63,6 +67,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to add member self", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			node := gov.nodeInfos[0]
 			info := MemberInfo{
 				Staker:     gov.owner.From,
@@ -83,6 +89,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to add member with different voter", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			member := gov.owner.From
 			node := gov.nodeInfos[0]
 			info := MemberInfo{
@@ -104,6 +112,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to add member with different reward", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			member := gov.owner.From
 			node := gov.nodeInfos[0]
 			info := MemberInfo{
@@ -125,6 +135,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to add member", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			govMem1 := getTxOpt(t, "govMem1")
 			// staking first
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
@@ -179,6 +191,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to remove non-member", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			govMem1 := getTxOpt(t, "govMem1").From
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(gov.owner, "addProposalToRemoveMember", govMem1, LOCK_AMOUNT, []byte("memo1"), big.NewInt(86400), LOCK_AMOUNT, new(big.Int))),
@@ -187,6 +201,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to remove a sole member", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(gov.owner, "addProposalToRemoveMember", gov.owner.From, LOCK_AMOUNT, []byte("memo1"), big.NewInt(86400), LOCK_AMOUNT, new(big.Int))),
 				"Cannot remove a sole member",
@@ -194,6 +210,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to change member's other addresses self without voting", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			var (
 				oldMember, oldVoter, oldReward common.Address
 				length                         *big.Int
@@ -225,6 +243,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to change member's other addresses self without voting twice about node name", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			var (
 				oldMember, oldVoter, oldReward common.Address
 				length                         *big.Int
@@ -300,6 +320,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to change member's other addresses self without voting twice about enode", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			var (
 				oldMember, oldVoter, oldReward common.Address
 				length                         *big.Int
@@ -375,6 +397,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to change member's other addresses self without voting twice about ipport", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			var (
 				oldMember, oldVoter, oldReward common.Address
 				length                         *big.Int
@@ -450,6 +474,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to change member's other addresses self without voting twice about import2", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			var (
 				oldMember, oldVoter, oldReward common.Address
 				length                         *big.Int
@@ -525,6 +551,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change non-member", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			govMem1, govMem2 := getTxOpt(t, "govMem1"), getTxOpt(t, "govMem2")
 			node := gov.nodeInfos[0]
 
@@ -547,6 +575,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to change governance", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			newGovImp, _, err := gov.Deploy(compiled.GovImp.Deploy(gov.backend.Client(), gov.owner))
 			require.NoError(t, err)
 			gov.ExpectedOk(gov.GovImp.Transact(gov.owner, "addProposalToChangeGov", newGovImp, []byte("memo"), big.NewInt(86400)))
@@ -557,6 +587,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can not addProposal to change governance using EOA", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(gov.owner, "addProposalToChangeGov", getTxOpt(t, "govMem1").From, []byte("memo"), big.NewInt(86400))),
 				"execution reverted",
@@ -564,6 +596,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can not addProposal to change governance using non-UUPS", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(gov.owner, "addProposalToChangeGov", gov.registry, []byte("memo"), big.NewInt(86400))),
 				"ERC1967Upgrade: new implementation is not UUPS",
@@ -571,6 +605,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change governance with same address", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			var govImp common.Address
 			require.NoError(t, gov.Gov.Call(callOpts, &[]interface{}{&govImp}, "implementation"))
 			ExpectedRevert(t,
@@ -580,6 +616,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change governance with zero address", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(gov.owner, "addProposalToChangeGov", common.Address{}, []byte("memo"), big.NewInt(86400))),
 				"Implementation cannot be zero",
@@ -587,6 +625,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to change environment", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			gov.ExpectedOk(gov.GovImp.Transact(gov.owner, "addProposalToChangeEnv", ToBytes32("key"), EnvTypes.Bytes32, []byte("value"), []byte("memo"), big.NewInt(86400)))
 
 			var length *big.Int
@@ -595,6 +635,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change environment with wrong type", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(gov.owner, "addProposalToChangeEnv", ToBytes32("key"), EnvTypes.Invalid, []byte("value"), []byte("memo"), big.NewInt(86400))),
 				"Invalid type",
@@ -602,6 +644,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote approval to add member", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem1.From))
@@ -658,6 +701,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote approval to add member with insufficient staking", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem1.From))
@@ -701,6 +745,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote disapproval to deny adding member", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem1.From))
@@ -744,6 +789,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote approval to change member totally", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem1.From))
@@ -856,6 +902,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote approval to change enode only without voting", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			info := MemberInfo{
 				Staker:     gov.owner.From,
@@ -907,6 +954,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote approval to change member with insufficient staking", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
@@ -947,6 +995,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote approval to change governance", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			var (
 				getGasLimitAndBaseFee []interface{}
@@ -994,6 +1043,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote approval to change environment", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 			var (
 				blocksPer *big.Int
 			)
@@ -1030,6 +1080,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote for a ballot already done", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem1.From))
@@ -1058,6 +1109,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot add proposal during period time", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			gov.ExpectedOk(gov.GovImp.Transact(gov.owner, "addProposalToChangeEnv",
 				crypto.Keccak256Hash([]byte("blocksPer")),
@@ -1088,6 +1140,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to add member which is already reward", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
@@ -1180,6 +1233,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change member which is already reward", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
@@ -1287,6 +1341,8 @@ func TestGov(t *testing.T) {
 		}
 		t.Run("cannot addProposal to add member self", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			node := gov.nodeInfos[0]
 			info := MemberInfo{
 				Staker:     gov.owner.From,
@@ -1307,6 +1363,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to add member with different voter", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			node := gov.nodeInfos[0]
 			info := MemberInfo{
 				Staker:     gov.owner.From,
@@ -1327,6 +1385,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to add member with same voter", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			node := gov.nodeInfos[0]
 			info := MemberInfo{
 				Staker:     voter.From,
@@ -1347,6 +1407,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to add member with same reward", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			user1 := getTxOpt(t, "user1")
 			node := gov.nodeInfos[0]
 			info := MemberInfo{
@@ -1368,6 +1430,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to add member", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			govMem1 := getTxOpt(t, "govMem1")
 			info := MemberInfo{
 				Staker:     govMem1.From,
@@ -1419,6 +1483,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to remove non-member", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			govMem1 := getTxOpt(t, "govMem1")
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(voter, "addProposalToRemoveMember", govMem1.From, LOCK_AMOUNT, []byte("memo1"), big.NewInt(86400), LOCK_AMOUNT, new(big.Int))),
@@ -1427,6 +1493,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to remove a sole member", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(voter, "addProposalToRemoveMember", gov.owner.From, LOCK_AMOUNT, []byte("memo1"), big.NewInt(86400), LOCK_AMOUNT, new(big.Int))),
 				"Cannot remove a sole member",
@@ -1434,6 +1502,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to change member's other addresses self without voting", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			voter1 := getTxOpt(t, "voter1")
 			user1 := getTxOpt(t, "user1")
@@ -1490,6 +1559,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change member's other addresses which is already member", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
@@ -1562,6 +1632,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to add member which is already voter", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
 			govMem1.Value = LOCK_AMOUNT
@@ -1641,6 +1713,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change member which is already voter", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
@@ -1724,6 +1797,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change non-member", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			govMem1, govMem2 := getTxOpt(t, "govMem1"), getTxOpt(t, "govMem2")
 
 			node := gov.nodeInfos[0]
@@ -1746,6 +1821,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to change governance", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			newGovImp, _, err := gov.Deploy(compiled.GovImp.Deploy(gov.backend.Client(), gov.owner))
 			require.NoError(t, err)
 			gov.ExpectedOk(gov.GovImp.Transact(voter, "addProposalToChangeGov", newGovImp, []byte("memo"), big.NewInt(86400)))
@@ -1756,6 +1833,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can not addProposal to change governance using EOA", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(voter, "addProposalToChangeGov", getTxOpt(t, "govMem1").From, []byte("memo"), big.NewInt(86400))),
 				"execution reverted",
@@ -1763,6 +1842,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can not addProposal to change governance using non-UUPS", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(voter, "addProposalToChangeGov", gov.registry, []byte("memo"), big.NewInt(86400))),
 				"ERC1967Upgrade: new implementation is not UUPS",
@@ -1770,6 +1851,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change governance with same address", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			var govImp common.Address
 			require.NoError(t, gov.Gov.Call(callOpts, &[]interface{}{&govImp}, "implementation"))
 			ExpectedRevert(t,
@@ -1779,6 +1862,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change governance with zero address", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(voter, "addProposalToChangeGov", common.Address{}, []byte("memo"), big.NewInt(86400))),
 				"Implementation cannot be zero",
@@ -1786,6 +1871,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to change environment", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			gov.ExpectedOk(gov.GovImp.Transact(voter, "addProposalToChangeEnv", ToBytes32("key"), EnvTypes.Bytes32, []byte("value"), []byte("memo"), big.NewInt(86400)))
 
 			var length *big.Int
@@ -1794,6 +1881,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to change environment with wrong type", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(voter, "addProposalToChangeEnv", ToBytes32("key"), EnvTypes.Invalid, []byte("value"), []byte("memo"), big.NewInt(86400))),
 				"Invalid type",
@@ -1801,6 +1890,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote approval to add member", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem1.From))
@@ -1856,6 +1946,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote approval to add member with insufficient staking", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
@@ -1899,6 +1990,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote disapproval to deny adding member", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem1.From))
@@ -1936,6 +2028,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote approval to change member totally", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem1.From))
@@ -2048,6 +2141,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote approval to change enode only without voting", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			info := MemberInfo{
 				Staker:     gov.owner.From,
@@ -2100,6 +2194,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote approval to change member with insufficient staking", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
@@ -2140,6 +2235,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote approval to change governance", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			var (
 				getGasLimitAndBaseFee []interface{}
@@ -2187,6 +2283,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote approval to change environment", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
+
 			var (
 				blocksPer *big.Int
 			)
@@ -2223,6 +2321,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote for a ballot already done", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem1.From))
@@ -2251,6 +2350,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote for a ballot already staker done", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
@@ -2278,6 +2378,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote for a ballot already voter done", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
@@ -2305,6 +2406,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot add proposal during period time", func(t *testing.T) {
 			gov, voter := deployGovernance(t)
+			defer gov.backend.Close()
 
 			gov.ExpectedOk(gov.GovImp.Transact(voter, "addProposalToChangeEnv",
 				crypto.Keccak256Hash([]byte("blocksPer")),
@@ -2367,6 +2469,7 @@ func TestGov(t *testing.T) {
 		}
 		t.Run("cannot vote with changed voter address", func(t *testing.T) {
 			gov, _ := deployGovernance(t)
+			defer gov.backend.Close()
 
 			gov.ExpectedOk(gov.GovImp.Transact(gov.owner, "addProposalToChangeEnv", ToBytes32("key"), EnvTypes.Bytes32, []byte("value"), []byte("memo"), big.NewInt(86400)))
 			var (
@@ -2413,6 +2516,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal to add member self", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
+
 			node := gov.nodeInfos[0]
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(govMem1, "addProposalToAddMember",
@@ -2433,6 +2538,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to remove member", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
+
 			gov.ExpectedOk(gov.GovImp.Transact(gov.owner, "addProposalToRemoveMember", govMem1.From, LOCK_AMOUNT, []byte("memo1"), big.NewInt(86400), LOCK_AMOUNT, new(big.Int)))
 
 			var length *big.Int
@@ -2441,6 +2548,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to add member where info is the removed member's with same govMem", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
+
 			gov.ExpectedOk(gov.GovImp.Transact(gov.owner, "addProposalToRemoveMember", govMem1.From, LOCK_AMOUNT, []byte("memo1"), big.NewInt(86400), LOCK_AMOUNT, new(big.Int)))
 
 			var length *big.Int
@@ -2474,6 +2583,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can addProposal to add member where info is the removed member's", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
+
 			gov.ExpectedOk(gov.GovImp.Transact(gov.owner, "addProposalToRemoveMember", govMem1.From, LOCK_AMOUNT, []byte("memo1"), big.NewInt(86400), LOCK_AMOUNT, new(big.Int)))
 
 			var length *big.Int
@@ -2539,6 +2650,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote to add member", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem2 := getTxOpt(t, "govMem2")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem2.From))
@@ -2590,6 +2702,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote to deny adding member", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem2 := getTxOpt(t, "govMem2")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem2.From))
@@ -2641,6 +2754,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote to remove first member", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
 
 			var preAvail, postAvail *big.Int
 			require.NoError(t, gov.StakingImp.Call(callOpts, &[]interface{}{&preAvail}, "availableBalanceOf", gov.owner.From))
@@ -2695,6 +2809,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("can vote to remove last member", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
 
 			var preAvail, postAvail *big.Int
 			require.NoError(t, gov.StakingImp.Call(callOpts, &[]interface{}{&preAvail}, "availableBalanceOf", gov.owner.From))
@@ -2749,6 +2864,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote simultaneously", func(t *testing.T) {
 			gov, _ := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem2 := getTxOpt(t, "govMem2")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem2.From))
@@ -2809,6 +2925,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("vote is ended when the sum of voting power is max", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
 
 			govMem2 := getTxOpt(t, "govMem2")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Mul(LOCK_AMOUNT, common.Big2), &govMem2.From))
@@ -2860,6 +2977,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote approval when the voting is ended", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
 
 			delay_time := big.NewInt(86400)
 			gov.ExpectedOk(gov.GovImp.Transact(gov.owner, "addProposalToChangeEnv",
@@ -2903,6 +3021,7 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("Non member cannot end voting", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
 
 			delay_time := big.NewInt(86400)
 			gov.ExpectedOk(gov.GovImp.Transact(gov.owner, "addProposalToChangeEnv",
@@ -2951,6 +3070,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("reject proposal without voting about changing voter address if voter is already registered", func(t *testing.T) {
 			gov, govMem1 := deployGovernance(t)
+			defer gov.backend.Close()
+
 			node := gov.nodeInfos[0]
 			ExpectedRevert(t,
 				gov.ExpectedFail(gov.GovImp.Transact(gov.owner, "addProposalToChangeMember", MemberInfo{
@@ -3016,6 +3137,8 @@ func TestGov(t *testing.T) {
 	t.Run("Others", func(t *testing.T) {
 		t.Run("cannot init", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			govMem1 := getTxOpt(t, "govMem1")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem1.From))
 			govMem1.Value = LOCK_AMOUNT
@@ -3048,6 +3171,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot addProposal", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			govMem1, govMem2 := getTxOpt(t, "govMem1"), getTxOpt(t, "govMem2")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, towei(1), &govMem1.From))
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, towei(1), &govMem2.From))
@@ -3104,6 +3229,8 @@ func TestGov(t *testing.T) {
 		})
 		t.Run("cannot vote", func(t *testing.T) {
 			gov := NewGovernance(t).DeployContracts(t)
+			defer gov.backend.Close()
+
 			govMem1, govMem2 := getTxOpt(t, "govMem1"), getTxOpt(t, "govMem2")
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, towei(1), &govMem1.From))
 			gov.ExpectedOk(TransferCoin(gov.backend.Client(), gov.owner, new(big.Int).Add(LOCK_AMOUNT, towei(1)), &govMem2.From))
