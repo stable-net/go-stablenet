@@ -1188,7 +1188,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
-	IsPangyo, IsApplepie, IsBrioche                         bool
+	IsPangyo, IsApplepie, IsBrioche, IsMontBlanc            bool
 	IsMerge, IsShanghai, IsCancun, IsPrague                 bool
 	IsVerkle                                                bool
 }
@@ -1216,6 +1216,7 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsPangyo:         c.IsPangyo(num),
 		IsApplepie:       c.IsApplepie(num),
 		IsBrioche:        c.IsBrioche(num),
+		IsMontBlanc:      c.IsMontBlanc(num),
 		IsMerge:          isMerge,
 		IsShanghai:       isMerge && c.IsShanghai(num, timestamp),
 		IsCancun:         isMerge && c.IsCancun(num, timestamp),

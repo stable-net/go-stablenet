@@ -3033,7 +3033,7 @@ func testDeleteRecreateSlots(t *testing.T, scheme string) {
 	t.Logf("Destination address: %x\n", aa)
 
 	gspec := &Genesis{
-		Config: params.TestChainConfig,
+		Config: params.AllEthashProtocolChanges,
 		Alloc: types.GenesisAlloc{
 			address: {Balance: funds},
 			// The address 0xAAAAA selfdestructs if called
@@ -3119,7 +3119,7 @@ func testDeleteRecreateAccount(t *testing.T, scheme string) {
 	aaStorage[common.HexToHash("02")] = common.HexToHash("02")
 
 	gspec := &Genesis{
-		Config: params.TestChainConfig,
+		Config: params.AllEthashProtocolChanges,
 		Alloc: types.GenesisAlloc{
 			address: {Balance: funds},
 			// The address 0xAAAAA selfdestructs if called
@@ -3240,7 +3240,7 @@ func testDeleteRecreateSlotsAcrossManyBlocks(t *testing.T, scheme string) {
 	aa := crypto.CreateAddress2(bb, [32]byte{}, initHash[:])
 	t.Logf("Destination address: %x\n", aa)
 	gspec := &Genesis{
-		Config: params.TestChainConfig,
+		Config: params.AllEthashProtocolChanges,
 		Alloc: types.GenesisAlloc{
 			address: {Balance: funds},
 			// The address 0xAAAAA selfdestructs if called
