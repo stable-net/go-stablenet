@@ -32,6 +32,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
 	qbftcommon "github.com/ethereum/go-ethereum/consensus/qbft/common"
 	qbftcore "github.com/ethereum/go-ethereum/consensus/qbft/core"
@@ -44,6 +45,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/fetcher"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
@@ -179,19 +181,22 @@ func copyConfig(config *qbft.Config) *qbft.Config {
 	return &cpy
 }
 
-func makeHeader(parent *types.Block, config *qbft.Config) *types.Header {
+// makeHeader create header executing no txs
+func makeHeader(chainConfig *params.ChainConfig, engineConfig *qbft.Config, parent *types.Block) *types.Header {
 	blockNumber := parent.Number().Add(parent.Number(), common.Big1)
 	header := &types.Header{
 		ParentHash: parent.Hash(),
 		Number:     blockNumber,
-		GasLimit:   core.CalcGasLimit(parent.GasLimit(), parent.GasLimit()),
-		GasUsed:    0,
-		Time:       parent.Time() + config.GetConfig(blockNumber).BlockPeriod,
+		GasLimit:   parent.GasLimit(),
+		GasUsed:    0, // empty tx
+		Time:       parent.Time() + engineConfig.GetConfig(blockNumber).BlockPeriod,
 		Difficulty: types.QBFTDefaultDifficulty,
+		BaseFee:    eip1559.CalcBaseFee(chainConfig, parent.Header()),
 	}
 	return header
 }
 
+// makeBlock create block executing no txs
 func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	block := makeBlockWithoutSeal(chain, engine, parent)
 	state, _ := chain.State()
@@ -202,8 +207,9 @@ func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *ty
 	return blk
 }
 
+// makeBlock create block executing no txs without seal
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
-	header := makeHeader(parent, engine.config)
+	header := makeHeader(chain.Config(), engine.config, parent)
 	engine.Prepare(chain, header)
 	block := types.NewBlock(header, nil, nil, nil, trie.NewStackTrie(nil))
 	return block
@@ -212,7 +218,7 @@ func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types
 func TestQBFTPrepare(t *testing.T) {
 	chain, engine, _ := newBlockChain(1)
 	defer engine.Stop()
-	header := makeHeader(chain.Genesis(), engine.config)
+	header := makeHeader(chain.Config(), engine.config, chain.Genesis())
 	err := engine.Prepare(chain, header)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want nil", err)
