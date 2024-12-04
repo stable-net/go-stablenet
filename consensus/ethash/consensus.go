@@ -561,6 +561,10 @@ func (ethash *Ethash) SealHash(header *types.Header) (hash common.Hash) {
 	return hash
 }
 
+func (ethash *Ethash) TimeForNextWork() uint64 {
+	return 0 // ethash does not require block period
+}
+
 // CallEngineSpecific implements consensus.Engine
 func (ethash *Ethash) CallEngineSpecific(method string, args ...interface{}) interface{} {
 	return nil

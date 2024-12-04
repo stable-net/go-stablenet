@@ -398,6 +398,11 @@ func (wpoa *WemixPoA) Close() error {
 	return nil
 }
 
+func (wpoa *WemixPoA) TimeForNextWork() uint64 {
+	// In case of WemixPoA, this should not be called
+	return 0
+}
+
 // CallEngineSpecific implements consensus.Engine
 func (wpoa *WemixPoA) CallEngineSpecific(method string, args ...interface{}) interface{} {
 	return nil

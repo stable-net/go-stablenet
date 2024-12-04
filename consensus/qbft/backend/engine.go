@@ -24,7 +24,6 @@ import (
 	"errors"
 	"math/big"
 	"math/rand"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -161,6 +160,20 @@ func (sb *Backend) VerifySeal(chain consensus.ChainHeaderReader, header *types.H
 	return sb.Engine().VerifySeal(chain, header, snap.ValSet)
 }
 
+// TimeForNextWork returns the time to wait for next work namely next block time
+func (sb *Backend) TimeForNextWork() uint64 {
+	if sb.currentBlock == nil {
+		return 0 // if it has no current block function then it returns zero time
+	}
+	latestBlock := sb.currentBlock()
+	if latestBlock == nil {
+		return 0
+	}
+	next := new(big.Int).Set(latestBlock.Number())
+	next = next.Add(next, big.NewInt(1))
+	return latestBlock.Time() + sb.Engine().PeriodToNextBlock(next)
+}
+
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
@@ -236,20 +249,7 @@ func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 		return err
 	}
 
-	delay := time.Until(time.Unix(int64(block.Header().Time), 0))
-	if sb.simApplier != nil {
-		delay = time.Duration(0)
-	}
-
 	go func() {
-		// wait for the timestamp of header, use this to adjust the block period
-		select {
-		case <-time.After(delay):
-		case <-stop:
-			results <- nil
-			return
-		}
-
 		// get the proposed block hash and clear it if the seal() is completed.
 		sb.sealMu.Lock()
 		sb.proposedBlockHash = block.Hash()

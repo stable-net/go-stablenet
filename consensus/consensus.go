@@ -125,6 +125,9 @@ type Engine interface {
 	// Close terminates any background threads maintained by the consensus engine.
 	Close() error
 
+	// TimeForNextWork returns time to wait for next work(commit block)
+	TimeForNextWork() uint64
+
 	// CallEngineSpecific is special engine API as a kind of syntactic sugar.
 	// This function handles a wide variety of tasks specific to the consensus engine.
 	// Of course, conventional engines like ethash and clique won't do anything with this function.

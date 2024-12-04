@@ -447,6 +447,10 @@ func (e *Engine) VerifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 	return e.verifySigner(chain, header, nil, validators)
 }
 
+func (e *Engine) PeriodToNextBlock(blockNumber *big.Int) uint64 {
+	return e.cfg.GetConfig(blockNumber).BlockPeriod
+}
+
 func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header, validators qbft.ValidatorSet) error {
 	header.Coinbase = common.Address{}
 	header.Nonce = qbftcommon.EmptyBlockNonce

@@ -192,6 +192,13 @@ func (we *WemixConsensus) Close() error {
 	return we.wbft.Close()
 }
 
+func (we *WemixConsensus) TimeForNextWork() uint64 {
+	if we.wbftStarted {
+		return we.wbft.TimeForNextWork()
+	}
+	return we.wpoa.TimeForNextWork()
+}
+
 // CallEngineSpecific implements consensus.Engine
 func (we *WemixConsensus) CallEngineSpecific(method string, args ...interface{}) interface{} {
 	if we.wbftStarted {

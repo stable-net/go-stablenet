@@ -712,6 +712,10 @@ func (c *Clique) Close() error {
 	return nil
 }
 
+func (c *Clique) TimeForNextWork() uint64 {
+	return 0 // clique does not require block period
+}
+
 // CallEngineSpecific implements consensus.Engine
 func (c *Clique) CallEngineSpecific(method string, args ...interface{}) interface{} {
 	return nil
