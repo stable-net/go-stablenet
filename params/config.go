@@ -78,6 +78,19 @@ var (
 			HalvingTimes:      16,
 			HalvingRate:       50,
 		},
+		MontBlancBlock: big.NewInt(100_000_000), // TODO: decide montblanc hard fork date; this is just for test on mainnet
+		QBFT: &QBFTConfig{ // TODO: this is just for test on mainnet
+			EpochLength:              100,
+			BlockPeriodSeconds:       1,
+			EmptyBlockPeriodSeconds:  &ebps,
+			RequestTimeoutSeconds:    1000,
+			ProposerPolicy:           0,
+			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
+			BeneficiaryMode:          &bm,
+			MiningBeneficiary:        &mb,
+			ValidatorSelectionMode:   &vsm,
+			MaxRequestTimeoutSeconds: &mrts,
+		},
 	}
 
 	// WemixTestnetChainConfig contains the chain parameters to run a node on the Wemix test network.
@@ -107,6 +120,19 @@ var (
 			FinishRewardBlock: big.NewInt(2_473_258_000), // target date: 2100-12-01 11:02:21 (GMT+09)
 			HalvingTimes:      16,
 			HalvingRate:       50,
+		},
+		MontBlancBlock: big.NewInt(100_000_000), // TODO: decide montblanc hard fork date; this is just for test on mainnet
+		QBFT: &QBFTConfig{ // TODO: this is just for test on mainnet
+			EpochLength:              100,
+			BlockPeriodSeconds:       1,
+			EmptyBlockPeriodSeconds:  &ebps,
+			RequestTimeoutSeconds:    1000,
+			ProposerPolicy:           0,
+			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
+			BeneficiaryMode:          &bm,
+			MiningBeneficiary:        &mb,
+			ValidatorSelectionMode:   &vsm,
+			MaxRequestTimeoutSeconds: &mrts,
 		},
 	}
 
