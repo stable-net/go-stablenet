@@ -3,6 +3,7 @@ package wemix
 import (
 	"crypto/ecdsa"
 	"math/big"
+	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -25,7 +26,7 @@ import (
 type WemixConsensus struct {
 	wpoa        consensus.Engine
 	wbft        *qbftBackend.Backend
-	wbftStarted bool
+	wbftStarted atomic.Bool
 	stopCh      chan struct{}
 }
 
@@ -33,15 +34,17 @@ func NewWemixEngine(backend wemixgov.GovBackend, config *qbft.Config, privateKey
 	wpoa := wpoa.NewWemixPoAEngine(backend)
 	wbft := qbftBackend.New(config, privateKey, db)
 
-	return &WemixConsensus{
-		wpoa:        wpoa,
-		wbft:        wbft,
-		wbftStarted: false,
-		stopCh:      make(chan struct{}),
+	result := &WemixConsensus{
+		wpoa: wpoa,
+		wbft: wbft,
 	}
+	result.wbftStarted.Store(false)
+	return result
 }
 
 func (we *WemixConsensus) Start(config *params.ChainConfig, chain consensus.ChainHeaderReader, currentBlock func() *types.Block, subscribeChainHead func(ch chan<- core.ChainHeadEvent) event.Subscription) {
+	we.stopCh = make(chan struct{})
+
 	chainHeadCh := make(chan core.ChainHeadEvent)
 	chainHeadSub := subscribeChainHead(chainHeadCh)
 
@@ -52,7 +55,8 @@ func (we *WemixConsensus) Start(config *params.ChainConfig, chain consensus.Chai
 			if err != nil {
 				log.Error("cannot start WEMIX BFT engine", "err", err)
 			}
-			we.wbftStarted = true
+			we.wbftStarted.Store(true)
+			log.Info("WEMIX BFT engine started because the current block is after MontBlanc hard fork")
 		} else {
 		loop:
 			for {
@@ -64,7 +68,8 @@ func (we *WemixConsensus) Start(config *params.ChainConfig, chain consensus.Chai
 						if err != nil {
 							log.Error("cannot start WEMIX BFT engine", "err", err)
 						}
-						we.wbftStarted = true
+						we.wbftStarted.Store(true)
+						log.Info("WEMIX BFT engine started because the current block is just at the MontBlanc hard fork")
 						break loop
 					}
 				case err := <-chainHeadSub.Err():
@@ -80,6 +85,10 @@ func (we *WemixConsensus) Start(config *params.ChainConfig, chain consensus.Chai
 }
 
 func (we *WemixConsensus) Stop() {
+	if we.wbftStarted.Load() {
+		we.wbftStarted.Store(false)
+		we.wbft.Stop()
+	}
 	close(we.stopCh)
 }
 
@@ -193,7 +202,7 @@ func (we *WemixConsensus) Close() error {
 }
 
 func (we *WemixConsensus) TimeForNextWork() uint64 {
-	if we.wbftStarted {
+	if we.wbftStarted.Load() {
 		return we.wbft.TimeForNextWork()
 	}
 	return we.wpoa.TimeForNextWork()
@@ -201,21 +210,21 @@ func (we *WemixConsensus) TimeForNextWork() uint64 {
 
 // CallEngineSpecific implements consensus.Engine
 func (we *WemixConsensus) CallEngineSpecific(method string, args ...interface{}) interface{} {
-	if we.wbftStarted {
+	if we.wbftStarted.Load() {
 		return we.wbft.CallEngineSpecific(method, args)
 	}
 	return nil
 }
 
 func (we *WemixConsensus) NewChainHead() error {
-	if we.wbftStarted {
+	if we.wbftStarted.Load() {
 		return we.wbft.NewChainHead()
 	}
 	return nil
 }
 
 func (we *WemixConsensus) HandleMsg(address common.Address, data p2p.Msg) (bool, error) {
-	if we.wbftStarted {
+	if we.wbftStarted.Load() {
 		return we.wbft.HandleMsg(address, data)
 	}
 	return false, nil
