@@ -187,7 +187,9 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 		sb.simApplier.Apply(sb.config, header.Number)
 	}
 
-	err = sb.Engine().Prepare(chain, header, snap.ValSet)
+	extraPreparedSeal, extraCommittedSeal := sb.processExtraSeals()
+
+	err = sb.Engine().Prepare(chain, header, snap.ValSet, extraPreparedSeal, extraCommittedSeal)
 	if err != nil {
 		return err
 	}
@@ -258,6 +260,7 @@ func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 			sb.proposedBlockHash = common.Hash{}
 			sb.sealMu.Unlock()
 		}()
+
 		// post block into Istanbul engine
 		go sb.EventMux().Post(qbft.RequestEvent{
 			Proposal: block,
@@ -280,6 +283,16 @@ func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 		}
 	}()
 	return nil
+}
+
+func (sb *Backend) processExtraSeals() (map[common.Hash][]byte, map[common.Hash][]byte) {
+	if sb.core == nil {
+		return nil, nil
+	} else {
+		lastProposal := sb.currentBlock()
+		extraPreparedSeal, extraCommittedSeal := sb.core.ProcessExtraSeal(lastProposal, sb.core.PriorRound())
+		return extraPreparedSeal, extraCommittedSeal
+	}
 }
 
 // APIs returns the RPC APIs this consensus engine provides.

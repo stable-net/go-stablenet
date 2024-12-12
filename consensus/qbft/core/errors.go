@@ -34,10 +34,15 @@ var (
 	errOldMessage = errors.New("old message")
 	// errInvalidMessage is returned when the message is malformed.
 	errInvalidMessage = errors.New("invalid message")
+	// errInvalidSeal is returned when the signed seal is not matched with message
+	errInvalidSeal = errors.New("invalid seal")
 	// errInvalidSigner is returned when the message is signed by a validator different than message sender
 	errInvalidSigner = errors.New("message not signed by the sender")
 	// errInvalidPreparedBlock is returned when prepared block is not validated in round change messages
 	errInvalidPreparedBlock = errors.New("invalid prepared block in round change messages")
-
-	errCurrentIsNil = errors.New("current is nil")
+	// errExtraSealMessage is returned when messages which will be added to next block's prevSeals comes.
+	errExtraSealMessage = errors.New("extra seal message")
+	// errInvalidExtraSealMessage is returned when message is not appropriate to be added to extraSeals
+	errInvalidExtraSealMessage = errors.New("invalid extra seal message")
+	errCurrentIsNil            = errors.New("current is nil")
 )

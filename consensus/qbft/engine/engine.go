@@ -451,7 +451,7 @@ func (e *Engine) PeriodToNextBlock(blockNumber *big.Int) uint64 {
 	return e.cfg.GetConfig(blockNumber).BlockPeriod
 }
 
-func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header, validators qbft.ValidatorSet) error {
+func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header, validators qbft.ValidatorSet, extraPreparedSeal, extraCommittedSeal map[common.Hash][]byte) error {
 	header.Coinbase = common.Address{}
 	header.Nonce = qbftcommon.EmptyBlockNonce
 
@@ -509,15 +509,15 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 		if err != nil {
 			return err
 		} else if extra.PreparedSeal == nil {
-			// TODO : what if there is not preparedSeal that node collected?
 			return qbftcommon.ErrEmptyPreparedSeals
 		} else if extra.CommittedSeal == nil {
-			// TODO : what if there is not committedSeal that node collected?
 			return qbftcommon.ErrEmptyCommittedSeals
 		}
 
-		prevPreparedSeal := extra.PreparedSeal
-		prevCommittedSeal := extra.CommittedSeal
+		//make final prevSeals by merging existing seals and extra seals
+		prevPreparedSeal := mergeSeals(extra.PreparedSeal, extraPreparedSeal)
+		prevCommittedSeal := mergeSeals(extra.CommittedSeal, extraCommittedSeal)
+
 		// add validators in snapshot to extraData's validators section and lastBlock committers to extraData's prevCommittedSeal section
 		return ApplyHeaderQBFTExtra(
 			header,
@@ -818,4 +818,22 @@ func (e *Engine) calculateRewards(chain consensus.ChainHeaderReader, header *typ
 	}
 
 	return nil
+}
+
+func mergeSeals(seals [][]byte, extraSeals map[common.Hash][]byte) [][]byte {
+	if extraSeals == nil {
+		return seals
+	}
+	mergedSeals := [][]byte{}
+
+	for _, s := range extraSeals {
+		mergedSeals = append(mergedSeals, s)
+	}
+	for _, s := range seals {
+		if extraSeals[common.BytesToHash(s)] != nil {
+			continue
+		}
+		mergedSeals = append(mergedSeals, s)
+	}
+	return mergedSeals
 }

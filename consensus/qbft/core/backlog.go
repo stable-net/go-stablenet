@@ -21,6 +21,9 @@
 package core
 
 import (
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
 	qbftmessage "github.com/ethereum/go-ethereum/consensus/qbft/messages"
@@ -75,6 +78,13 @@ func (c *Core) checkMessage(msgCode uint64, view *qbft.View) error {
 	}
 
 	if view.Cmp(c.currentView()) < 0 {
+		// save prepare and commit message to extraSeal under below condition
+		// 1. view's sequence is right before current.Sequence &&
+		// 2. view's round is same as prior round &&
+		// 3. c.state is AcceptRequest
+		if new(big.Int).Sub(c.currentView().Sequence, view.Sequence).Cmp(common.Big1) == 0 && view.Round.Cmp(c.PriorRound()) == 0 && c.state == StateAcceptRequest {
+			return errExtraSealMessage
+		}
 		return errOldMessage
 	}
 
@@ -98,11 +108,18 @@ func (c *Core) checkMessage(msgCode uint64, view *qbft.View) error {
 	case StatePrepared:
 		// StatePrepared only accepts msgCommit and msgRoundChange
 		// other messages are invalid messages
-		if msgCode < qbftmessage.CommitCode {
+		if msgCode == qbftmessage.PrepareCode {
+			return errExtraSealMessage
+		} else if msgCode < qbftmessage.CommitCode {
 			return errInvalidMessage
 		}
 		return nil
 	case StateCommitted:
+		// for prepare, commit message with same view as current
+		// return err extraSealMessage
+		if msgCode >= qbftmessage.PrepareCode {
+			return errExtraSealMessage
+		}
 		// StateCommit rejects all messages other than msgRoundChange
 		return errInvalidMessage
 	}
@@ -132,7 +149,7 @@ func (c *Core) addToBacklog(msg qbftmessage.QBFTMessage) {
 		c.backlogs[src] = backlog
 	}
 	view := msg.View()
-	backlog.Push(msg, toPriority(msg.Code(), &view))
+	backlog.Push(msg, toNegatePriority(msg.Code(), &view))
 }
 
 // processBacklog lookup for future messages that have been backlogged and post it on
@@ -174,7 +191,7 @@ func (c *Core) processBacklog() {
 
 			// Push back if it's a future message
 			err := c.checkMessage(code, &view)
-			if err != nil {
+			if err != nil && err != errExtraSealMessage {
 				if err == errFutureMessage {
 					// this is still a future message
 					logger.Trace("QBFT: stop processing backlog", "msg", msg)
@@ -194,7 +211,7 @@ func (c *Core) processBacklog() {
 }
 
 // ## Wemix QBFT : change return type from float32 to int64
-func toPriority(msgCode uint64, view *qbft.View) int64 {
+func toNegatePriority(msgCode uint64, view *qbft.View) int64 {
 	if msgCode == qbftmessage.RoundChangeCode {
 		// For msgRoundChange, set the message priority based on its sequence
 		return -int64(view.Sequence.Uint64() * 1000)

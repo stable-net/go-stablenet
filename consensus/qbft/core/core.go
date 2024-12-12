@@ -61,9 +61,13 @@ func New(backend Backend, config *qbft.Config) *Core {
 		backend:            backend,
 		backlogs:           make(map[common.Address]*prque.Prque[int64, qbftmessage.QBFTMessage]),
 		backlogsMu:         new(sync.Mutex),
+		prepareExtraSeals:  make(map[common.Address]*qbftmessage.Prepare),
+		commitExtraSeals:   make(map[common.Address]*qbftmessage.Commit),
+		extraSealsMu:       new(sync.Mutex),
 		pendingRequests:    prque.New[int64, *Request](nil),
 		pendingRequestsMu:  new(sync.Mutex),
 		consensusTimestamp: time.Time{},
+		priorState:         priorState{new(sync.RWMutex), common.Big0, nil},
 	}
 
 	c.validateFn = c.checkValidatorSignature
@@ -90,6 +94,11 @@ type Core struct {
 	backlogs   map[common.Address]*prque.Prque[int64, qbftmessage.QBFTMessage]
 	backlogsMu *sync.Mutex
 
+	prepareExtraSeals map[common.Address]*qbftmessage.Prepare
+	commitExtraSeals  map[common.Address]*qbftmessage.Commit
+	extraSealsMu      *sync.Mutex
+	priorState        priorState
+
 	current      *roundState
 	currentMutex sync.Mutex
 	handlerWg    *sync.WaitGroup
@@ -113,6 +122,10 @@ func (c *Core) currentView() *qbft.View {
 		Sequence: new(big.Int).Set(c.current.Sequence()),
 		Round:    new(big.Int).Set(c.current.Round()),
 	}
+}
+
+func (c *Core) PriorRound() *big.Int {
+	return c.priorState.Round()
 }
 
 func (c *Core) IsProposer() bool {
@@ -231,6 +244,10 @@ func (c *Core) updateRoundState(view *qbft.View, validatorSet qbft.ValidatorSet,
 	if roundChange && c.current != nil {
 		c.current = newRoundState(view, validatorSet, c.current.Preprepare, c.current.preparedRound, c.current.preparedBlock, c.current.pendingRequest, c.backend.HasBadProposal)
 	} else {
+		if c.current != nil {
+			// priorState is only set for finalCommitted block
+			c.updatePriorState(c.current.Round(), c.current.Proposal())
+		}
 		c.current = newRoundState(view, validatorSet, nil, nil, nil, nil, c.backend.HasBadProposal)
 	}
 }
