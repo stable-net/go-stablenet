@@ -125,25 +125,16 @@ func (compiled compiledTy) BindContracts(pkg, filename string, contracts ...stri
 	}
 
 	filedata := []byte(str)
-	if read, err := os.ReadFile(filename); err == nil {
-		// if out file is already exists, compare the file contents
-		if crypto.Keccak256Hash(read) == crypto.Keccak256Hash(filedata) {
-			return nil
-		}
-	} else {
-		// check dir is exist
-		outDir := filepath.Dir(filename)
-		if _, err := os.Stat(outDir); err != nil {
-			if !os.IsNotExist(err) {
-				return err
-			}
-			if err = os.MkdirAll(outDir, 0755); err != nil {
-				return err
-			}
-		}
-	}
 
-	return os.WriteFile(filename, filedata, 0644)
+	return writeFile(filename, filedata)
+}
+
+func (compiled compiledTy) ExportContractCode(outDir string, contractName string) error {
+	contract, ok := compiled[contractName]
+	if !ok {
+		return fmt.Errorf("not found contract : %v", contractName)
+	}
+	return writeFile(filepath.Join(outDir, contractName), []byte(contract.RuntimeCode))
 }
 
 func abiToString(contract *compiler.Contract) (abi string, err error) {
@@ -157,4 +148,26 @@ func abiToString(contract *compiler.Contract) (abi string, err error) {
 		}
 	}
 	return
+}
+
+func writeFile(name string, data []byte) error {
+	if read, err := os.ReadFile(name); err == nil {
+		// if out file is already exists, compare the file contents
+		if crypto.Keccak256Hash(read) == crypto.Keccak256Hash(data) {
+			return nil
+		}
+	} else {
+		// check dir is exist
+		outDir := filepath.Dir(name)
+		if _, err := os.Stat(outDir); err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+			if err = os.MkdirAll(outDir, 0755); err != nil {
+				return err
+			}
+		}
+	}
+
+	return os.WriteFile(name, data, 0644)
 }

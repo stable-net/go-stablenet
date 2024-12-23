@@ -27,6 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/params"
+	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
+
 	"github.com/naoina/toml"
 )
 
@@ -203,4 +205,34 @@ func (c *Config) getTransitionValue(num *big.Int, callback func(transition param
 // String implements the stringer interface, returning the consensus engine details.
 func (c *Config) String() string {
 	return "qbft"
+}
+
+func GetStateTransitions(chainConfig *params.ChainConfig, num *big.Int) []params.StateTransition {
+	if chainConfig != nil && num != nil {
+		transitions := make([]params.StateTransition, 0)
+
+		if chainConfig.MontBlancBlock != nil && chainConfig.MontBlancBlock.Cmp(num) == 0 {
+			transitions = append(transitions, getMontBlancTransition(chainConfig.MontBlanc))
+		}
+
+		if st := chainConfig.GetStateTransitions(num); len(st) > 0 {
+			transitions = append(transitions, st...)
+		}
+		return transitions
+	}
+	return nil
+}
+
+func getMontBlancTransition(config *params.MontBlancConfig) params.StateTransition {
+	st := params.StateTransition{
+		Codes: []params.CodeParam{
+			{Address: govwbft.GovConstAddress, Code: govwbft.GovConstContract},
+			{Address: govwbft.GovStakingAddress, Code: govwbft.GovStakingContract},
+		},
+	}
+	if config != nil && len(config.NCPs) > 0 {
+		st.Codes = append(st.Codes, params.CodeParam{Address: govwbft.GovNCPAddress, Code: govwbft.GovNCPContract})
+		st.States = govwbft.InitializeNCP(config.NCPs)
+	}
+	return st
 }

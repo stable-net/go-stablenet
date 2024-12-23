@@ -193,7 +193,7 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	}
 
 	if sb.simApplier != nil {
-		sb.simApplier.Apply(sb.config, header.Number)
+		sb.simApplier.Apply(chain.Config(), sb.config, header.Number)
 	}
 
 	extraPreparedSeal, extraCommittedSeal := sb.processExtraSeals()

@@ -164,6 +164,10 @@ func (n *WbftBackend) Commit() common.Hash {
 	return n.eth.Miner().CommitSimulated()
 }
 
+func (n *WbftBackend) CommitWithState(transition params.StateTransition) common.Hash {
+	return n.eth.Miner().CommitSimulatedWithState(transition)
+}
+
 func (n *WbftBackend) AdjustTime(duration time.Duration) common.Hash {
 	return n.eth.Miner().CommitSimulatedWithPeriod(duration)
 }

@@ -1,23 +1,16 @@
 package test
 
 import (
-	"context"
-	"encoding/json"
 	"math/big"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/compiler"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethclient/simulated"
 	compile "github.com/ethereum/go-ethereum/wemixgov/governance-contract"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,17 +28,10 @@ type Governance struct {
 	EnvStorage, EnvStorageImp *bind.BoundContract
 }
 
-type nodeInfo struct {
-	name  []byte
-	enode []byte
-	ip    []byte
-	port  *big.Int
-}
-
 func NewGovernance(t *testing.T) *Governance {
 	owner := getTxOpt(t, "owner")
 	backend := simulated.NewWbftBackend(types.GenesisAlloc{
-		owner.From: {Balance: new(big.Int).Sub(new(big.Int).Lsh(common.Big1, 128), common.Big1)},
+		owner.From: {Balance: MAX_UINT_128},
 	})
 
 	return &Governance{
@@ -153,94 +139,14 @@ func (r *Governance) Deploy(address common.Address, tx *types.Transaction, contr
 	return address, contract, r.ExpectedOk(tx, err)
 }
 
-func (r *Governance) ExpectedOk(tx *types.Transaction, err error) error {
-	_, err = expectedOk(r.backend, tx, err)
+func (r *Governance) ExpectedOk(tx *types.Transaction, txErr error) error {
+	_, err := expectedOk(r.backend, tx, txErr)
 	return err
 }
 
-func (r *Governance) ExpectedFail(tx *types.Transaction, err error) error {
-	_, err = expectedFail(r.backend, tx, err)
+func (r *Governance) ExpectedFail(tx *types.Transaction, txErr error) error {
+	_, err := expectedFail(r.backend, tx, txErr)
 	return err
-}
-
-func expectedOk(backend *simulated.WbftBackend, tx *types.Transaction, err error) (*types.Receipt, error) {
-	backend.Commit()
-	if err != nil {
-		return nil, NewRevertError(err)
-	}
-
-	receipt, err := bind.WaitMined(context.TODO(), backend.Client(), tx)
-	if err != nil {
-		return nil, err
-	} else if receipt.Status != types.ReceiptStatusSuccessful {
-		panic(vm.ErrExecutionReverted)
-	}
-
-	return receipt, nil
-}
-
-func expectedFail(backend *simulated.WbftBackend, tx *types.Transaction, err error) (*types.Receipt, error) {
-	backend.Commit()
-	if err != nil {
-		return nil, NewRevertError(err)
-	}
-
-	receipt, err := bind.WaitMined(context.TODO(), backend.Client(), tx)
-	if err != nil {
-		return nil, err
-	} else if receipt.Status == types.ReceiptStatusSuccessful {
-		panic("execution not reverted")
-	}
-
-	return receipt, nil
-}
-
-type MemberInfo struct {
-	Staker     common.Address `json:"staker"`
-	Voter      common.Address `json:"voter"`
-	Reward     common.Address `json:"reward"`
-	Name       []byte         `json:"name"`
-	Enode      []byte         `json:"enode"`
-	Ip         []byte         `json:"ip"`
-	Port       *big.Int       `json:"port"`
-	LockAmount *big.Int       `json:"lockAmount"`
-	Memo       []byte         `json:"memo"`
-	Duration   *big.Int       `json:"duration"`
-}
-
-type bindBackend interface {
-	bind.ContractBackend
-	bind.DeployBackend
-}
-
-type bindContract struct {
-	Bin []byte
-	Abi abi.ABI
-}
-
-func newBindContract(contract *compiler.Contract) (*bindContract, error) {
-	if contract == nil {
-		return nil, errors.New("nil contracts")
-	}
-
-	if parsedAbi, err := parseABI(contract.Info.AbiDefinition); err != nil {
-		return nil, err
-	} else {
-		code := contract.Code
-		if !strings.HasPrefix(code, "0x") {
-			code = "0x" + code
-		}
-		collectErrors(parsedAbi)
-		return &bindContract{Bin: hexutil.MustDecode(code), Abi: *parsedAbi}, err
-	}
-}
-
-func (bc *bindContract) New(backend bindBackend, address common.Address) *bind.BoundContract {
-	return bind.NewBoundContract(address, bc.Abi, backend, backend, backend)
-}
-
-func (bc *bindContract) Deploy(backend bindBackend, opts *bind.TransactOpts, args ...interface{}) (common.Address, *types.Transaction, *bind.BoundContract, error) {
-	return bind.DeployContract(opts, bc.Abi, bc.Bin, backend, args...)
 }
 
 var (
@@ -299,21 +205,5 @@ func (c *compiledContract) Compile(root string) {
 		} else if c.EnvStorageImp, err = newBindContract(contracts["EnvStorageImp"]); err != nil {
 			panic(err)
 		}
-	}
-}
-
-func parseABI(abiDefinition interface{}) (*abi.ABI, error) {
-	s, ok := abiDefinition.(string)
-	if !ok {
-		if bytes, err := json.Marshal(abiDefinition); err != nil {
-			return nil, err
-		} else {
-			s = string(bytes)
-		}
-	}
-	if abi, err := abi.JSON(strings.NewReader(s)); err != nil {
-		return nil, err
-	} else {
-		return &abi, nil
 	}
 }

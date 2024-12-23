@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // ## Wemix QBFT START
@@ -53,7 +54,7 @@ const (
 )
 
 type SimApplier interface {
-	Apply(config *qbft.Config, blockNum *big.Int)
+	Apply(chainConfig *params.ChainConfig, config *qbft.Config, blockNum *big.Int)
 }
 
 // New creates an Ethereum backend for Istanbul core engine.

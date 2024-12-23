@@ -2,20 +2,57 @@ package test
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient/simulated"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
+
+func commitTx(backend *simulated.WbftBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
+	backend.Commit()
+	if txErr != nil {
+		return nil, NewRevertError(txErr)
+	}
+
+	return bind.WaitMined(context.TODO(), backend.Client(), tx)
+}
+
+func expectedOk(backend *simulated.WbftBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
+	receipt, err := commitTx(backend, tx, txErr)
+	if err != nil {
+		return nil, err
+	} else if receipt.Status != types.ReceiptStatusSuccessful {
+		panic(vm.ErrExecutionReverted)
+	}
+
+	return receipt, nil
+}
+
+func expectedFail(backend *simulated.WbftBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
+	receipt, err := commitTx(backend, tx, txErr)
+	if err != nil {
+		return nil, err
+	} else if receipt.Status == types.ReceiptStatusSuccessful {
+		panic("execution not reverted")
+	}
+
+	return receipt, nil
+}
 
 func ExpectedRevert(t *testing.T, err error, args ...interface{}) {
 	require.Error(t, err)
@@ -170,4 +207,170 @@ func getNonce(backend interface {
 	} else {
 		return opts.Nonce.Uint64(), nil
 	}
+}
+
+type EOA struct {
+	PrivateKey *ecdsa.PrivateKey
+	Address    common.Address
+}
+
+func NewEOA() (eoa *EOA) {
+	pk, _ := crypto.GenerateKey()
+	return &EOA{
+		PrivateKey: pk,
+		Address:    crypto.PubkeyToAddress(pk.PublicKey),
+	}
+}
+
+func NewTxOptsWithValue(t *testing.T, eoa *EOA, value *big.Int) *bind.TransactOpts {
+	opts, err := bind.NewKeyedTransactorWithChainID(eoa.PrivateKey, params.AllEthashProtocolChanges.ChainID)
+	require.NoError(t, err)
+	if value != nil && value.Cmp(new(big.Int)) > 0 {
+		opts.Value = new(big.Int).Set(value)
+	}
+	return opts
+}
+
+// evnet_unpack
+type allEventsType map[string]abi.Event
+
+var (
+	allEventsLock = sync.RWMutex{}
+	allEvents     = allEventsType{}
+)
+
+func collectEvent(abi *abi.ABI) error {
+	for n, e := range abi.Events {
+		func() {
+			allEventsLock.Lock()
+			defer allEventsLock.Unlock()
+			if exist, ok := allEvents[n]; ok {
+				if exist.String() == e.String() {
+					goto skip
+				}
+			}
+			allEvents[n] = e
+		skip:
+		}()
+	}
+
+	return nil
+}
+
+func findEvent(name string, logs []*types.Log) map[string]interface{} {
+	result := findEvents(name, logs)
+	if len(result) > 0 {
+		return result[0]
+	}
+	return nil
+}
+
+func findEvents(name string, logs []*types.Log) []map[string]interface{} {
+	events := make([]map[string]interface{}, 0)
+	eventTy, ok := allEvents[name]
+	if !ok {
+		return nil
+	}
+
+	for _, log := range logs {
+		if len(log.Topics) == 0 || log.Topics[0] != eventTy.ID {
+			continue
+		}
+
+		event := make(map[string]interface{})
+
+		if err := eventTy.Inputs.UnpackIntoMap(event, log.Data); err != nil {
+			continue
+		} else {
+			var indexed abi.Arguments
+			for _, arg := range eventTy.Inputs {
+				if arg.Indexed {
+					indexed = append(indexed, arg)
+				}
+			}
+			if err := abi.ParseTopicsIntoMap(event, indexed, log.Topics[1:]); err != nil {
+				continue
+			}
+			events = append(events, event)
+		}
+	}
+
+	return events
+}
+
+// error_unpack
+type allErrorsType map[[4]byte]abi.Error
+
+var (
+	allErrorsLock = sync.RWMutex{}
+	allErrors     = allErrorsType{}
+)
+
+func collectErrors(abi *abi.ABI) error {
+	for _, e := range abi.Errors {
+		func() {
+			allErrorsLock.Lock()
+			defer allErrorsLock.Unlock()
+			sig := [4]byte{}
+			copy(sig[:], e.ID[:4])
+			if _, ok := allErrors[sig]; !ok {
+				allErrors[sig] = e
+			}
+		}()
+	}
+
+	return nil
+}
+
+type RevertError struct {
+	ABI    abi.Error
+	Output interface{}
+}
+
+func (r *RevertError) Error() string {
+	return fmt.Sprintf("%s: %s %v", vm.ErrExecutionReverted, r.ABI.Sig, r.Output)
+}
+
+// ErrorCode returns the JSON error code for a revert.
+// See: https://github.com/ethereum/wiki/wiki/JSON-RPC-Error-Codes-Improvement-Proposal
+func NewRevertError(err error) error {
+	if revert, ok := err.(interface {
+		ErrorCode() int
+		ErrorData() interface{}
+	}); !ok || revert.ErrorCode() != 3 {
+		return err
+	} else {
+		if data, ok := revert.ErrorData().(string); !ok {
+			return err
+		} else {
+			datas := hexutil.MustDecode(data)
+			if revertErr, ok := UnpackError(datas); ok {
+				return revertErr
+			} else {
+				reason, errUnpack := abi.UnpackRevert(datas)
+				if errUnpack == nil {
+					return fmt.Errorf("execution reverted: %v", reason)
+				} else {
+					return errors.New("execution reverted")
+				}
+			}
+		}
+	}
+}
+
+func UnpackError(result []byte) (error, bool) {
+	sig := [4]byte{}
+	copy(sig[:], result[:4])
+	if errABI, ok := allErrors[sig]; !ok {
+		return nil, false
+	} else if output, err := errABI.Unpack(result); err != nil {
+		return nil, false
+	} else {
+		return &RevertError{errABI, output}, true
+	}
+}
+
+// gas used * gas price
+func calcTxGasCost(receipt *types.Receipt) *big.Int {
+	return new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice)
 }

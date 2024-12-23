@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
@@ -557,6 +558,18 @@ func WritePrevCommittedSeal(prevCommittedSeal [][]byte) ApplyQBFTExtra {
 func (e *Engine) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
 	// Accumulate any block and uncle rewards and commit the final state root
 	e.accumulateRewards(chain, state, header)
+
+	if transitions := qbft.GetStateTransitions(chain.Config(), header.Number); len(transitions) > 0 {
+		for _, st := range transitions {
+			for _, c := range st.Codes {
+				state.SetCode(c.Address, hexutil.MustDecode(c.Code))
+			}
+			for _, s := range st.States {
+				state.SetState(s.Address, s.Key, s.Value)
+			}
+		}
+	}
+
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 }

@@ -554,13 +554,15 @@ type ChainConfig struct {
 	TerminalTotalDifficultyPassed bool `json:"terminalTotalDifficultyPassed,omitempty"`
 
 	// Various consensus engines
-	Ethash  *EthashConfig  `json:"ethash,omitempty"`
-	Clique  *CliqueConfig  `json:"clique,omitempty"`
-	Brioche *BriocheConfig `json:"brioche,omitempty"` // if this config is nil, brioche halving is not applied
+	Ethash    *EthashConfig    `json:"ethash,omitempty"`
+	Clique    *CliqueConfig    `json:"clique,omitempty"`
+	Brioche   *BriocheConfig   `json:"brioche,omitempty"` // if this config is nil, brioche halving is not applied
+	MontBlanc *MontBlancConfig `json:"montBlanc,omitempty"`
 
 	// ## Quorum QBFT START
-	QBFT        *QBFTConfig  `json:"qbft,omitempty"`        // Quorum
-	Transitions []Transition `json:"transitions,omitempty"` // Quorum - transition config based on the block number
+	QBFT             *QBFTConfig       `json:"qbft,omitempty"`             // Quorum
+	Transitions      []Transition      `json:"transitions,omitempty"`      // Quorum - transition config based on the block number
+	StateTransitions []StateTransition `json:"stateTransitions,omitempty"` // wbft - state transition config based on the block number
 	// ## Quorum QBFT END
 }
 
@@ -740,6 +742,9 @@ func (c *ChainConfig) Description() string {
 		} else {
 			banner += fmt.Sprintf("   - MaxRequestTimeoutSeconds:  %-8v\n", *c.QBFT.MaxRequestTimeoutSeconds)
 		}
+	}
+	if c.MontBlanc != nil {
+		banner += fmt.Sprintf("   - NCPs:                      %v\n", c.MontBlanc.NCPs)
 	}
 	banner += "\n"
 

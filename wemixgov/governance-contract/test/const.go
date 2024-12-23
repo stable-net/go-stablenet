@@ -17,7 +17,10 @@ func toGwei(x int64) *big.Int {
 }
 
 var (
-	LOCK_AMOUNT *big.Int = towei(1500000)
+	LOCK_AMOUNT  *big.Int = towei(1500000)
+	MAX_UINT_256          = new(big.Int).Sub(new(big.Int).Lsh(common.Big1, 256), common.Big1)
+	MAX_INT_256           = new(big.Int).Sub(new(big.Int).Lsh(common.Big1, 255), common.Big1)
+	MAX_UINT_128          = new(big.Int).Sub(new(big.Int).Lsh(common.Big1, 128), common.Big1)
 )
 
 var EnvConstants = struct {
