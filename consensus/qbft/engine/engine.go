@@ -463,7 +463,11 @@ func (e *Engine) PeriodToNextBlock(blockNumber *big.Int) uint64 {
 }
 
 func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header, validators qbft.ValidatorSet, extraPreparedSeal, extraCommittedSeal map[common.Hash][]byte) error {
-	header.Coinbase = common.Address{}
+	if _, v := validators.GetByAddress(e.signer); v == nil {
+		return qbftcommon.ErrUnauthorized
+	}
+
+	header.Coinbase = e.signer
 	header.Nonce = qbftcommon.EmptyBlockNonce
 
 	// copy the parent extra data as the header extra data
@@ -602,27 +606,7 @@ func (e *Engine) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *
 	return types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil)), nil
 }
 
-// Seal generates a new block for the given input block with the local miner's
-// seal place on top.
-func (e *Engine) Seal(chain consensus.ChainHeaderReader, block *types.Block, validators qbft.ValidatorSet) (*types.Block, error) {
-	if _, v := validators.GetByAddress(e.signer); v == nil {
-		return block, qbftcommon.ErrUnauthorized
-	}
-
-	header := block.Header()
-	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
-	if parent == nil {
-		return block, consensus.ErrUnknownAncestor
-	}
-
-	// Set Coinbase
-	header.Coinbase = e.signer
-
-	return block.WithSeal(header), nil
-}
-
 func (e *Engine) SealHash(header *types.Header) common.Hash {
-	header.Coinbase = e.signer
 	return sigHash(header)
 }
 

@@ -245,21 +245,6 @@ func (sb *Backend) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 // Seal generates a new block for the given input block with the local miner's
 // seal place on top.
 func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	// update the block header timestamp and signature and propose the block to core engine
-	header := block.Header()
-	number := header.Number.Uint64()
-
-	// Bail out if we're unauthorized to sign a block
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash, nil)
-	if err != nil {
-		return err
-	}
-
-	block, err = sb.Engine().Seal(chain, block, snap.ValSet)
-	if err != nil {
-		return err
-	}
-
 	go func() {
 		// get the proposed block hash and clear it if the seal() is completed.
 		sb.sealMu.Lock()
@@ -437,6 +422,14 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		return nil
 	case "NewChainHead":
 		return sb.NewChainHead()
+
+	case "SetCoinbase":
+		header, ok := args[0].(*types.Header)
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		header.Coinbase = sb.Engine().Address()
+		return nil
 	default:
 		return qbftcommon.ErrInvalidSpecificCall
 	}
