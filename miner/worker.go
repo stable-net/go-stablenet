@@ -385,7 +385,6 @@ func (w *worker) pendingBlockAndReceipts() (*types.Block, types.Receipts) {
 // start sets the running status as 1 and triggers new work submitting.
 func (w *worker) start() {
 	w.running.Store(true)
-
 	if qbftEngine, ok := w.engine.(*qbftBackend.Backend); ok {
 		qbftEngine.Start(w.chain, w.chain.CurrentFullBlock, rawdb.HasBadBlock)
 	} else if wemixEngine, ok := w.engine.(*wemix.WemixConsensus); ok {

@@ -205,13 +205,11 @@ APIs!**
 ### Operating a private network
 
 Maintaining your own private network is more involved as a lot of configurations taken for
-granted in the official networks need to be manually set up.
+granted in the official networks need to be manually set up. 
 
-#### Defining the private genesis state
-
+#### Generating genesis.json
 First, you'll need to create the genesis state of your networks, which all nodes need to be
 aware of and agree upon. This consists of a small JSON file (e.g. call it `genesis.json`):
-
 ```json
 {
   "config": {
@@ -239,21 +237,28 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
 }
 ```
 
-The above fields should be fine for most purposes, although we'd recommend changing
-the `nonce` to some random value so you prevent unknown remote nodes from being able
-to connect to you. If you'd like to pre-fund some accounts for easier testing, create
-the accounts and populate the `alloc` field with their addresses.
+The genesis file determines which consensus engine will be used, which hardfork changes will be supported, and other key configurations. 
+Instead of wandering through countless docs to find a suitable Genesis file for the chain you want to create, you may just use **genesis_generator**
 
-```json
-"alloc": {
-  "0x0000000000000000000000000000000000000001": {
-    "balance": "111111111"
-  },
-  "0x0000000000000000000000000000000000000002": {
-    "balance": "222222222"
-  }
-}
+Make sure you built every debian packages by `make all`
+
+```shell 
+$ genesis_generator
 ```
+
+This will help you generate genesis file by simply choosing the options it gives like below : 
+``` shell
+Which consensus engine to use? (default = Wemix)
+ 1. Ethash (proof-of-work)
+ 2. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)
+ 3. Clique (proof-of-authority)
+ 4. Beacon (proof-of-stake), merging/merged from Clique (proof-of-authority)
+ 5. WBFT (wemix-byzantine-fault-tolerance)
+ 6. WEMIX (wemix-byzantine-fault-tolerance), merged from Wemix3.0 (proof-of-authority)
+ ```
+
+If you want more specific genesis file settings,simply modify the desired fields after it has been generated.
+
 
 With the genesis state defined in the above JSON file, you'll need to initialize **every**
 `geth` node with it prior to starting it up to ensure all blockchain parameters are correctly
@@ -262,6 +267,111 @@ set:
 ```shell
 $ geth init path/to/genesis.json
 ```
+
+#### Setting local private chain with wbft engine
+
+Here's a simple example running single node for private chain with wbft engine.  
+Note that this setting is not recommended for production.
+ 
+1. Make `working directory`  
+  <br>
+2. Make geth folder inside `working directory`
+
+    ```shell
+    $ mkdir {working directory}/geth
+    ```
+
+2. Clone `go-wemix-qbft` inside `working directory` ( not mandatory. you can clone wherever you want. ) and move to `go-wemix-qbft`
+
+    ```shell
+    $ cd {path you clone go-wemix-qbft}/go-wemix-qbft
+    ```
+
+3. Make build file
+
+    ```shell
+    $ make all
+    ```
+
+4. Make `nodekey` inside `geth`
+
+    ```shell
+    $ ./build/bin/bootnode --genkey {working directory}/geth/nodekey
+    ```
+
+5. Check your enode address
+
+    ```shell
+    $ ./build/bin/bootnode -nodekey {working directory}/geth/nodekey
+    
+    Example)
+    enode://adc70110af20a4e06b63c1b7c94bcaf61cd91f610afbdaf15d16cd279279438eded69763da2c7f861eb682594150d76900c126a15e50ccfb7989d1028fe26baf@127.0.0.1:0?discport=30301
+    Note: you're using cmd/bootnode, a developer tool.
+    We recommend using a regular node as bootstrap node for production deployments.
+    INFO [12-20|10:53:21.527] New local node record                    seq=1,734,659,601,526 id=02148abb6456716e ip=<nil> udp=0 tcp=0
+    ^C
+    ```
+
+6. Make genesis file (  From the following instructions, we assume that the genesis file has been created under the `working directory`. We also recommend you to create `config.toml` file)
+
+    ```shell
+   Example) 
+   
+   Which consensus engine to use? (default = Wbft)
+     1. Ethash (proof-of-work)
+     2. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)
+     3. Clique (proof-of-authority)
+     4. Beacon (proof-of-stake), merging/merged from Clique (proof-of-authority)
+     5. WBFT (wemix-byzantine-fault-tolerance)
+     6. WEMIX (wemix-byzantine-fault-tolerance), merged from Wemix3.0 (proof-of-authority)
+    > 5
+    
+    Which accounts are allowed to seal? (mandatory at least one)
+    > 0x6B0d675682f92a771042a70F60b2f199628A2Ad0
+    > 0x
+    
+    Want to generate config.toml file to configure static nodes to connect?
+    Else you have to manage peer node manually (default true)
+    > yes
+    
+    Enter enode URLs for static nodes (press enter with empty input when done):
+    > enode://8937d3a33683e5395c4be88f1dcebf8d105bec5a88130177407ca2b960a68a4271c46b97b8f0aa097d7c18c96e410dbd0a38fdc956371e8dbae742bdc380428e@127.0.0.1:0?discport=30301
+    > 
+    
+     Do you want to export generated config file?
+     If not it will be just printed (default true)
+    > yes
+    
+    Which folder to save the config.toml into? (default = current)
+    > /my/working/directory
+    
+    Which accounts should be pre-funded? (advisable at least one)
+    > 0x
+    
+    Specify your chain/network ID if you want an explicit one (default = random)
+    > 
+    
+     Do you want to export generated genesis file?
+     If not it will be just printed (default true)
+    > yes
+    
+    Which folder to save the genesis spec into? (default = current)
+    It will create genesis.json
+    > /my/working/directory
+    
+    ```
+
+7. init genesis block
+
+    ```shell
+    $ ./build/bin/geth --datadir {working directory} init {working directory}/genesis.json
+    ```
+
+8. run geth
+
+    ```shell
+    $ ./build/bin/geth --datadir {working directory} --http --http.addr "0.0.0.0" --http.port {httpPortNum}  --syncmode full --port {portNum}  --mine 
+    ```
 
 #### Creating the rendezvous point
 

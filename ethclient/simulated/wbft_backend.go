@@ -50,7 +50,7 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 
 	ethConf := ethconfig.Defaults
 	ethConf.Genesis = &core.Genesis{
-		Config:     params.AllDevChainProtocolChanges,
+		Config:     params.TestChainConfig,
 		GasLimit:   ethconfig.Defaults.Miner.GasCeil,
 		Alloc:      alloc,
 		Difficulty: new(big.Int).SetUint64(1),

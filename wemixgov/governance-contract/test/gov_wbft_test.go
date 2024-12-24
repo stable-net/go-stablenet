@@ -49,7 +49,7 @@ func TestGovWithoutNCP(t *testing.T) {
 	}
 
 	checkGovBalanceFn := func() {
-		require.Equal(t, totalStaking, g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil))
+		require.True(t, totalStaking.Cmp(g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil)) == 0)
 	}
 
 	t.Run("New Validtor", func(t *testing.T) {

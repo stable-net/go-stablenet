@@ -400,7 +400,6 @@ var (
 		GrayGlacierBlock:              big.NewInt(0),
 		MergeNetsplitBlock:            nil,
 		BriocheBlock:                  big.NewInt(0),
-		MontBlancBlock:                big.NewInt(1),
 		ShanghaiTime:                  nil,
 		CancunTime:                    nil,
 		PragueTime:                    nil,
@@ -667,7 +666,7 @@ func (c *ChainConfig) Description() string {
 			banner += "Consensus: Beacon (proof-of-stake), merged from Clique (proof-of-authority)\n"
 		}
 	case c.QBFT != nil:
-		banner += "Consensus: QBFT (quorum-byzantine-fault-tolerance)\n"
+		banner += "Consensus: WBFT (wemix-byzantine-fault-tolerance)\n"
 	default:
 		banner += "Consensus: WEMIX PoA\n"
 	}

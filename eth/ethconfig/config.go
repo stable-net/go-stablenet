@@ -24,7 +24,6 @@ package ethconfig
 import (
 	"crypto/ecdsa"
 	"errors"
-	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -186,6 +185,10 @@ type Config struct {
 func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfig, qbftCfg *qbft.Config, privKey *ecdsa.PrivateKey, db ethdb.Database) (consensus.Engine, error) {
 	// If proof-of-authority is requested, set it up
 	if config.Clique != nil {
+		if config.TerminalTotalDifficulty == nil {
+			// clique engine without supporting beacon logic
+			return clique.New(config.Clique, db), nil
+		}
 		return beacon.New(clique.New(config.Clique, db)), nil
 	}
 
@@ -221,14 +224,10 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 		}
 
 		if config.MontBlancBlock != nil {
-			if config.IsMontBlanc(new(big.Int)) {
-				// only wbft engine
-				return qbftBackend.New(qbftCfg, privKey, db), nil
-			}
 			// wemix engine which can do `MontBlanc` hard fork
 			return wemix.NewWemixEngine(govCli, qbftCfg, privKey, db), nil
 		}
-		return beacon.New(qbftBackend.New(qbftCfg, privKey, db)), nil
+		return qbftBackend.New(qbftCfg, privKey, db), nil
 	}
 	// ## Quorum QBFT END
 

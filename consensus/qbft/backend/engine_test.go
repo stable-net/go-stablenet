@@ -346,14 +346,14 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 	chain, engine, _ := newBlockChain(1)
 	defer engine.Stop()
 
-	montblancBlock := makeBlock(chain, engine, chain.Genesis())
-	_, err := chain.InsertChain(types.Blocks{montblancBlock})
+	firstQbftBlock := makeBlock(chain, engine, chain.Genesis())
+	_, err := chain.InsertChain(types.Blocks{firstQbftBlock})
 	if err != nil {
 		t.Errorf("Error inserting block: %v", err)
 	}
 
-	qbftBlock := makeBlock(chain, engine, montblancBlock)
-	_, err = chain.InsertChain(types.Blocks{qbftBlock})
+	secondQbftBlock := makeBlock(chain, engine, firstQbftBlock)
+	_, err = chain.InsertChain(types.Blocks{secondQbftBlock})
 	if err != nil {
 		t.Errorf("Error inserting block: %v", err)
 	}
@@ -365,17 +365,17 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 		expectedError          error
 	}{
 		{
-			montblancBlock,
+			firstQbftBlock,
 			func(block *types.Block) *types.Header { return block.Header() },
 			nil,
 		},
 		{
-			qbftBlock,
+			secondQbftBlock,
 			func(block *types.Block) *types.Header { return block.Header() },
 			nil,
 		},
 		{
-			qbftBlock,
+			secondQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevPreparedSeal([][]byte{})); err != nil {
@@ -386,7 +386,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			qbftcommon.ErrInvalidPreparedSeals, // PrevPreparedSeal changed -> block hash changed -> prepare seal invalid
 		},
 		{
-			qbftBlock,
+			secondQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevCommittedSeal([][]byte{})); err != nil {
@@ -398,7 +398,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			qbftcommon.ErrInvalidPreparedSeals,
 		},
 		{
-			montblancBlock,
+			firstQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevPreparedSeal([][]byte{})); err != nil {
@@ -409,7 +409,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			nil,
 		},
 		{
-			montblancBlock,
+			firstQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevCommittedSeal([][]byte{})); err != nil {
@@ -421,7 +421,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			nil,
 		},
 		{
-			qbftBlock,
+			secondQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				qbftExtra, _ := types.ExtractQBFTExtra(header)
@@ -437,7 +437,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			qbftcommon.ErrEmptyPreparedSeals,
 		},
 		{
-			qbftBlock,
+			secondQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				qbftExtra, _ := types.ExtractQBFTExtra(header)
@@ -453,7 +453,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			qbftcommon.ErrEmptyCommittedSeals,
 		},
 		{
-			montblancBlock,
+			firstQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				qbftExtra, _ := types.ExtractQBFTExtra(header)
@@ -469,7 +469,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			qbftcommon.ErrEmptyPreparedSeals,
 		},
 		{
-			montblancBlock,
+			firstQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				qbftExtra, _ := types.ExtractQBFTExtra(header)
@@ -504,14 +504,8 @@ func TestVerifyHeaderForSingleBlock(t *testing.T) {
 	block = updateQBFTBlock(block, engine.Address())
 	err := engine.VerifyHeader(chain, block.Header())
 
-	if !(chain.Config().MontBlancBlock.Cmp(block.Number()) < 0) {
-		if err != qbftcommon.ErrEmptyPreparedSeals {
-			t.Errorf("error mismatch: have %v, want %v", err, qbftcommon.ErrEmptyPreparedSeals)
-		}
-	} else {
-		if err != qbftcommon.ErrEmptyPrevPreparedSeals {
-			t.Errorf("error mismatch: have %v, want %v", err, qbftcommon.ErrEmptyPrevPreparedSeals)
-		}
+	if err != qbftcommon.ErrEmptyPreparedSeals {
+		t.Errorf("error mismatch: have %v, want %v", err, qbftcommon.ErrEmptyPreparedSeals)
 	}
 
 	// short extra data

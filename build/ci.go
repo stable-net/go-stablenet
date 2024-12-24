@@ -75,6 +75,7 @@ var (
 		executablePath("geth"),
 		executablePath("rlpdump"),
 		executablePath("clef"),
+		executablePath("genesis_generator"),
 	}
 
 	// A debian package is created for all executables listed here.
@@ -102,6 +103,10 @@ var (
 		{
 			BinaryName:  "clef",
 			Description: "Ethereum account management tool.",
+		},
+		{
+			BinaryName:  "genesis_generator",
+			Description: "Genesis file generator tool.",
 		},
 	}
 

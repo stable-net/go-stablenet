@@ -126,10 +126,9 @@ func (miner *Miner) update() {
 			}
 			switch ev.Data.(type) {
 			case downloader.StartEvent:
-				wasMining := miner.Mining()
-				miner.worker.stop()
 				canStart = false
-				if wasMining {
+				if miner.Mining() {
+					miner.worker.stop()
 					// Resume mining after sync was finished
 					shouldStart = true
 					log.Info("Mining aborted due to sync")

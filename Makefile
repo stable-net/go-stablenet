@@ -19,6 +19,12 @@ geth:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/geth\" to launch geth."
 
+#? geth: Build genesis_generator
+genesis_generator:
+	$(GORUN) build/ci.go install ./cmd/genesis_generator
+	@echo "Done building."
+	@echo "Run \"$(GOBIN)/genesis_generator\" to launch genesis_generator."
+
 #? all: Build all packages and executables
 all:
 	$(GORUN) build/ci.go install

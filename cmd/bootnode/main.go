@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
@@ -71,6 +72,18 @@ func main() {
 		if err = crypto.SaveECDSA(*genKey, nodeKey); err != nil {
 			utils.Fatalf("%v", err)
 		}
+		publicKey, _ := nodeKey.Public().(*ecdsa.PublicKey)
+		address := crypto.PubkeyToAddress(*publicKey)
+
+		// Get directory path from genKey
+		dir := filepath.Dir(*genKey)
+		addressPath := filepath.Join(dir, "address")
+
+		// Write address to file
+		if err = os.WriteFile(addressPath, []byte(address.Hex()), 0644); err != nil {
+			utils.Fatalf("failed to write address file: %v", err)
+		}
+
 		if !*writeAddr {
 			return
 		}
