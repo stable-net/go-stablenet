@@ -142,10 +142,6 @@ func NewOracle(backend OracleBackend, params Config) *Oracle {
 	}
 }
 
-func (oracle *Oracle) SuggestWemixTipCap(ctx context.Context) (*big.Int, error) {
-	return wpoa.SuggestGasPrice(), nil
-}
-
 // SuggestTipCap returns a tip cap so that newly created transaction can have a
 // very high chance to be included in the following blocks.
 //
@@ -154,6 +150,10 @@ func (oracle *Oracle) SuggestWemixTipCap(ctx context.Context) (*big.Int, error) 
 // behavior.
 func (oracle *Oracle) SuggestTipCap(ctx context.Context) (*big.Int, error) {
 	head, _ := oracle.backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
+
+	if oracle.backend.ChainConfig().MontBlancBlock != nil && !oracle.backend.ChainConfig().IsMontBlanc(head.Number) {
+		return wpoa.SuggestGasPrice(), nil
+	}
 	headHash := head.Hash()
 
 	// If the latest gasprice is still available, return it.

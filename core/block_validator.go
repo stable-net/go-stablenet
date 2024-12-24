@@ -148,14 +148,6 @@ func (v *BlockValidator) ValidateState(block *types.Block, statedb *state.StateD
 // CalcGasLimit computes the gas limit of the next block after parent. It aims
 // to keep the baseline gas close to the provided target, and increase it towards
 // the target if the baseline gas is lower.
-func CalcGasLimitWemix(parentGasLimit, desiredLimit uint64) uint64 {
-	// WEMIX GasLimit policy
-	if desiredLimit == 0 { // governance is not initialized yet
-		return parentGasLimit
-	}
-	return desiredLimit
-}
-
 func CalcGasLimit(parentGasLimit, desiredLimit uint64) uint64 {
 	delta := parentGasLimit/params.GasLimitBoundDivisor - 1
 	limit := parentGasLimit
