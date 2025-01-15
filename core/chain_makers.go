@@ -19,6 +19,7 @@ package core
 import (
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -312,7 +313,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 	}
 	cm := newChainMaker(parent, config, engine)
 
-	err := engine.CallEngineSpecific("Start", cm, cm.CurrentBlock, rawdb.HasBadBlock)
+	err := engine.CallEngineSpecific("Start", cm, cm.CurrentBlock, rawdb.HasBadBlock, func(waitTime time.Duration, round *big.Int) {})
 	if err != nil {
 		panic("invalid engine specific call")
 	}

@@ -97,10 +97,6 @@ func (wfpoa *WemixFakePoA) Close() error {
 	return wfpoa.wpoa.Close()
 }
 
-func (wfpoa *WemixFakePoA) TimeForNextWork() uint64 {
-	return 0
-}
-
 func (wfpoa *WemixFakePoA) CallEngineSpecific(method string, args ...interface{}) interface{} {
 	return nil
 }

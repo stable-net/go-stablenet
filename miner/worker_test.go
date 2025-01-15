@@ -27,6 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/consensus/qbft"
+	qbftBackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -37,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/holiman/uint256"
 )
 
@@ -54,6 +57,7 @@ var (
 	testTxPoolConfig  legacypool.Config
 	ethashChainConfig *params.ChainConfig
 	cliqueChainConfig *params.ChainConfig
+	wbftChainConfig   *params.ChainConfig
 
 	// Test accounts
 	testBankKey, _  = crypto.GenerateKey()
@@ -78,12 +82,23 @@ func init() {
 	testTxPoolConfig.Journal = ""
 	ethashChainConfig = new(params.ChainConfig)
 	*ethashChainConfig = *params.TestChainConfig
+	ethashChainConfig.BriocheBlock = nil
+	ethashChainConfig.MontBlancBlock = nil
+	ethashChainConfig.Brioche = nil
+	ethashChainConfig.QBFT = nil
 	cliqueChainConfig = new(params.ChainConfig)
 	*cliqueChainConfig = *params.TestChainConfig
+	cliqueChainConfig.BriocheBlock = nil
+	cliqueChainConfig.MontBlancBlock = nil
+	cliqueChainConfig.Brioche = nil
+	cliqueChainConfig.QBFT = nil
 	cliqueChainConfig.Clique = &params.CliqueConfig{
 		Period: 10,
 		Epoch:  30000,
 	}
+	wbftChainConfig = new(params.ChainConfig)
+	*wbftChainConfig = *params.TestChainConfig
+	wbftChainConfig.Ethash = nil
 
 	signer := types.LatestSigner(params.TestChainConfig)
 	tx1 := types.MustSignNewTx(testBankKey, signer, &types.AccessListTx{
@@ -127,6 +142,15 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 			return crypto.Sign(crypto.Keccak256(data), testBankKey)
 		})
 	case *ethash.Ethash:
+	case *qbftBackend.Backend:
+		gspec.Difficulty = new(big.Int).SetUint64(1)
+		sampleExtra := &types.QBFTExtra{
+			VanityData: []byte("WEMIX MontBlanc chain block"),
+			Validators: []common.Address{testBankAddress},
+			Round:      0,
+		}
+		gspec.ExtraData, _ = rlp.EncodeToBytes(sampleExtra)
+		gspec.Config.QBFT.Validators = []common.Address{testBankAddress}
 	default:
 		t.Fatalf("unexpected consensus engine type: %T", engine)
 	}
@@ -215,9 +239,17 @@ func TestEmptyWorkEthash(t *testing.T) {
 	t.Parallel()
 	testEmptyWork(t, ethashChainConfig, ethash.NewFaker())
 }
+
 func TestEmptyWorkClique(t *testing.T) {
 	t.Parallel()
 	testEmptyWork(t, cliqueChainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()))
+}
+
+func TestEmptyWorkWBFT(t *testing.T) {
+	t.Parallel()
+	config := qbft.DefaultConfig
+	config.BlockPeriod = 1
+	testEmptyWork(t, wbftChainConfig, qbftBackend.New(config, testBankKey, rawdb.NewMemoryDatabase()))
 }
 
 func testEmptyWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
@@ -369,6 +401,13 @@ func TestGetSealingWorkPostMerge(t *testing.T) {
 	testGetSealingWork(t, local, ethash.NewFaker())
 }
 
+func TestGetSealingWorkWBFT(t *testing.T) {
+	t.Parallel()
+	config := qbft.DefaultConfig
+	config.BlockPeriod = 1
+	testGetSealingWork(t, wbftChainConfig, qbftBackend.New(config, testBankKey, rawdb.NewMemoryDatabase()))
+}
+
 func testGetSealingWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {
 	defer engine.Close()
 
@@ -391,15 +430,20 @@ func testGetSealingWork(t *testing.T, chainConfig *params.ChainConfig, engine co
 			t.Logf("Invalid timestamp, want %d, get %d", timestamp, block.Time())
 		}
 		_, isClique := engine.(*clique.Clique)
-		if !isClique {
+		_, isWbft := engine.(*qbftBackend.Backend)
+		if !isClique && !isWbft {
 			if len(block.Extra()) != 2 {
 				t.Error("Unexpected extra field")
 			}
 			if block.Coinbase() != coinbase {
 				t.Errorf("Unexpected coinbase got %x want %x", block.Coinbase(), coinbase)
 			}
-		} else {
+		} else if isClique {
 			if block.Coinbase() != (common.Address{}) {
+				t.Error("Unexpected coinbase")
+			}
+		} else {
+			if block.Coinbase() != testBankAddress {
 				t.Error("Unexpected coinbase")
 			}
 		}

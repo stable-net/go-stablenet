@@ -140,4 +140,6 @@ type Backend interface {
 	HasBadProposal(hash common.Hash) bool
 
 	Close() error
+
+	NotifyNewRound(round *big.Int)
 }

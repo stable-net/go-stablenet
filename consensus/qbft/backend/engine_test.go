@@ -132,7 +132,7 @@ func newBlockchainFromConfig(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey
 	fb := makeFakeBroadcaster(blockchain)
 	backend.broadcaster = fb
 
-	backend.Start(blockchain, blockchain.CurrentFullBlock, rawdb.HasBadBlock)
+	backend.Start(blockchain, blockchain.CurrentFullBlock, rawdb.HasBadBlock, nil)
 
 	snap, err := backend.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {

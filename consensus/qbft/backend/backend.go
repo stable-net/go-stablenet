@@ -126,6 +126,8 @@ type Backend struct {
 	knownMessages  *lru.Cache[common.Hash, bool]                             // the cache of self messages
 
 	simApplier SimApplier
+
+	notifyNewRound func(waitTime time.Duration, round *big.Int)
 }
 
 func (sb *Backend) InjectSimApplier(applier SimApplier) {

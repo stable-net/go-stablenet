@@ -24,6 +24,7 @@ import (
 	"errors"
 	"math/big"
 	"math/rand"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -169,8 +170,8 @@ func (sb *Backend) VerifySeal(chain consensus.ChainHeaderReader, header *types.H
 	return sb.Engine().VerifySeal(chain, header, snap.ValSet)
 }
 
-// TimeForNextWork returns the time to wait for next work namely next block time
-func (sb *Backend) TimeForNextWork() uint64 {
+// timeForNextWork returns the time to wait for next work namely next block time
+func (sb *Backend) timeForNextWork() uint64 {
 	if sb.currentBlock == nil {
 		return 0 // if it has no current block function then it returns zero time
 	}
@@ -300,7 +301,7 @@ func (sb *Backend) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 }
 
 // Start implements consensus.Istanbul.Start
-func (sb *Backend) Start(chain consensus.ChainHeaderReader, currentBlock func() *types.Block, hasBadBlock func(db ethdb.Reader, hash common.Hash) bool) error {
+func (sb *Backend) Start(chain consensus.ChainHeaderReader, currentBlock func() *types.Block, hasBadBlock func(db ethdb.Reader, hash common.Hash) bool, notifyNewRound func(waitTime time.Duration, round *big.Int)) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -317,6 +318,7 @@ func (sb *Backend) Start(chain consensus.ChainHeaderReader, currentBlock func() 
 	sb.chain = chain
 	sb.currentBlock = currentBlock
 	sb.hasBadBlock = hasBadBlock
+	sb.notifyNewRound = notifyNewRound
 
 	log.Info("start QBFT")
 	err := sb.startQBFT()
@@ -328,6 +330,16 @@ func (sb *Backend) Start(chain consensus.ChainHeaderReader, currentBlock func() 
 	sb.coreStarted = true
 
 	return nil
+}
+
+func (sb *Backend) NotifyNewRound(round *big.Int) {
+	if sb.notifyNewRound != nil {
+		waitDuration := time.Duration(0)
+		if round.Uint64() == 0 {
+			waitDuration = time.Until(time.Unix(int64(sb.timeForNextWork()), 0))
+		}
+		sb.notifyNewRound(waitDuration, round)
+	}
 }
 
 // Stop implements consensus.Istanbul.Stop
@@ -349,7 +361,7 @@ func (sb *Backend) Stop() error {
 func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interface{} {
 	switch method {
 	case "Start":
-		if len(args) != 3 {
+		if len(args) != 4 {
 			return qbftcommon.ErrInvalidSpecificCall
 		}
 		chain, ok := args[0].(consensus.ChainHeaderReader)
@@ -364,10 +376,14 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		if !ok {
 			return qbftcommon.ErrInvalidSpecificCall
 		}
+		notifyNewRound, ok := args[3].(func(waitTime time.Duration, round *big.Int))
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
 		if sb.coreStarted {
 			_ = sb.Stop()
 		}
-		return sb.Start(chain, currentBlock, hasBadBlock)
+		return sb.Start(chain, currentBlock, hasBadBlock, notifyNewRound)
 	case "SetExtra":
 		if len(args) != 2 {
 			return qbftcommon.ErrInvalidSpecificCall
