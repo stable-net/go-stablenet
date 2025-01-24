@@ -1,0 +1,70 @@
+name: Dev Test Workflow
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+
+    env:
+      OWNER: wemixarchive
+      TARGET_REPO: wbft-scripts
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Check if Commit is a Merge
+        id: check_merge
+        run: |
+          if git log -1 --pretty=%B | grep -q "Merge pull request"; then
+            echo "This is a merge commit."
+          else
+            echo "Not a merge commit. Exiting..."
+            exit 1
+          fi
+
+      - name: Set Commit Identifier
+        id: identifier
+        run: |
+          echo "identifier=PR-${{ github.event.before }}" >> $GITHUB_ENV
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.22.10
+
+      - name: Build Binary
+        run: |
+          mkdir -p output
+          make geth
+          mv ./build/bin/geth ./output/
+          echo "Binary built successfully."
+          ls -l ./output/
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Clone Target Repository
+        run: |
+          git clone git@github.com:${{ env.OWNER }}/${{ env.TARGET_REPO }}.git target-repo
+          cd target-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and Push Binary
+        run: |
+          mkdir -p ./target-repo/latest
+          cp -r ./output/* ./target-repo/latest/
+
+          cd target-repo
+          git add .
+          git commit -m "Add binary for ${{ env.identifier }}: ${{ github.sha }}"
+          git push origin main
