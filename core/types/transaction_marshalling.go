@@ -154,6 +154,8 @@ func (tx *Transaction) MarshalJSON() ([]byte, error) {
 		enc.V = (*hexutil.Big)(itx.SenderTx.V)
 		enc.R = (*hexutil.Big)(itx.SenderTx.R)
 		enc.S = (*hexutil.Big)(itx.SenderTx.S)
+		yparity := itx.SenderTx.V.Uint64()
+		enc.YParity = (*hexutil.Uint64)(&yparity)
 
 		enc.FeePayer = itx.FeePayer
 		enc.FV = (*hexutil.Big)(itx.FV)
@@ -401,21 +403,28 @@ func (tx *Transaction) UnmarshalJSON(input []byte) error {
 		if dec.V == nil {
 			return errors.New("missing required field 'v' in transaction")
 		}
-		itx.SenderTx.V = (*big.Int)(dec.V)
+
+		// signature R
 		if dec.R == nil {
 			return errors.New("missing required field 'r' in transaction")
 		}
 		itx.SenderTx.R = (*big.Int)(dec.R)
+		// signature S
 		if dec.S == nil {
 			return errors.New("missing required field 's' in transaction")
 		}
 		itx.SenderTx.S = (*big.Int)(dec.S)
-		withSignature := itx.SenderTx.V.Sign() != 0 || itx.SenderTx.R.Sign() != 0 || itx.SenderTx.S.Sign() != 0
-		if withSignature {
+		// signature V
+		itx.SenderTx.V, err = dec.yParityValue()
+		if err != nil {
+			return err
+		}
+		if itx.SenderTx.V.Sign() != 0 || itx.SenderTx.R.Sign() != 0 || itx.SenderTx.S.Sign() != 0 {
 			if err := sanityCheckSignature(itx.SenderTx.V, itx.SenderTx.R, itx.SenderTx.S, false); err != nil {
 				return err
 			}
 		}
+
 		if dec.FeePayer == nil {
 			return errors.New("missing required field 'feePayer' in transaction")
 		}
@@ -432,8 +441,8 @@ func (tx *Transaction) UnmarshalJSON(input []byte) error {
 			return errors.New("missing required field 'fs' in transaction")
 		}
 		itx.FS = (*big.Int)(dec.FS)
-		withSignature = itx.FV.Sign() != 0 || itx.FR.Sign() != 0 || itx.FS.Sign() != 0
-		if withSignature {
+
+		if itx.FV.Sign() != 0 || itx.FR.Sign() != 0 || itx.FS.Sign() != 0 {
 			if err := sanityCheckSignature(itx.FV, itx.FR, itx.FS, false); err != nil {
 				return err
 			}
