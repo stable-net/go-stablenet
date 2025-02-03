@@ -23,27 +23,20 @@ const (
 )
 
 type QBFTConfig struct {
-	EpochLength              uint64                `json:"epochLength"`                       // Number of blocks that should pass before pending validator votes are reset
-	BlockPeriodSeconds       uint64                `json:"blockPeriodSeconds"`                // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
-	EmptyBlockPeriodSeconds  *uint64               `json:"emptyBlockPeriodSeconds,omitempty"` // Minimum time between two consecutive QBFT a block and empty block’ timestamps in seconds
-	RequestTimeoutSeconds    uint64                `json:"requestTimeoutSeconds"`             // Minimum request timeout for each QBFT round in milliseconds
-	ProposerPolicy           uint64                `json:"proposerPolicy"`                    // The policy for proposer selection
-	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`             // Reward from start, works only on QBFT consensus protocol
-	BeneficiaryMode          *string               `json:"beneficiaryMode,omitempty"`         // Mode for setting the beneficiary, either: list, besu, validators (beneficiary list is the list of validators)
-	MiningBeneficiary        *common.Address       `json:"miningBeneficiary,omitempty"`       // Wallet address that benefits at every new block (besu mode)
-	ValidatorSelectionMode   *string               `json:"validatorselectionmode,omitempty"`  // Select model for validators
-	Validators               []common.Address      `json:"validators"`                        // Validators list
-	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds"`          // The max round time
+	EpochLength              uint64                `json:"epochLength"`                      // Number of blocks that should pass before pending validator votes are reset
+	BlockPeriodSeconds       uint64                `json:"blockPeriodSeconds"`               // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
+	RequestTimeoutSeconds    uint64                `json:"requestTimeoutSeconds"`            // Minimum request timeout for each QBFT round in milliseconds
+	ProposerPolicy           uint64                `json:"proposerPolicy"`                   // The policy for proposer selection
+	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`            // Reward from start, works only on QBFT consensus protocol
+	BeneficiaryMode          *string               `json:"beneficiaryMode,omitempty"`        // Mode for setting the beneficiary, either: list, besu, validators (beneficiary list is the list of validators)
+	MiningBeneficiary        *common.Address       `json:"miningBeneficiary,omitempty"`      // Wallet address that benefits at every new block (besu mode)
+	ValidatorSelectionMode   *string               `json:"validatorselectionmode,omitempty"` // Select model for validators
+	Validators               []common.Address      `json:"validators"`                       // Validators list
+	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds"`         // The max round time
 }
 
 func (c *QBFTConfig) String() string {
-	var emptyBlockPeriodSeconds, blockReward, beneficiaryMode, miningBeneficiary, validatorSelectionMode, maxRequestTimeoutSeconds string
-
-	if c.EmptyBlockPeriodSeconds != nil {
-		emptyBlockPeriodSeconds = fmt.Sprintf("%v", *c.EmptyBlockPeriodSeconds)
-	} else {
-		emptyBlockPeriodSeconds = "<nil>"
-	}
+	var blockReward, beneficiaryMode, miningBeneficiary, validatorSelectionMode, maxRequestTimeoutSeconds string
 
 	if c.BlockReward != nil {
 		blockReward = fmt.Sprintf("%v", c.BlockReward)
@@ -75,10 +68,9 @@ func (c *QBFTConfig) String() string {
 		maxRequestTimeoutSeconds = "<nil>"
 	}
 
-	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v EmptyBlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, BlockReward: %v, BeneficiaryMode: %v, MiningBeneficiary: %v, ValidatorSelectionMode: %v, Validators: %v, MaxRequestTimeoutSeconds: %v}",
+	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, BlockReward: %v, BeneficiaryMode: %v, MiningBeneficiary: %v, ValidatorSelectionMode: %v, Validators: %v, MaxRequestTimeoutSeconds: %v}",
 		c.EpochLength,
 		c.BlockPeriodSeconds,
-		emptyBlockPeriodSeconds,
 		c.RequestTimeoutSeconds,
 		c.ProposerPolicy,
 		blockReward,
@@ -94,7 +86,6 @@ type Transition struct {
 	Block                        *big.Int              `json:"block"`
 	EpochLength                  uint64                `json:"epochlength,omitempty"`                  // Number of blocks that should pass before pending validator votes are reset
 	BlockPeriodSeconds           uint64                `json:"blockperiodseconds,omitempty"`           // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
-	EmptyBlockPeriodSeconds      *uint64               `json:"emptyblockperiodseconds,omitempty"`      // Minimum time between two consecutive QBFT a block and empty block’ timestamps in seconds
 	RequestTimeoutSeconds        uint64                `json:"requesttimeoutseconds,omitempty"`        // Minimum request timeout for each QBFT round in milliseconds
 	ContractSizeLimit            uint64                `json:"contractsizelimit,omitempty"`            // Maximum smart contract code size
 	Validators                   []common.Address      `json:"validators"`                             // List of validators

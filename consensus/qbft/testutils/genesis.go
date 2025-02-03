@@ -42,6 +42,7 @@ func Genesis(validators []common.Address) *core.Genesis {
 	genesis := core.TestGenesisBlock()
 	genesis.Config = params.TestChainConfig
 	genesis.Config.Ethash = nil
+	genesis.Config.QBFT.Validators = validators
 	genesis.Difficulty = types.QBFTDefaultDifficulty
 	genesis.Nonce = qbftcommon.EmptyBlockNonce.Uint64()
 
@@ -68,12 +69,11 @@ func GenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey) {
 func appendValidators(genesis *core.Genesis, addrs []common.Address) {
 	vanity := append(genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(genesis.ExtraData))...)
 	ist := &types.QBFTExtra{
-		VanityData:        vanity,
-		Validators:        addrs,
-		Vote:              nil,
-		CommittedSeal:     [][]byte{},
-		PrevCommittedSeal: [][]byte{},
-		Round:             0,
+		VanityData:    vanity,
+		Validators:    addrs,
+		Round:         0,
+		PreparedSeal:  [][]byte{},
+		CommittedSeal: [][]byte{},
 	}
 
 	istPayload, err := rlp.EncodeToBytes(&ist)
@@ -88,12 +88,12 @@ func appendValidatorsAndPrevSeals(genesis *core.Genesis, validators []common.Add
 	ist := &types.QBFTExtra{
 		VanityData:        vanity,
 		Validators:        validators,
-		Vote:              nil,
-		PreparedSeal:      [][]byte{},
-		CommittedSeal:     [][]byte{},
+		PrevRound:         0,
 		PrevPreparedSeal:  [][]byte{},
 		PrevCommittedSeal: [][]byte{},
 		Round:             0,
+		PreparedSeal:      [][]byte{},
+		CommittedSeal:     [][]byte{},
 	}
 
 	istPayload, err := rlp.EncodeToBytes(&ist)

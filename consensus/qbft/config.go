@@ -103,7 +103,6 @@ func (p *ProposerPolicy) Use(v ValidatorSortByFunc) {
 type Config struct {
 	RequestTimeout           uint64                `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
 	BlockPeriod              uint64                `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
-	EmptyBlockPeriod         uint64                `toml:",omitempty"` // Default minimum difference between a block and empty block's timestamps in second
 	ProposerPolicy           *ProposerPolicy       `toml:",omitempty"` // The policy for proposer selection
 	Epoch                    uint64                `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
 	AllowedFutureBlockTime   uint64                `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
@@ -120,7 +119,6 @@ type Config struct {
 var DefaultConfig = &Config{
 	RequestTimeout:         10000,
 	BlockPeriod:            5,
-	EmptyBlockPeriod:       0,
 	ProposerPolicy:         NewRoundRobinProposerPolicy(),
 	Epoch:                  30000,
 	AllowedFutureBlockTime: 0,
@@ -139,9 +137,6 @@ func (c Config) GetConfig(blockNumber *big.Int) Config {
 		}
 		if transition.BlockPeriodSeconds != 0 {
 			newConfig.BlockPeriod = transition.BlockPeriodSeconds
-		}
-		if transition.EmptyBlockPeriodSeconds != nil {
-			newConfig.EmptyBlockPeriod = *transition.EmptyBlockPeriodSeconds
 		}
 		if transition.BeneficiaryMode != nil {
 			newConfig.BeneficiaryMode = transition.BeneficiaryMode

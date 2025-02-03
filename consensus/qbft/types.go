@@ -217,6 +217,8 @@ type ValidatorSet interface {
 	Size() int
 	// Return the validator array
 	List() []Validator
+	// Return the validator address array
+	AddressList() []common.Address
 	// Get validator by index
 	GetByIndex(i uint64) Validator
 	// Get validator by given address
@@ -237,9 +239,6 @@ type ValidatorSet interface {
 	QuorumSize() int
 	// Get proposer policy
 	Policy() ProposerPolicy
-
-	// SortValidators sorts the validators based on the configured By function
-	SortValidators()
 }
 
 // ----------------------------------------------------------------------------

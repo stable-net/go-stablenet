@@ -52,6 +52,7 @@ type defaultSet struct {
 	selector    qbft.ProposalSelector
 }
 
+// create an ordered validator set with given addrs order
 func newDefaultSet(addrs []common.Address, policy *qbft.ProposerPolicy) *defaultSet {
 	valSet := &defaultSet{}
 
@@ -62,7 +63,6 @@ func newDefaultSet(addrs []common.Address, policy *qbft.ProposerPolicy) *default
 		valSet.validators[i] = New(addr)
 	}
 
-	valSet.SortValidators()
 	// init proposer
 	if valSet.Size() > 0 {
 		valSet.proposer = valSet.GetByIndex(0)
@@ -85,6 +85,16 @@ func (valSet *defaultSet) List() []qbft.Validator {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
 	return valSet.validators
+}
+
+func (valSet *defaultSet) AddressList() []common.Address {
+	valSet.validatorMu.RLock()
+	defer valSet.validatorMu.RUnlock()
+	result := make([]common.Address, len(valSet.validators))
+	for i, v := range valSet.validators {
+		result[i] = v.Address()
+	}
+	return result
 }
 
 func (valSet *defaultSet) GetByIndex(i uint64) qbft.Validator {
@@ -118,11 +128,6 @@ func (valSet *defaultSet) CalcProposer(lastProposer common.Address, round uint64
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
 	valSet.proposer = valSet.selector(valSet, lastProposer, round)
-}
-
-// ValidatorSetSorter sorts the validators based on the configured By function
-func (valSet *defaultSet) SortValidators() {
-	valSet.Policy().By.Sort(valSet.validators)
 }
 
 func calcSeed(valSet qbft.ValidatorSet, proposer common.Address, round uint64) uint64 {
@@ -174,9 +179,6 @@ func (valSet *defaultSet) AddValidator(address common.Address) bool {
 		}
 	}
 	valSet.validators = append(valSet.validators, New(address))
-	// TODO: we may not need to re-sort it again
-	// sort validator
-	valSet.SortValidators()
 	return true
 }
 

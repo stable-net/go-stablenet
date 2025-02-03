@@ -133,15 +133,16 @@ func newBlockchainFromConfig(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey
 	backend.broadcaster = fb
 
 	backend.Start(blockchain, blockchain.CurrentFullBlock, rawdb.HasBadBlock, nil)
+	genesisBlock := blockchain.GetHeaderByHash(blockchain.Genesis().Hash())
+	valSet, err := backend.Engine().GetValidators(blockchain, common.Big1, genesisBlock.Hash(), nil)
 
-	snap, err := backend.snapshot(blockchain, 0, common.Hash{}, nil)
 	if err != nil {
 		panic(err)
 	}
-	if snap == nil {
-		panic("failed to get snapshot")
+	if valSet == nil {
+		panic("failed to get validator set")
 	}
-	proposerAddr := snap.ValSet.GetProposer().Address()
+	proposerAddr := valSet.GetProposer().Address()
 
 	// find proposer key
 	for i, key := range nodeKeys {
@@ -165,7 +166,8 @@ func newBlockchainFromConfig(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey
 func newBlockChain(n int) (*core.BlockChain, *Backend, []otherNode) {
 	genesis, nodeKeys := testutils.GenesisAndKeys(n)
 
-	config := copyConfig(qbft.DefaultConfig)
+	config := new(qbft.Config)
+	setConfigFromChainConfig(config, genesis.Config)
 
 	return newBlockchainFromConfig(genesis, nodeKeys, config)
 }
@@ -173,16 +175,38 @@ func newBlockChain(n int) (*core.BlockChain, *Backend, []otherNode) {
 func newBlockChainWithCustom(n int, customizeConfig func(config *qbft.Config) *qbft.Config) (*core.BlockChain, *Backend, []otherNode) {
 	genesis, nodeKeys := testutils.GenesisAndKeys(n)
 
-	config := copyConfig(qbft.DefaultConfig)
+	config := new(qbft.Config)
+	setConfigFromChainConfig(config, genesis.Config)
 	config = customizeConfig(config)
 
 	return newBlockchainFromConfig(genesis, nodeKeys, config)
 }
 
-// copyConfig create a copy of qbft.Config, so that changing it does not update the original
-func copyConfig(config *qbft.Config) *qbft.Config {
-	cpy := *config
-	return &cpy
+// this is a copy of ethconfig.SetConfigFromChainConfig; avoiding cyclic import
+func setConfigFromChainConfig(qbftCfg *qbft.Config, config *params.ChainConfig) {
+	if len(config.Transitions) > 0 {
+		qbftCfg.Transitions = config.Transitions
+	}
+	if config.QBFT.BlockPeriodSeconds != 0 {
+		qbftCfg.BlockPeriod = config.QBFT.BlockPeriodSeconds
+	}
+	if config.QBFT.RequestTimeoutSeconds != 0 {
+		qbftCfg.RequestTimeout = config.QBFT.RequestTimeoutSeconds * 1000
+	}
+	if config.QBFT.EpochLength != 0 {
+		qbftCfg.Epoch = config.QBFT.EpochLength
+	}
+
+	qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.QBFT.ProposerPolicy))
+	qbftCfg.BlockReward = config.QBFT.BlockReward
+	qbftCfg.BeneficiaryMode = config.QBFT.BeneficiaryMode
+	qbftCfg.MiningBeneficiary = config.QBFT.MiningBeneficiary
+	qbftCfg.ValidatorSelectionMode = config.QBFT.ValidatorSelectionMode
+	qbftCfg.Validators = config.QBFT.Validators
+
+	if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
+		qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds
+	}
 }
 
 // makeHeader create header executing no txs
@@ -213,6 +237,7 @@ func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *ty
 
 // makeBlock create block executing no txs without seal
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
+	engine.NewChainHead() // progress to next sequence
 	header := makeHeader(chain.Config(), engine.config, parent)
 	engine.Prepare(chain, header)
 	block := types.NewBlock(header, nil, nil, nil, trie.NewStackTrie(nil))
@@ -378,7 +403,9 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			secondQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevPreparedSeal([][]byte{})); err != nil {
+				extra, _ := types.ExtractQBFTExtra(header)
+				// write invalid round
+				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound+1, extra.PrevPreparedSeal, extra.PrevCommittedSeal)); err != nil {
 					return nil
 				}
 				return header
@@ -389,7 +416,20 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			secondQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevCommittedSeal([][]byte{})); err != nil {
+				extra, _ := types.ExtractQBFTExtra(header)
+				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, [][]byte{}, extra.PrevCommittedSeal)); err != nil {
+					return nil
+				}
+				return header
+			},
+			qbftcommon.ErrInvalidPreparedSeals, // PrevPreparedSeal changed -> block hash changed -> prepare seal invalid
+		},
+		{
+			secondQbftBlock,
+			func(block *types.Block) *types.Header {
+				header := block.Header()
+				extra, _ := types.ExtractQBFTExtra(header)
+				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, extra.PrevPreparedSeal, [][]byte{})); err != nil {
 					return nil
 				}
 				return header
@@ -401,7 +441,8 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			firstQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevPreparedSeal([][]byte{})); err != nil {
+				extra, _ := types.ExtractQBFTExtra(header)
+				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, [][]byte{}, extra.PrevCommittedSeal)); err != nil {
 					return nil
 				}
 				return header
@@ -412,7 +453,8 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			firstQbftBlock,
 			func(block *types.Block) *types.Header {
 				header := block.Header()
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevCommittedSeal([][]byte{})); err != nil {
+				extra, _ := types.ExtractQBFTExtra(header)
+				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, extra.PrevPreparedSeal, [][]byte{})); err != nil {
 					return nil
 				}
 				return header
@@ -801,22 +843,22 @@ func makeBlockThroughConsensus(chain *core.BlockChain, engine *Backend, nodes []
 	eventSub.Unsubscribe()
 
 	proposedBlock, _ := request.Proposal.(*types.Block)
-	for _, node := range nodes {
-		go func(node otherNode) error {
-			ticker := time.NewTicker(300 * time.Millisecond)
-			defer ticker.Stop()
+	go func() error {
+		ticker := time.NewTicker(300 * time.Millisecond)
+		defer ticker.Stop()
 
-			executed := make(map[qbftcore.State]bool)
-			for {
-				<-ticker.C
-				consensusState := engine.core.GetState()
-				if executed[consensusState] {
-					continue
-				}
+		executed := make(map[qbftcore.State]bool)
+		for {
+			<-ticker.C
+			consensusState := engine.core.GetState()
+			if executed[consensusState] {
+				continue
+			}
 
-				switch consensusState {
-				case qbftcore.StateAcceptRequest:
-					if engine.Validators(parentBlock).IsProposer(node.address) {
+			switch consensusState {
+			case qbftcore.StateAcceptRequest:
+				for _, node := range nodes {
+					if engine.ProposerFromValSet() == node.address {
 						header := proposedBlock.Header()
 						header.Coinbase = node.address
 						statedb, err := chain.State()
@@ -828,24 +870,26 @@ func makeBlockThroughConsensus(chain *core.BlockChain, engine *Backend, nodes []
 						if err := nodeSendPreprepareMsg(engine, node, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
 							return fmt.Errorf("failed to send preprepare msg. err :  %v", err)
 						}
-						executed[consensusState] = true
-					} else {
-						executed[consensusState] = true
 					}
-				case qbftcore.StatePreprepared:
+				}
+				executed[consensusState] = true
+			case qbftcore.StatePreprepared:
+				for _, node := range nodes {
 					if err := nodeSendPrepareMsg(engine, node, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
 						return fmt.Errorf("failed to send prepare msg. err :  %v", err)
 					}
-					executed[consensusState] = true
-				case qbftcore.StatePrepared:
+				}
+				executed[consensusState] = true
+			case qbftcore.StatePrepared:
+				for _, node := range nodes {
 					if err := nodeSendCommitMsg(engine, node, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
 						return fmt.Errorf("failed to send commit msg. err :  %v", err)
 					}
-					executed[consensusState] = true
 				}
+				executed[consensusState] = true
 			}
-		}(node)
-	}
+		}
+	}()
 
 	select {
 	case blockFromResultCh := <-resultCh:
@@ -858,14 +902,14 @@ func makeBlockThroughConsensus(chain *core.BlockChain, engine *Backend, nodes []
 
 func TestMakingBlock(t *testing.T) {
 	chain, engine, nodes := newBlockChain(4)
+	others := nodes[1:]
 	parentBlock := chain.Genesis()
 
 	for i := 0; i < 3; i++ {
-		finalBlock, err := makeBlockThroughConsensus(chain, engine, nodes, parentBlock)
+		finalBlock, err := makeBlockThroughConsensus(chain, engine, others, parentBlock)
 		if err != nil {
 			t.Errorf("failed to make block1 through consensus. err %v", err)
 		}
-
 		if parentBlock.Hash() != finalBlock.ParentHash() {
 			t.Errorf("parent hash mismatch: have %v, want %v", finalBlock.ParentHash(), parentBlock.Hash())
 		}
@@ -996,9 +1040,10 @@ func TestAddingExtraSeals(t *testing.T) {
 
 func TestLackingSealsFromPropagatedBlock(t *testing.T) {
 	chain, engine, nodes := newBlockChain(4)
+	others := nodes[1:]
 
 	// 1. generate block through consensus
-	validBlock, err := makeBlockThroughConsensus(chain, engine, nodes, chain.Genesis())
+	validBlock, err := makeBlockThroughConsensus(chain, engine, others, chain.Genesis())
 	if err != nil {
 		t.Errorf("failed to make valid block through consensus. err %v", err)
 	}
@@ -1082,11 +1127,11 @@ func TestVerifyProposalBug(t *testing.T) {
 	extra.PrevCommittedSeal = extra.PrevPreparedSeal // invalid prevCommittedSeal
 	setExtra(invalidPrevCommittedSealBlockHeader, extra)
 
-	snap, _ := engine.snapshot(chain, firstBlock.Number().Uint64(), firstBlock.Hash(), nil)
+	valSet, _ := engine.Engine().GetValidators(chain, firstBlock.Number(), firstBlock.ParentHash(), nil)
 	invalidBlock := types.NewBlock(invalidPrevCommittedSealBlockHeader, nil, nil, nil, trie.NewStackTrie(nil))
 
 	time.Sleep(time.Second) // wait for the block time
-	_, err = engine.Engine().VerifyBlockProposal(chain, invalidBlock, snap.ValSet, snap.ValSet)
+	_, err = engine.Engine().VerifyBlockProposal(chain, invalidBlock, valSet, valSet)
 	if err == nil {
 		t.Errorf("engine fails to verify a proposal which has invalid PrevCommittedSeal")
 	} else if !errors.Is(err, qbftcommon.ErrInvalidPrevCommittedSeals) {

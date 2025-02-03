@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"math/big"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -267,7 +266,6 @@ func newTestValidatorSet(n int) (qbft.ValidatorSet, []*ecdsa.PrivateKey) {
 		addrs[i] = crypto.PubkeyToAddress(privateKey.PublicKey)
 	}
 	vset := validator.NewSet(addrs, qbft.NewRoundRobinProposerPolicy())
-	sort.Sort(keys) //Keys need to be sorted by its public key address
 	return vset, keys
 }
 

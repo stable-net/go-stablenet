@@ -82,7 +82,6 @@ var (
 		QBFT: &QBFTConfig{ // TODO: this is just for test on mainnet
 			EpochLength:              100,
 			BlockPeriodSeconds:       1,
-			EmptyBlockPeriodSeconds:  &ebps,
 			RequestTimeoutSeconds:    1000,
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
@@ -125,7 +124,6 @@ var (
 		QBFT: &QBFTConfig{ // TODO: this is just for test on mainnet
 			EpochLength:              100,
 			BlockPeriodSeconds:       1,
-			EmptyBlockPeriodSeconds:  &ebps,
 			RequestTimeoutSeconds:    1000,
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
@@ -266,7 +264,6 @@ var (
 		Clique:                        nil,
 	}
 
-	ebps = uint64(6)
 	bm   = "validator"
 	vsm  = "blockheader"
 	mb   = common.HexToAddress("0x0000000000000000000000000000000000000000")
@@ -301,7 +298,6 @@ var (
 		QBFT: &QBFTConfig{
 			EpochLength:              10,
 			BlockPeriodSeconds:       3,
-			EmptyBlockPeriodSeconds:  &ebps,
 			RequestTimeoutSeconds:    1000,
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
@@ -419,7 +415,6 @@ var (
 		QBFT: &QBFTConfig{
 			EpochLength:              10,
 			BlockPeriodSeconds:       3,
-			EmptyBlockPeriodSeconds:  &ebps,
 			RequestTimeoutSeconds:    1000,
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
@@ -712,11 +707,6 @@ func (c *ChainConfig) Description() string {
 	if c.QBFT != nil {
 		banner += fmt.Sprintf("   - EpochLength:               %-8v\n", c.QBFT.EpochLength)
 		banner += fmt.Sprintf("   - BlockPeriodSeconds:        %-8v\n", c.QBFT.BlockPeriodSeconds)
-		if c.QBFT.EmptyBlockPeriodSeconds == nil {
-			banner += fmt.Sprintf("   - EmptyBlockPeriodSeconds:   %-8v\n", 0)
-		} else {
-			banner += fmt.Sprintf("   - EmptyBlockPeriodSeconds:   %-8v\n", *c.QBFT.EmptyBlockPeriodSeconds)
-		}
 		banner += fmt.Sprintf("   - RequestTimeoutSeconds:     %-8v\n", c.QBFT.RequestTimeoutSeconds)
 		banner += fmt.Sprintf("   - ProposerPolicy:            %-8v\n", c.QBFT.ProposerPolicy)
 		if c.QBFT.BlockReward == nil {

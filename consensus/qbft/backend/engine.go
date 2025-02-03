@@ -21,9 +21,7 @@
 package backend
 
 import (
-	"errors"
 	"math/big"
-	"math/rand"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -31,20 +29,16 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/qbft"
 	qbftcommon "github.com/ethereum/go-ethereum/consensus/qbft/common"
 	qbftengine "github.com/ethereum/go-ethereum/consensus/qbft/engine"
-	"github.com/ethereum/go-ethereum/consensus/qbft/validator"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
 const (
-	checkpointInterval = 1024 // Number of blocks after which to save the vote snapshot to the database
-	inmemorySnapshots  = 128  // Number of recent vote snapshots to keep in memory
-	inmemoryPeers      = 40
-	inmemoryMessages   = 1024
+	inmemoryPeers    = 40
+	inmemoryMessages = 1024
 )
 
 // ## Wemix QBFT START
@@ -81,38 +75,11 @@ func (sb *Backend) VerifyHeader(chain consensus.ChainHeaderReader, header *types
 }
 
 func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
-	// Assemble the voting snapshot
-	var snap, prevSnap *Snapshot
-	var err error
-
-	if snap, err = sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, parents); err != nil {
+	valSet, prevValSet, err := sb.GetValidatorsForVerifying(chain, header.Number, header.ParentHash, parents)
+	if err != nil {
 		return err
-	} else if header.Number.Uint64() < 2 {
-		return sb.Engine().VerifyHeader(chain, header, parents, snap.ValSet, snap.ValSet, true)
-	} else if len(parents) < 2 {
-		var parent *types.Header
-		if len(parents) == 1 {
-			parent = parents[0]
-		} else {
-			parent = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
-			if parent == nil {
-				return consensus.ErrUnknownAncestor
-			}
-		}
-		if prevSnap, err = sb.snapshot(chain, parent.Number.Uint64()-1, parent.ParentHash, nil); err != nil {
-			return err
-		}
-	} else {
-		h := parents[len(parents)-2]
-		if h.Number.Uint64() != header.Number.Uint64()-2 {
-			return errors.New("unexpected parents block")
-		}
-		if prevSnap, err = sb.snapshot(chain, h.Number.Uint64(), h.Hash(), parents[:len(parents)-1]); err != nil {
-			return err
-		}
 	}
-
-	return sb.Engine().VerifyHeader(chain, header, parents, snap.ValSet, prevSnap.ValSet, true)
+	return sb.Engine().VerifyHeader(chain, header, parents, valSet, prevValSet, true)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
@@ -162,12 +129,12 @@ func (sb *Backend) VerifySeal(chain consensus.ChainHeaderReader, header *types.H
 	}
 
 	// Assemble the voting snapshot
-	snap, err := sb.snapshot(chain, number-1, header.ParentHash, nil)
+	valSet, err := sb.Engine().GetValidators(chain, header.Number, header.ParentHash, nil)
 	if err != nil {
 		return err
 	}
 
-	return sb.Engine().VerifySeal(chain, header, snap.ValSet)
+	return sb.Engine().VerifySeal(chain, header, valSet)
 }
 
 // timeForNextWork returns the time to wait for next work namely next block time
@@ -188,7 +155,7 @@ func (sb *Backend) timeForNextWork() uint64 {
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	// Assemble the voting snapshot
-	snap, err := sb.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
+	valSet, err := sb.Engine().GetValidators(chain, header.Number, header.ParentHash, nil)
 	if err != nil {
 		return err
 	}
@@ -199,31 +166,9 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 
 	extraPreparedSeal, extraCommittedSeal := sb.processExtraSeals()
 
-	err = sb.Engine().Prepare(chain, header, snap.ValSet, extraPreparedSeal, extraCommittedSeal)
+	err = sb.Engine().Prepare(chain, header, valSet, extraPreparedSeal, extraCommittedSeal)
 	if err != nil {
 		return err
-	}
-
-	// get valid candidate list
-	sb.candidatesLock.RLock()
-	var addresses []common.Address
-	var authorizes []bool
-	for address, authorize := range sb.candidates {
-		if snap.checkVote(address, authorize) {
-			addresses = append(addresses, address)
-			authorizes = append(authorizes, authorize)
-		}
-	}
-	sb.candidatesLock.RUnlock()
-
-	if len(addresses) > 0 {
-		index := rand.Intn(len(addresses))
-
-		err = sb.Engine().WriteVote(header, addresses[index], authorizes[index])
-		if err != nil {
-			log.Error("BFT: error writing validator vote", "err", err)
-			return err
-		}
 	}
 	return nil
 }
@@ -433,8 +378,7 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		qbftengine.ApplyHeaderQBFTExtra(
 			header,
 			qbftengine.WriteValidators(extra.Validators),
-			qbftengine.WritePrevPreparedSeal(prevPreparedSeal),
-			qbftengine.WritePrevCommittedSeal(prevCommittedSeal))
+			qbftengine.WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal))
 		return nil
 	case "NewChainHead":
 		return sb.NewChainHead()
@@ -451,261 +395,40 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 	}
 }
 
-func addrsToString(addrs []common.Address) []string {
-	strs := make([]string, len(addrs))
-	for i, addr := range addrs {
-		strs[i] = addr.String()
-	}
-	return strs
-}
-
-func (sb *Backend) snapLogger(snap *Snapshot) log.Logger {
-	return sb.logger.New(
-		"snap.number", snap.Number,
-		"snap.hash", snap.Hash.String(),
-		"snap.epoch", snap.Epoch,
-		"snap.validators", addrsToString(snap.validators()),
-		"snap.votes", snap.Votes,
-	)
-}
-
-func (sb *Backend) storeSnap(snap *Snapshot) error {
-	logger := sb.snapLogger(snap)
-	logger.Debug("BFT: store snapshot to database")
-	if err := snap.store(sb.db); err != nil {
-		logger.Error("BFT: failed to store snapshot to database", "err", err)
-		return err
-	}
-
-	return nil
-}
-
-// snapshot retrieves the authorization snapshot at a given point in time.
-func (sb *Backend) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
-	// Search for a snapshot in memory or on disk for checkpoints
-	var (
-		headers []*types.Header
-		snap    *Snapshot
-	)
-	for snap == nil {
-		// If an in-memory snapshot was found, use that
-		if s, ok := sb.recents.Get(hash); ok {
-			snap = s
-			sb.snapLogger(snap).Trace("BFT: loaded voting snapshot from cache")
-			break
-		}
-		// If an on-disk checkpoint snapshot can be found, use that
-		if number%checkpointInterval == 0 {
-			if s, err := loadSnapshot(sb.config.GetConfig(new(big.Int).SetUint64(number)).Epoch, sb.db, hash); err == nil {
-				snap = s
-				sb.snapLogger(snap).Trace("BFT: loaded voting snapshot from database")
-				break
-			}
-		}
-
-		// If we're at block zero, make a snapshot
-		if number == 0 {
-			genesis := chain.GetHeaderByNumber(0)
-			if err := sb.Engine().VerifyHeader(chain, genesis, nil, nil, nil, false); err != nil {
-				sb.logger.Error("BFT: invalid genesis block", "err", err)
-				return nil, err
-			}
-
-			var validators []common.Address
-			validatorsFromConfig := sb.config.GetValidatorsAt(big.NewInt(0))
-			if len(validatorsFromConfig) > 0 {
-				validators = validatorsFromConfig
-				log.Info("BFT: Initialising snap with config validators", "validators", validators)
-			} else {
-				var err error
-				validators, err = sb.Engine().ExtractGenesisValidators(genesis)
-				log.Info("BFT: Initialising snap with extradata", "validators", validators)
-				if err != nil {
-					log.Error("BFT: invalid genesis block", "err", err)
-					return nil, err
-				}
-			}
-
-			snap = newSnapshot(sb.config.GetConfig(new(big.Int).SetUint64(number)).Epoch, 0, genesis.Hash(), validator.NewSet(validators, sb.config.ProposerPolicy))
-			if err := sb.storeSnap(snap); err != nil {
-				return nil, err
-			}
-			break
-		}
-
-		// No snapshot for this header, gather the header and move backward
-		var header *types.Header
-		if len(parents) > 0 {
-			// If we have explicit parents, pick from there (enforced)
-			header = parents[len(parents)-1]
-			if header.Hash() != hash || header.Number.Uint64() != number {
-				return nil, consensus.ErrUnknownAncestor
-			}
-			parents = parents[:len(parents)-1]
-		} else {
-			// No explicit parents (or no more left), reach out to the database
-			header = chain.GetHeader(hash, number)
-			if header == nil {
-				return nil, consensus.ErrUnknownAncestor
-			}
-		}
-
-		headers = append(headers, header)
-		number, hash = number-1, header.ParentHash
-	}
-
-	// Previous snapshot found, apply any pending headers on top of it
-	for i := 0; i < len(headers)/2; i++ {
-		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
-	}
-
-	snapApplied, err := sb.snapApply(snap, headers)
-	if err != nil {
-		return nil, err
-	}
-	sb.recents.Add(snapApplied.Hash, snapApplied)
-
-	targetBlockHeight := new(big.Int).SetUint64(number)
-	// we only need to update the validator set if it's a new block
-	if validatorsFromTransitions := sb.config.GetValidatorsAt(targetBlockHeight); len(validatorsFromTransitions) > 0 && sb.config.GetValidatorSelectionMode(targetBlockHeight) == params.BlockHeaderMode {
-		//Note! we only want to set this once at this block height. Subsequent blocks will be propagated with the same
-		// 		validator as they are copied into the block header on the next block. Then normal voting can take place
-		// 		again.
-		valSet := validator.NewSet(validatorsFromTransitions, sb.config.ProposerPolicy)
-		snapApplied.ValSet = valSet
-	}
-
-	// If we've generated a new checkpoint snapshot, save to disk
-	if snapApplied.Number%checkpointInterval == 0 && len(headers) > 0 {
-		if err = sb.storeSnap(snapApplied); err != nil {
-			return nil, err
-		}
-	}
-
-	return snapApplied, err
-}
-
 // SealHash returns the hash of a block prior to it being sealed.
 func (sb *Backend) SealHash(header *types.Header) common.Hash {
 	return sb.Engine().SealHash(header)
 }
 
-func (sb *Backend) snapApply(snap *Snapshot, headers []*types.Header) (*Snapshot, error) {
-	// Allow passing in no headers for cleaner code
-	if len(headers) == 0 {
-		return snap, nil
-	}
-	// Sanity check that the headers can be applied
-	for i := 0; i < len(headers)-1; i++ {
-		if headers[i+1].Number.Uint64() != headers[i].Number.Uint64()+1 {
-			return nil, qbftcommon.ErrInvalidVotingChain
-		}
-	}
-	if headers[0].Number.Uint64() != snap.Number+1 {
-		return nil, qbftcommon.ErrInvalidVotingChain
-	}
-	// Iterate through the headers and create a new snapshot
-	snapCpy := snap.copy()
+func (sb *Backend) GetValidatorsForVerifying(chain consensus.ChainHeaderReader, blockNumber *big.Int, parentHash common.Hash, parents []*types.Header) (qbft.ValidatorSet, qbft.ValidatorSet, error) {
+	var valSet, prevValSet qbft.ValidatorSet
+	var err error
 
-	for _, header := range headers {
-		err := sb.snapApplyHeader(snapCpy, header)
-		if err != nil {
-			return nil, err
-		}
-	}
-	snapCpy.Number += uint64(len(headers))
-	snapCpy.Hash = headers[len(headers)-1].Hash()
-
-	return snapCpy, nil
-}
-
-func (sb *Backend) snapApplyHeader(snap *Snapshot, header *types.Header) error {
-	logger := sb.snapLogger(snap).New("header.number", header.Number.Uint64(), "header.hash", header.Hash().String())
-
-	logger.Trace("BFT: apply header to voting snapshot")
-
-	// Remove any votes on checkpoint blocks
-	number := header.Number.Uint64()
-	if number%snap.Epoch == 0 {
-		snap.Votes = nil
-		snap.Tally = make(map[common.Address]Tally)
+	// Retrieve the ValidatorSet for the block height
+	if valSet, err = sb.Engine().GetValidators(chain, blockNumber, parentHash, parents); err != nil {
+		return nil, nil, consensus.ErrUnknownAncestor
 	}
 
-	// Resolve the authorization key and check against validators
-	validator, err := sb.Engine().Author(header)
-	if err != nil {
-		logger.Error("BFT: invalid header author", "err", err)
-		return err
-	}
-
-	logger = logger.New("header.author", validator)
-
-	if _, v := snap.ValSet.GetByAddress(validator); v == nil {
-		logger.Error("BFT: header author is not a validator", "Validators", snap.ValSet, "Author", validator)
-		return qbftcommon.ErrUnauthorized
-	}
-
-	// Read vote from header
-	candidate, authorize, err := sb.Engine().ReadVote(header)
-	if err != nil {
-		logger.Error("BFT: invalid header vote", "err", err)
-		return err
-	}
-
-	logger = logger.New("candidate", candidate.String(), "authorize", authorize)
-	// Header authorized, discard any previous votes from the validator
-	for i, vote := range snap.Votes {
-		if vote.Validator == validator && vote.Address == candidate {
-			logger.Trace("BFT: discard previous vote from tally", "old.authorize", vote.Authorize)
-			// Uncast the vote from the cached tally
-			snap.uncast(vote.Address, vote.Authorize)
-
-			// Uncast the vote from the chronological list
-			snap.Votes = append(snap.Votes[:i], snap.Votes[i+1:]...)
-			break // only one vote allowed
-		}
-	}
-
-	logger.Debug("BFT: add vote to tally")
-	if snap.cast(candidate, authorize) {
-		snap.Votes = append(snap.Votes, &Vote{
-			Validator: validator,
-			Block:     number,
-			Address:   candidate,
-			Authorize: authorize,
-		})
-	}
-
-	// If the vote passed, update the list of validators
-	if tally := snap.Tally[candidate]; tally.Votes > snap.ValSet.Size()/2 {
-		if tally.Authorize {
-			logger.Info("BFT: reached majority to add validator")
-			snap.ValSet.AddValidator(candidate)
+	if (chain.Config().MontBlancBlock == nil && blockNumber.Uint64() >= 2) ||
+		(chain.Config().MontBlancBlock != nil && blockNumber.Uint64() >= chain.Config().MontBlancBlock.Uint64()+2) {
+		var parent *types.Header
+		if len(parents) == 0 {
+			parent = chain.GetHeader(parentHash, blockNumber.Uint64()-1)
+			parents = nil
 		} else {
-			logger.Info("BFT: reached majority to remove validator")
-			snap.ValSet.RemoveValidator(candidate)
-
-			// Discard any previous votes the deauthorized validator cast
-			for i := 0; i < len(snap.Votes); i++ {
-				if snap.Votes[i].Validator == candidate {
-					// Uncast the vote from the cached tally
-					snap.uncast(snap.Votes[i].Address, snap.Votes[i].Authorize)
-
-					// Uncast the vote from the chronological list
-					snap.Votes = append(snap.Votes[:i], snap.Votes[i+1:]...)
-
-					i--
-				}
-			}
+			parent = parents[len(parents)-1]
+			parents = parents[:len(parents)-1]
 		}
-		// Discard any previous votes around the just changed account
-		for i := 0; i < len(snap.Votes); i++ {
-			if snap.Votes[i].Address == candidate {
-				snap.Votes = append(snap.Votes[:i], snap.Votes[i+1:]...)
-				i--
-			}
+		if parent == nil {
+			return nil, nil, consensus.ErrUnknownAncestor
 		}
-		delete(snap.Tally, candidate)
+		// Retrieve the ValidatorSet of the previous block
+		if prevValSet, err = sb.Engine().GetValidators(chain, parent.Number, parent.ParentHash, parents); err != nil {
+			return nil, nil, err
+		}
+	} else {
+		prevValSet = valSet
 	}
-	return nil
+
+	return valSet, prevValSet, nil
 }

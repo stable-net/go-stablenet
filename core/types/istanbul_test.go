@@ -57,7 +57,7 @@ func TestExtractToQBFTExtra(t *testing.T) {
 	}{
 		{
 			// normal case
-			hexutil.MustDecode("0xf85d80f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440c080c0c0c0c0"),
+			hexutil.MustDecode("0xf85d80f8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b44080c0c080c0c0"),
 			&QBFTExtra{
 				VanityData: []byte{},
 				Validators: []common.Address{
@@ -66,12 +66,12 @@ func TestExtractToQBFTExtra(t *testing.T) {
 					common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")),
 					common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")),
 				},
-				PreparedSeal:      [][]byte{},
-				CommittedSeal:     [][]byte{},
+				PrevRound:         0,
 				PrevPreparedSeal:  [][]byte{},
 				PrevCommittedSeal: [][]byte{},
 				Round:             0,
-				Vote:              nil,
+				PreparedSeal:      [][]byte{},
+				CommittedSeal:     [][]byte{},
 			},
 			nil,
 		},
@@ -94,7 +94,12 @@ func TestGenerateExtra(t *testing.T) {
 		Validators: []common.Address{
 			common.BytesToAddress(hexutil.MustDecode("0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697")),
 		},
-		Round: 0,
+		PrevRound:         0,
+		PrevPreparedSeal:  [][]byte{},
+		PrevCommittedSeal: [][]byte{},
+		Round:             0,
+		PreparedSeal:      [][]byte{},
+		CommittedSeal:     [][]byte{},
 	}
 	b, _ := rlp.EncodeToBytes(sampleExtra)
 	t.Logf("extra bytes: %v\n", hexutil.Encode(b))

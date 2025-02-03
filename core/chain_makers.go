@@ -322,6 +322,8 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		b := &BlockGen{i: i, cm: cm, parent: parent, statedb: statedb, engine: engine}
 		b.header = cm.makeHeader(parent, statedb, b.engine)
 
+		engine.CallEngineSpecific("NewChainHead")
+
 		// Set the difficulty for clique block. The chain maker doesn't have access
 		// to a chain, so the difficulty will be left unset (nil). Set it here to the
 		// correct value.
@@ -376,7 +378,6 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			panic(fmt.Sprintf("trie write error: %v", err))
 		}
 
-		engine.CallEngineSpecific("NewChainHead")
 		if sealErr == nil { // Clique, Ethash engine return error and they don't need to seal
 			block = <-results
 		}

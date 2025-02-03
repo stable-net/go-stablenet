@@ -203,7 +203,7 @@ func TestEth2PrepareAndGetPayload(t *testing.T) {
 		t.Fatalf("error preparing payload, err=%v", err)
 	}
 	// give the payload some time to be built
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 	payloadID := (&miner.BuildPayloadArgs{
 		Parent:       fcState.HeadBlockHash,
 		Timestamp:    blockParams.Timestamp,

@@ -59,8 +59,6 @@ type SimApplier interface {
 
 // New creates an Ethereum backend for Istanbul core engine.
 func New(config *qbft.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) *Backend {
-	// Allocate the snapshot caches and create the engine
-	recents := lru.NewCache[common.Hash, *Snapshot](inmemorySnapshots)
 	recentMessages := lru.NewCache[common.Address, *lru.Cache[common.Hash, bool]](inmemoryPeers)
 	knownMessages := lru.NewCache[common.Hash, bool](inmemoryMessages)
 
@@ -72,7 +70,6 @@ func New(config *qbft.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) *
 		logger:           log.New(),
 		db:               db,
 		commitCh:         make(chan *types.Block, 1),
-		recents:          recents,
 		candidates:       make(map[common.Address]bool),
 		coreStarted:      false,
 		recentMessages:   recentMessages,
@@ -116,8 +113,6 @@ type Backend struct {
 	candidates map[common.Address]bool
 	// Protects the signer fields
 	candidatesLock sync.RWMutex
-	// Snapshots for recent block to speed up reorgs
-	recents *lru.Cache[common.Hash, *Snapshot]
 
 	// event subscription for ChainHeadEvent event
 	broadcaster consensus.Broadcaster
@@ -150,11 +145,6 @@ func (sb *Backend) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64
 // Address implements qbft.Backend.Address
 func (sb *Backend) Address() common.Address {
 	return sb.Engine().Address()
-}
-
-// Validators implements qbft.Backend.Validators
-func (sb *Backend) Validators(proposal qbft.Proposal) qbft.ValidatorSet {
-	return sb.getValidators(proposal.Number().Uint64(), proposal.Hash())
 }
 
 // Broadcast implements qbft.Backend.Broadcast
@@ -268,16 +258,11 @@ func (sb *Backend) Verify(proposal qbft.Proposal) (time.Duration, error) {
 	}
 
 	header := block.Header()
-	var snap, prevSnap *Snapshot
-	var err error
-
-	if snap, err = sb.snapshot(sb.chain, header.Number.Uint64()-1, header.ParentHash, nil); err != nil {
-		return 0, err
-	} else if prevSnap, err = sb.snapshot(sb.chain, header.Number.Uint64()-2, header.ParentHash, nil); err != nil {
+	valSet, prevValSet, err := sb.GetValidatorsForVerifying(sb.chain, header.Number, header.ParentHash, nil)
+	if err != nil {
 		return 0, err
 	}
-
-	return sb.Engine().VerifyBlockProposal(sb.chain, block, snap.ValSet, prevSnap.ValSet)
+	return sb.Engine().VerifyBlockProposal(sb.chain, block, valSet, prevValSet)
 }
 
 // Sign implements qbft.Backend.Sign
@@ -319,20 +304,16 @@ func (sb *Backend) GetProposer(number uint64) common.Address {
 	return common.Address{}
 }
 
-// ParentValidators implements qbft.Backend.GetParentValidators
-func (sb *Backend) ParentValidators(proposal qbft.Proposal) qbft.ValidatorSet {
-	if block, ok := proposal.(*types.Block); ok {
-		return sb.getValidators(block.Number().Uint64()-1, block.ParentHash())
-	}
-	return validator.NewSet(nil, sb.config.ProposerPolicy)
-}
-
-func (sb *Backend) getValidators(number uint64, hash common.Hash) qbft.ValidatorSet {
-	snap, err := sb.snapshot(sb.chain, number, hash, nil)
+func (sb *Backend) Validators(proposal qbft.Proposal) qbft.ValidatorSet {
+	valSet, err := sb.Engine().GetValidators(sb.chain, new(big.Int).Add(proposal.Number(), common.Big1), proposal.Hash(), nil)
 	if err != nil {
 		return validator.NewSet(nil, sb.config.ProposerPolicy)
 	}
-	return snap.ValSet
+	return valSet
+}
+
+func (sb *Backend) ProposerFromValSet() common.Address {
+	return sb.core.GetProposer()
 }
 
 func (sb *Backend) LastProposal() (qbft.Proposal, common.Address) {

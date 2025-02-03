@@ -189,12 +189,12 @@ func (g *genesisGenerator) wbftChainConfig() {
 	ist := &types.QBFTExtra{
 		VanityData:        vanity,
 		Validators:        validators,
-		Vote:              nil,
-		PreparedSeal:      [][]byte{},
-		CommittedSeal:     [][]byte{},
+		PrevRound:         0,
 		PrevPreparedSeal:  [][]byte{},
 		PrevCommittedSeal: [][]byte{},
 		Round:             0,
+		PreparedSeal:      [][]byte{},
+		CommittedSeal:     [][]byte{},
 	}
 
 	istPayload, err := rlp.EncodeToBytes(&ist)

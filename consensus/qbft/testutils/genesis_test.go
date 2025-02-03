@@ -20,12 +20,12 @@ func TestGeneratingGenesisExtra(t *testing.T) {
 			common.BytesToAddress(hexutil.MustDecode("0xd19f9374f4549B2fB182ED766d6b7501494a3634")),
 			common.BytesToAddress(hexutil.MustDecode("0x02cF1E577C79EF0E93947cCd82a4D41E0485Be73")),
 		},
-		CommittedSeal:     [][]byte{},
-		PrevCommittedSeal: [][]byte{},
+		PrevRound:         0,
 		PreparedSeal:      [][]byte{},
 		PrevPreparedSeal:  [][]byte{},
 		Round:             0,
-		Vote:              nil,
+		CommittedSeal:     [][]byte{},
+		PrevCommittedSeal: [][]byte{},
 	}
 	genesis := GenesisWithSeals(QBFTExtra.Validators)
 	t.Log("Genesis Extra Data: ", hex.EncodeToString(genesis.ExtraData))

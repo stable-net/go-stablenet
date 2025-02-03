@@ -112,9 +112,6 @@ type Core struct {
 	pendingRequestsMu *sync.Mutex
 
 	consensusTimestamp time.Time
-
-	newRoundMutex sync.Mutex
-	newRoundTimer *time.Timer
 }
 
 func (c *Core) currentView() *qbft.View {
@@ -134,6 +131,13 @@ func (c *Core) IsProposer() bool {
 		return false
 	}
 	return v.IsProposer(c.backend.Address())
+}
+
+func (c *Core) GetProposer() common.Address {
+	if c.valSet != nil {
+		return c.valSet.GetProposer().Address()
+	}
+	return common.Address{}
 }
 
 func (c *Core) IsCurrentProposal(blockHash common.Hash) bool {
@@ -337,11 +341,6 @@ func (c *Core) newRoundChangeTimer() {
 func (c *Core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
 	return qbft.CheckValidatorSignature(c.valSet, data, sig)
 }
-
-//func (c *Core) QuorumSize() int {
-//	c.currentLogger(true, nil).Trace("QBFT: confirmation Formula used ceil(2N/3)")
-//	return int(math.Ceil(float64(c.valSet.Size()) - c.valSet.F()))
-//}
 
 // PrepareSeal returns a committed seal for the given header and takes current round under consideration
 func PrepareSeal(header *types.Header, round uint32, sealType SealType) []byte {

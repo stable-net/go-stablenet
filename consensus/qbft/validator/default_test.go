@@ -21,9 +21,7 @@
 package validator
 
 import (
-	fmt "fmt"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -44,34 +42,32 @@ func TestValidatorSet(t *testing.T) {
 	testAddAndRemoveValidator(t)
 }
 
+func extractValidators(extraData []byte) []common.Address {
+	// get the validator addresses
+	addrs := make([]common.Address, (len(extraData) / common.AddressLength))
+	for i := 0; i < len(addrs); i++ {
+		copy(addrs[i][:], extraData[i*common.AddressLength:])
+	}
+
+	return addrs
+}
+
 func testNewValidatorSet(t *testing.T) {
-	var validators []qbft.Validator
+	var validators []common.Address
 	const ValCnt = 100
 
 	// Create 100 validators with random addresses
-	b := []byte{}
 	for i := 0; i < ValCnt; i++ {
 		key, _ := crypto.GenerateKey()
 		addr := crypto.PubkeyToAddress(key.PublicKey)
-		val := New(addr)
-		_ = append(validators, val)
-		b = append(b, val.Address().Bytes()...)
+		_ = append(validators, addr)
 	}
 
 	// Create ValidatorSet
-	valSet := NewSet(ExtractValidators(b), qbft.NewRoundRobinProposerPolicy())
+	valSet := NewSet(validators, qbft.NewRoundRobinProposerPolicy())
 	if valSet == nil {
 		t.Errorf("the validator byte array cannot be parsed")
 		t.FailNow()
-	}
-
-	// Check validators sorting: should be in ascending order
-	for i := 0; i < ValCnt-1; i++ {
-		val := valSet.GetByIndex(uint64(i))
-		nextVal := valSet.GetByIndex(uint64(i + 1))
-		if strings.Compare(val.String(), nextVal.String()) >= 0 {
-			t.Errorf("validator set is not sorted in ascending order")
-		}
 	}
 }
 
@@ -133,14 +129,14 @@ func testNormalValSet(t *testing.T) {
 }
 
 func testEmptyValSet(t *testing.T) {
-	valSet := NewSet(ExtractValidators([]byte{}), qbft.NewRoundRobinProposerPolicy())
+	valSet := NewSet(extractValidators([]byte{}), qbft.NewRoundRobinProposerPolicy())
 	if valSet == nil {
 		t.Errorf("validator set should not be nil")
 	}
 }
 
 func testAddAndRemoveValidator(t *testing.T) {
-	valSet := NewSet(ExtractValidators([]byte{}), qbft.NewRoundRobinProposerPolicy())
+	valSet := NewSet(extractValidators([]byte{}), qbft.NewRoundRobinProposerPolicy())
 	if !valSet.AddValidator(common.BytesToAddress([]byte("2"))) {
 		t.Error("the validator should be added")
 	}
@@ -151,13 +147,6 @@ func testAddAndRemoveValidator(t *testing.T) {
 	valSet.AddValidator(common.BytesToAddress([]byte("0")))
 	if len(valSet.List()) != 3 {
 		t.Error("the size of validator set should be 3")
-	}
-
-	for i, v := range valSet.List() {
-		expected := common.BytesToAddress([]byte((fmt.Sprint(i))))
-		if v.Address() != expected {
-			t.Errorf("the order of validators is wrong: have %v, want %v", v.Address().Hex(), expected.Hex())
-		}
 	}
 
 	if !valSet.RemoveValidator(common.BytesToAddress([]byte("2"))) {

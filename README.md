@@ -113,6 +113,12 @@ The WBFT configuration allows defining the size of an epoch. An epoch represents
   - Retrieve stakers from the GovStaking contract.
   - Select validators based on their staking power and diligence.
 
+#### Epoch Rule:
+
+- Genesis block is an epoch block
+- Starting from the genesis, every `EpochLength` of WBFT config is an epoch block.
+- A block defining `EpochLength` transition is an epoch block.
+
 ### Inclusion of Consensus Proof in the Consensus Process
 Traditional IBFT and QBFT protocols only included and stored the minimum necessary consensus proof (commit seal) collected locally by each validator for the finalized block. Since these commit seals could vary by validator, they were not part of the block hash. However, to select validators based on consensus proof, it must be included in the consensus process. The consensus proofs included in WBFT blocks are as follows:
 

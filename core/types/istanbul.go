@@ -34,9 +34,6 @@ var (
 	IstanbulExtraVanity = 32 // Fixed number of extra-data bytes reserved for validator vanity
 	IstanbulExtraSeal   = 65 // Fixed number of extra-data bytes reserved for validator seal
 
-	QBFTAuthVote = byte(0xFF) // Magic number to vote on adding a new validator
-	QBFTDropVote = byte(0x00) // Magic number to vote on removing a validator.
-
 	// QBFTDefaultDifficulty is used to identify whether the block is from QBFT consensus engine.
 	// we use this value on behalf of the role IstanbulDigest
 	QBFTDefaultDifficulty = big.NewInt(1) // ## Wemix
@@ -49,17 +46,12 @@ var (
 type QBFTExtra struct {
 	VanityData        []byte
 	Validators        []common.Address
-	Vote              *ValidatorVote
+	PrevRound         uint32
+	PrevPreparedSeal  [][]byte
+	PrevCommittedSeal [][]byte // committedSeal of previous local block
 	Round             uint32
 	PreparedSeal      [][]byte
 	CommittedSeal     [][]byte
-	PrevPreparedSeal  [][]byte
-	PrevCommittedSeal [][]byte // committedSeal of previous local block
-}
-
-type ValidatorVote struct {
-	RecipientAddress common.Address
-	VoteType         byte
 }
 
 // EncodeRLP serializes qist into the Ethereum RLP format.
@@ -67,12 +59,12 @@ func (qst *QBFTExtra) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{
 		qst.VanityData,
 		qst.Validators,
-		qst.Vote,
+		qst.PrevRound,
+		qst.PrevPreparedSeal,
+		qst.PrevCommittedSeal,
 		qst.Round,
 		qst.PreparedSeal,
 		qst.CommittedSeal,
-		qst.PrevPreparedSeal,
-		qst.PrevCommittedSeal,
 	})
 }
 
@@ -81,41 +73,20 @@ func (qst *QBFTExtra) DecodeRLP(s *rlp.Stream) error {
 	var qbftExtra struct {
 		VanityData        []byte
 		Validators        []common.Address
-		Vote              *ValidatorVote `rlp:"nil"`
+		PrevRound         uint32
+		PrevPreparedSeal  [][]byte
+		PrevCommittedSeal [][]byte
 		Round             uint32
 		PreparedSeal      [][]byte
 		CommittedSeal     [][]byte
-		PrevPreparedSeal  [][]byte
-		PrevCommittedSeal [][]byte
 	}
 	if err := s.Decode(&qbftExtra); err != nil {
 		return err
 	}
 
-	qst.VanityData, qst.Validators, qst.Vote, qst.Round, qst.PreparedSeal, qst.CommittedSeal, qst.PrevPreparedSeal, qst.PrevCommittedSeal =
-		qbftExtra.VanityData, qbftExtra.Validators, qbftExtra.Vote, qbftExtra.Round, qbftExtra.PreparedSeal, qbftExtra.CommittedSeal, qbftExtra.PrevPreparedSeal, qbftExtra.PrevCommittedSeal
+	qst.VanityData, qst.Validators, qst.PrevRound, qst.PrevPreparedSeal, qst.PrevCommittedSeal, qst.Round, qst.PreparedSeal, qst.CommittedSeal =
+		qbftExtra.VanityData, qbftExtra.Validators, qbftExtra.PrevRound, qbftExtra.PrevPreparedSeal, qbftExtra.PrevCommittedSeal, qbftExtra.Round, qbftExtra.PreparedSeal, qbftExtra.CommittedSeal
 
-	return nil
-}
-
-// EncodeRLP serializes ValidatorVote into the Ethereum RLP format.
-func (vv *ValidatorVote) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, []interface{}{
-		vv.RecipientAddress,
-		vv.VoteType,
-	})
-}
-
-// DecodeRLP implements rlp.Decoder, and load the ValidatorVote fields from a RLP stream.
-func (vv *ValidatorVote) DecodeRLP(s *rlp.Stream) error {
-	var validatorVote struct {
-		RecipientAddress common.Address
-		VoteType         byte
-	}
-	if err := s.Decode(&validatorVote); err != nil {
-		return err
-	}
-	vv.RecipientAddress, vv.VoteType = validatorVote.RecipientAddress, validatorVote.VoteType
 	return nil
 }
 
@@ -131,7 +102,7 @@ func ExtractQBFTExtra(h *Header) (*QBFTExtra, error) {
 	return qbftExtra, nil
 }
 
-// QBFTFilteredHeader returns a filtered header which some information (like committed seals, round, validator vote)
+// QBFTFilteredHeader returns a filtered header which some information (like committed seals, round)
 // are clean to fulfill the Istanbul hash rules. It returns nil if the extra-data cannot be
 // decoded/encoded by rlp.
 func QBFTFilteredHeader(h *Header) *Header {

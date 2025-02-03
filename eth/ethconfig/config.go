@@ -196,32 +196,7 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 		if qbftCfg == nil {
 			qbftCfg = new(qbft.Config)
 		}
-		if len(config.Transitions) > 0 {
-			qbftCfg.Transitions = config.Transitions
-		}
-		if config.QBFT.BlockPeriodSeconds != 0 {
-			qbftCfg.BlockPeriod = config.QBFT.BlockPeriodSeconds
-		}
-		if config.QBFT.EmptyBlockPeriodSeconds != nil {
-			qbftCfg.EmptyBlockPeriod = *config.QBFT.EmptyBlockPeriodSeconds
-		}
-		if config.QBFT.RequestTimeoutSeconds != 0 {
-			qbftCfg.RequestTimeout = config.QBFT.RequestTimeoutSeconds * 1000
-		}
-		if config.QBFT.EpochLength != 0 {
-			qbftCfg.Epoch = config.QBFT.EpochLength
-		}
-
-		qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.QBFT.ProposerPolicy))
-		qbftCfg.BlockReward = config.QBFT.BlockReward
-		qbftCfg.BeneficiaryMode = config.QBFT.BeneficiaryMode
-		qbftCfg.MiningBeneficiary = config.QBFT.MiningBeneficiary
-		qbftCfg.ValidatorSelectionMode = config.QBFT.ValidatorSelectionMode
-		qbftCfg.Validators = config.QBFT.Validators
-
-		if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
-			qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds
-		}
+		SetConfigFromChainConfig(qbftCfg, config)
 
 		if config.MontBlancBlock != nil {
 			// wemix engine which can do `MontBlanc` hard fork
@@ -239,6 +214,32 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 		return ethash.NewFaker(), nil
 	}
 	return beacon.New(ethash.NewFaker()), nil
+}
+
+func SetConfigFromChainConfig(qbftCfg *qbft.Config, config *params.ChainConfig) {
+	if len(config.Transitions) > 0 {
+		qbftCfg.Transitions = config.Transitions
+	}
+	if config.QBFT.BlockPeriodSeconds != 0 {
+		qbftCfg.BlockPeriod = config.QBFT.BlockPeriodSeconds
+	}
+	if config.QBFT.RequestTimeoutSeconds != 0 {
+		qbftCfg.RequestTimeout = config.QBFT.RequestTimeoutSeconds * 1000
+	}
+	if config.QBFT.EpochLength != 0 {
+		qbftCfg.Epoch = config.QBFT.EpochLength
+	}
+
+	qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.QBFT.ProposerPolicy))
+	qbftCfg.BlockReward = config.QBFT.BlockReward
+	qbftCfg.BeneficiaryMode = config.QBFT.BeneficiaryMode
+	qbftCfg.MiningBeneficiary = config.QBFT.MiningBeneficiary
+	qbftCfg.ValidatorSelectionMode = config.QBFT.ValidatorSelectionMode
+	qbftCfg.Validators = config.QBFT.Validators
+
+	if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
+		qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds
+	}
 }
 
 func CreateEthashFakeEngine(config *params.ChainConfig) (consensus.Engine, error) {

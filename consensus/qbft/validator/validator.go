@@ -21,8 +21,6 @@
 package validator
 
 import (
-	"bytes"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
 )
@@ -35,36 +33,4 @@ func New(addr common.Address) qbft.Validator {
 
 func NewSet(addrs []common.Address, policy *qbft.ProposerPolicy) qbft.ValidatorSet {
 	return newDefaultSet(addrs, policy)
-}
-
-func ExtractValidators(extraData []byte) []common.Address {
-	// get the validator addresses
-	addrs := make([]common.Address, (len(extraData) / common.AddressLength))
-	for i := 0; i < len(addrs); i++ {
-		copy(addrs[i][:], extraData[i*common.AddressLength:])
-	}
-
-	return addrs
-}
-
-// Check whether the extraData is presented in prescribed form
-func ValidExtraData(extraData []byte) bool {
-	return len(extraData)%common.AddressLength == 0
-}
-
-func SortedAddresses(validators []qbft.Validator) []common.Address {
-	addrs := make([]common.Address, len(validators))
-	for i, validator := range validators {
-		addrs[i] = validator.Address()
-	}
-
-	for i := 0; i < len(addrs); i++ {
-		for j := i + 1; j < len(addrs); j++ {
-			if bytes.Compare(addrs[i][:], addrs[j][:]) > 0 {
-				addrs[i], addrs[j] = addrs[j], addrs[i]
-			}
-		}
-	}
-
-	return addrs
 }
