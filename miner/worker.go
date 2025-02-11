@@ -1118,6 +1118,12 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		header.ExcessBlobGas = &excessBlobGas
 		header.ParentBeaconRoot = genParams.beaconRoot
 	}
+
+	if w.chainConfig.MontBlancBlock != nil && !w.chainConfig.IsMontBlanc(header.Number) {
+		// If we are not in the MontBlanc phase, we don't prepare a block
+		log.Info("Skipping block preparation before MontBlanc hard fork", "number", header.Number, "fork", w.chainConfig.MontBlancBlock)
+		return nil, errors.New("skipping block preparation before MontBlanc hard fork")
+	}
 	// Run the consensus preparation with the default or customized consensus engine.
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for sealing", "err", err)

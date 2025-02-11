@@ -397,7 +397,7 @@ func (d *Downloader) synchronise(id string, hash common.Hash, td, ttd *big.Int, 
 
 	// Post a user notification of the sync (only once per session)
 	if d.notified.CompareAndSwap(false, true) {
-		log.Info("Block synchronisation started")
+		log.Info("Block synchronisation started", "mode", mode)
 		defer log.Info("Block synchronisation finished")
 	}
 	if mode == SnapSync {

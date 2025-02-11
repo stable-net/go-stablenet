@@ -75,36 +75,22 @@ func (g *genesisGenerator) makeGenesis() {
 	// Figure out which consensus engine to choose
 	fmt.Println()
 	fmt.Println("Which consensus engine to use? (default = Wbft)")
-	fmt.Println(" 1. Ethash (proof-of-work)")
-	fmt.Println(" 2. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)")
-	fmt.Println(" 3. Clique (proof-of-authority)")
-	fmt.Println(" 4. Beacon (proof-of-stake), merging/merged from Clique (proof-of-authority)")
-	fmt.Println(" 5. WBFT (wemix-byzantine-fault-tolerance)")
-	fmt.Println(" 6. WEMIX (wemix-byzantine-fault-tolerance), merged from Wemix3.0 (proof-of-authority)")
+	fmt.Println(" 1. WBFT (wemix-byzantine-fault-tolerance)")
+	fmt.Println(" 2. WEMIX (wemix-byzantine-fault-tolerance), merged from Wemix3.0 (proof-of-authority)")
+	fmt.Println(" 3. Ethash (proof-of-work)")
+	fmt.Println(" 4. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)")
+	fmt.Println(" 5. Clique (proof-of-authority)")
+	fmt.Println(" 6. Beacon (proof-of-stake), merging/merged from Clique (proof-of-authority)")
 
 	choice := read()
 	switch {
-	case choice == "1":
-		g.ethashConfig()
-
-	case choice == "2":
-		g.ethashConfig()
-		g.beaconChainConfig()
-
-	case choice == "3":
-		g.cliqueConfig()
-
-	case choice == "4":
-		g.cliqueConfig()
-		g.beaconChainConfig()
-
-	case choice == "5" || choice == "":
+	case choice == "1" || choice == "":
 		g.wbftChainConfig()
 		// allocate governanace contract code in genesis block
 		g.Genesis.Alloc[govwbft.GovConstAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovConstContract), Balance: common.Big0}
 		g.Genesis.Alloc[govwbft.GovStakingAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract), Balance: common.Big0}
 
-	case choice == "6":
+	case choice == "2":
 		g.wbftChainConfig()
 		fmt.Println()
 		fmt.Println("Enter block number you want to enable Montblanc Fork (default 1)")
@@ -115,6 +101,20 @@ func (g *genesisGenerator) makeGenesis() {
 			g.Genesis.Alloc[govwbft.GovConstAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovConstContract), Balance: common.Big0}
 			g.Genesis.Alloc[govwbft.GovStakingAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract), Balance: common.Big0}
 		}
+
+	case choice == "3":
+		g.ethashConfig()
+
+	case choice == "4":
+		g.ethashConfig()
+		g.beaconChainConfig()
+
+	case choice == "5":
+		g.cliqueConfig()
+
+	case choice == "6":
+		g.cliqueConfig()
+		g.beaconChainConfig()
 
 	default:
 		log.Crit("Invalid consensus engine choice", "choice", choice)
@@ -158,8 +158,6 @@ func (g *genesisGenerator) makeGenesis() {
 }
 
 func (g *genesisGenerator) wbftChainConfig() {
-	// TODO : need to be change after epoch task is merged.
-	// the qbft config needs to be set in field `Transition`
 	g.Genesis.Difficulty = types.QBFTDefaultDifficulty
 	fmt.Println()
 	fmt.Println("Which accounts are allowed to seal? (mandatory at least one)")
@@ -177,9 +175,9 @@ func (g *genesisGenerator) wbftChainConfig() {
 
 	g.Genesis.Config.QBFT = &params.QBFTConfig{
 		BlockReward:           (*math.HexOrDecimal256)(big.NewInt(params.Ether)),
-		EpochLength:           30000,
-		BlockPeriodSeconds:    2,
-		RequestTimeoutSeconds: 4,
+		EpochLength:           100,
+		BlockPeriodSeconds:    1,
+		RequestTimeoutSeconds: 2,
 		ProposerPolicy:        0,
 		Validators:            validators,
 	}
