@@ -70,7 +70,6 @@ func New(config *qbft.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) *
 		logger:           log.New(),
 		db:               db,
 		commitCh:         make(chan *types.Block, 1),
-		candidates:       make(map[common.Address]bool),
 		coreStarted:      false,
 		recentMessages:   recentMessages,
 		knownMessages:    knownMessages,
@@ -108,11 +107,6 @@ type Backend struct {
 	sealMu            sync.Mutex
 	coreStarted       bool
 	coreMu            sync.RWMutex
-
-	// Current list of candidates we are pushing
-	candidates map[common.Address]bool
-	// Protects the signer fields
-	candidatesLock sync.RWMutex
 
 	// event subscription for ChainHeadEvent event
 	broadcaster consensus.Broadcaster

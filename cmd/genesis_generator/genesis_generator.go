@@ -173,6 +173,15 @@ func (g *genesisGenerator) wbftChainConfig() {
 		}
 	}
 
+	epochInfo := new(types.EpochInfo)
+	for i, val := range validators {
+		epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
+			Addr:      val,
+			Diligence: types.DefaultDiligence,
+		})
+		epochInfo.Validators = append(epochInfo.Validators, uint32(i))
+	}
+
 	g.Genesis.Config.QBFT = &params.QBFTConfig{
 		BlockReward:           (*math.HexOrDecimal256)(big.NewInt(params.Ether)),
 		EpochLength:           100,
@@ -186,13 +195,13 @@ func (g *genesisGenerator) wbftChainConfig() {
 	vanity := append(g.Genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(g.Genesis.ExtraData))...)
 	ist := &types.QBFTExtra{
 		VanityData:        vanity,
-		Validators:        validators,
 		PrevRound:         0,
 		PrevPreparedSeal:  [][]byte{},
 		PrevCommittedSeal: [][]byte{},
 		Round:             0,
 		PreparedSeal:      [][]byte{},
 		CommittedSeal:     [][]byte{},
+		EpochInfo:         epochInfo,
 	}
 
 	istPayload, err := rlp.EncodeToBytes(&ist)

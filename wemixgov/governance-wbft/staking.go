@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	SLOT_TOTAL_STAKING    = "0x0"
-	SLOT_STAKER_SET       = "0x1" // ,0x2
-	SLOT_STAKER_INFO      = "0x3"
-	SLOT_STAKER_BY_STAKER = "0x4"
+	SLOT_TOTAL_STAKING      = "0x0"
+	SLOT_STAKER_SET         = "0x1" // ,0x2
+	SLOT_STAKER_INFO        = "0x3"
+	SLOT_STAKER_BY_OPERATOR = "0x4"
 )
 
 type Staker struct {
@@ -45,7 +45,7 @@ func StakerAt(state StateReader, index *big.Int) common.Address {
 }
 
 func StakerByOperator(state StateReader, operator common.Address) common.Address {
-	staker := state.GetState(GovStakingAddress, CalculateMappingSlot(common.HexToHash(SLOT_STAKER_BY_STAKER), operator))
+	staker := state.GetState(GovStakingAddress, CalculateMappingSlot(common.HexToHash(SLOT_STAKER_BY_OPERATOR), operator))
 	return HashToAddress(staker)
 }
 

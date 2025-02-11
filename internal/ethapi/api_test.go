@@ -655,6 +655,7 @@ func TestEstimateGas(t *testing.T) {
 		//    value: 1000 wei
 		//    fee:   0 wei
 		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &accounts[1].addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: b.BaseFee(), Data: nil}), signer, accounts[0].key)
+		b.SetCoinbase(nodeAddr) // WBFT matters who is coinbase
 		b.AddTx(tx)
 	}))
 	var testSuite = []struct {
@@ -817,6 +818,7 @@ func TestCall(t *testing.T) {
 		//    value: 1000 wei
 		//    fee:   0 wei
 		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &accounts[1].addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: b.BaseFee(), Data: nil}), signer, accounts[0].key)
+		b.SetCoinbase(nodeAddr) // WBFT matters who is coinbase
 		b.AddTx(tx)
 	}))
 	randomAccounts := newAccounts(3)
@@ -1608,6 +1610,7 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 		//    value: 1000 wei
 		//    fee:   0 wei
 		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &acc2Addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: b.BaseFee(), Data: nil}), signer, acc1Key)
+		b.SetCoinbase(nodeAddr) // WBFT matters who is coinbase
 		b.AddTx(tx)
 	})
 	backend.setPendingBlock(pending)
@@ -1826,8 +1829,11 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 func genExtraData(validator common.Address) []byte {
 	sampleExtra := &types.QBFTExtra{
 		VanityData: []byte("WEMIX MontBlanc chain block"),
-		Validators: []common.Address{
-			validator,
+		EpochInfo: &types.EpochInfo{
+			Stakers: []*types.Staker{
+				{Addr: validator, Diligence: types.DefaultDiligence},
+			},
+			Validators: []uint32{0},
 		},
 		Round: 0,
 	}
@@ -1922,6 +1928,7 @@ func setupReceiptBackend(t *testing.T, genBlocks int) (*testBackend, []common.Ha
 			t.Errorf("failed to sign tx: %v", err)
 		}
 		if tx != nil {
+			b.SetCoinbase(nodeAddr) // WBFT matters who is coinbase
 			b.AddTx(tx)
 			txHashes[i] = tx.Hash()
 		}

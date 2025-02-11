@@ -134,36 +134,6 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 	return valSet.AddressList(), nil
 }
 
-// Candidates returns the current candidates the node tries to uphold and vote on.
-func (api *API) Candidates() map[common.Address]bool {
-	api.backend.candidatesLock.RLock()
-	defer api.backend.candidatesLock.RUnlock()
-
-	proposals := make(map[common.Address]bool)
-	for address, auth := range api.backend.candidates {
-		proposals[address] = auth
-	}
-	return proposals
-}
-
-// Propose injects a new authorization candidate that the validator will attempt to
-// push through.
-func (api *API) Propose(address common.Address, auth bool) {
-	api.backend.candidatesLock.Lock()
-	defer api.backend.candidatesLock.Unlock()
-
-	api.backend.candidates[address] = auth
-}
-
-// Discard drops a currently running candidate, stopping the validator from casting
-// further votes (either for or against).
-func (api *API) Discard(address common.Address) {
-	api.backend.candidatesLock.Lock()
-	defer api.backend.candidatesLock.Unlock()
-
-	delete(api.backend.candidates, address)
-}
-
 func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNumber) (*Status, error) {
 	var (
 		numBlocks   uint64

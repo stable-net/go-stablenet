@@ -232,9 +232,9 @@ func SetConfigFromChainConfig(qbftCfg *qbft.Config, config *params.ChainConfig) 
 
 	qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.QBFT.ProposerPolicy))
 	qbftCfg.BlockReward = config.QBFT.BlockReward
-	qbftCfg.BeneficiaryMode = config.QBFT.BeneficiaryMode
-	qbftCfg.MiningBeneficiary = config.QBFT.MiningBeneficiary
-	qbftCfg.ValidatorSelectionMode = config.QBFT.ValidatorSelectionMode
+	qbftCfg.BlockRewardBeneficiary = config.QBFT.BlockRewardBeneficiary
+	qbftCfg.MinStakers = config.QBFT.MinStakers
+	qbftCfg.TargetValidators = config.QBFT.TargetValidators
 	qbftCfg.Validators = config.QBFT.Validators
 
 	if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {

@@ -42,7 +42,6 @@ func Genesis(validators []common.Address) *core.Genesis {
 	genesis := core.TestGenesisBlock()
 	genesis.Config = params.TestChainConfig
 	genesis.Config.Ethash = nil
-	genesis.Config.QBFT.Validators = validators
 	genesis.Difficulty = types.QBFTDefaultDifficulty
 	genesis.Nonce = qbftcommon.EmptyBlockNonce.Uint64()
 
@@ -68,12 +67,25 @@ func GenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey) {
 
 func appendValidators(genesis *core.Genesis, addrs []common.Address) {
 	vanity := append(genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(genesis.ExtraData))...)
+
+	var epochInfo *types.EpochInfo
+	if addrs != nil {
+		epochInfo = new(types.EpochInfo)
+		for i, addr := range addrs {
+			epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
+				Addr:      addr,
+				Diligence: types.DefaultDiligence,
+			})
+			epochInfo.Validators = append(epochInfo.Validators, uint32(i))
+		}
+	}
+
 	ist := &types.QBFTExtra{
 		VanityData:    vanity,
-		Validators:    addrs,
 		Round:         0,
 		PreparedSeal:  [][]byte{},
 		CommittedSeal: [][]byte{},
+		EpochInfo:     epochInfo,
 	}
 
 	istPayload, err := rlp.EncodeToBytes(&ist)
@@ -85,15 +97,28 @@ func appendValidators(genesis *core.Genesis, addrs []common.Address) {
 
 func appendValidatorsAndPrevSeals(genesis *core.Genesis, validators []common.Address) {
 	vanity := append(genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(genesis.ExtraData))...)
+
+	var epochInfo *types.EpochInfo
+	if validators != nil {
+		epochInfo = new(types.EpochInfo)
+		for i, addr := range validators {
+			epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
+				Addr:      addr,
+				Diligence: types.DefaultDiligence,
+			})
+			epochInfo.Validators = append(epochInfo.Validators, uint32(i))
+		}
+	}
+
 	ist := &types.QBFTExtra{
 		VanityData:        vanity,
-		Validators:        validators,
 		PrevRound:         0,
 		PrevPreparedSeal:  [][]byte{},
 		PrevCommittedSeal: [][]byte{},
 		Round:             0,
 		PreparedSeal:      [][]byte{},
 		CommittedSeal:     [][]byte{},
+		EpochInfo:         epochInfo,
 	}
 
 	istPayload, err := rlp.EncodeToBytes(&ist)

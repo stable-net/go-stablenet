@@ -2,7 +2,6 @@ package govwbft
 
 import _ "embed"
 
-// contract codes for Chapel upgrade
 var (
 	//go:embed govcontracts/GovStaking
 	GovStakingContract string

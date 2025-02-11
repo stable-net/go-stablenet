@@ -506,7 +506,26 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	// WEMIX
-	// fee is not paid to the coinbase in WEMIX
+	// In Wemix 3.0, effective tip is added to feeCollector (default: maintenance)
+	// In WBFT chain, effective tip is added to coinbase same as Ethereum.
+	if st.evm.ChainConfig().MontBlancBlock == nil || st.evm.ChainConfig().IsMontBlanc(st.evm.Context.BlockNumber) {
+		effectiveTip := msg.GasPrice
+		if rules.IsLondon {
+			effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
+		}
+		effectiveTipU256, _ := uint256.FromBig(effectiveTip)
+
+		if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
+			// Skip fee payment when NoBaseFee is set and the fee fields
+			// are 0. This avoids a negative effectiveTip being applied to
+			// the coinbase when simulating calls.
+		} else {
+			fee := new(uint256.Int).SetUint64(st.gasUsed())
+			fee.Mul(fee, effectiveTipU256)
+			st.state.AddBalance(st.evm.Context.Coinbase, fee)
+		}
+	}
+
 	return &ExecutionResult{
 		UsedGas:     st.gasUsed(),
 		RefundedGas: gasRefund,

@@ -170,6 +170,7 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -329,27 +330,6 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 			_ = sb.Stop()
 		}
 		return sb.Start(chain, currentBlock, hasBadBlock, notifyNewRound)
-	case "SetExtra":
-		if len(args) != 2 {
-			return qbftcommon.ErrInvalidSpecificCall
-		}
-		val, ok := args[0].(common.Address)
-		if !ok {
-			return qbftcommon.ErrInvalidSpecificCall
-		}
-		header, ok := args[1].(*types.Header)
-		if !ok {
-			return qbftcommon.ErrInvalidSpecificCall
-		}
-		vals := make([]common.Address, 1)
-		vals[0] = val
-		qbftengine.ApplyHeaderQBFTExtra(
-			header,
-			func(qbftExtra *types.QBFTExtra) error {
-				qbftExtra.Validators = vals
-				return nil
-			})
-		return nil
 	case "InheritExtra":
 		if len(args) != 2 {
 			return qbftcommon.ErrInvalidSpecificCall
@@ -374,10 +354,10 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 
 		prevPreparedSeal := extra.PreparedSeal
 		prevCommittedSeal := extra.CommittedSeal
-		// add validators in snapshot to extraData's validators section and lastBlock committers to extraData's prevCommittedSeal section
+		// add lastBlock committers to extraData's prevCommittedSeal section
+		// validators are stored in genesis block
 		qbftengine.ApplyHeaderQBFTExtra(
 			header,
-			qbftengine.WriteValidators(extra.Validators),
 			qbftengine.WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal))
 		return nil
 	case "NewChainHead":

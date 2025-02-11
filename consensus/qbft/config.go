@@ -101,18 +101,18 @@ func (p *ProposerPolicy) Use(v ValidatorSortByFunc) {
 }
 
 type Config struct {
-	RequestTimeout           uint64                `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
-	BlockPeriod              uint64                `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
-	ProposerPolicy           *ProposerPolicy       `toml:",omitempty"` // The policy for proposer selection
-	Epoch                    uint64                `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
-	AllowedFutureBlockTime   uint64                `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
-	BeneficiaryMode          *string               `toml:",omitempty"` // Mode for setting the beneficiary, either: list, besu, validators (beneficiary list is the list of validators)
-	BlockReward              *math.HexOrDecimal256 `toml:",omitempty"` // Reward
-	MiningBeneficiary        *common.Address       `toml:",omitempty"` // Wallet address that benefits at every new block (besu mode)
-	Validators               []common.Address      `toml:",omitempty"`
-	ValidatorSelectionMode   *string               `toml:",omitempty"`
-	Client                   bind.ContractCaller   `toml:",omitempty"`
-	MaxRequestTimeoutSeconds uint64                `toml:",omitempty"`
+	RequestTimeout           uint64                  `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
+	BlockPeriod              uint64                  `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
+	ProposerPolicy           *ProposerPolicy         `toml:",omitempty"` // The policy for proposer selection
+	Epoch                    uint64                  `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+	AllowedFutureBlockTime   uint64                  `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
+	BlockReward              *math.HexOrDecimal256   `toml:",omitempty"` // Reward
+	BlockRewardBeneficiary   *params.BeneficiaryInfo `toml:",omitempty"`
+	Validators               []common.Address        `toml:",omitempty"`
+	MinStakers               uint64                  `toml:",omitempty"`
+	TargetValidators         uint64                  `toml:",omitempty"`
+	Client                   bind.ContractCaller     `toml:",omitempty"`
+	MaxRequestTimeoutSeconds uint64                  `toml:",omitempty"`
 	Transitions              []params.Transition
 }
 
@@ -138,20 +138,20 @@ func (c Config) GetConfig(blockNumber *big.Int) Config {
 		if transition.BlockPeriodSeconds != 0 {
 			newConfig.BlockPeriod = transition.BlockPeriodSeconds
 		}
-		if transition.BeneficiaryMode != nil {
-			newConfig.BeneficiaryMode = transition.BeneficiaryMode
-		}
 		if transition.BlockReward != nil {
 			newConfig.BlockReward = transition.BlockReward
 		}
-		if transition.MiningBeneficiary != nil {
-			newConfig.MiningBeneficiary = transition.MiningBeneficiary
-		}
-		if transition.ValidatorSelectionMode != "" {
-			newConfig.ValidatorSelectionMode = &transition.ValidatorSelectionMode
+		if transition.BlockRewardBeneficiary != nil {
+			newConfig.BlockRewardBeneficiary = transition.BlockRewardBeneficiary
 		}
 		if len(transition.Validators) > 0 {
 			newConfig.Validators = transition.Validators
+		}
+		if transition.MinStakers != nil {
+			newConfig.MinStakers = *transition.MinStakers
+		}
+		if transition.TargetValidators != nil {
+			newConfig.TargetValidators = *transition.TargetValidators
 		}
 		if transition.MaxRequestTimeoutSeconds != nil {
 			newConfig.MaxRequestTimeoutSeconds = *transition.MaxRequestTimeoutSeconds
@@ -159,19 +159,6 @@ func (c Config) GetConfig(blockNumber *big.Int) Config {
 	})
 
 	return newConfig
-}
-
-func (c Config) GetValidatorSelectionMode(blockNumber *big.Int) string {
-	mode := params.BlockHeaderMode
-	if c.ValidatorSelectionMode != nil {
-		mode = *c.ValidatorSelectionMode
-	}
-	c.getTransitionValue(blockNumber, func(transition params.Transition) {
-		if transition.ValidatorSelectionMode != "" {
-			mode = transition.ValidatorSelectionMode
-		}
-	})
-	return mode
 }
 
 func (c Config) GetValidatorsAt(blockNumber *big.Int) []common.Address {

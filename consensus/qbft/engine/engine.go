@@ -461,11 +461,11 @@ func (e *Engine) PeriodToNextBlock(blockNumber *big.Int) uint64 {
 }
 
 func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header, validators qbft.ValidatorSet, extraPreparedSeal, extraCommittedSeal map[common.Hash][]byte) error {
-	if _, v := validators.GetByAddress(e.signer); v == nil {
+	if _, v := validators.GetByAddress(e.Address()); v == nil {
 		return qbftcommon.ErrUnauthorized
 	}
 
-	header.Coinbase = e.signer
+	header.Coinbase = e.Address()
 	header.Nonce = qbftcommon.EmptyBlockNonce
 
 	// copy the parent extra data as the header extra data
@@ -521,13 +521,6 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	}
 }
 
-func WriteValidators(validators []common.Address) ApplyQBFTExtra {
-	return func(qbftExtra *types.QBFTExtra) error {
-		qbftExtra.Validators = validators
-		return nil
-	}
-}
-
 func WritePrevSeals(prevRound uint32, prevPreparedSeal [][]byte, prevCommittedSeal [][]byte) ApplyQBFTExtra {
 	return func(qbftExtra *types.QBFTExtra) error {
 		qbftExtra.PrevRound = prevRound
@@ -535,6 +528,213 @@ func WritePrevSeals(prevRound uint32, prevPreparedSeal [][]byte, prevCommittedSe
 		qbftExtra.PrevCommittedSeal = prevCommittedSeal
 		return nil
 	}
+}
+
+func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyQBFTExtra {
+	return func(qbftExtra *types.QBFTExtra) error {
+		qbftExtra.EpochInfo = epochInfo
+		return nil
+	}
+}
+
+// GetStakers
+// If number of stakers <= minStakers, use validator list (regarded as staker list) from wbft config.
+// If number of stakers > minStakers, use staker list from gov.
+//
+// TODO: After stabilization stage, although the number of stakers below
+// minStakers can cause the network unstable, use staker list only from gov
+// instead of the one from wbft config.
+func (e *Engine) GetStakers(number *big.Int, state govwbft.StateReader) []common.Address {
+	var stakers []common.Address
+	var stakerSetFromGov []common.Address
+
+	if state != nil {
+		stakerSetFromGov = govwbft.NCPStakers(state)
+	}
+
+	if len(stakerSetFromGov) <= int(e.cfg.GetConfig(number).MinStakers) {
+		stakerSetFromConfig := e.cfg.GetConfig(number).Validators
+		stakers = append(stakers, stakerSetFromConfig...)
+	} else {
+		stakers = append(stakers, stakerSetFromGov...)
+	}
+
+	return stakers
+}
+
+type stakerInfo struct {
+	isValidator bool
+	staker      *types.Staker
+}
+
+// verifyHeader() must catch inconsistent seals before calling this. Or, client exits.
+func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) *types.EpochInfo {
+	var newEpoch types.EpochInfo
+
+	config := chain.Config()
+	if isEpoch, _, err := e.IsEpochBlockNumber(config, header.Number); err != nil {
+		log.Crit("IsEpochBlockNumber failed", "number", header.Number, "err", err)
+	} else if !isEpoch {
+		return nil
+	}
+
+	var epochHeader *types.Header
+	proposedSealsInEpoch := make(map[common.Address]int)
+	submittedSealsInEpoch := make(map[common.Address]int)
+	proposedCountsInEpoch := make(map[common.Address]int)
+	proposers := []common.Address{}
+	epochLength := 0
+
+	// Traverse blocks until reaching the epoch block.
+	for it := header; ; {
+		parent := chain.GetHeader(it.ParentHash, it.Number.Uint64()-1)
+
+		extra, err := types.ExtractQBFTExtra(it)
+		if err != nil {
+			log.Crit("failed to extract qbft extra data", "err", err)
+		}
+
+		proposer, err := e.Author(it)
+		if err != nil {
+			log.Crit("failed to get proposer", "err", err)
+		}
+		proposers = append(proposers, proposer)
+
+		// Accumulate PrevPreparedSeal counts.
+		preparedSeal := extra.PrevPreparedSeal
+		prepareSigners, err := e.GetSignerAddress(parent, extra.PrevRound, preparedSeal, core.SealTypePrepare)
+		if err != nil {
+			log.Crit("failed to get prev prepare signers", "err", err)
+		}
+
+		proposedSealsInEpoch[proposer] += len(prepareSigners)
+		for _, addr := range prepareSigners {
+			submittedSealsInEpoch[addr]++
+		}
+
+		// Accumulate PrevCommittedSeal counts.
+		committedSeal := extra.PrevCommittedSeal
+		commitSigners, err := e.GetSignerAddress(parent, extra.PrevRound, committedSeal, core.SealTypeCommit)
+		if err != nil {
+			log.Crit("failed to get prev commit signers", "err", err)
+		}
+
+		proposedSealsInEpoch[proposer] += len(commitSigners)
+		for _, addr := range commitSigners {
+			submittedSealsInEpoch[addr]++
+		}
+
+		log.Trace("Seals count", "current block number", it.Number, "prepareSigners", prepareSigners, "commitSigners", commitSigners)
+
+		// Update current header.
+		it = parent
+		epochLength++
+
+		// Stop counting if the block reaches to the epoch block.
+		if isEpoch, _, err := e.IsEpochBlockNumber(config, it.Number); err != nil {
+			log.Crit("IsEpochBlockNumber failed", "number", header.Number, "err", err)
+		} else if isEpoch {
+			epochHeader = it
+			break
+		}
+	}
+
+	extra, _ := types.ExtractQBFTExtra(epochHeader)
+	stakerMap := make(map[common.Address]*stakerInfo)
+	validators := []common.Address{}
+	for _, staker := range extra.EpochInfo.Stakers {
+		stakerMap[staker.Addr] = &stakerInfo{staker: staker}
+	}
+	for _, validator := range extra.EpochInfo.Validators {
+		addr := extra.EpochInfo.GetValidator(validator)
+		stakerMap[addr].isValidator = true
+		validators = append(validators, addr)
+	}
+
+	// Check if all seals are signed by validators.
+	valSet := validator.NewSet(validators, e.cfg.ProposerPolicy)
+	keys := []common.Address{}
+	for k := range submittedSealsInEpoch {
+		keys = append(keys, k)
+	}
+	if err := verifySealers(keys, valSet); err != nil {
+		log.Crit(qbftcommon.ErrInvalidPrevPreparedSeals.Error())
+	}
+
+	// Accumulate proposer counts being selected within epoch.
+	lastProposer, _ := e.Author(epochHeader)
+	for i := len(proposers) - 1; i >= 0; i-- {
+		proposer := proposers[i]
+		for round := 0; ; round++ {
+			// NOTE: WEMIX uses a round-robin policy to select proposers.
+			// If round change occurs for every validators more than once,
+			// latest round change cycle window will be used for counting.
+			if round >= len(validators) {
+				log.Crit("Invalid round")
+			}
+
+			valSet.CalcProposer(lastProposer, uint64(round))
+			currP := valSet.GetProposer().Address()
+			proposedCountsInEpoch[currP]++
+
+			if currP == proposer {
+				break
+			}
+		}
+		lastProposer = proposer
+	}
+
+	log.Trace("Seals counts in epoch", "header.number", header.Number,
+		"current block number", epochHeader.Number,
+		"proposedSealsInEpoch", proposedSealsInEpoch,
+		"submittedSealsInEpoch", submittedSealsInEpoch,
+	)
+
+	// Update epoch info.
+	newStakers := e.GetStakers(header.Number, state)
+	newEpoch.Stakers = make([]*types.Staker, len(newStakers))
+	for i, staker := range newStakers {
+		var d uint64
+
+		stakerInfo := stakerMap[staker]
+		if stakerInfo == nil {
+			// Assign default diligence for new staker.
+			d = types.DefaultDiligence
+		} else if !stakerInfo.isValidator {
+			// Keep current cumulative diligence if staker is not validator for current epoch.
+			d = stakerInfo.staker.Diligence
+		} else {
+			// Calculate validator's diligence for current epoch.
+			//
+			// If validator proposed any blocks, d(h) = p / (2*v*w) + s / (2*e),
+			// Otherwise, d(h) = 1 + s / (2*e)
+			d += uint64(submittedSealsInEpoch[staker]) * types.DiligenceDenominator / uint64(2*epochLength)
+			if proposedCountsInEpoch[staker] > 0 {
+				d += uint64(proposedSealsInEpoch[staker]) * types.DiligenceDenominator /
+					uint64(2*len(extra.EpochInfo.Validators)*proposedCountsInEpoch[staker])
+			} else {
+				d += types.DiligenceDenominator
+			}
+
+			// Calculate validator's cumulative diligence for next epoch.
+			//
+			// D(h) = D(h-1) * 0.9 + d(h) * 0.1
+			d = (stakerInfo.staker.Diligence*9 + d) / 10
+		}
+
+		newEpoch.Stakers[i] = &types.Staker{
+			Addr:      staker,
+			Diligence: d,
+		}
+	}
+	newEpoch.Validators = e.decideValidators(header, newStakers)
+
+	log.Trace("update epoch info", "header.Number", header.Number, "validators", newEpoch.Validators)
+	for i, staker := range newEpoch.Stakers {
+		log.Trace(fmt.Sprintf("  - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
+	}
+
+	return &newEpoch
 }
 
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
@@ -584,7 +784,7 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 // nor block rewards given, and returns the final block.
 func (e *Engine) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// Add the validatorList to the extra field of the header.
-	if err := e.processFinalize(chain, header, state, txs, uncles, writeValidatorsToEpoch); err != nil {
+	if err := e.processFinalize(chain, header, state, txs, uncles, writeEpoch); err != nil {
 		return nil, err
 	}
 
@@ -598,15 +798,6 @@ func (e *Engine) SealHash(header *types.Header) common.Hash {
 
 func (e *Engine) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 	return new(big.Int).Set(types.QBFTDefaultDifficulty)
-}
-
-func (e *Engine) ExtractGenesisValidators(header *types.Header) ([]common.Address, error) {
-	extra, err := types.ExtractQBFTExtra(header)
-	if err != nil {
-		return nil, err
-	}
-
-	return extra.Validators, nil
 }
 
 // IsEpochBlockNumber returns whether the given block number is an epoch block.
@@ -698,7 +889,7 @@ func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *b
 		log.Error("BFT: invalid epoch header", "err", err)
 		return nil, err
 	}
-	vs := validator.NewSet(qbftExtra.Validators, e.cfg.ProposerPolicy)
+	vs := validator.NewSet(qbftExtra.EpochInfo.GetValidators(), e.cfg.ProposerPolicy)
 	e.valSetCache.Add(blockNumber.Uint64(), vs)
 	return vs, nil
 }
@@ -762,13 +953,13 @@ func getExtra(header *types.Header) (*types.QBFTExtra, error) {
 		vanity := append(header.Extra, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(header.Extra))...)
 		return &types.QBFTExtra{
 			VanityData:        vanity,
-			Validators:        []common.Address{},
 			PrevRound:         0,
 			PrevPreparedSeal:  [][]byte{},
 			PrevCommittedSeal: [][]byte{},
 			Round:             0,
 			PreparedSeal:      [][]byte{},
 			CommittedSeal:     [][]byte{},
+			EpochInfo:         nil,
 		}, nil
 	}
 
@@ -785,82 +976,116 @@ func setExtra(h *types.Header, qbftExtra *types.QBFTExtra) error {
 	return nil
 }
 
-// AccumulateRewards credits the beneficiary of the given block with a reward.
-func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *state.StateDB, header *types.Header) {
-	blockReward := chain.Config().GetBlockReward(header.Number)
-	if blockReward.Cmp(big.NewInt(0)) > 0 {
-		coinbase := header.Coinbase
-		if (coinbase == common.Address{}) {
-			coinbase = e.signer
-		}
-		rewardAccount, _ := chain.Config().GetRewardAccount(header.Number, coinbase)
-		log.Trace("QBFT: accumulate rewards to", "rewardAccount", rewardAccount, "blockReward", blockReward)
-
-		state.AddBalance(rewardAccount, uint256.MustFromBig(&blockReward))
-
-		if err := e.calculateRewards(
-			chain,
-			header,
-			func(addr common.Address, amt *big.Int) { state.AddBalance(addr, uint256.MustFromBig(amt)) },
-			func(addr common.Address, amt *big.Int) { state.AddBalance(addr, uint256.MustFromBig(amt)) },
-		); err != nil {
-			// TODO: how to handle err here?
-			log.Warn("Error while calculating rewards", "err", err)
+func makeRewardFunc(state *state.StateDB, blockReward *big.Int) func(*govwbft.Staker, *big.Int) {
+	validatorReward := new(big.Int).Set(blockReward)
+	return func(staker *govwbft.Staker, tot *big.Int) {
+		r := new(big.Int).Set(validatorReward)
+		r.Mul(r, staker.Staking)
+		r.Div(r, tot)
+		if r.Sign() > 0 {
+			state.AddBalance(staker.Rewardee, uint256.MustFromBig(r))
+			blockReward.Sub(blockReward, r)
+			log.Trace("QBFT: accumulate rewards to", "rewardee", staker.Rewardee, "block reward", r)
+		} else {
+			log.Trace("QBFT: skip accumulating rewards to", "rewardee", staker.Rewardee)
 		}
 	}
 }
 
-func (e *Engine) calculateRewards(chain consensus.ChainHeaderReader, header *types.Header, prepareRewardFn, commitRewardFn func(common.Address, *big.Int)) error {
-	// TODO : need proper calculation when distribution rule is decided. Current work is to get rewardee's address from preCommittedSeal
+// AccumulateRewards credits the beneficiary of the given block with a reward.
+func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *state.StateDB, header *types.Header) {
+	var blockReward *big.Int
 
-	parentHeader := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
-	lastQbftExtra, err := types.ExtractQBFTExtra(parentHeader)
+	if chain.Config().IsBrioche(header.Number) {
+		blockReward = chain.Config().Brioche.GetBriocheBlockReward(params.DefaultBriocheBlockReward, header.Number)
+	} else {
+		blockReward = chain.Config().GetBlockReward(header.Number)
+	}
+
+	// Deduct rewards of beneficiaries.
+	if blockReward.Sign() > 0 {
+		bReward := new(big.Int)
+		beneficiaryInfo := e.cfg.GetConfig(header.Number).BlockRewardBeneficiary
+		if beneficiaryInfo != nil {
+			for _, beneficiary := range beneficiaryInfo.Beneficiaries {
+				r := new(big.Int).Set(blockReward)
+				r.Mul(r, new(big.Int).SetUint64(beneficiary.Numerator))
+				r.Div(r, new(big.Int).SetUint64(beneficiaryInfo.Denominator))
+
+				log.Debug("QBFT: accumulate rewards to", "beneficiary", beneficiary.Addr, "block reward", r)
+				state.AddBalance(beneficiary.Addr, uint256.MustFromBig(r))
+				bReward.Add(bReward, r)
+			}
+		}
+
+		if blockReward.Cmp(bReward) < 0 {
+			// Unreachable if genesis block is set correctly.
+			log.Crit("block reward underflow", "blockReward", blockReward, "bReward", bReward)
+		}
+		blockReward.Sub(blockReward, bReward)
+	}
+
+	getStakerInfo := func(addr common.Address) *govwbft.Staker {
+		// If the staker is removed from gov, use fallback staker info with zero staking.
+		if !govwbft.IsStaker(state, addr) {
+			log.Trace("QBFT: fallback staker info", "staker", addr)
+			return &govwbft.Staker{
+				Operator:  addr,
+				Rewardee:  addr,
+				Staking:   big.NewInt(0),
+				Delegated: big.NewInt(0),
+			}
+		}
+
+		s := govwbft.StakerInfo(state, addr)
+		return &s
+	}
+
+	// Distribute remaining block reward to validators (including proposer) who signed the block.
+	if blockReward.Sign() > 0 {
+		if err := e.calculateRewards(
+			chain,
+			header,
+			makeRewardFunc(state, blockReward),
+			getStakerInfo,
+		); err != nil {
+			log.Crit("Error while calculating rewards", "err", err)
+		}
+	}
+
+	// The reward left rewards to the proposer.
+	if blockReward.Sign() > 0 {
+		proposer, _ := e.Author(header)
+		staker := getStakerInfo(proposer)
+		state.AddBalance(staker.Rewardee, uint256.MustFromBig(blockReward))
+		log.Trace("Block reward left rewards to", "rewardee", staker.Rewardee, "amount", blockReward)
+	}
+}
+
+// calculateRewards calculates the reward for the given block.
+// Currently, seals are not considered for rewards because which we cannot determine malicious validators.
+// Instead, we use diligence score to give faithful validator opportunity to propose more blocks.
+func (e *Engine) calculateRewards(chain consensus.ChainHeaderReader, header *types.Header, rewardFn func(*govwbft.Staker, *big.Int), getStakerInfo func(common.Address) *govwbft.Staker) error {
+	valSet, err := e.GetValidators(chain, header.Number, header.ParentHash, nil)
 	if err != nil {
-		return qbftcommon.ErrInvalidExtraDataFormat
+		return err
+	}
+	validators := valSet.AddressList()
+
+	// Get staking amounts for rewardees.
+	stakers := make([]*govwbft.Staker, len(validators))
+	totStakingAmount := big.NewInt(0)
+	for i, val := range validators {
+		staker := getStakerInfo(val)
+		stakers[i] = staker
+		totStakingAmount.Add(totStakingAmount, staker.Staking)
 	}
 
-	// proposal seals of prior block
-	proposalPrepareSeal := core.PrepareSeal(parentHeader, lastQbftExtra.Round, core.SealTypePrepare)
-	proposalCommitSeal := core.PrepareSeal(parentHeader, lastQbftExtra.Round, core.SealTypeCommit)
+	log.Debug("Calculating block reward", "currentBlock", header.Number, "totStakingAmount", totStakingAmount, "validator", validators)
 
-	var prepareRewardees []common.Address
-	var commitRewardees []common.Address
-
-	qbftExtra, err := types.ExtractQBFTExtra(header)
-	if err != nil {
-		return qbftcommon.ErrInvalidExtraDataFormat
-	}
-
-	// get prev prepared address
-	for _, seal := range qbftExtra.PrevPreparedSeal {
-		addr, err := qbft.GetSignatureAddressNoHashing(proposalPrepareSeal, seal)
-		if err != nil {
-			return qbftcommon.ErrInvalidSignature
-		}
-		prepareRewardees = append(prepareRewardees, addr)
-	}
-
-	// get prev committed address
-	for _, seal := range qbftExtra.PrevCommittedSeal {
-		addr, err := qbft.GetSignatureAddressNoHashing(proposalCommitSeal, seal)
-		if err != nil {
-			return qbftcommon.ErrInvalidSignature
-		}
-		commitRewardees = append(commitRewardees, addr)
-	}
-	log.Trace("Calculating block reward", "currentBlock", header.Number, "calculatingBlock", parentHeader.Number, "prepareReward", prepareRewardees, "commitReward", commitRewardees)
-	prepareReward := chain.Config().GetPrepareReward(header.Number)
-	commitReward := chain.Config().GetCommitReward(header.Number)
-
-	if prepareRewardFn != nil {
-		for _, addr := range prepareRewardees {
-			prepareRewardFn(addr, &prepareReward)
-		}
-	}
-
-	if commitRewardFn != nil {
-		for _, addr := range commitRewardees {
-			commitRewardFn(addr, &commitReward)
+	if rewardFn != nil && totStakingAmount.Sign() > 0 {
+		for _, staker := range stakers {
+			rewardFn(staker, totStakingAmount)
 		}
 	}
 
@@ -885,60 +1110,60 @@ func mergeSeals(seals [][]byte, extraSeals map[common.Hash][]byte) [][]byte {
 	return mergedSeals
 }
 
-func writeValidatorsToEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) error {
-	vals, err := decideValidators(e, chain, header, state)
-	if err != nil {
-		return err
-	}
-	return ApplyHeaderQBFTExtra(header, WriteValidators(vals))
+func writeEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) error {
+	newEpoch := e.buildEpochInfo(chain, header, state)
+
+	return ApplyHeaderQBFTExtra(header, WriteEpochInfo(newEpoch))
 }
 
 // verifyEpoch is a handler that performs default actions when the block is an EpochBlock,
 // and is called during the Finalize process.
 // It validates the validity of the ValidatorList associated with the EpochBlock.
 func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) error {
-	vals, err := decideValidators(e, chain, header, state)
-	if err != nil {
-		return err
-	}
+	bHeader := types.CopyHeader(header)
+	epoch := e.buildEpochInfo(chain, bHeader, state)
 
 	extra, err := types.ExtractQBFTExtra(header)
 	if err != nil {
 		return err
 	}
 
-	if len(vals) != len(extra.Validators) {
-		return errors.New("WBFT: mismatch in ValidatorList sizes")
+	// Check Stakers.
+	if len(epoch.Stakers) != len(extra.EpochInfo.Stakers) {
+		return errors.New("WBFT: mismatch in staker sizes")
+	}
+	for i := range epoch.Stakers {
+		if epoch.Stakers[i].Addr != extra.EpochInfo.Stakers[i].Addr {
+			return errors.New("WBFT: The two stakers do not match")
+		}
 	}
 
-	// Compare each element
-	for i := range vals {
-		if vals[i] != extra.Validators[i] {
+	// Check validators.
+	if len(epoch.Validators) != len(extra.EpochInfo.Validators) {
+		return errors.New("WBFT: mismatch in validator sizes")
+	}
+	for _, valIdx := range epoch.Validators {
+		if epoch.Stakers[valIdx].Addr != extra.EpochInfo.GetValidator(valIdx) {
 			return errors.New("WBFT: The two validators do not match")
 		}
 	}
 	return nil
 }
 
-func decideValidators(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) ([]common.Address, error) {
-	// WEMIX 3.5:
-	// - Stabilization stage:
-	//   - validator list(ordered) defined at wbft config
-	// - After stabilization stage:
-	//   - NCP & Staker
-	//   - order: address alphabetically (temporary, vrf random order possible)
-	// WEMIX 4.0:
-	// - vrf random selection from Stakers
-	// - order: vrf random order (selected order)
-	//
-	// this is a temporary solution; stabilization stage is not implemented yet
-	vals := govwbft.NCPStakers(state)
-	if len(vals) == 0 { // TODO: check this with config.minStakers rather than zero
-		valSet, err := e.GetValidators(chain, header.Number, header.ParentHash, nil)
-		if err != nil {
-			return nil, err
-		}
-		vals = valSet.AddressList()
+// 1. WEMIX 3.5
+// Use staker list as it is.
+//
+// 2. WEMIX 4.0 (not implemented yet)
+// If number of stakers <= targetValidators, use staker list as it is.
+// If number of stakers > targetValidators, random selection from the list in VRF manner
+// depending on their staking amounts and diligence score.
+func (e *Engine) decideValidators(header *types.Header, newStakers []common.Address) []uint32 {
+	validators := make([]uint32, len(newStakers))
+
+	l := make([]uint32, len(validators))
+	for i := 0; i < len(l); i++ {
+		l[i] = uint32(i)
 	}
-	return vals, nil
+
+	return l
 }

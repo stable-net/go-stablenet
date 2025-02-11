@@ -13,21 +13,24 @@ import (
 
 func TestGeneratingGenesisExtra(t *testing.T) {
 	QBFTExtra := &types.QBFTExtra{
-		VanityData: []byte{},
-		Validators: []common.Address{
-			common.BytesToAddress(hexutil.MustDecode("0xa62987A40E094CbE020313f19F71aeeB3E48B86f")),
-			common.BytesToAddress(hexutil.MustDecode("0xE1bD8108149FCa703B9FCD8ea967B6b7e660f13b")),
-			common.BytesToAddress(hexutil.MustDecode("0xd19f9374f4549B2fB182ED766d6b7501494a3634")),
-			common.BytesToAddress(hexutil.MustDecode("0x02cF1E577C79EF0E93947cCd82a4D41E0485Be73")),
-		},
+		VanityData:        []byte{},
 		PrevRound:         0,
 		PreparedSeal:      [][]byte{},
 		PrevPreparedSeal:  [][]byte{},
 		Round:             0,
 		CommittedSeal:     [][]byte{},
 		PrevCommittedSeal: [][]byte{},
+		EpochInfo: &types.EpochInfo{
+			Stakers: []*types.Staker{
+				{Addr: common.BytesToAddress(hexutil.MustDecode("0xa62987A40E094CbE020313f19F71aeeB3E48B86f")), Diligence: types.DefaultDiligence},
+				{Addr: common.BytesToAddress(hexutil.MustDecode("0xE1bD8108149FCa703B9FCD8ea967B6b7e660f13b")), Diligence: types.DefaultDiligence},
+				{Addr: common.BytesToAddress(hexutil.MustDecode("0xd19f9374f4549B2fB182ED766d6b7501494a3634")), Diligence: types.DefaultDiligence},
+				{Addr: common.BytesToAddress(hexutil.MustDecode("0x02cF1E577C79EF0E93947cCd82a4D41E0485Be73")), Diligence: types.DefaultDiligence},
+			},
+			Validators: []uint32{0, 1, 2, 3},
+		},
 	}
-	genesis := GenesisWithSeals(QBFTExtra.Validators)
+	genesis := GenesisWithSeals(QBFTExtra.EpochInfo.GetStakers())
 	t.Log("Genesis Extra Data: ", hex.EncodeToString(genesis.ExtraData))
 	qbftExtra := new(types.QBFTExtra)
 	err := rlp.DecodeBytes(genesis.ExtraData[:], qbftExtra)

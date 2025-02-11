@@ -146,8 +146,13 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		gspec.Difficulty = new(big.Int).SetUint64(1)
 		sampleExtra := &types.QBFTExtra{
 			VanityData: []byte("WEMIX MontBlanc chain block"),
-			Validators: []common.Address{testBankAddress},
 			Round:      0,
+			EpochInfo: &types.EpochInfo{
+				Stakers: []*types.Staker{
+					{Addr: testBankAddress, Diligence: types.DefaultDiligence},
+				},
+				Validators: []uint32{0},
+			},
 		}
 		gspec.ExtraData, _ = rlp.EncodeToBytes(sampleExtra)
 		gspec.Config.QBFT.Validators = []common.Address{testBankAddress}

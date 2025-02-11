@@ -85,9 +85,6 @@ var (
 			RequestTimeoutSeconds:    1000,
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
-			BeneficiaryMode:          &bm,
-			MiningBeneficiary:        &mb,
-			ValidatorSelectionMode:   &vsm,
 			MaxRequestTimeoutSeconds: &mrts,
 		},
 	}
@@ -127,9 +124,6 @@ var (
 			RequestTimeoutSeconds:    1000,
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
-			BeneficiaryMode:          &bm,
-			MiningBeneficiary:        &mb,
-			ValidatorSelectionMode:   &vsm,
 			MaxRequestTimeoutSeconds: &mrts,
 		},
 	}
@@ -264,9 +258,6 @@ var (
 		Clique:                        nil,
 	}
 
-	bm   = "validator"
-	vsm  = "blockheader"
-	mb   = common.HexToAddress("0x0000000000000000000000000000000000000000")
 	mrts = uint64(4)
 
 	// customized for WEMIX chain
@@ -301,9 +292,6 @@ var (
 			RequestTimeoutSeconds:    1000,
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
-			BeneficiaryMode:          &bm,
-			MiningBeneficiary:        &mb,
-			ValidatorSelectionMode:   &vsm,
 			MaxRequestTimeoutSeconds: &mrts,
 			// You should assign `Validators` before using
 		},
@@ -418,9 +406,6 @@ var (
 			RequestTimeoutSeconds:    1000,
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
-			BeneficiaryMode:          &bm,
-			MiningBeneficiary:        &mb,
-			ValidatorSelectionMode:   &vsm,
 			MaxRequestTimeoutSeconds: &mrts,
 			// You should assign `Validators` before using
 		},
@@ -714,18 +699,17 @@ func (c *ChainConfig) Description() string {
 		} else {
 			banner += fmt.Sprintf("   - BlockReward:               %-8v\n", ((*big.Int)(c.QBFT.BlockReward)).Int64())
 		}
-		if c.QBFT.BeneficiaryMode == nil {
-			banner += fmt.Sprintf("   - BeneficiaryMode:           %v\n", "validator")
+		if c.QBFT.BlockRewardBeneficiary == nil {
+			banner += fmt.Sprintf("   - BlockRewardBeneficiary:    %v\n", nil)
 		} else {
-			banner += fmt.Sprintf("   - BeneficiaryMode:           %v\n", *c.QBFT.BeneficiaryMode)
-		}
-		banner += fmt.Sprintf("   - MiningBeneficiary:         %v\n", c.QBFT.MiningBeneficiary)
-		if c.QBFT.ValidatorSelectionMode == nil {
-			banner += fmt.Sprintf("   - ValidatorSelectionMode:    %v\n", "blockheader")
-		} else {
-			banner += fmt.Sprintf("   - ValidatorSelectionMode:    %v\n", *c.QBFT.ValidatorSelectionMode)
+			banner += fmt.Sprintf("   - BlockRewardBeneficiary.Denominator: %v\n", c.QBFT.BlockRewardBeneficiary.Denominator)
+			for i, b := range c.QBFT.BlockRewardBeneficiary.Beneficiaries {
+				banner += fmt.Sprintf("   - BlockRewardBeneficiary[%v]: %v\n", i, b)
+			}
 		}
 		banner += fmt.Sprintf("   - Validators:                %v\n", c.QBFT.Validators)
+		banner += fmt.Sprintf("   - MinStakers:                %v\n", c.QBFT.MinStakers)
+		banner += fmt.Sprintf("   - TargetValidators:          %v\n", c.QBFT.TargetValidators)
 		if c.QBFT.MaxRequestTimeoutSeconds == nil {
 			banner += fmt.Sprintf("   - MaxRequestTimeoutSeconds:  %-8v\n", 0)
 		} else {
