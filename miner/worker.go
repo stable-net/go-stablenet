@@ -43,6 +43,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
@@ -86,6 +87,10 @@ var (
 	errBlockInterruptedByNewHead  = errors.New("new head arrived while building block")
 	errBlockInterruptedByRecommit = errors.New("recommit interrupt while building block")
 	errBlockInterruptedByTimeout  = errors.New("timeout while building block")
+)
+
+var (
+	commitWorkTimer = metrics.NewRegisteredTimer("consensus/qbft/core/commitwork", nil)
 )
 
 // environment is the worker's current environment and holds all
@@ -1326,6 +1331,7 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 				log.Info("Commit new sealing work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 					"txs", env.tcount, "gas", block.GasUsed(), "fees", feesInEther,
 					"elapsed", common.PrettyDuration(time.Since(start)))
+				commitWorkTimer.Update(time.Since(start))
 
 			case <-w.exitCh:
 				log.Info("Worker has exited")
