@@ -227,6 +227,8 @@ func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 }
 
 func (sb *Backend) processExtraSeals() (map[common.Hash][]byte, map[common.Hash][]byte) {
+	sb.coreMu.RLock()
+	defer sb.coreMu.RUnlock()
 	if sb.core == nil {
 		return nil, nil
 	} else {

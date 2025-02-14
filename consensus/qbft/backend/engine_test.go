@@ -855,7 +855,7 @@ func makeBlockThroughConsensus(chain *core.BlockChain, engine *Backend, nodes []
 			switch consensusState {
 			case qbftcore.StateAcceptRequest:
 				for _, node := range nodes {
-					if engine.ProposerFromValSet() == node.address {
+					if engine.getProposerForTest() == node.address {
 						header := proposedBlock.Header()
 						header.Coinbase = node.address
 						statedb, err := chain.State()

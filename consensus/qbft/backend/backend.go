@@ -306,7 +306,9 @@ func (sb *Backend) Validators(proposal qbft.Proposal) qbft.ValidatorSet {
 	return valSet
 }
 
-func (sb *Backend) ProposerFromValSet() common.Address {
+func (sb *Backend) getProposerForTest() common.Address {
+	// used only for testing
+	// if you want actual using, you should lock coreMu for it
 	return sb.core.GetProposer()
 }
 
