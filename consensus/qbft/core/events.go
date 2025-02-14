@@ -30,4 +30,6 @@ type backlogEvent struct {
 	msg qbftmessage.QBFTMessage
 }
 
-type timeoutEvent struct{}
+type timeoutEvent struct {
+	canceled *bool
+}
