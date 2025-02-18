@@ -248,7 +248,6 @@ func newAccounts(n int) (accounts []account) {
 	return accounts
 }
 
-// TODO: WEMIX chain
 func TestEpochInfo(t *testing.T) {
 	var testCases = []struct {
 		name           string
@@ -380,6 +379,7 @@ func TestEpochInfo(t *testing.T) {
 				Validators:     validators,
 				ProposerPolicy: qbft.NewRoundRobinProposerPolicy(),
 				Epoch:          3,
+				MinStakers:     999,
 			}, common.Address{}, nil)
 			parent = makeGenesis(signers)
 			c.insertHeader(parent)
@@ -436,6 +436,95 @@ func TestEpochInfo(t *testing.T) {
 						t.Errorf("expected diligence mismatch for staker %d: have %d, want %d", j, staker.Diligence, d)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestEpochInfoTransition(t *testing.T) {
+	var testCases = []struct {
+		name           string
+		epoch          uint64
+		montBlancBlock *big.Int
+	}{
+		{
+			"Epoch info transition (epoch = montBlancBlock)",
+			3,
+			big.NewInt(3),
+		},
+		{
+			"Epoch info transition (epoch > montBlancBlock)",
+			4,
+			big.NewInt(3),
+		},
+		{
+			"Epoch info transition (epoch < montBlancBlock)",
+			3,
+			big.NewInt(4),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var parent *types.Header
+
+			// Setup validators
+			signers := newAccounts(4)
+			var validators []common.Address
+			for _, s := range signers {
+				validators = append(validators, s.addr)
+			}
+
+			// Setup test chain genesis
+			c := new(fakeChain)
+			c.chainConfig = new(params.ChainConfig) // do not mess TestChainConfig
+			*c.chainConfig = *params.TestChainConfig
+			c.chainConfig.MontBlancBlock = tc.montBlancBlock
+			engine := NewEngine(&qbft.Config{
+				Validators:     validators,
+				ProposerPolicy: qbft.NewRoundRobinProposerPolicy(),
+				Epoch:          tc.epoch,
+				MinStakers:     999,
+			}, common.Address{}, nil)
+			parent = makeGenesis(signers)
+			c.insertHeader(parent)
+
+			for {
+				h := makeHeader(parent)
+
+				c.insertHeader(h)
+				parent = h
+
+				// Build epoch info
+				newEpoch := engine.buildEpochInfo(c, h, nil)
+				ApplyHeaderQBFTExtra(h, WriteEpochInfo(newEpoch))
+				isEpoch, _, _ := engine.IsEpochBlockNumber(c.chainConfig, h.Number)
+				if newEpoch != nil && !isEpoch {
+					t.Errorf("expected epoch info to be nil")
+				}
+
+				if newEpoch == nil {
+					if h.Number.Cmp(c.chainConfig.MontBlancBlock) >= 0 {
+						t.Error("epoch is nil", "h.Number", h.Number, "montBlancBlock", c.chainConfig.MontBlancBlock)
+						break
+					}
+					continue
+				}
+
+				if h.Number.Cmp(c.chainConfig.MontBlancBlock) != 0 {
+					t.Error("epoch is not nil", "h.Number", h.Number, "montBlancBlock", c.chainConfig.MontBlancBlock)
+					break
+				}
+
+				// Validate qbftExtra
+				qbftExtra, _ := types.ExtractQBFTExtra(h)
+				for j := 0; j < 4; j++ {
+					staker := qbftExtra.EpochInfo.Stakers[j]
+					if staker.Diligence != types.DefaultDiligence {
+						t.Errorf("expected diligence mismatch for staker %d: have %d, want %d", j, staker.Diligence, types.DefaultDiligence)
+					}
+				}
+				break
 			}
 		})
 	}

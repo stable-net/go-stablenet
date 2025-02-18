@@ -15,14 +15,14 @@ import (
 
 // ## Quorum QBFT START
 type QBFTConfig struct {
-	EpochLength              uint64                `json:"epochLength"`                      // Number of blocks that should pass before pending validator votes are reset
-	BlockPeriodSeconds       uint64                `json:"blockPeriodSeconds"`               // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
 	RequestTimeoutSeconds    uint64                `json:"requestTimeoutSeconds"`            // Minimum request timeout for each QBFT round in milliseconds
+	BlockPeriodSeconds       uint64                `json:"blockPeriodSeconds"`               // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
 	ProposerPolicy           uint64                `json:"proposerPolicy"`                   // The policy for proposer selection
+	EpochLength              uint64                `json:"epochLength"`                      // The duration during which a fixed validator set remains active
 	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`            // Reward from start, works only on QBFT consensus protocol
 	BlockRewardBeneficiary   *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"` // Reward beneficiaries
-	Validators               []common.Address      `json:"validators"`                       // Validators list
-	MinStakers               uint64                `json:"minStakers"`                       // Minimum number of stakers before stabilization
+	Validators               []common.Address      `json:"validators"`                       // Validators list when the number of stakers is below the minimum stakers
+	MinStakers               uint64                `json:"minStakers"`                       // Minimum number of stakers to escape stabilization stage
 	TargetValidators         uint64                `json:"targetValidators"`                 // Target number of validators
 	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds"`         // The max round time
 }
@@ -68,23 +68,16 @@ func (c *QBFTConfig) String() string {
 }
 
 type Transition struct {
-	Block                        *big.Int              `json:"block"`
-	EpochLength                  uint64                `json:"epochlength,omitempty"`                  // Number of blocks that should pass before pending validator votes are reset
-	BlockPeriodSeconds           uint64                `json:"blockperiodseconds,omitempty"`           // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
-	RequestTimeoutSeconds        uint64                `json:"requesttimeoutseconds,omitempty"`        // Minimum request timeout for each QBFT round in milliseconds
-	ContractSizeLimit            uint64                `json:"contractsizelimit,omitempty"`            // Maximum smart contract code size
-	Validators                   []common.Address      `json:"validators"`                             // List of validators
-	EnhancedPermissioningEnabled *bool                 `json:"enhancedPermissioningEnabled,omitempty"` // aka QIP714Block
-	PrivacyEnhancementsEnabled   *bool                 `json:"privacyEnhancementsEnabled,omitempty"`   // privacy enhancements (mandatory party, private state validation)
-	PrivacyPrecompileEnabled     *bool                 `json:"privacyPrecompileEnabled,omitempty"`     // enable marker transactions support
-	GasPriceEnabled              *bool                 `json:"gasPriceEnabled,omitempty"`              // enable gas price
-	MinerGasLimit                uint64                `json:"miner.gaslimit,omitempty"`               // Gas Limit
-	TransactionSizeLimit         uint64                `json:"transactionSizeLimit,omitempty"`         // Modify TransactionSizeLimit
-	BlockReward                  *math.HexOrDecimal256 `json:"blockReward,omitempty"`                  // validation rewards
-	BlockRewardBeneficiary       *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"`       // Reward beneficiaries
-	MinStakers                   *uint64               `json:"minStakers,omitempty"`                   // Minimum number of stakers before stabilization
-	TargetValidators             *uint64               `json:"targetValidators,omitempty"`             // Target number of validators
-	MaxRequestTimeoutSeconds     *uint64               `json:"maxRequestTimeoutSeconds,omitempty"`     // The max a timeout should be for a round change
+	Block                    *big.Int              `json:"block"`
+	RequestTimeoutSeconds    uint64                `json:"requestTimeoutSeconds,omitempty"`    // Minimum request timeout for each QBFT round in milliseconds
+	BlockPeriodSeconds       uint64                `json:"blockPeriodSeconds,omitempty"`       // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
+	EpochLength              uint64                `json:"epochLength,omitempty"`              // The duration during which a fixed validator set remains active
+	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`              // Reward from start, works only on QBFT consensus protocol
+	BlockRewardBeneficiary   *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"`   // Reward beneficiaries
+	Validators               []common.Address      `json:"validators,omitempty"`               // Validators list when the number of stakers is below the minimum stakers
+	MinStakers               *uint64               `json:"minStakers,omitempty"`               // Minimum number of stakers to escape stabilization stage
+	TargetValidators         *uint64               `json:"targetValidators,omitempty"`         // Target number of validators
+	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds,omitempty"` // The max round time
 }
 
 // gets value at or after a transition

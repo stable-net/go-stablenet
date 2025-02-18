@@ -23,7 +23,6 @@ package qbft
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/params"
@@ -111,7 +110,6 @@ type Config struct {
 	Validators               []common.Address        `toml:",omitempty"`
 	MinStakers               uint64                  `toml:",omitempty"`
 	TargetValidators         uint64                  `toml:",omitempty"`
-	Client                   bind.ContractCaller     `toml:",omitempty"`
 	MaxRequestTimeoutSeconds uint64                  `toml:",omitempty"`
 	Transitions              []params.Transition
 }

@@ -538,21 +538,26 @@ func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyQBFTExtra {
 }
 
 // GetStakers
-// If number of stakers <= minStakers, use validator list (regarded as staker list) from wbft config.
-// If number of stakers > minStakers, use staker list from gov.
+// If number of stakers < minStakers, use validator list (regarded as staker list) from wbft config.
+// If number of stakers >= minStakers, use staker list from gov.
 //
 // TODO: After stabilization stage, although the number of stakers below
 // minStakers can cause the network unstable, use staker list only from gov
 // instead of the one from wbft config.
-func (e *Engine) GetStakers(number *big.Int, state govwbft.StateReader) []common.Address {
+func (e *Engine) GetStakers(config *params.ChainConfig, number *big.Int, state govwbft.StateReader) []common.Address {
 	var stakers []common.Address
 	var stakerSetFromGov []common.Address
 
 	if state != nil {
-		stakerSetFromGov = govwbft.NCPStakers(state)
+		if config.MontBlancBlock == nil {
+			// WBFT chain
+			stakerSetFromGov = govwbft.Stakers(state)
+		} else {
+			stakerSetFromGov = govwbft.NCPStakers(state)
+		}
 	}
 
-	if len(stakerSetFromGov) <= int(e.cfg.GetConfig(number).MinStakers) {
+	if len(stakerSetFromGov) < int(e.cfg.GetConfig(number).MinStakers) {
 		stakerSetFromConfig := e.cfg.GetConfig(number).Validators
 		stakers = append(stakers, stakerSetFromConfig...)
 	} else {
@@ -567,15 +572,43 @@ type stakerInfo struct {
 	staker      *types.Staker
 }
 
-// verifyHeader() must catch inconsistent seals before calling this. Or, client exits.
+func (e *Engine) createInitialEpochBlock(config *params.ChainConfig, header *types.Header, state govwbft.StateReader) *types.EpochInfo {
+	var newEpoch types.EpochInfo
+
+	// Init diligence score of every staker to DefaultDiligence.
+	newStakers := e.GetStakers(config, header.Number, state)
+	newEpoch.Stakers = make([]*types.Staker, len(newStakers))
+	for i, staker := range newStakers {
+		newEpoch.Stakers[i] = &types.Staker{
+			Addr:      staker,
+			Diligence: types.DefaultDiligence,
+		}
+	}
+	newEpoch.Validators = e.decideValidators(header, newStakers)
+
+	log.Trace("update epoch info", "header.Number", header.Number, "validators", newEpoch.Validators)
+	for i, staker := range newEpoch.Stakers {
+		log.Trace(fmt.Sprintf("  - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
+	}
+
+	return &newEpoch
+}
+
+// verifyHeader() must catch inconsistent seals before calling this.
 func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) *types.EpochInfo {
 	var newEpoch types.EpochInfo
 
 	config := chain.Config()
 	if isEpoch, _, err := e.IsEpochBlockNumber(config, header.Number); err != nil {
-		log.Crit("IsEpochBlockNumber failed", "number", header.Number, "err", err)
+		log.Error("IsEpochBlockNumber failed", "number", header.Number, "err", err)
+		return nil
 	} else if !isEpoch {
 		return nil
+	}
+
+	// Generate initial epoch block if a transition occurs.
+	if config.MontBlancBlock != nil && header.Number.Cmp(config.MontBlancBlock) == 0 {
+		return e.createInitialEpochBlock(config, header, state)
 	}
 
 	var epochHeader *types.Header
@@ -632,7 +665,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 
 		// Stop counting if the block reaches to the epoch block.
 		if isEpoch, _, err := e.IsEpochBlockNumber(config, it.Number); err != nil {
-			log.Crit("IsEpochBlockNumber failed", "number", header.Number, "err", err)
+			log.Crit("IsEpochBlockNumber failed", "number (it)", it.Number, "err", err)
 		} else if isEpoch {
 			epochHeader = it
 			break
@@ -651,17 +684,8 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 		validators = append(validators, addr)
 	}
 
-	// Check if all seals are signed by validators.
-	valSet := validator.NewSet(validators, e.cfg.ProposerPolicy)
-	keys := []common.Address{}
-	for k := range submittedSealsInEpoch {
-		keys = append(keys, k)
-	}
-	if err := verifySealers(keys, valSet); err != nil {
-		log.Crit(qbftcommon.ErrInvalidPrevPreparedSeals.Error())
-	}
-
 	// Accumulate proposer counts being selected within epoch.
+	valSet := validator.NewSet(validators, e.cfg.ProposerPolicy)
 	lastProposer, _ := e.Author(epochHeader)
 	for i := len(proposers) - 1; i >= 0; i-- {
 		proposer := proposers[i]
@@ -691,7 +715,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	)
 
 	// Update epoch info.
-	newStakers := e.GetStakers(header.Number, state)
+	newStakers := e.GetStakers(config, header.Number, state)
 	newEpoch.Stakers = make([]*types.Staker, len(newStakers))
 	for i, staker := range newStakers {
 		var d uint64
