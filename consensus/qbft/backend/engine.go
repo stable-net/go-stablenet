@@ -230,6 +230,7 @@ func (sb *Backend) processExtraSeals() (map[common.Hash][]byte, map[common.Hash]
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if sb.core == nil {
+		sb.logger.Warn("WBFT: fail to process extra seals due to nil core")
 		return nil, nil
 	} else {
 		lastProposal := sb.currentBlock()

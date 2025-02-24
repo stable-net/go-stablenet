@@ -172,7 +172,7 @@ func (cs *chainSyncer) nextSyncOp() *chainSyncOp {
 	}
 	mode, ourTD := cs.modeAndLocalHead()
 	op := peerToSyncOp(mode, peer)
-	if op.td.Cmp(ourTD) <= 0 {
+	if cs.handler.chain.Config().QBFT == nil && op.td.Cmp(ourTD) <= 0 {
 		// We seem to be in sync according to the legacy rules. In the merge
 		// world, it can also mean we're stuck on the merge block, waiting for
 		// a beacon client. In the latter case, notify the user.
@@ -181,6 +181,9 @@ func (cs *chainSyncer) nextSyncOp() *chainSyncOp {
 			cs.warned = time.Now()
 		}
 		return nil // We're in sync
+	} else if cs.handler.chain.Config().QBFT != nil && op.td.Cmp(ourTD.Add(ourTD, big.NewInt(1))) <= 0 {
+		// in QBFT, we're in sync if the peer's TD is within 1 of our own
+		return nil
 	}
 	return op
 }

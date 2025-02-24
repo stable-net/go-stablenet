@@ -25,7 +25,7 @@ var (
 )
 
 func init() {
-	_, signers = testutils.GenesisAndKeys(5)
+	_, signers, _ = testutils.GenesisAndKeys(5)
 }
 
 // makeCoreForTest returns core object with empty backend.

@@ -10,12 +10,14 @@ import (
 	"crypto/ecdsa"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	qbftcommon "github.com/ethereum/go-ethereum/consensus/qbft/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 )
 
 // ## Wemix QBFT START
@@ -45,12 +47,16 @@ func Genesis(validators []common.Address) *core.Genesis {
 	genesis.Difficulty = types.QBFTDefaultDifficulty
 	genesis.Nonce = qbftcommon.EmptyBlockNonce.Uint64()
 
+	// deploy governance contracts
+	genesis.Alloc[govwbft.GovConstAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovConstContract), Balance: common.Big0}
+	genesis.Alloc[govwbft.GovStakingAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract), Balance: common.Big0}
+
 	appendValidators(genesis, validators)
 
 	return genesis
 }
 
-func GenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey) {
+func GenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey, []common.Address) {
 	// Setup validators
 	var nodeKeys = make([]*ecdsa.PrivateKey, n)
 	var addrs = make([]common.Address, n)
@@ -62,7 +68,38 @@ func GenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey) {
 	// generate genesis block
 	genesis := Genesis(addrs)
 
-	return genesis, nodeKeys
+	return genesis, nodeKeys, addrs
+}
+
+func GenesisAndFixedKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey, []common.Address) {
+	// Setup validators
+	var nodeKeys = make([]*ecdsa.PrivateKey, n)
+	var addrs = make([]common.Address, n)
+	// use fixed keys for testing
+	// generated addresses are:
+	// 0: 0xB9Dd267FDb07316f89De27Ed37Ae010525B728Fc
+	// 1: 0x209b41AA27e00828C33564DCB3339B8FF7F49304
+	// 2: 0x2ddA32341F88F502Dbfb4854dcf66e88aCc2B4b3
+	// 3: 0xAf6D46d1E55AA87772Fb1538FE4d36AAA70f4e06
+	for i := 0; i < n; i++ {
+		if i == 0 {
+			nodeKeys[0], _ = crypto.HexToECDSA("e478a31539810867949701d8a78835451c38b5fe84045f2d7b1b0e2c1f1e0d0a")
+		} else if i == 1 {
+			nodeKeys[1], _ = crypto.HexToECDSA("2b7e151628aed2a6abf7158809cf4f3c7a57928f9e758f9c7e44106c9b2938b9")
+		} else if i == 2 {
+			nodeKeys[2], _ = crypto.HexToECDSA("8f7d38a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9")
+		} else if i == 3 {
+			nodeKeys[3], _ = crypto.HexToECDSA("1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b")
+		} else if i > 3 {
+			nodeKeys[i], _ = crypto.GenerateKey()
+		}
+		addrs[i] = crypto.PubkeyToAddress(nodeKeys[i].PublicKey)
+	}
+
+	// generate genesis block
+	genesis := Genesis(addrs)
+
+	return genesis, nodeKeys, addrs
 }
 
 func appendValidators(genesis *core.Genesis, addrs []common.Address) {

@@ -164,7 +164,7 @@ func newBlockchainFromConfig(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey
 // block by one node. Otherwise, if n is larger than 1, we have to generate
 // other fake events to process Istanbul.
 func newBlockChain(n int) (*core.BlockChain, *Backend, []otherNode) {
-	genesis, nodeKeys := testutils.GenesisAndKeys(n)
+	genesis, nodeKeys, _ := testutils.GenesisAndKeys(n)
 
 	config := new(qbft.Config)
 	setConfigFromChainConfig(config, genesis.Config)
@@ -173,7 +173,7 @@ func newBlockChain(n int) (*core.BlockChain, *Backend, []otherNode) {
 }
 
 func newBlockChainWithCustom(n int, customizeConfig func(config *qbft.Config) *qbft.Config) (*core.BlockChain, *Backend, []otherNode) {
-	genesis, nodeKeys := testutils.GenesisAndKeys(n)
+	genesis, nodeKeys, _ := testutils.GenesisAndKeys(n)
 
 	config := new(qbft.Config)
 	setConfigFromChainConfig(config, genesis.Config)

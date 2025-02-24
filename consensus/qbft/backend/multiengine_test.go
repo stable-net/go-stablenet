@@ -46,7 +46,7 @@ func MakeMultiEngineTestEnv(n int) (env *testEnv) {
 	env = &testEnv{}
 
 	// validators are ordered so the proposer will be selected in index order
-	genesis, nodeKeys := testutils.GenesisAndKeys(n)
+	genesis, nodeKeys, vals := testutils.GenesisAndFixedKeys(n)
 	env.parent = genesis.ToBlock()
 	env.down = make(map[common.Address]bool)
 	env.msgDisabled = make(map[common.Address]map[uint64]bool)
@@ -55,9 +55,12 @@ func MakeMultiEngineTestEnv(n int) (env *testEnv) {
 	config := new(qbft.Config)
 	setConfigFromChainConfig(config, genesis.Config)
 	config.BlockPeriod = 1
+	config.Epoch = 4
 	config.RequestTimeout = 2000
 	config.MaxRequestTimeoutSeconds = 2
+	config.MinStakers = 1
 	config.AllowedFutureBlockTime = 100000000 // to skip future block check; this makes block creation time to be very short
+	config.Validators = vals
 
 	env.addrs = make([]common.Address, n)
 	env.index = make(map[common.Address]int)
@@ -276,6 +279,22 @@ func (env *testEnv) makeScenarioEnableCommitMsg(index ...int) *scenario {
 	}
 }
 
+func (env *testEnv) makeScenarioOnlyOneDown(index int) *scenario {
+	return &scenario{
+		target: append([]int{}, index),
+		set: func(i int) string {
+			for j := 0; j < len(env.addrs); j++ {
+				if j == i {
+					env.down[env.addrs[j]] = true
+				} else {
+					env.down[env.addrs[j]] = false
+				}
+			}
+			return fmt.Sprintf("[only %d:down]", i)
+		},
+	}
+}
+
 func (env *testEnv) makeScenarioRandomDown(index ...int) *scenario {
 	x := rand.Int() % len(index)
 	return &scenario{
@@ -445,5 +464,36 @@ func TestWBFTRandomEngineDown(t *testing.T) {
 			env.GoNewRound(t, nil)
 			result = env.MustSucceed(t, true, ANY_PROPOSER, ANY_ROUND)
 		}
+	}
+}
+
+func TestWBFTExtraSeal(t *testing.T) {
+	env := MakeMultiEngineTestEnv(4)
+
+	// make first block with 4 normal engine
+	env.GoNewRound(t, nil, 0, 0, 0, 0)
+	env.MustSucceed(t, false, 0, 0) // proposer is engine 0
+
+	// engine 1 down and round change
+	env.GoNewRound(t, env.makeScenarioOnlyOneDown(1), 0, 0, 0, 0)
+
+	// engine 2 down and round change
+	env.GoNewRound(t, env.makeScenarioOnlyOneDown(2), 1, 1, 1, 1)
+
+	// engine 3 down and round change
+	env.GoNewRound(t, env.makeScenarioOnlyOneDown(3), 2, 2, 2, 2)
+
+	// engine 0 down and round change
+	env.GoNewRound(t, env.makeScenarioOnlyOneDown(0), 3, 3, 3, 3)
+
+	// all engines up
+	env.GoNewRound(t, nil, 4, 4, 4, 4)
+	block := env.MustSucceed(t, false, 1, 4)
+	extra, err := types.ExtractQBFTExtra(block.Header())
+	if err != nil {
+		t.Errorf("failed to extract extra: %v", err)
+	}
+	if len(extra.PrevPreparedSeal) != 4 {
+		t.Errorf("lack of PrevPreparedSeal: have %d, want %d", len(extra.PrevPreparedSeal), 4)
 	}
 }
