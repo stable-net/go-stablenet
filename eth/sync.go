@@ -181,7 +181,7 @@ func (cs *chainSyncer) nextSyncOp() *chainSyncOp {
 			cs.warned = time.Now()
 		}
 		return nil // We're in sync
-	} else if cs.handler.chain.Config().QBFT != nil && op.td.Cmp(ourTD.Add(ourTD, big.NewInt(1))) <= 0 {
+	} else if cs.handler.chain.Config().QBFT != nil && op.td.Cmp(new(big.Int).Add(ourTD, big.NewInt(1))) <= 0 {
 		// in QBFT, we're in sync if the peer's TD is within 1 of our own
 		return nil
 	}
