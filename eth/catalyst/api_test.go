@@ -128,13 +128,17 @@ func TestEth2AssembleBlock(t *testing.T) {
 func assembleWithTransactions(api *ConsensusAPI, parentHash common.Hash, params *engine.PayloadAttributes, want int) (execData *engine.ExecutableData, err error) {
 	for retries := 3; retries > 0; retries-- {
 		execData, err = assembleBlock(api, parentHash, params)
+
 		if err != nil {
 			return nil, err
 		}
+
 		if have, want := len(execData.Transactions), want; have != want {
 			err = fmt.Errorf("invalid number of transactions, have %d want %d", have, want)
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
+
 		return execData, nil
 	}
 	return nil, err
