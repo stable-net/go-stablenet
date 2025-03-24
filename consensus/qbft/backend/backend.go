@@ -143,6 +143,11 @@ func (sb *Backend) Address() common.Address {
 
 // Broadcast implements qbft.Backend.Broadcast
 func (sb *Backend) Broadcast(valSet qbft.ValidatorSet, code uint64, payload []byte) error {
+	_, validator := valSet.GetByAddress(sb.address)
+	if validator == nil {
+		return qbft.ErrUnauthorizedAddress
+	}
+
 	// send to others
 	sb.Gossip(valSet, code, payload)
 	// send to self
