@@ -115,3 +115,17 @@ func readAddress() *common.Address {
 		return &address
 	}
 }
+
+func readBLSPubKey() string {
+	for {
+		blsPubKey := strings.TrimSpace(promptInput(" └> BLS Public Key : "))
+		if !strings.HasPrefix(blsPubKey, "0x") {
+			blsPubKey = "0x" + blsPubKey
+		}
+		if len(blsPubKey) != 98 {
+			log.Error("Invalid bls public key length, please retry")
+			continue
+		}
+		return blsPubKey
+	}
+}

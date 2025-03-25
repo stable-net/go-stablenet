@@ -26,8 +26,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 )
 
@@ -37,7 +39,18 @@ import (
 //   go test -v -count 1 ./consensus/qbft/testutils -run TestGeneratingGenesisExtra
 
 func TestPrepareExtra(t *testing.T) {
-	expectedResult := hexutil.MustDecode("0xe8a0000000000000000000000000000000000000000000000000000000000000000080c0c080c0c0c0")
+	expectedResult, _ := rlp.EncodeToBytes(
+		&types.QBFTExtra{
+			VanityData:        append([]byte{}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)...),
+			PrevRound:         0,
+			PrevPreparedSeal:  nil,
+			PrevCommittedSeal: nil,
+			Round:             0,
+			PreparedSeal:      nil,
+			CommittedSeal:     nil,
+			EpochInfo:         nil,
+		},
+	)
 
 	h := &types.Header{}
 	err := ApplyHeaderQBFTExtra(
@@ -51,36 +64,56 @@ func TestPrepareExtra(t *testing.T) {
 	}
 }
 
+var (
+	testAccount1 = toTestAccount("0x2b3e3bef942608f06b249dc2d7e0847bda9708f3c82f3b57cd29419418553084")
+	testAccount2 = toTestAccount("0xbb7d23e80e71e188af0243402c9fe20d677695e17c97418ab9d684cc0e022c4e")
+	testAccount3 = toTestAccount("0x698d0f7ce7836c241f3ced2ff4d349e432ea470e75b2bba60224f7179ab45dd8")
+	testAccount4 = toTestAccount("0x7e1e874b5fa7c4d09540e92b47206376abe6b3bebcbed3e48e74d680242e45a5")
+)
+
+func toTestAccount(prvKey string) account {
+	key, _ := crypto.ToECDSA(hexutil.MustDecode(prvKey))
+	blsKey, _ := bls.DeriveFromECDSA(key)
+	addr := crypto.PubkeyToAddress(key.PublicKey)
+
+	return account{key: key, blsKey: blsKey, addr: addr}
+}
+
 func TestWriteCommittedSeals(t *testing.T) {
-	istRawData := hexutil.MustDecode("0xf8788080c0c080c0c0f86ff868d99444add0ec310f115a0e603b2d7db9f067778eaf8a831cfde0d994294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212831cfde0d9946beaaed781d2d2ab6350f5c4566a2c6eaac407a6831cfde0d9948be76812f765c24641ec63dc2852b378aba2b440831cfde0c480010203")
-	expectedCommittedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
+	istRawData := hexutil.MustDecode("0xf901a38080c0c080c0f86301b860a7c28d1668faa74b00d7edb22fb059478b453064c892c6a5fe71063dbdf82b24d64e989a47f7e74274704723e1f163b10d2a32d600bef81b08694f6b75dd0586ed634248bbf16fb4081f847ba5d1ca90ad7a1898f60e46b45ba88c657e04342ff90135f868d99438007fcf6b864660f6609a78b234c3ed2dda0165831cfde0d9942348a3100ba18e638b9fbdc71fc30a270da842fe831cfde0d994a2ae7388bbc7ba8cb7077d286a777ff944f75323831cfde0d9946726d67c31f91c8f2312f0d34edc71deb9478653831cfde0c480010203f8c4b0a22bf1dba4afc80a1783fb8f1870d1ff03e360284c2127db01abc0f5c4f810420968d5de337464d53dd926238c2984efb0b324470b778f2b89fee03494ba1e372916afd91d3711e99dd4bccab89b706ee814fbbf9770c14c31da1479beda9a054db0afd075d669527722dde94cb8664e54ae53becf8dd56801ec87c6893351a1691fabb9d2a39c6a864b903f10965bb16bafb08220645a1a3eebe953059de9164d9fec6c30c0dcd22d650f8de907d4c2cd74423312cdb56150019ede5ec1cec43bc8a1")
+	expectedCommittedSeal := testAccount1.blsKey.Sign(append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)).Marshal()
 	expectedIstExtra := &types.QBFTExtra{
 		VanityData:        []byte{},
 		PrevRound:         0,
-		PrevCommittedSeal: [][]byte{},
-		PrevPreparedSeal:  [][]byte{},
+		PrevCommittedSeal: nil,
+		PrevPreparedSeal:  nil,
 		Round:             0,
-		CommittedSeal:     [][]byte{expectedCommittedSeal},
-		PreparedSeal:      [][]byte{},
+		CommittedSeal:     &types.QBFTAggregatedSeal{Signature: expectedCommittedSeal, Sealers: types.SealerSet{0x1}},
+		PreparedSeal:      nil,
 		EpochInfo: &types.EpochInfo{
 			Stakers: []*types.Staker{
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")), Diligence: 1_900_000},
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")), Diligence: 1_900_000},
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")), Diligence: 1_900_000},
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")), Diligence: 1_900_000},
+				{Addr: testAccount1.addr, Diligence: 1_900_000},
+				{Addr: testAccount2.addr, Diligence: 1_900_000},
+				{Addr: testAccount3.addr, Diligence: 1_900_000},
+				{Addr: testAccount4.addr, Diligence: 1_900_000},
 			},
 			Validators: []uint32{0, 1, 2, 3},
+			BLSPublicKeys: [][]byte{
+				testAccount1.blsKey.PublicKey().Marshal(),
+				testAccount2.blsKey.PublicKey().Marshal(),
+				testAccount3.blsKey.PublicKey().Marshal(),
+				testAccount4.blsKey.PublicKey().Marshal(),
+			},
 		},
 	}
 
 	h := &types.Header{
 		Extra: istRawData,
 	}
-
 	// normal case
 	err := ApplyHeaderQBFTExtra(
 		h,
-		writeCommittedSeals([][]byte{expectedCommittedSeal}),
+		writeCommittedSeals([]qbft.SealData{{Seal: expectedCommittedSeal, Sealer: 0}}),
 	)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want: nil", err)
@@ -96,35 +129,49 @@ func TestWriteCommittedSeals(t *testing.T) {
 	}
 
 	// invalid seal
-	unexpectedCommittedSeal := append(expectedCommittedSeal, make([]byte, 1)...)
 	err = ApplyHeaderQBFTExtra(
 		h,
-		writeCommittedSeals([][]byte{unexpectedCommittedSeal}),
+		writeCommittedSeals([]qbft.SealData{}),
 	)
 	if err != qbftcommon.ErrInvalidCommittedSeals {
 		t.Errorf("error mismatch: have %v, want %v", err, qbftcommon.ErrInvalidCommittedSeals)
 	}
+
+	unexpectedCommittedSeal := append(expectedCommittedSeal, make([]byte, 1)...)
+	err = ApplyHeaderQBFTExtra(
+		h,
+		writeCommittedSeals([]qbft.SealData{{Seal: unexpectedCommittedSeal, Sealer: 0}}),
+	)
+	if err != qbftcommon.ErrInvalidSeal {
+		t.Errorf("error mismatch: have %v, want %v", err, qbftcommon.ErrInvalidSeal)
+	}
 }
 
 func TestWritePreparedSeals(t *testing.T) {
-	istRawData := hexutil.MustDecode("0xf8788080c0c080c0c0f86ff868d99444add0ec310f115a0e603b2d7db9f067778eaf8a831cfde0d994294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212831cfde0d9946beaaed781d2d2ab6350f5c4566a2c6eaac407a6831cfde0d9948be76812f765c24641ec63dc2852b378aba2b440831cfde0c480010203")
-	expectedPreparedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
+	istRawData := hexutil.MustDecode("0xf901a38080c0c080f86301b860a7c28d1668faa74b00d7edb22fb059478b453064c892c6a5fe71063dbdf82b24d64e989a47f7e74274704723e1f163b10d2a32d600bef81b08694f6b75dd0586ed634248bbf16fb4081f847ba5d1ca90ad7a1898f60e46b45ba88c657e04342fc0f90135f868d99438007fcf6b864660f6609a78b234c3ed2dda0165831cfde0d9942348a3100ba18e638b9fbdc71fc30a270da842fe831cfde0d994a2ae7388bbc7ba8cb7077d286a777ff944f75323831cfde0d9946726d67c31f91c8f2312f0d34edc71deb9478653831cfde0c480010203f8c4b0a22bf1dba4afc80a1783fb8f1870d1ff03e360284c2127db01abc0f5c4f810420968d5de337464d53dd926238c2984efb0b324470b778f2b89fee03494ba1e372916afd91d3711e99dd4bccab89b706ee814fbbf9770c14c31da1479beda9a054db0afd075d669527722dde94cb8664e54ae53becf8dd56801ec87c6893351a1691fabb9d2a39c6a864b903f10965bb16bafb08220645a1a3eebe953059de9164d9fec6c30c0dcd22d650f8de907d4c2cd74423312cdb56150019ede5ec1cec43bc8a1")
+	expectedPreparedSeal := testAccount1.blsKey.Sign(append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)).Marshal()
 	expectedIstExtra := &types.QBFTExtra{
 		VanityData:        []byte{},
 		PrevRound:         0,
-		PrevCommittedSeal: [][]byte{},
-		PrevPreparedSeal:  [][]byte{},
+		PrevCommittedSeal: nil,
+		PrevPreparedSeal:  nil,
 		Round:             0,
-		CommittedSeal:     [][]byte{},
-		PreparedSeal:      [][]byte{expectedPreparedSeal},
+		CommittedSeal:     nil,
+		PreparedSeal:      &types.QBFTAggregatedSeal{Signature: expectedPreparedSeal, Sealers: types.SealerSet{0x1}},
 		EpochInfo: &types.EpochInfo{
 			Stakers: []*types.Staker{
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")), Diligence: 1_900_000},
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")), Diligence: 1_900_000},
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")), Diligence: 1_900_000},
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")), Diligence: 1_900_000},
+				{Addr: testAccount1.addr, Diligence: 1_900_000},
+				{Addr: testAccount2.addr, Diligence: 1_900_000},
+				{Addr: testAccount3.addr, Diligence: 1_900_000},
+				{Addr: testAccount4.addr, Diligence: 1_900_000},
 			},
 			Validators: []uint32{0, 1, 2, 3},
+			BLSPublicKeys: [][]byte{
+				testAccount1.blsKey.PublicKey().Marshal(),
+				testAccount2.blsKey.PublicKey().Marshal(),
+				testAccount3.blsKey.PublicKey().Marshal(),
+				testAccount4.blsKey.PublicKey().Marshal(),
+			},
 		},
 	}
 
@@ -135,7 +182,7 @@ func TestWritePreparedSeals(t *testing.T) {
 	// normal case
 	err := ApplyHeaderQBFTExtra(
 		h,
-		writePreparedSeals([][]byte{expectedPreparedSeal}),
+		writePreparedSeals([]qbft.SealData{{Seal: expectedPreparedSeal, Sealer: 0}}),
 	)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want: nil", err)
@@ -151,34 +198,48 @@ func TestWritePreparedSeals(t *testing.T) {
 	}
 
 	// invalid seal
-	unexpectedPreparedSeal := append(expectedPreparedSeal, make([]byte, 1)...)
 	err = ApplyHeaderQBFTExtra(
 		h,
-		writePreparedSeals([][]byte{unexpectedPreparedSeal}),
+		writePreparedSeals([]qbft.SealData{}),
 	)
 	if err != qbftcommon.ErrInvalidPreparedSeals {
 		t.Errorf("error mismatch: have %v, want %v", err, qbftcommon.ErrInvalidPreparedSeals)
 	}
+
+	unexpectedPreparedSeal := append(expectedPreparedSeal, make([]byte, 1)...)
+	err = ApplyHeaderQBFTExtra(
+		h,
+		writePreparedSeals([]qbft.SealData{{Seal: unexpectedPreparedSeal, Sealer: 0}}),
+	)
+	if err != qbftcommon.ErrInvalidSeal {
+		t.Errorf("error mismatch: have %v, want %v", err, qbftcommon.ErrInvalidSeal)
+	}
 }
 
 func TestWriteRoundNumber(t *testing.T) {
-	istRawData := hexutil.MustDecode("0xf8788080c0c080c0c0f86ff868d99444add0ec310f115a0e603b2d7db9f067778eaf8a831cfde0d994294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212831cfde0d9946beaaed781d2d2ab6350f5c4566a2c6eaac407a6831cfde0d9948be76812f765c24641ec63dc2852b378aba2b440831cfde0c480010203")
+	istRawData := hexutil.MustDecode("0xf9013f8080c0c080c0c0f90135f868d99438007fcf6b864660f6609a78b234c3ed2dda0165831cfde0d9942348a3100ba18e638b9fbdc71fc30a270da842fe831cfde0d994a2ae7388bbc7ba8cb7077d286a777ff944f75323831cfde0d9946726d67c31f91c8f2312f0d34edc71deb9478653831cfde0c480010203f8c4b0a22bf1dba4afc80a1783fb8f1870d1ff03e360284c2127db01abc0f5c4f810420968d5de337464d53dd926238c2984efb0b324470b778f2b89fee03494ba1e372916afd91d3711e99dd4bccab89b706ee814fbbf9770c14c31da1479beda9a054db0afd075d669527722dde94cb8664e54ae53becf8dd56801ec87c6893351a1691fabb9d2a39c6a864b903f10965bb16bafb08220645a1a3eebe953059de9164d9fec6c30c0dcd22d650f8de907d4c2cd74423312cdb56150019ede5ec1cec43bc8a1")
 	expectedIstExtra := &types.QBFTExtra{
 		VanityData:        []byte{},
 		PrevRound:         0,
-		PrevCommittedSeal: [][]byte{},
-		PrevPreparedSeal:  [][]byte{},
+		PrevCommittedSeal: nil,
+		PrevPreparedSeal:  nil,
 		Round:             0,
-		CommittedSeal:     [][]byte{},
-		PreparedSeal:      [][]byte{},
+		CommittedSeal:     nil,
+		PreparedSeal:      nil,
 		EpochInfo: &types.EpochInfo{
 			Stakers: []*types.Staker{
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")), Diligence: 1_900_000},
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")), Diligence: 1_900_000},
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")), Diligence: 1_900_000},
-				{Addr: common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")), Diligence: 1_900_000},
+				{Addr: testAccount1.addr, Diligence: 1_900_000},
+				{Addr: testAccount2.addr, Diligence: 1_900_000},
+				{Addr: testAccount3.addr, Diligence: 1_900_000},
+				{Addr: testAccount4.addr, Diligence: 1_900_000},
 			},
 			Validators: []uint32{0, 1, 2, 3},
+			BLSPublicKeys: [][]byte{
+				testAccount1.blsKey.PublicKey().Marshal(),
+				testAccount2.blsKey.PublicKey().Marshal(),
+				testAccount3.blsKey.PublicKey().Marshal(),
+				testAccount4.blsKey.PublicKey().Marshal(),
+			},
 		},
 	}
 
@@ -234,15 +295,17 @@ func (f *fakeChain) insertHeader(h *types.Header) {
 }
 
 type account struct {
-	key  *ecdsa.PrivateKey
-	addr common.Address
+	key    *ecdsa.PrivateKey
+	addr   common.Address
+	blsKey bls.SecretKey
 }
 
 func newAccounts(n int) (accounts []account) {
 	for i := 0; i < n; i++ {
 		key, _ := crypto.GenerateKey()
+		blsKey, _ := bls.DeriveFromECDSA(key)
 		addr := crypto.PubkeyToAddress(key.PublicKey)
-		accounts = append(accounts, account{key: key, addr: addr})
+		accounts = append(accounts, account{key: key, blsKey: blsKey, addr: addr})
 	}
 
 	return accounts
@@ -368,8 +431,10 @@ func TestEpochInfo(t *testing.T) {
 			// Setup validators
 			signers := newAccounts(tc.totValidators)
 			var validators []common.Address
+			var blsPubKeys []string
 			for _, s := range signers {
 				validators = append(validators, s.addr)
+				blsPubKeys = append(blsPubKeys, hexutil.Encode(s.blsKey.PublicKey().Marshal()))
 			}
 
 			// Setup test chain genesis
@@ -377,6 +442,7 @@ func TestEpochInfo(t *testing.T) {
 			c.chainConfig = params.TestChainConfig
 			engine := NewEngine(&qbft.Config{
 				Validators:     validators,
+				BLSPublicKeys:  blsPubKeys,
 				ProposerPolicy: qbft.NewRoundRobinProposerPolicy(),
 				Epoch:          3,
 				MinStakers:     999,
@@ -386,7 +452,8 @@ func TestEpochInfo(t *testing.T) {
 
 			// Finalize and insert blocks based according to test case
 			for i, author := range tc.proposers {
-				var preparedSeals, committedSeals [][]byte
+				var preparedSealDatas, committedSealDatas []qbft.SealData
+				var preparedSeal, committedSeal *types.QBFTAggregatedSeal
 
 				h := makeHeader(parent)
 				h.Coinbase = signers[author].addr
@@ -394,14 +461,16 @@ func TestEpochInfo(t *testing.T) {
 				// Fill prev seals
 				round := uint32((i + 1) % 4) // deterministic random round
 				for _, s := range tc.preparedSeals[i] {
-					preparedSeals = append(preparedSeals, makePrepareSeal(parent, signers[s], round))
+					preparedSealDatas = append(preparedSealDatas, makeSeal(parent, s, signers[s], round, qbftcore.SealTypePrepare))
 				}
 				for _, s := range tc.committedSeals[i] {
-					committedSeals = append(committedSeals, makeCommitSeal(parent, signers[s], round))
+					committedSealDatas = append(committedSealDatas, makeSeal(parent, s, signers[s], round, qbftcore.SealTypeCommit))
 				}
+				preparedSeal, _ = aggregateSeal(preparedSealDatas)
+				committedSeal, _ = aggregateSeal(committedSealDatas)
 				ApplyHeaderQBFTExtra(
 					h,
-					WritePrevSeals(round, preparedSeals, committedSeals),
+					WritePrevSeals(round, preparedSeal, committedSeal),
 				)
 
 				// Build epoch info
@@ -471,8 +540,10 @@ func TestEpochInfoTransition(t *testing.T) {
 			// Setup validators
 			signers := newAccounts(4)
 			var validators []common.Address
+			var blsPubKeys []string
 			for _, s := range signers {
 				validators = append(validators, s.addr)
+				blsPubKeys = append(blsPubKeys, hexutil.Encode(s.blsKey.PublicKey().Marshal()))
 			}
 
 			// Setup test chain genesis
@@ -482,6 +553,7 @@ func TestEpochInfoTransition(t *testing.T) {
 			c.chainConfig.MontBlancBlock = tc.montBlancBlock
 			engine := NewEngine(&qbft.Config{
 				Validators:     validators,
+				BLSPublicKeys:  blsPubKeys,
 				ProposerPolicy: qbft.NewRoundRobinProposerPolicy(),
 				Epoch:          tc.epoch,
 				MinStakers:     999,
@@ -663,12 +735,22 @@ func TestDistributeRewardsOnlyForStakes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup validators
 			signers := newAccounts(len(tc.stakes))
+			var validators []common.Address
+			var blsPubKeys []string
+			for _, s := range signers {
+				validators = append(validators, s.addr)
+				blsPubKeys = append(blsPubKeys, hexutil.Encode(s.blsKey.PublicKey().Marshal()))
+			}
+
+			tc.qbftConfig.Validators = validators[:tc.totValidators]
+			tc.qbftConfig.BLSPublicKeys = blsPubKeys[:tc.totValidators]
 
 			// Setup test chain genesis (non-Brioche config)
 			c := new(fakeChain)
 			c.chainConfig = params.TestChainConfig
 			c.chainConfig.BriocheBlock = nil
 			c.chainConfig.QBFT.BlockReward = (*math.HexOrDecimal256)(big.NewInt(3000000))
+
 			state, _ := state.New(types.EmptyRootHash, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 			engine := NewEngine(tc.qbftConfig, common.Address{}, nil)
 			parent := makeGenesis(signers)
@@ -741,6 +823,7 @@ func makeGenesis(signers []account) *types.Header {
 	for i, s := range signers {
 		e.Stakers = append(e.Stakers, &types.Staker{Addr: s.addr, Diligence: 1900000})
 		e.Validators = append(e.Validators, uint32(i))
+		e.BLSPublicKeys = append(e.BLSPublicKeys, s.blsKey.PublicKey().Marshal())
 	}
 	ApplyHeaderQBFTExtra(header, WriteEpochInfo(e))
 	return header
@@ -754,20 +837,11 @@ func makeHeader(parent *types.Header) *types.Header {
 	return header
 }
 
-func makePrepareSeal(h *types.Header, node account, round uint32) []byte {
-	seal, err := crypto.Sign(qbftcore.PrepareSeal(h, round, qbftcore.SealTypePrepare), node.key)
-	if err != nil {
-		panic(err)
+func makeSeal(h *types.Header, index int, node account, round uint32, sealType qbftcore.SealType) qbft.SealData {
+	return qbft.SealData{
+		Seal:   node.blsKey.Sign(qbftcore.PrepareSeal(h, round, sealType)).Marshal(),
+		Sealer: uint32(index),
 	}
-	return seal
-}
-
-func makeCommitSeal(h *types.Header, node account, round uint32) []byte {
-	seal, err := crypto.Sign(qbftcore.PrepareSeal(h, round, qbftcore.SealTypeCommit), node.key)
-	if err != nil {
-		panic(err)
-	}
-	return seal
 }
 
 func getEpochBlock(e *Engine, chain consensus.ChainHeaderReader, header *types.Header) *types.Header {

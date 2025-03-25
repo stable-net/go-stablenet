@@ -114,7 +114,7 @@ func (b *BlockGen) SetParentBeaconRoot(root common.Hash) {
 // - vmConfig: extends the flexibility for customizing evm rules, e.g. enable extra EIPs
 func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transaction) {
 	if b.gasPool == nil {
-		b.SetCoinbase(common.Address{})
+		b.gasPool = new(GasPool).AddGas(b.header.GasLimit)
 	}
 	b.statedb.SetTxContext(tx.Hash(), len(b.txs))
 	receipt, err := ApplyTransaction(b.cm.config, bc, &b.header.Coinbase, b.gasPool, b.statedb, b.header, tx, &b.header.GasUsed, vmConfig)
@@ -321,7 +321,6 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 	genblock := func(i int, parent *types.Block, triedb *triedb.Database, statedb *state.StateDB) (*types.Block, types.Receipts) {
 		b := &BlockGen{i: i, cm: cm, parent: parent, statedb: statedb, engine: engine}
 		b.header = cm.makeHeader(parent, statedb, b.engine)
-
 		engine.CallEngineSpecific("NewChainHead")
 
 		// Set the difficulty for clique block. The chain maker doesn't have access
@@ -348,15 +347,10 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		if config.DAOForkSupport && config.DAOForkBlock != nil && config.DAOForkBlock.Cmp(b.header.Number) == 0 {
 			misc.ApplyDAOHardFork(statedb)
 		}
+
 		// Execute any user modifications to the block
 		if gen != nil {
 			gen(i, b)
-		}
-		// Only for WBFT: Coinbase is set in engine.Prepare() but makeHeader() does not
-		// call engine.Prepare() so we need to set it before finalizing the block.
-		err := engine.CallEngineSpecific("SetCoinbase", b.header)
-		if err != nil {
-			panic("invalid call of SetCoinbase")
 		}
 
 		block, err := b.engine.FinalizeAndAssemble(cm, b.header, statedb, b.txs, b.uncles, b.receipts, b.withdrawals)
@@ -473,7 +467,14 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 		header.ParentBeaconRoot = new(common.Hash)
 	}
 
-	err := engine.CallEngineSpecific("InheritExtra", parent.Header(), header)
+	// Only for WBFT: Coinbase is set in engine.Prepare() but makeHeader() does not
+	// call engine.Prepare() so we need to set it before finalizing the block.
+	err := engine.CallEngineSpecific("SetCoinbase", header)
+	if err != nil {
+		panic("invalid call of SetCoinbase")
+	}
+
+	err = engine.CallEngineSpecific("InheritExtra", parent.Header(), header)
 	if err != nil {
 		panic("invalid call of InheritExtra")
 	}

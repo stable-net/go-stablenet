@@ -25,12 +25,21 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/qbft"
 )
 
-func New(addr common.Address) qbft.Validator {
+func New(addr common.Address, blsPublicKey []byte) qbft.Validator {
 	return &defaultValidator{
-		address: addr,
+		address:      addr,
+		blsPublicKey: blsPublicKey,
 	}
 }
 
-func NewSet(addrs []common.Address, policy *qbft.ProposerPolicy) qbft.ValidatorSet {
-	return newDefaultSet(addrs, policy)
+func NewSet(addrs []common.Address, blsPublicKeys [][]byte, policy *qbft.ProposerPolicy) qbft.ValidatorSet {
+	validators := make(qbft.Validators, len(addrs))
+	for i, addr := range addrs {
+		validators[i] = New(addr, blsPublicKeys[i])
+	}
+	return newDefaultSet(validators, policy)
+}
+
+func NewSetByValidators(validators qbft.Validators, policy *qbft.ProposerPolicy) qbft.ValidatorSet {
+	return newDefaultSet(validators, policy)
 }

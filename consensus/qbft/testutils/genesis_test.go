@@ -15,11 +15,11 @@ func TestGeneratingGenesisExtra(t *testing.T) {
 	QBFTExtra := &types.QBFTExtra{
 		VanityData:        []byte{},
 		PrevRound:         0,
-		PreparedSeal:      [][]byte{},
-		PrevPreparedSeal:  [][]byte{},
+		PreparedSeal:      &types.QBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
+		PrevPreparedSeal:  &types.QBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
 		Round:             0,
-		CommittedSeal:     [][]byte{},
-		PrevCommittedSeal: [][]byte{},
+		CommittedSeal:     &types.QBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
+		PrevCommittedSeal: &types.QBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
 		EpochInfo: &types.EpochInfo{
 			Stakers: []*types.Staker{
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0xa62987A40E094CbE020313f19F71aeeB3E48B86f")), Diligence: types.DefaultDiligence},
@@ -27,10 +27,11 @@ func TestGeneratingGenesisExtra(t *testing.T) {
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0xd19f9374f4549B2fB182ED766d6b7501494a3634")), Diligence: types.DefaultDiligence},
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0x02cF1E577C79EF0E93947cCd82a4D41E0485Be73")), Diligence: types.DefaultDiligence},
 			},
-			Validators: []uint32{0, 1, 2, 3},
+			Validators:    []uint32{0, 1, 2, 3},
+			BLSPublicKeys: [][]byte{{}, {}, {}, {}},
 		},
 	}
-	genesis := GenesisWithSeals(QBFTExtra.EpochInfo.GetStakers())
+	genesis := GenesisWithSeals(QBFTExtra.EpochInfo.GetStakers(), QBFTExtra.EpochInfo.BLSPublicKeys)
 	t.Log("Genesis Extra Data: ", hex.EncodeToString(genesis.ExtraData))
 	qbftExtra := new(types.QBFTExtra)
 	err := rlp.DecodeBytes(genesis.ExtraData[:], qbftExtra)

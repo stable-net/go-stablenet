@@ -21,7 +21,6 @@
 package backend
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"math/big"
 	"strings"
@@ -34,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/qbft/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestSign(t *testing.T) {
@@ -123,18 +123,19 @@ func TestCommit(t *testing.T) {
 	defer backend.Stop()
 
 	commitCh := make(chan *types.Block)
+	testSignature := backend.SignWithoutHashing([]byte{1})
 	// Case: it's a proposer, so the backend.commit will receive channel result from backend.Commit function
 	testCases := []struct {
 		expectedErr              error
-		expectedPrepareSignature [][]byte
-		expectedCommitSignature  [][]byte
+		expectedPrepareSignature []qbft.SealData
+		expectedCommitSignature  []qbft.SealData
 		expectedBlock            func() *types.Block
 	}{
 		{
 			// normal case
 			nil,
-			[][]byte{append([]byte{1}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-1)...)},
-			[][]byte{append([]byte{1}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-1)...)},
+			[]qbft.SealData{{Seal: testSignature, Sealer: 0}},
+			[]qbft.SealData{{Seal: testSignature, Sealer: 0}},
 			func() *types.Block {
 				chain, engine, _ := newBlockChain(1)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -145,7 +146,7 @@ func TestCommit(t *testing.T) {
 			// invalid prepared signature
 			qbftcommon.ErrInvalidPreparedSeals,
 			nil,
-			[][]byte{append([]byte{1}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-1)...)},
+			[]qbft.SealData{{Seal: testSignature, Sealer: 0}},
 			func() *types.Block {
 				chain, engine, _ := newBlockChain(1)
 				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
@@ -155,7 +156,7 @@ func TestCommit(t *testing.T) {
 		{
 			// invalid commit signature
 			qbftcommon.ErrInvalidCommittedSeals,
-			[][]byte{append([]byte{1}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-1)...)},
+			[]qbft.SealData{{Seal: testSignature, Sealer: 0}},
 			nil,
 			func() *types.Block {
 				chain, engine, _ := newBlockChain(1)
@@ -260,12 +261,15 @@ func newTestValidatorSet(n int) (qbft.ValidatorSet, []*ecdsa.PrivateKey) {
 	// generate validators
 	keys := make(Keys, n)
 	addrs := make([]common.Address, n)
+	blsPubKeys := make([][]byte, n)
 	for i := 0; i < n; i++ {
 		privateKey, _ := crypto.GenerateKey()
 		keys[i] = privateKey
 		addrs[i] = crypto.PubkeyToAddress(privateKey.PublicKey)
+		blsKey, _ := bls.DeriveFromECDSA(privateKey)
+		blsPubKeys[i] = blsKey.PublicKey().Marshal()
 	}
-	vset := validator.NewSet(addrs, qbft.NewRoundRobinProposerPolicy())
+	vset := validator.NewSet(addrs, blsPubKeys, qbft.NewRoundRobinProposerPolicy())
 	return vset, keys
 }
 

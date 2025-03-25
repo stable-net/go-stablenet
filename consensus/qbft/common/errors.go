@@ -77,6 +77,12 @@ var (
 	// ErrEmptyPrevCommittedSeals is returned if the field of committed seals is zero.
 	ErrEmptyPrevCommittedSeals = errors.New("zero prev committed seals")
 
+	// ErrInvalidSeal is returned if the seal is not signed by any of validators.
+	ErrInvalidSeal = errors.New("invalid seal")
+
+	// ErrEmptySeals is returned if the field of seals is zero.
+	ErrEmptySeals = errors.New("zero seals")
+
 	// ErrMismatchTxhashes is returned if the TxHash in header is mismatch.
 	ErrMismatchTxhashes = errors.New("mismatch transactions hashes")
 

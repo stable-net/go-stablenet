@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
@@ -24,7 +25,7 @@ import (
 // 1. remove ibft engine related test code
 // ## Wemix QBFT END
 
-func GenesisWithSeals(validators []common.Address) *core.Genesis {
+func GenesisWithSeals(validators []common.Address, blsPublicKeys [][]byte) *core.Genesis {
 	// generate genesis block
 	genesis := core.DefaultGenesisBlock()
 	genesis.Config = params.TestChainConfig
@@ -34,12 +35,12 @@ func GenesisWithSeals(validators []common.Address) *core.Genesis {
 	genesis.Difficulty = types.QBFTDefaultDifficulty
 	genesis.Nonce = qbftcommon.EmptyBlockNonce.Uint64()
 
-	appendValidatorsAndPrevSeals(genesis, validators)
+	appendValidatorsAndPrevSeals(genesis, validators, blsPublicKeys)
 
 	return genesis
 }
 
-func Genesis(validators []common.Address) *core.Genesis {
+func Genesis(validators []common.Address, blsPublicKeys [][]byte) *core.Genesis {
 	// generate genesis block
 	genesis := core.TestGenesisBlock()
 	genesis.Config = params.TestChainConfig
@@ -51,7 +52,7 @@ func Genesis(validators []common.Address) *core.Genesis {
 	genesis.Alloc[govwbft.GovConstAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovConstContract), Balance: common.Big0}
 	genesis.Alloc[govwbft.GovStakingAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract), Balance: common.Big0}
 
-	appendValidators(genesis, validators)
+	appendValidators(genesis, validators, blsPublicKeys)
 
 	return genesis
 }
@@ -60,13 +61,16 @@ func GenesisAndKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey, []common.Address
 	// Setup validators
 	var nodeKeys = make([]*ecdsa.PrivateKey, n)
 	var addrs = make([]common.Address, n)
+	var blsPubKeys = make([][]byte, n)
 	for i := 0; i < n; i++ {
 		nodeKeys[i], _ = crypto.GenerateKey()
+		blsKey, _ := bls.DeriveFromECDSA(nodeKeys[i])
 		addrs[i] = crypto.PubkeyToAddress(nodeKeys[i].PublicKey)
+		blsPubKeys[i] = blsKey.PublicKey().Marshal()
 	}
 
 	// generate genesis block
-	genesis := Genesis(addrs)
+	genesis := Genesis(addrs, blsPubKeys)
 
 	return genesis, nodeKeys, addrs
 }
@@ -75,6 +79,7 @@ func GenesisAndFixedKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey, []common.Ad
 	// Setup validators
 	var nodeKeys = make([]*ecdsa.PrivateKey, n)
 	var addrs = make([]common.Address, n)
+	var blsPubKeys = make([][]byte, n)
 	// use fixed keys for testing
 	// generated addresses are:
 	// 0: 0xB9Dd267FDb07316f89De27Ed37Ae010525B728Fc
@@ -93,69 +98,55 @@ func GenesisAndFixedKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey, []common.Ad
 		} else if i > 3 {
 			nodeKeys[i], _ = crypto.GenerateKey()
 		}
+		blsKey, _ := bls.DeriveFromECDSA(nodeKeys[i])
 		addrs[i] = crypto.PubkeyToAddress(nodeKeys[i].PublicKey)
+		blsPubKeys[i] = blsKey.PublicKey().Marshal()
 	}
 
 	// generate genesis block
-	genesis := Genesis(addrs)
+	genesis := Genesis(addrs, blsPubKeys)
 
 	return genesis, nodeKeys, addrs
 }
 
-func appendValidators(genesis *core.Genesis, addrs []common.Address) {
+func appendValidators(genesis *core.Genesis, addrs []common.Address, blsPublicKeys [][]byte) {
+	setQBFTExtra(genesis, addrs, blsPublicKeys, false)
+}
+
+func appendValidatorsAndPrevSeals(genesis *core.Genesis, validators []common.Address, blsPublicKeys [][]byte) {
+	setQBFTExtra(genesis, validators, blsPublicKeys, true)
+}
+
+func setQBFTExtra(genesis *core.Genesis, validators []common.Address, blsPublicKeys [][]byte, withPrev bool) {
 	vanity := append(genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(genesis.ExtraData))...)
 
-	var epochInfo *types.EpochInfo
-	if addrs != nil {
-		epochInfo = new(types.EpochInfo)
-		for i, addr := range addrs {
-			epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
-				Addr:      addr,
-				Diligence: types.DefaultDiligence,
-			})
-			epochInfo.Validators = append(epochInfo.Validators, uint32(i))
-		}
+	epochInfo := new(types.EpochInfo)
+	blsPubKeys := make([]string, len(validators))
+	for i, addr := range validators {
+		epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
+			Addr:      addr,
+			Diligence: types.DefaultDiligence,
+		})
+		epochInfo.Validators = append(epochInfo.Validators, uint32(i))
+		epochInfo.BLSPublicKeys = append(epochInfo.BLSPublicKeys, blsPublicKeys[i])
+		blsPubKeys[i] = hexutil.Encode(blsPublicKeys[i])
 	}
+
+	genesis.Config.QBFT.Validators = validators
+	genesis.Config.QBFT.BLSPublicKeys = blsPubKeys
 
 	ist := &types.QBFTExtra{
 		VanityData:    vanity,
 		Round:         0,
-		PreparedSeal:  [][]byte{},
-		CommittedSeal: [][]byte{},
+		PreparedSeal:  &types.QBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
+		CommittedSeal: &types.QBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
 		EpochInfo:     epochInfo,
 	}
 
-	istPayload, err := rlp.EncodeToBytes(&ist)
-	if err != nil {
-		panic("failed to encode qbft extra")
-	}
-	genesis.ExtraData = istPayload
-}
-
-func appendValidatorsAndPrevSeals(genesis *core.Genesis, validators []common.Address) {
-	vanity := append(genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(genesis.ExtraData))...)
-
-	var epochInfo *types.EpochInfo
-	if validators != nil {
-		epochInfo = new(types.EpochInfo)
-		for i, addr := range validators {
-			epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
-				Addr:      addr,
-				Diligence: types.DefaultDiligence,
-			})
-			epochInfo.Validators = append(epochInfo.Validators, uint32(i))
-		}
-	}
-
-	ist := &types.QBFTExtra{
-		VanityData:        vanity,
-		PrevRound:         0,
-		PrevPreparedSeal:  [][]byte{},
-		PrevCommittedSeal: [][]byte{},
-		Round:             0,
-		PreparedSeal:      [][]byte{},
-		CommittedSeal:     [][]byte{},
-		EpochInfo:         epochInfo,
+	if withPrev {
+		ist.PrevRound = 0
+		ist.PrevPreparedSeal = &types.QBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}}
+		ist.PrevCommittedSeal = &types.QBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}}
 	}
 
 	istPayload, err := rlp.EncodeToBytes(&ist)

@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/qbft/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 // Tests combinations of justifications that evaluate to true.
@@ -85,7 +86,7 @@ func testParameterizedCase(
 	messageJustified bool) {
 	pp := qbft.NewRoundRobinProposerPolicy()
 	pp.Use(qbft.ValidatorSortByByte())
-	validatorSet := validator.NewSet(generateValidators(quorumSize), pp)
+	validatorSet := validator.NewSetByValidators(generateValidators(quorumSize), pp)
 	block := makeBlock(1)
 	var round int64 = 10
 	var targetPreparedRound int64 = 5
@@ -160,11 +161,12 @@ func createPrepareMessage(from common.Address, round int64, preparedBlock qbft.P
 	return qbftmessage.NewPrepareWithSigAndSource(big.NewInt(1), big.NewInt(round), preparedBlock.Hash(), nil, from, nil)
 }
 
-func generateValidators(n int) []common.Address {
-	vals := make([]common.Address, 0)
+func generateValidators(n int) []qbft.Validator {
+	vals := make([]qbft.Validator, 0)
 	for i := 0; i < n; i++ {
 		privateKey, _ := crypto.GenerateKey()
-		vals = append(vals, crypto.PubkeyToAddress(privateKey.PublicKey))
+		blsKey, _ := bls.DeriveFromECDSA(privateKey)
+		vals = append(vals, validator.New(crypto.PubkeyToAddress(privateKey.PublicKey), blsKey.PublicKey().Marshal()))
 	}
 	return vals
 }

@@ -32,6 +32,7 @@ import (
 	qbftmessage "github.com/ethereum/go-ethereum/consensus/qbft/messages"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	metrics "github.com/ethereum/go-ethereum/metrics"
@@ -68,7 +69,7 @@ func New(backend Backend, config *qbft.Config) *Core {
 		pendingRequests:    prque.New[int64, *Request](nil),
 		pendingRequestsMu:  new(sync.Mutex),
 		consensusTimestamp: time.Time{},
-		priorState:         priorState{new(sync.RWMutex), common.Big0, nil},
+		priorState:         priorState{new(sync.RWMutex), common.Big0, nil, nil},
 	}
 
 	c.validateFn = c.checkValidatorSignature
@@ -125,6 +126,10 @@ func (c *Core) currentView() *qbft.View {
 
 func (c *Core) PriorRound() *big.Int {
 	return c.priorState.Round()
+}
+
+func (c *Core) PriorValidators() qbft.ValidatorSet {
+	return c.priorState.Validators()
 }
 
 func (c *Core) IsProposer() bool {
@@ -208,21 +213,23 @@ func (c *Core) startNewRound(round *big.Int) {
 
 	// Create next view
 	var newView *qbft.View
+	var nextValSet qbft.ValidatorSet
 	if roundChange {
 		newView = &qbft.View{
 			Sequence: new(big.Int).Set(c.current.Sequence()),
 			Round:    new(big.Int).Set(round),
 		}
+		nextValSet = c.valSet
 	} else {
 		newView = &qbft.View{
 			Sequence: new(big.Int).Add(lastProposal.Number(), common.Big1),
 			Round:    new(big.Int),
 		}
-		c.valSet = c.backend.Validators(lastProposal)
+		nextValSet = c.backend.Validators(lastProposal)
 	}
 
 	// New snapshot for new round
-	c.updateRoundState(newView, c.valSet, roundChange)
+	c.updateRoundState(nextValSet, newView, roundChange)
 
 	// Calculate new proposer
 	c.valSet.CalcProposer(lastProposer, newView.Round.Uint64())
@@ -246,16 +253,17 @@ func (c *Core) startNewRound(round *big.Int) {
 }
 
 // updateRoundState updates round state by checking if locking block is necessary
-func (c *Core) updateRoundState(view *qbft.View, validatorSet qbft.ValidatorSet, roundChange bool) {
+func (c *Core) updateRoundState(nextValSet qbft.ValidatorSet, view *qbft.View, roundChange bool) {
 	if roundChange && c.current != nil {
-		c.current = newRoundState(view, validatorSet, c.current.Preprepare, c.current.preparedRound, c.current.preparedBlock, c.current.pendingRequest, c.backend.HasBadProposal)
+		c.current = newRoundState(view, nextValSet, c.current.Preprepare, c.current.preparedRound, c.current.preparedBlock, c.current.pendingRequest, c.backend.HasBadProposal)
 	} else {
 		if c.current != nil {
 			// priorState is only set for finalCommitted block
-			c.updatePriorState(c.current.Round(), c.current.Proposal())
+			c.updatePriorState()
 		}
-		c.current = newRoundState(view, validatorSet, nil, nil, nil, nil, c.backend.HasBadProposal)
+		c.current = newRoundState(view, nextValSet, nil, nil, nil, nil, c.backend.HasBadProposal)
 	}
+	c.valSet = nextValSet
 }
 
 func (c *Core) setState(state State) {
@@ -354,13 +362,20 @@ func PrepareSeal(header *types.Header, round uint32, sealType SealType) []byte {
 	return crypto.Keccak256Hash(append(roundHeader, byte(sealType))).Bytes()
 }
 
-func verifySeal(header *types.Header, round uint32, sealType SealType, seal []byte, sealer common.Address) error {
-	calcSealData := PrepareSeal(header, round, sealType)
-	calcSealer, err := qbft.GetSignatureAddressNoHashing(calcSealData, seal)
+func verifySeal(valSet qbft.ValidatorSet, header *types.Header, round uint32, sealType SealType, seal []byte, sealer common.Address) error {
+	_, validator := valSet.GetByAddress(sealer)
+
+	pubkey, err := bls.PublicKeyFromBytes(validator.BLSPublicKey())
 	if err != nil {
 		return err
 	}
-	if calcSealer.Cmp(sealer) != 0 {
+
+	sig, err := bls.SignatureFromBytes(seal)
+	if err != nil {
+		return errInvalidSeal
+	}
+
+	if !sig.Verify(pubkey, PrepareSeal(header, round, sealType)) {
 		return errInvalidSigner
 	}
 	return nil

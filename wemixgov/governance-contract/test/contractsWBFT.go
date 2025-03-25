@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient/simulated"
 	"github.com/ethereum/go-ethereum/node"
@@ -104,7 +105,11 @@ func (g *GovWBFT) ExpectedFail(tx *types.Transaction, txErr error) error {
 
 // Staking Contract
 func (g *GovWBFT) RegisterStaker(t *testing.T, v *TestStaker, amount *big.Int) (*types.Transaction, error) {
-	return g.stakingContractTx(t, "registerStaker", v.Operator, amount, amount, v.Staker.Address, v.Rewardee.Address)
+	blsPubKey, err := v.GetBLSPublicKey()
+	if err != nil {
+		return nil, err
+	}
+	return g.stakingContractTx(t, "registerStaker", v.Operator, amount, amount, v.Staker.Address, v.Rewardee.Address, blsPubKey.Marshal())
 }
 
 func (g *GovWBFT) Stake(t *testing.T, operator *EOA, amount *big.Int) (*types.Transaction, error) {
@@ -119,7 +124,7 @@ func (g *GovWBFT) Delegate(t *testing.T, delegator *EOA, staker common.Address, 
 	return g.stakingContractTx(t, "delegate", delegator, amount, staker, amount)
 }
 
-func (g *GovWBFT) Unelegate(t *testing.T, delegator *EOA, staker common.Address, amount *big.Int) (*types.Transaction, error) {
+func (g *GovWBFT) Undelegate(t *testing.T, delegator *EOA, staker common.Address, amount *big.Int) (*types.Transaction, error) {
 	return g.stakingContractTx(t, "undelegate", delegator, nil, staker, amount)
 }
 
@@ -176,4 +181,20 @@ func NewTestStaker() *TestStaker {
 		Operator: NewEOA(),
 		Rewardee: NewEOA(),
 	}
+}
+
+func (s *TestStaker) GetBLSSecretKey() (bls.SecretKey, error) {
+	blsSecretKey, err := bls.DeriveFromECDSA(s.Staker.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	return blsSecretKey, nil
+}
+
+func (s *TestStaker) GetBLSPublicKey() (bls.PublicKey, error) {
+	blsSecretKey, err := s.GetBLSSecretKey()
+	if err != nil {
+		return nil, err
+	}
+	return blsSecretKey.PublicKey(), nil
 }

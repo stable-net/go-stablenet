@@ -42,13 +42,9 @@ func (c *Core) broadcastPrepare() {
 	if block, ok := c.current.Proposal().(*types.Block); ok {
 		header = block.Header()
 	}
-	// Create Prepare Seal
-	prepareSeal, err := c.backend.SignWithoutHashing(PrepareSeal(header, uint32(c.currentView().Round.Uint64()), SealTypePrepare))
-	if err != nil {
-		logger.Error("QBFT: failed to create PREPARE seal", "sub", sub, "err", err)
-		return
-	}
 
+	// Create Prepare Seal
+	prepareSeal := c.backend.SignWithoutHashing(PrepareSeal(header, uint32(c.currentView().Round.Uint64()), SealTypePrepare))
 	prepare := qbftmessage.NewPrepare(sub.View.Sequence, sub.View.Round, sub.Digest, prepareSeal)
 	prepare.SetSource(c.Address())
 
@@ -103,7 +99,8 @@ func (c *Core) handlePrepareMsg(prepare *qbftmessage.Prepare) error {
 	if !ok {
 		return errInvalidMessage
 	}
-	if verifySeal(block.Header(), uint32(prepare.CommonPayload.Round.Uint64()), SealTypePrepare,
+
+	if verifySeal(c.valSet, block.Header(), uint32(prepare.CommonPayload.Round.Uint64()), SealTypePrepare,
 		prepare.PrepareSeal, prepare.Source()) != nil {
 		return errInvalidMessage
 	}

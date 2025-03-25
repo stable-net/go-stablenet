@@ -88,7 +88,7 @@ func (api *API) commitSigners(header *types.Header) (*BlockSigners, error) {
 		return nil, err
 	}
 
-	committers, err := api.backend.CommitSigners(header)
+	committers, err := api.backend.CommitSigners(api.chain, header)
 	if err != nil {
 		return nil, err
 	}

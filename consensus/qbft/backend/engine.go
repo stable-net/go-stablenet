@@ -56,15 +56,15 @@ func (sb *Backend) Author(header *types.Header) (common.Address, error) {
 // PrepareSigners extracts all the addresses who have signed the given header
 // during the prepare phase. It will extract for each seal who signed it,
 // regardless of if the seal is repeated
-func (sb *Backend) PrepareSigners(header *types.Header) ([]common.Address, error) {
-	return sb.Engine().PrepareSigners(header)
+func (sb *Backend) PrepareSigners(chain consensus.ChainHeaderReader, header *types.Header) ([]common.Address, error) {
+	return sb.Engine().PrepareSigners(chain, header)
 }
 
 // CommitSigners extracts all the addresses who have signed the given header
 // during the commit phase. It will extract for each seal who signed it,
 // regardless of if the seal is repeated
-func (sb *Backend) CommitSigners(header *types.Header) ([]common.Address, error) {
-	return sb.Engine().CommitSigners(header)
+func (sb *Backend) CommitSigners(chain consensus.ChainHeaderReader, header *types.Header) ([]common.Address, error) {
+	return sb.Engine().CommitSigners(chain, header)
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules of a
@@ -226,16 +226,14 @@ func (sb *Backend) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 	return nil
 }
 
-func (sb *Backend) processExtraSeals() (map[common.Hash][]byte, map[common.Hash][]byte) {
+func (sb *Backend) processExtraSeals() ([]qbft.SealData, []qbft.SealData) {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if sb.core == nil {
 		sb.logger.Warn("WBFT: fail to process extra seals due to nil core")
 		return nil, nil
 	} else {
-		lastProposal := sb.currentBlock()
-		extraPreparedSeal, extraCommittedSeal := sb.core.ProcessExtraSeal(lastProposal, sb.core.PriorRound())
-		return extraPreparedSeal, extraCommittedSeal
+		return sb.core.ProcessExtraSeal(sb.currentBlock(), sb.core.PriorRound(), sb.core.PriorValidators())
 	}
 }
 
@@ -348,11 +346,15 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		extra, err := types.ExtractQBFTExtra(parent)
 		if err != nil {
 			return err
-		} else if extra.PreparedSeal == nil {
-			return qbftcommon.ErrEmptyPreparedSeals
-		} else if extra.CommittedSeal == nil {
-			// TODO : what if there is not committedSeal that node collected?
-			return qbftcommon.ErrEmptyCommittedSeals
+		}
+
+		if parent.Number.Sign() > 0 {
+			if extra.PreparedSeal == nil {
+				return qbftcommon.ErrEmptyPreparedSeals
+			} else if extra.CommittedSeal == nil {
+				// TODO : what if there is not committedSeal that node collected?
+				return qbftcommon.ErrEmptyCommittedSeals
+			}
 		}
 
 		prevPreparedSeal := extra.PreparedSeal
@@ -392,8 +394,7 @@ func (sb *Backend) GetValidatorsForVerifying(chain consensus.ChainHeaderReader, 
 		return nil, nil, consensus.ErrUnknownAncestor
 	}
 
-	if (chain.Config().MontBlancBlock == nil && blockNumber.Uint64() >= 2) ||
-		(chain.Config().MontBlancBlock != nil && blockNumber.Uint64() >= chain.Config().MontBlancBlock.Uint64()+2) {
+	if blockNumber.Uint64() >= qbft.GetFirstWbftBlockNumber(chain.Config()).Uint64()+2 {
 		var parent *types.Header
 		if len(parents) == 0 {
 			parent = chain.GetHeader(parentHash, blockNumber.Uint64()-1)

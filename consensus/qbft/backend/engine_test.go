@@ -45,6 +45,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/eth/fetcher"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -151,6 +152,7 @@ func newBlockchainFromConfig(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey
 			backend.privateKey = key
 			backend.address = addr
 			backend.qbftEngine = qbftengine.NewEngine(backend.config, addr, backend.Sign)
+			backend.blsSecretKey, _ = bls.DeriveFromECDSA(key)
 			// set backend's node to first index of nodes for convenient
 			nodes[0], nodes[i] = nodes[i], nodes[0]
 			break
@@ -172,12 +174,12 @@ func newBlockChain(n int) (*core.BlockChain, *Backend, []otherNode) {
 	return newBlockchainFromConfig(genesis, nodeKeys, config)
 }
 
-func newBlockChainWithCustom(n int, customizeConfig func(config *qbft.Config) *qbft.Config) (*core.BlockChain, *Backend, []otherNode) {
+func newBlockChainWithCustom(n int, customizeConfig func(config *qbft.Config)) (*core.BlockChain, *Backend, []otherNode) {
 	genesis, nodeKeys, _ := testutils.GenesisAndKeys(n)
 
 	config := new(qbft.Config)
 	setConfigFromChainConfig(config, genesis.Config)
-	config = customizeConfig(config)
+	customizeConfig(config)
 
 	return newBlockchainFromConfig(genesis, nodeKeys, config)
 }
@@ -200,6 +202,7 @@ func setConfigFromChainConfig(qbftCfg *qbft.Config, config *params.ChainConfig) 
 	qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.QBFT.ProposerPolicy))
 	qbftCfg.BlockReward = config.QBFT.BlockReward
 	qbftCfg.Validators = config.QBFT.Validators
+	qbftCfg.BLSPublicKeys = config.QBFT.BLSPublicKeys
 
 	if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
 		qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds
@@ -235,6 +238,16 @@ func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *ty
 // makeBlock create block executing no txs without seal
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
 	engine.NewChainHead() // progress to next sequence
+	if engine.core.GetState() != qbftcore.StateAcceptRequest {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		for {
+			<-ticker.C
+			if engine.core.GetState() == qbftcore.StateAcceptRequest {
+				ticker.Stop()
+				break
+			}
+		}
+	}
 	header := makeHeader(chain.Config(), engine.config, parent)
 	engine.Prepare(chain, header)
 	block := types.NewBlock(header, nil, nil, nil, trie.NewStackTrie(nil))
@@ -292,8 +305,8 @@ func TestSealCommittedOtherHash(t *testing.T) {
 	defer engine.Stop()
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	otherBlock := makeBlockWithoutSeal(chain, engine, block)
-	expectedPreparedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
-	expectedCommittedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
+	expectedPreparedSeal := engine.blsSecretKey.Sign(append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)).Marshal()
+	expectedCommittedSeal := engine.blsSecretKey.Sign(append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)).Marshal()
 
 	eventSub := engine.EventMux().Subscribe(qbft.RequestEvent{})
 	defer eventSub.Unsubscribe()
@@ -309,7 +322,10 @@ func TestSealCommittedOtherHash(t *testing.T) {
 		t.Errorf("unexpected event comes: %v", reflect.TypeOf(ev.Data))
 	}
 
-	if err := engine.Commit(otherBlock, [][]byte{expectedPreparedSeal}, [][]byte{expectedCommittedSeal}, big.NewInt(0)); err != nil {
+	if err := engine.Commit(otherBlock,
+		[]qbft.SealData{{Sealer: 0, Seal: expectedPreparedSeal}},
+		[]qbft.SealData{{Sealer: 0, Seal: expectedCommittedSeal}},
+		big.NewInt(0)); err != nil {
 		t.Error(err.Error())
 	}
 
@@ -338,8 +354,8 @@ func TestSealCommitted(t *testing.T) {
 	defer engine.Stop()
 	block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
 	expectedBlock := updateQBFTBlock(block, engine.Address())
-	expectedPreparedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
-	expectedCommittedSeal := append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)
+	expectedPreparedSeal := engine.blsSecretKey.Sign(append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)).Marshal()
+	expectedCommittedSeal := engine.blsSecretKey.Sign(append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)).Marshal()
 
 	eventSub := engine.EventMux().Subscribe(qbft.RequestEvent{})
 	defer eventSub.Unsubscribe()
@@ -354,7 +370,10 @@ func TestSealCommitted(t *testing.T) {
 		t.Errorf("unexpected event comes: %v", reflect.TypeOf(ev.Data))
 	}
 
-	if err := engine.Commit(expectedBlock, [][]byte{expectedPreparedSeal}, [][]byte{expectedCommittedSeal}, big.NewInt(0)); err != nil {
+	if err := engine.Commit(expectedBlock,
+		[]qbft.SealData{{Sealer: 0, Seal: expectedPreparedSeal}},
+		[]qbft.SealData{{Sealer: 0, Seal: expectedCommittedSeal}},
+		big.NewInt(0)); err != nil {
 		t.Error(err.Error())
 	}
 
@@ -414,7 +433,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				extra, _ := types.ExtractQBFTExtra(header)
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, [][]byte{}, extra.PrevCommittedSeal)); err != nil {
+				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, nil, extra.PrevCommittedSeal)); err != nil {
 					return nil
 				}
 				return header
@@ -426,7 +445,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				extra, _ := types.ExtractQBFTExtra(header)
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, extra.PrevPreparedSeal, [][]byte{})); err != nil {
+				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, extra.PrevPreparedSeal, nil)); err != nil {
 					return nil
 				}
 				return header
@@ -439,7 +458,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				extra, _ := types.ExtractQBFTExtra(header)
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, [][]byte{}, extra.PrevCommittedSeal)); err != nil {
+				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, nil, extra.PrevCommittedSeal)); err != nil {
 					return nil
 				}
 				return header
@@ -451,7 +470,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				extra, _ := types.ExtractQBFTExtra(header)
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, extra.PrevPreparedSeal, [][]byte{})); err != nil {
+				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, extra.PrevPreparedSeal, nil)); err != nil {
 					return nil
 				}
 				return header
@@ -464,7 +483,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				qbftExtra, _ := types.ExtractQBFTExtra(header)
-				qbftExtra.PreparedSeal = [][]byte{}
+				qbftExtra.PreparedSeal = nil
 
 				payload, err := rlp.EncodeToBytes(qbftExtra)
 				if err != nil {
@@ -480,7 +499,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				qbftExtra, _ := types.ExtractQBFTExtra(header)
-				qbftExtra.CommittedSeal = [][]byte{}
+				qbftExtra.CommittedSeal = nil
 
 				payload, err := rlp.EncodeToBytes(qbftExtra)
 				if err != nil {
@@ -496,7 +515,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				qbftExtra, _ := types.ExtractQBFTExtra(header)
-				qbftExtra.PreparedSeal = [][]byte{}
+				qbftExtra.PreparedSeal = nil
 
 				payload, err := rlp.EncodeToBytes(qbftExtra)
 				if err != nil {
@@ -512,7 +531,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				qbftExtra, _ := types.ExtractQBFTExtra(header)
-				qbftExtra.CommittedSeal = [][]byte{}
+				qbftExtra.CommittedSeal = nil
 
 				payload, err := rlp.EncodeToBytes(qbftExtra)
 				if err != nil {
@@ -732,20 +751,20 @@ func TestPrevSeals(t *testing.T) {
 		t.Error(err.Error())
 	}
 
-	if len(nextBlockExtra.PrevPreparedSeal) != 1 {
-		t.Errorf("prev prepared seals mismatch: have %v, want 1", len(nextBlockExtra.PrevPreparedSeal))
+	if len(nextBlockExtra.PrevPreparedSeal.Sealers.GetSealers()) != 1 {
+		t.Errorf("prev prepared seals mismatch: have %v, want 1", len(nextBlockExtra.PrevPreparedSeal.Sealers.GetSealers()))
 	}
 
-	if !bytes.Equal(blockExtra.PreparedSeal[0], nextBlockExtra.PrevPreparedSeal[0]) {
-		t.Errorf("prev prepared seals mismatch: have %v, want %v", nextBlockExtra.PrevPreparedSeal[0], blockExtra.PreparedSeal[0])
+	if !bytes.Equal(blockExtra.PreparedSeal.Signature, nextBlockExtra.PrevPreparedSeal.Signature) {
+		t.Errorf("prev prepared seals mismatch: have %v, want %v", nextBlockExtra.PrevPreparedSeal.Signature, blockExtra.PreparedSeal.Signature)
 	}
 
-	if len(nextBlockExtra.PrevCommittedSeal) != 1 {
-		t.Errorf("committed seals mismatch: have %v, want 1", len(nextBlockExtra.PrevCommittedSeal))
+	if len(nextBlockExtra.PrevCommittedSeal.Sealers.GetSealers()) != 1 {
+		t.Errorf("committed seals mismatch: have %v, want 1", len(nextBlockExtra.PrevCommittedSeal.Sealers.GetSealers()))
 	}
 
-	if !bytes.Equal(blockExtra.CommittedSeal[0], nextBlockExtra.PrevCommittedSeal[0]) {
-		t.Errorf("committed seals mismatch: have %v, want %v", nextBlockExtra.PrevCommittedSeal[0], blockExtra.CommittedSeal[0])
+	if !bytes.Equal(blockExtra.CommittedSeal.Signature, nextBlockExtra.PrevCommittedSeal.Signature) {
+		t.Errorf("committed seals mismatch: have %v, want %v", nextBlockExtra.PrevCommittedSeal.Signature, blockExtra.CommittedSeal.Signature)
 	}
 }
 
@@ -791,10 +810,11 @@ func nodeSendPreprepareMsg(qbftEngine *Backend, node otherNode, sequence, round 
 }
 
 func nodeSendPrepareMsg(qbftEngine *Backend, node otherNode, sequence, round *big.Int, targetBlock *types.Block) error {
-	prepareSeal, err := crypto.Sign(qbftcore.PrepareSeal(targetBlock.Header(), uint32(round.Uint64()), qbftcore.SealTypePrepare), node.privateKey)
+	blsKey, err := bls.DeriveFromECDSA(node.privateKey)
 	if err != nil {
 		return err
 	}
+	prepareSeal := blsKey.Sign(qbftcore.PrepareSeal(targetBlock.Header(), uint32(round.Uint64()), qbftcore.SealTypePrepare)).Marshal()
 	prepare := messages.NewPrepare(sequence, round, targetBlock.Hash(), prepareSeal)
 	payload, err := makeQBFTMessagePayload(prepare, node)
 	if err != nil {
@@ -806,7 +826,11 @@ func nodeSendPrepareMsg(qbftEngine *Backend, node otherNode, sequence, round *bi
 }
 
 func nodeSendCommitMsg(qbftEngine *Backend, node otherNode, sequence, round *big.Int, targetBlock *types.Block) error {
-	commitSeal, err := crypto.Sign(qbftcore.PrepareSeal(targetBlock.Header(), uint32(round.Uint64()), qbftcore.SealTypeCommit), node.privateKey)
+	blsKey, err := bls.DeriveFromECDSA(node.privateKey)
+	if err != nil {
+		return err
+	}
+	commitSeal := blsKey.Sign(qbftcore.PrepareSeal(targetBlock.Header(), uint32(round.Uint64()), qbftcore.SealTypeCommit)).Marshal()
 	if err != nil {
 		return err
 	}
@@ -1026,7 +1050,7 @@ func TestAddingExtraSeals(t *testing.T) {
 	}
 	wg.Wait()
 
-	extraPrepared, extraCommitted := engine.core.ProcessExtraSeal(proposedBlock, big.NewInt(0))
+	extraPrepared, extraCommitted := engine.core.ProcessExtraSeal(proposedBlock, big.NewInt(0), engine.core.PriorValidators())
 	if len(extraPrepared) != expectedAdditionalPreparedSealCnt {
 		t.Errorf("unexpected prepared extra seal count. want %v, have %v", expectedAdditionalPreparedSealCnt, len(extraPrepared))
 	}
@@ -1049,7 +1073,7 @@ func TestLackingSealsFromPropagatedBlock(t *testing.T) {
 	header := validBlock.Header()
 	qbftExtra, _ := types.ExtractQBFTExtra(header)
 
-	qbftExtra.PreparedSeal = qbftExtra.PreparedSeal[2:]
+	qbftExtra.PreparedSeal.Sealers.ClearSealer(0)
 	payload, err := rlp.EncodeToBytes(qbftExtra)
 	if err != nil {
 		t.Errorf("failed to encode qbftExtra. err %v", err)
@@ -1103,9 +1127,8 @@ an error is returned from verifyCascadingFields. In VerifyBlockProposal, this er
 However, the issue was that the subsequent checks in the code after the error was returned were not executed.
 */
 func TestVerifyProposalBug(t *testing.T) {
-	chain, engine, _ := newBlockChainWithCustom(1, func(config *qbft.Config) *qbft.Config {
+	chain, engine, _ := newBlockChainWithCustom(1, func(config *qbft.Config) {
 		config.BlockPeriod = 1
-		return config
 	})
 	defer engine.Stop()
 

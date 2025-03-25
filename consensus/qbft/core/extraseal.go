@@ -3,7 +3,6 @@ package core
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
 	qbftmessage "github.com/ethereum/go-ethereum/consensus/qbft/messages"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -16,12 +15,15 @@ func (c *Core) addToExtraSeal(msg qbftmessage.QBFTMessage) error {
 		block    *types.Block
 		ok       bool
 		sealType SealType
+		valSet   qbft.ValidatorSet
 	)
 
 	if c.state == StateAcceptRequest {
 		block, ok = c.priorState.Proposal().(*types.Block)
+		valSet = c.priorState.Validators()
 	} else {
 		block, ok = c.current.Proposal().(*types.Block)
+		valSet = c.valSet
 	}
 	if !ok {
 		// ignore if block is not found
@@ -37,7 +39,7 @@ func (c *Core) addToExtraSeal(msg qbftmessage.QBFTMessage) error {
 			return errInvalidMessage
 		}
 		// verify msg seal is matched with msg digest and seal type
-		if err := verifySeal(block.Header(), uint32(prepareMsg.CommonPayload.Round.Uint64()), sealType,
+		if err := verifySeal(valSet, block.Header(), uint32(prepareMsg.CommonPayload.Round.Uint64()), sealType,
 			prepareMsg.PrepareSeal, prepareMsg.Source()); err != nil {
 			return errInvalidSeal
 		}
@@ -59,7 +61,7 @@ func (c *Core) addToExtraSeal(msg qbftmessage.QBFTMessage) error {
 			return errInvalidMessage
 		}
 		// verify msg seal is matched with msg digest and seal type
-		if err := verifySeal(block.Header(), uint32(commitMsg.CommonPayload.Round.Uint64()), sealType,
+		if err := verifySeal(valSet, block.Header(), uint32(commitMsg.CommonPayload.Round.Uint64()), sealType,
 			commitMsg.CommitSeal, commitMsg.Source()); err != nil {
 			return errInvalidSeal
 		}
@@ -82,12 +84,12 @@ func (c *Core) addToExtraSeal(msg qbftmessage.QBFTMessage) error {
 
 // ProcessExtraSeal collects prepare and commit messages that have been stored in extraSeal
 // and pass it to backend preparing new block
-func (c *Core) ProcessExtraSeal(lastProposal qbft.Proposal, priorRound *big.Int) (map[common.Hash][]byte, map[common.Hash][]byte) {
+func (c *Core) ProcessExtraSeal(lastProposal qbft.Proposal, priorRound *big.Int, valSet qbft.ValidatorSet) ([]qbft.SealData, []qbft.SealData) {
 	c.extraSealsMu.Lock()
 	defer c.extraSealsMu.Unlock()
 
-	preparedSeal := make(map[common.Hash][]byte)
-	committedSeal := make(map[common.Hash][]byte)
+	preparedSeal := make([]qbft.SealData, 0)
+	committedSeal := make([]qbft.SealData, 0)
 	// latestView is view to process extra seal
 	latestView := qbft.View{
 		Round:    priorRound,
@@ -100,7 +102,14 @@ func (c *Core) ProcessExtraSeal(lastProposal qbft.Proposal, priorRound *big.Int)
 			view := msg.View()
 			if latestView.Cmp(&view) == 0 && msg.Digest == lastProposal.Hash() {
 				// this seal(c.prepareExtraSeals[addr]) is valid and re-usable for this sequence
-				preparedSeal[common.BytesToHash(msg.PrepareSeal[:])] = msg.PrepareSeal[:]
+				idx, _ := valSet.GetByAddress(msg.Source())
+				if idx < 0 {
+					continue
+				}
+				preparedSeal = append(preparedSeal, qbft.SealData{
+					Sealer: uint32(idx),
+					Seal:   append([]byte{}, msg.PrepareSeal...),
+				})
 			} else {
 				delete(c.prepareExtraSeals, addr) // erase invalid seal
 			}
@@ -113,7 +122,14 @@ func (c *Core) ProcessExtraSeal(lastProposal qbft.Proposal, priorRound *big.Int)
 			view := msg.View()
 			if latestView.Cmp(&view) == 0 && msg.Digest == lastProposal.Hash() {
 				// this seal(c.commitExtraSeals[addr]) is valid and re-usable for this sequence
-				committedSeal[common.BytesToHash(msg.CommitSeal[:])] = msg.CommitSeal[:]
+				idx, _ := valSet.GetByAddress(msg.Source())
+				if idx < 0 {
+					continue
+				}
+				committedSeal = append(committedSeal, qbft.SealData{
+					Sealer: uint32(idx),
+					Seal:   append([]byte{}, msg.CommitSeal...),
+				})
 			} else {
 				delete(c.commitExtraSeals, addr) // erase invalid seal
 			}

@@ -22,6 +22,7 @@ package core
 
 import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/qbft"
 	qbftmessage "github.com/ethereum/go-ethereum/consensus/qbft/messages"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -43,13 +44,9 @@ func (c *Core) broadcastCommit() {
 	if block, ok := c.current.Proposal().(*types.Block); ok {
 		header = block.Header()
 	}
-	// Create Commit Seal
-	commitSeal, err := c.backend.SignWithoutHashing(PrepareSeal(header, uint32(c.currentView().Round.Uint64()), SealTypeCommit))
-	if err != nil {
-		logger.Error("QBFT: failed to create COMMIT seal", "sub", sub, "err", err)
-		return
-	}
 
+	// Create Commit Seal
+	commitSeal := c.backend.SignWithoutHashing(PrepareSeal(header, uint32(c.currentView().Round.Uint64()), SealTypeCommit))
 	commit := qbftmessage.NewCommit(sub.View.Sequence, sub.View.Round, sub.Digest, commitSeal)
 	commit.SetSource(c.Address())
 
@@ -105,7 +102,8 @@ func (c *Core) handleCommitMsg(commit *qbftmessage.Commit) error {
 	if !ok {
 		return errInvalidMessage
 	}
-	if verifySeal(block.Header(), uint32(commit.CommonPayload.Round.Uint64()), SealTypeCommit,
+
+	if verifySeal(c.valSet, block.Header(), uint32(commit.CommonPayload.Round.Uint64()), SealTypeCommit,
 		commit.CommitSeal, commit.Source()) != nil {
 		return errInvalidMessage
 	}
@@ -139,19 +137,33 @@ func (c *Core) commitQBFT() {
 	proposal := c.current.Proposal()
 	if proposal != nil {
 		// Compute prepared seals
-		preparedSeals := make([][]byte, c.current.QBFTPrepares.Size())
+		preparedSeals := make([]qbft.SealData, c.current.QBFTPrepares.Size())
 		for i, msg := range c.current.QBFTPrepares.Values() {
-			preparedSeals[i] = make([]byte, types.IstanbulExtraSeal)
+			idx, _ := c.valSet.GetByAddress(msg.Source())
+			if idx < 0 {
+				continue
+			}
+			preparedSeals[i] = qbft.SealData{
+				Sealer: uint32(idx),
+				Seal:   make([]byte, types.IstanbulExtraSeal),
+			}
 			prepareMsg := msg.(*qbftmessage.Prepare)
-			copy(preparedSeals[i][:], prepareMsg.PrepareSeal[:])
+			copy(preparedSeals[i].Seal[:], prepareMsg.PrepareSeal[:])
 		}
 
 		// Compute committed seals
-		committedSeals := make([][]byte, c.current.QBFTCommits.Size())
+		committedSeals := make([]qbft.SealData, c.current.QBFTCommits.Size())
 		for i, msg := range c.current.QBFTCommits.Values() {
-			committedSeals[i] = make([]byte, types.IstanbulExtraSeal)
+			idx, _ := c.valSet.GetByAddress(msg.Source())
+			if idx < 0 {
+				continue
+			}
+			committedSeals[i] = qbft.SealData{
+				Sealer: uint32(idx),
+				Seal:   make([]byte, types.IstanbulExtraSeal),
+			}
 			commitMsg := msg.(*qbftmessage.Commit)
-			copy(committedSeals[i][:], commitMsg.CommitSeal[:])
+			copy(committedSeals[i].Seal[:], commitMsg.CommitSeal[:])
 		}
 
 		// Commit proposal to database

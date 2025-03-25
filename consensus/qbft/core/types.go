@@ -108,7 +108,7 @@ type Backend interface {
 
 	// Commit delivers an approved proposal to backend.
 	// The delivered proposal will be put into blockchain.
-	Commit(proposal qbft.Proposal, preparedSeals, committedSeals [][]byte, round *big.Int) error
+	Commit(proposal qbft.Proposal, preparedSeals, committedSeals []qbft.SealData, round *big.Int) error
 
 	// Verify verifies the proposal. If a consensus.ErrFutureBlock error is returned,
 	// the time difference of the proposal and current time is also returned.
@@ -118,7 +118,7 @@ type Backend interface {
 	Sign([]byte) ([]byte, error)
 
 	// SignWithoutHashing sign input data with the backend's private key without hashing the input data
-	SignWithoutHashing([]byte) ([]byte, error)
+	SignWithoutHashing([]byte) []byte
 
 	// CheckSignature verifies the signature by checking if it's signed by
 	// the given validator

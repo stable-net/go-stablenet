@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -36,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -144,6 +146,8 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	case *ethash.Ethash:
 	case *qbftBackend.Backend:
 		gspec.Difficulty = new(big.Int).SetUint64(1)
+		testBankBlsKey, _ := bls.DeriveFromECDSA(testBankKey)
+		testBankBlsPubKey := testBankBlsKey.PublicKey()
 		sampleExtra := &types.QBFTExtra{
 			VanityData: []byte("WEMIX MontBlanc chain block"),
 			Round:      0,
@@ -151,11 +155,13 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 				Stakers: []*types.Staker{
 					{Addr: testBankAddress, Diligence: types.DefaultDiligence},
 				},
-				Validators: []uint32{0},
+				Validators:    []uint32{0},
+				BLSPublicKeys: [][]byte{testBankBlsPubKey.Marshal()},
 			},
 		}
 		gspec.ExtraData, _ = rlp.EncodeToBytes(sampleExtra)
 		gspec.Config.QBFT.Validators = []common.Address{testBankAddress}
+		gspec.Config.QBFT.BLSPublicKeys = []string{hexutil.Encode(testBankBlsPubKey.Marshal())}
 	default:
 		t.Fatalf("unexpected consensus engine type: %T", engine)
 	}

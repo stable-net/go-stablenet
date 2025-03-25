@@ -708,6 +708,7 @@ func (c *ChainConfig) Description() string {
 			}
 		}
 		banner += fmt.Sprintf("   - Validators:                %v\n", c.QBFT.Validators)
+		banner += fmt.Sprintf("   - BLSPublicKeys:             %v\n", c.QBFT.BLSPublicKeys)
 		banner += fmt.Sprintf("   - MinStakers:                %v\n", c.QBFT.MinStakers)
 		banner += fmt.Sprintf("   - TargetValidators:          %v\n", c.QBFT.TargetValidators)
 		if c.QBFT.MaxRequestTimeoutSeconds == nil {

@@ -31,14 +31,16 @@ var (
 
 // GovConstMetaData contains all meta data concerning the GovConst contract.
 var GovConstMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"MAXIMUM_STAKING\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MINIMUM_STAKING\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"UNBONDING_PERIOD_DELEGATOR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"UNBONDING_PERIOD_STAKER\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[],\"name\":\"BLS_PUBLIC_KEY_LENGTH\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MAXIMUM_STAKING\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MINIMUM_STAKING\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MIN_STAKERS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"UNBONDING_PERIOD_DELEGATOR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"UNBONDING_PERIOD_STAKER\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
 	Sigs: map[string]string{
+		"8280a25a": "BLS_PUBLIC_KEY_LENGTH()",
 		"129060ab": "MAXIMUM_STAKING()",
 		"ba631d3f": "MINIMUM_STAKING()",
+		"decf0206": "MIN_STAKERS()",
 		"840c1771": "UNBONDING_PERIOD_DELEGATOR()",
 		"fde7f371": "UNBONDING_PERIOD_STAKER()",
 	},
-	Bin: "0x608060405234801561001057600080fd5b5060cb8061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060465760003560e01c8063129060ab14604b578063840c1771146073578063ba631d3f14607c578063fde7f37114608c575b600080fd5b60616fffffffffffffffffffffffffffffffff81565b60405190815260200160405180910390f35b60616203f48081565b60616969e10de76676d080000081565b606162093a808156fea26469706673582212205450b69ae7c8d5b2bbc2d07fc27038d9411ed2e47fe57489bd01cd1727008f6564736f6c634300080e0033",
+	Bin: "0x608060405234801561001057600080fd5b5060ed8061001f6000396000f3fe6080604052348015600f57600080fd5b5060043610605a5760003560e01c8063129060ab14605f5780638280a25a146087578063840c177114608e578063ba631d3f146097578063decf02061460a7578063fde7f3711460ae575b600080fd5b60756fffffffffffffffffffffffffffffffff81565b60405190815260200160405180910390f35b6075603081565b60756203f48081565b60756969e10de76676d080000081565b6075600581565b607562093a808156fea2646970667358221220f87d3322cc283ac516b14414201cc37a6cc18a350aa595ebb3b74ed201abde3064736f6c634300080e0033",
 }
 
 // GovConstABI is the input ABI used to generate the binding from.
@@ -212,6 +214,37 @@ func (_GovConst *GovConstTransactorRaw) Transact(opts *bind.TransactOpts, method
 	return _GovConst.Contract.contract.Transact(opts, method, params...)
 }
 
+// BLSPUBLICKEYLENGTH is a free data retrieval call binding the contract method 0x8280a25a.
+//
+// Solidity: function BLS_PUBLIC_KEY_LENGTH() view returns(uint256)
+func (_GovConst *GovConstCaller) BLSPUBLICKEYLENGTH(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _GovConst.contract.Call(opts, &out, "BLS_PUBLIC_KEY_LENGTH")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// BLSPUBLICKEYLENGTH is a free data retrieval call binding the contract method 0x8280a25a.
+//
+// Solidity: function BLS_PUBLIC_KEY_LENGTH() view returns(uint256)
+func (_GovConst *GovConstSession) BLSPUBLICKEYLENGTH() (*big.Int, error) {
+	return _GovConst.Contract.BLSPUBLICKEYLENGTH(&_GovConst.CallOpts)
+}
+
+// BLSPUBLICKEYLENGTH is a free data retrieval call binding the contract method 0x8280a25a.
+//
+// Solidity: function BLS_PUBLIC_KEY_LENGTH() view returns(uint256)
+func (_GovConst *GovConstCallerSession) BLSPUBLICKEYLENGTH() (*big.Int, error) {
+	return _GovConst.Contract.BLSPUBLICKEYLENGTH(&_GovConst.CallOpts)
+}
+
 // MAXIMUMSTAKING is a free data retrieval call binding the contract method 0x129060ab.
 //
 // Solidity: function MAXIMUM_STAKING() view returns(uint256)
@@ -272,6 +305,37 @@ func (_GovConst *GovConstSession) MINIMUMSTAKING() (*big.Int, error) {
 // Solidity: function MINIMUM_STAKING() view returns(uint256)
 func (_GovConst *GovConstCallerSession) MINIMUMSTAKING() (*big.Int, error) {
 	return _GovConst.Contract.MINIMUMSTAKING(&_GovConst.CallOpts)
+}
+
+// MINSTAKERS is a free data retrieval call binding the contract method 0xdecf0206.
+//
+// Solidity: function MIN_STAKERS() view returns(uint256)
+func (_GovConst *GovConstCaller) MINSTAKERS(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _GovConst.contract.Call(opts, &out, "MIN_STAKERS")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// MINSTAKERS is a free data retrieval call binding the contract method 0xdecf0206.
+//
+// Solidity: function MIN_STAKERS() view returns(uint256)
+func (_GovConst *GovConstSession) MINSTAKERS() (*big.Int, error) {
+	return _GovConst.Contract.MINSTAKERS(&_GovConst.CallOpts)
+}
+
+// MINSTAKERS is a free data retrieval call binding the contract method 0xdecf0206.
+//
+// Solidity: function MIN_STAKERS() view returns(uint256)
+func (_GovConst *GovConstCallerSession) MINSTAKERS() (*big.Int, error) {
+	return _GovConst.Contract.MINSTAKERS(&_GovConst.CallOpts)
 }
 
 // UNBONDINGPERIODDELEGATOR is a free data retrieval call binding the contract method 0x840c1771.

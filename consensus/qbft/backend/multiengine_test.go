@@ -493,7 +493,7 @@ func TestWBFTExtraSeal(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to extract extra: %v", err)
 	}
-	if len(extra.PrevPreparedSeal) != 4 {
-		t.Errorf("lack of PrevPreparedSeal: have %d, want %d", len(extra.PrevPreparedSeal), 4)
+	if len(extra.PrevPreparedSeal.Sealers.GetSealers()) != 4 {
+		t.Errorf("lack of PrevPreparedSeal: have %d, want %d", len(extra.PrevPreparedSeal.Sealers.GetSealers()), 4)
 	}
 }

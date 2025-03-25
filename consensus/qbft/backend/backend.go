@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/qbft/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -62,10 +63,16 @@ func New(config *qbft.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) *
 	recentMessages := lru.NewCache[common.Address, *lru.Cache[common.Hash, bool]](inmemoryPeers)
 	knownMessages := lru.NewCache[common.Hash, bool](inmemoryMessages)
 
+	blsSecretKey, err := bls.DeriveFromECDSA(privateKey)
+	if err != nil {
+		return nil
+	}
+
 	sb := &Backend{
 		config:           config,
 		istanbulEventMux: new(event.TypeMux),
 		privateKey:       privateKey,
+		blsSecretKey:     blsSecretKey,
 		address:          crypto.PubkeyToAddress(privateKey.PublicKey),
 		logger:           log.New(),
 		db:               db,
@@ -84,8 +91,9 @@ func New(config *qbft.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) *
 type Backend struct {
 	config *qbft.Config
 
-	privateKey *ecdsa.PrivateKey
-	address    common.Address
+	blsSecretKey bls.SecretKey
+	privateKey   *ecdsa.PrivateKey
+	address      common.Address
 
 	core *qbftcore.Core
 
@@ -197,7 +205,7 @@ func (sb *Backend) Gossip(valSet qbft.ValidatorSet, code uint64, payload []byte)
 }
 
 // Commit implements qbft.Backend.Commit
-func (sb *Backend) Commit(proposal qbft.Proposal, preparedSeals, committedSeals [][]byte, round *big.Int) (err error) {
+func (sb *Backend) Commit(proposal qbft.Proposal, preparedSeals, committedSeals []qbft.SealData, round *big.Int) (err error) {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
@@ -270,9 +278,9 @@ func (sb *Backend) Sign(data []byte) ([]byte, error) {
 	return crypto.Sign(hashData, sb.privateKey)
 }
 
-// SignWithoutHashing implements qbft.Backend.SignWithoutHashing and signs input data with the backend's private key without hashing the input data
-func (sb *Backend) SignWithoutHashing(data []byte) ([]byte, error) {
-	return crypto.Sign(data, sb.privateKey)
+// SignWithoutHashing implements qbft.Backend.SignWithoutHashing and signs input data with the backend's bls secret key without hashing the input data
+func (sb *Backend) SignWithoutHashing(data []byte) []byte {
+	return sb.blsSecretKey.Sign(data).Marshal()
 }
 
 // CheckSignature implements qbft.Backend.CheckSignature
@@ -306,7 +314,7 @@ func (sb *Backend) GetProposer(number uint64) common.Address {
 func (sb *Backend) Validators(proposal qbft.Proposal) qbft.ValidatorSet {
 	valSet, err := sb.Engine().GetValidators(sb.chain, new(big.Int).Add(proposal.Number(), common.Big1), proposal.Hash(), nil)
 	if err != nil {
-		return validator.NewSet(nil, sb.config.ProposerPolicy)
+		return validator.NewSet(nil, nil, sb.config.ProposerPolicy)
 	}
 	return valSet
 }

@@ -16,16 +16,26 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/qbft/validator"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
 var (
-	signers []*ecdsa.PrivateKey
+	signers    []*ecdsa.PrivateKey
+	validators []common.Address
+	blsPubKeys [][]byte
 )
 
 func init() {
 	_, signers, _ = testutils.GenesisAndKeys(5)
+	validators = make([]common.Address, 0)
+	blsPubKeys = make([][]byte, 0)
+	for _, key := range signers {
+		blsKey, _ := bls.DeriveFromECDSA(key)
+		validators = append(validators, crypto.PubkeyToAddress(key.PublicKey))
+		blsPubKeys = append(blsPubKeys, blsKey.PublicKey().Marshal())
+	}
 }
 
 // makeCoreForTest returns core object with empty backend.
@@ -34,6 +44,7 @@ func init() {
 func makeCoreForTest(priorRound, currentRound, currentSequence *big.Int, lastProposal *types.Block) *Core {
 	// set core with empty backend.
 	// current state is StateAcceptRequest.
+	valSet := validator.NewSet(validators, blsPubKeys, qbft.NewRoundRobinProposerPolicy())
 	core := &Core{
 		config:             nil,
 		address:            crypto.PubkeyToAddress(signers[0].PublicKey),
@@ -49,20 +60,17 @@ func makeCoreForTest(priorRound, currentRound, currentSequence *big.Int, lastPro
 		pendingRequests:    prque.New[int64, *Request](nil),
 		pendingRequestsMu:  new(sync.Mutex),
 		consensusTimestamp: time.Time{},
-		priorState:         priorState{new(sync.RWMutex), common.Big0, nil},
+		priorState:         priorState{new(sync.RWMutex), priorRound, lastProposal, valSet},
 	}
 	core.validateFn = core.checkValidatorSignature
+	core.valSet = valSet
 	// Set core current view and proposal
 	core.current = newRoundState(
 		&qbft.View{
 			Round:    currentRound,
 			Sequence: currentSequence,
-		}, validator.NewSet([]common.Address{
-			common.BytesToAddress([]byte("1234567894")),
-			common.BytesToAddress([]byte("1234567895")),
-		}, qbft.NewRoundRobinProposerPolicy()),
+		}, valSet,
 		nil, nil, nil, nil, func(hash common.Hash) bool { return false })
-	core.updatePriorState(priorRound, lastProposal)
 	return core
 }
 
@@ -172,7 +180,7 @@ func TestProcessExtraSeal(t *testing.T) {
 		}
 	}
 
-	preparedSeal, committedSeal := core.ProcessExtraSeal(lastProposal, common.Big2)
+	preparedSeal, committedSeal := core.ProcessExtraSeal(lastProposal, common.Big2, core.PriorValidators())
 	if len(preparedSeal) != 1 {
 		t.Errorf("unexpected length of preparedSeal. want %d, have %d", 1, len(preparedSeal))
 	}
@@ -186,14 +194,16 @@ func createPreprepareMsg(sequence, round *big.Int, proposal qbft.Proposal) *mess
 }
 
 func createPrepareMsg(signer *ecdsa.PrivateKey, header *types.Header, sequence, round *big.Int, digest []byte) *messages.Prepare {
-	seal, _ := crypto.Sign(PrepareSeal(header, uint32(round.Uint64()), SealTypePrepare), signer)
+	blsKey, _ := bls.DeriveFromECDSA(signer)
+	seal := blsKey.Sign(PrepareSeal(header, uint32(round.Uint64()), SealTypePrepare)).Marshal()
 	prepare := messages.NewPrepare(sequence, round, common.BytesToHash(digest), seal)
 	prepare.SetSource(crypto.PubkeyToAddress(signer.PublicKey))
 	return prepare
 }
 
 func createCommitMsg(signer *ecdsa.PrivateKey, header *types.Header, sequence, round *big.Int, digest []byte) *messages.Commit {
-	seal, _ := crypto.Sign(PrepareSeal(header, uint32(round.Uint64()), SealTypeCommit), signer)
+	blsKey, _ := bls.DeriveFromECDSA(signer)
+	seal := blsKey.Sign(PrepareSeal(header, uint32(round.Uint64()), SealTypeCommit)).Marshal()
 	commit := messages.NewCommit(sequence, round, common.BytesToHash(digest), seal)
 	commit.SetSource(crypto.PubkeyToAddress(signer.PublicKey))
 	return commit

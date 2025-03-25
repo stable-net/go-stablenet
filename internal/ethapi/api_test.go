@@ -48,6 +48,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -641,7 +642,7 @@ func TestEstimateGas(t *testing.T) {
 				accounts[1].addr: {Balance: big.NewInt(params.Ether)},
 			},
 			Difficulty: big.NewInt(1),
-			ExtraData:  genExtraData(nodeAddr),
+			ExtraData:  genExtraData(nodeKey),
 		}
 		genBlocks      = 10
 		signer         = types.HomesteadSigner{}
@@ -806,7 +807,7 @@ func TestCall(t *testing.T) {
 				accounts[2].addr: {Balance: big.NewInt(params.Ether)},
 			},
 			Difficulty: big.NewInt(1),
-			ExtraData:  genExtraData(nodeAddr),
+			ExtraData:  genExtraData(nodeKey),
 		}
 		genBlocks = 10
 		signer    = types.HomesteadSigner{}
@@ -998,14 +999,13 @@ func TestSignTransaction(t *testing.T) {
 	// Initialize test accounts
 	var (
 		nodeKey, _ = crypto.HexToECDSA("9c1d1ede9b6cb8cdcd1991d9cd911dfc40ca95d31451f7a2f17dd955f2f6956e")
-		nodeAddr   = crypto.PubkeyToAddress(nodeKey.PublicKey)
 		key, _     = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
 		to         = crypto.PubkeyToAddress(key.PublicKey)
 		genesis    = &core.Genesis{
 			Config:     params.AllDevChainProtocolChanges,
 			Alloc:      types.GenesisAlloc{},
 			Difficulty: big.NewInt(1),
-			ExtraData:  genExtraData(nodeAddr),
+			ExtraData:  genExtraData(nodeKey),
 		}
 
 		config = qbft.DefaultConfig
@@ -1582,7 +1582,7 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 				acc2Addr: {Balance: big.NewInt(params.Ether)},
 			},
 			Difficulty: big.NewInt(1),
-			ExtraData:  genExtraData(nodeAddr),
+			ExtraData:  genExtraData(nodeKey),
 		}
 		genBlocks = 10
 		signer    = types.HomesteadSigner{}
@@ -1826,16 +1826,20 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 	}
 }
 
-func genExtraData(validator common.Address) []byte {
+func genExtraData(validatorPrvKey *ecdsa.PrivateKey) []byte {
+	blsKey, _ := bls.DeriveFromECDSA(validatorPrvKey)
 	sampleExtra := &types.QBFTExtra{
 		VanityData: []byte("WEMIX MontBlanc chain block"),
 		EpochInfo: &types.EpochInfo{
 			Stakers: []*types.Staker{
-				{Addr: validator, Diligence: types.DefaultDiligence},
+				{Addr: crypto.PubkeyToAddress(validatorPrvKey.PublicKey), Diligence: types.DefaultDiligence},
 			},
-			Validators: []uint32{0},
+			Validators:    []uint32{0},
+			BLSPublicKeys: [][]byte{blsKey.PublicKey().Marshal()},
 		},
-		Round: 0,
+		PreparedSeal:  &types.QBFTAggregatedSeal{},
+		CommittedSeal: &types.QBFTAggregatedSeal{},
+		Round:         0,
 	}
 	b, _ := rlp.EncodeToBytes(sampleExtra)
 	return b
@@ -1870,7 +1874,7 @@ func setupReceiptBackend(t *testing.T, genBlocks int) (*testBackend, []common.Ha
 				contract: {Balance: big.NewInt(params.Ether), Code: common.FromHex("0x608060405234801561001057600080fd5b506004361061002b5760003560e01c8063a9059cbb14610030575b600080fd5b61004a6004803603810190610045919061016a565b610060565b60405161005791906101c5565b60405180910390f35b60008273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef846040516100bf91906101ef565b60405180910390a36001905092915050565b600080fd5b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b6000610101826100d6565b9050919050565b610111816100f6565b811461011c57600080fd5b50565b60008135905061012e81610108565b92915050565b6000819050919050565b61014781610134565b811461015257600080fd5b50565b6000813590506101648161013e565b92915050565b60008060408385031215610181576101806100d1565b5b600061018f8582860161011f565b92505060206101a085828601610155565b9150509250929050565b60008115159050919050565b6101bf816101aa565b82525050565b60006020820190506101da60008301846101b6565b92915050565b6101e981610134565b82525050565b600060208201905061020460008301846101e0565b9291505056fea2646970667358221220b469033f4b77b9565ee84e0a2f04d496b18160d26034d54f9487e57788fd36d564736f6c63430008120033")},
 			},
 			Difficulty: big.NewInt(1),
-			ExtraData:  genExtraData(nodeAddr),
+			ExtraData:  genExtraData(nodeKey),
 		}
 		signer   = types.LatestSignerForChainID(params.AllCliqueProtocolChanges.ChainID)
 		txHashes = make([]common.Hash, genBlocks)

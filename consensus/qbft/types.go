@@ -163,8 +163,12 @@ type Validator interface {
 	// Address returns address
 	Address() common.Address
 
+	BLSPublicKey() []byte
+
 	// String representation of Validator
 	String() string
+
+	Copy() Validator
 }
 
 type Validators []Validator
@@ -228,7 +232,7 @@ type ValidatorSet interface {
 	// Check whether the validator with given address is a proposer
 	IsProposer(address common.Address) bool
 	// Add validator
-	AddValidator(address common.Address) bool
+	AddValidator(address common.Address, blsPublicKey []byte) bool
 	// Remove validator
 	RemoveValidator(address common.Address) bool
 	// Copy validator set
@@ -260,4 +264,9 @@ type MessageEvent struct {
 
 // FinalCommittedEvent is posted when a proposal is committed
 type FinalCommittedEvent struct {
+}
+
+type SealData struct {
+	Sealer uint32
+	Seal   []byte
 }

@@ -27,13 +27,16 @@
       "halvingRate": 50
     },
     "qbft": {
-      "epochLength": 10,
-      "blockPeriodSeconds": 3,
       "requestTimeoutSeconds": 1000,
+      "blockPeriodSeconds": 3,
       "proposerPolicy": 0,
+      "epochLength": 10,
       "blockReward": "0xde0b6b3a7640000",
       "validators": [
-        "0x8cd303240c459e56c9df59cf3722af55d535008d"
+        "0x8ec5137c7e4d166d7fd2b48310551a7ee2664aa7"
+      ],
+      "blsPublicKeys": [
+        "0x8666898868250923175fbe71a27b268c7ef7d04a29c402823b23d1487168ad17d12edf29b7b3615f7813c9c7c48d97f3"
       ],
       "minStakers": 0,
       "targetValidators": 0,
@@ -42,7 +45,7 @@
   },
   "nonce": "0x0",
   "timestamp": "0x0",
-  "extraData": "0xf845a0000000000000000000000000000000000000000000000000000000000000000080c0c080c0c0dddad9948cd303240c459e56c9df59cf3722af55d535008d831cfde0c180",
+  "extraData": "0xf878a0000000000000000000000000000000000000000000000000000000000000000080c0c080c0c0f84fdad9948ec5137c7e4d166d7fd2b48310551a7ee2664aa7831cfde0c180f1b08666898868250923175fbe71a27b268c7ef7d04a29c402823b23d1487168ad17d12edf29b7b3615f7813c9c7c48d97f3",
   "gasLimit": "0x23f3e20",
   "difficulty": "0x1",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -113,7 +116,7 @@
       "balance": "0x1",
       "nonce": "0x1"
     },
-    "8cd303240c459e56c9df59cf3722af55d535008d": {
+    "8ec5137c7e4d166d7fd2b48310551a7ee2664aa7": {
       "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
     "c7b99a164efd027a93f147376cc7da7c67c6bbe0": {

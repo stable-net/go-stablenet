@@ -22,6 +22,7 @@ package types
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 
@@ -32,7 +33,7 @@ import (
 // ## Quorum QBFT START
 var (
 	IstanbulExtraVanity = 32 // Fixed number of extra-data bytes reserved for validator vanity
-	IstanbulExtraSeal   = 65 // Fixed number of extra-data bytes reserved for validator seal
+	IstanbulExtraSeal   = 96 // Fixed number of extra-data bytes reserved for validator seal (BLS_SIGNATURE_LENGTH)
 
 	// QBFTDefaultDifficulty is used to identify whether the block is from QBFT consensus engine.
 	// we use this value on behalf of the role IstanbulDigest
@@ -49,15 +50,43 @@ var (
 	ErrInvalidIstanbulHeaderExtra = errors.New("invalid qbft header extra-data")
 )
 
+type QBFTAggregatedSeal struct {
+	Sealers   SealerSet
+	Signature []byte
+}
+
+func (as *QBFTAggregatedSeal) EncodeRLP(w io.Writer) error {
+	return rlp.Encode(w, []interface{}{
+		as.Sealers,
+		as.Signature,
+	})
+}
+
+func (as *QBFTAggregatedSeal) DecodeRLP(s *rlp.Stream) error {
+	var aggregatedSeal struct {
+		Sealers   SealerSet
+		Signature []byte
+	}
+	if err := s.Decode(&aggregatedSeal); err != nil {
+		return err
+	}
+	as.Sealers, as.Signature = aggregatedSeal.Sealers, aggregatedSeal.Signature
+	return nil
+}
+
+func (as *QBFTAggregatedSeal) String() string {
+	return fmt.Sprintf("{sealers: %v, signature: %x}", as.Sealers, as.Signature)
+}
+
 // QBFTExtra represents header extradata for qbft protocol
 type QBFTExtra struct {
 	VanityData        []byte
 	PrevRound         uint32
-	PrevPreparedSeal  [][]byte
-	PrevCommittedSeal [][]byte // committedSeal of previous local block
+	PrevPreparedSeal  *QBFTAggregatedSeal
+	PrevCommittedSeal *QBFTAggregatedSeal // committedSeal of previous local block
 	Round             uint32
-	PreparedSeal      [][]byte
-	CommittedSeal     [][]byte
+	PreparedSeal      *QBFTAggregatedSeal
+	CommittedSeal     *QBFTAggregatedSeal
 	EpochInfo         *EpochInfo // epoch info is filled only for last block of epoch
 }
 
@@ -67,8 +96,9 @@ type Staker struct {
 }
 
 type EpochInfo struct {
-	Stakers    []*Staker // staker list for next epoch (staker index may be changed for each epoch)
-	Validators []uint32  // validator list for next epoch (using indices of staker list)
+	Stakers       []*Staker // staker list for next epoch (staker index may be changed for each epoch)
+	Validators    []uint32  // validator list for next epoch (using indices of staker list)
+	BLSPublicKeys [][]byte  // bls public key list for next epoch
 }
 
 // EncodeRLP serializes qist into the Ethereum RLP format.
@@ -90,12 +120,12 @@ func (qst *QBFTExtra) DecodeRLP(s *rlp.Stream) error {
 	var qbftExtra struct {
 		VanityData        []byte
 		PrevRound         uint32
-		PrevPreparedSeal  [][]byte
-		PrevCommittedSeal [][]byte
+		PrevPreparedSeal  *QBFTAggregatedSeal `rlp:"nil"`
+		PrevCommittedSeal *QBFTAggregatedSeal `rlp:"nil"`
 		Round             uint32
-		PreparedSeal      [][]byte
-		CommittedSeal     [][]byte
-		EpochInfo         *EpochInfo `rlp:"nil"`
+		PreparedSeal      *QBFTAggregatedSeal `rlp:"nil"`
+		CommittedSeal     *QBFTAggregatedSeal `rlp:"nil"`
+		EpochInfo         *EpochInfo          `rlp:"nil"`
 	}
 	if err := s.Decode(&qbftExtra); err != nil {
 		return err
@@ -146,11 +176,18 @@ func (ei *EpochInfo) GetValidators() []common.Address {
 }
 
 func (ei *EpochInfo) GetValidator(index uint32) common.Address {
-	if ei == nil {
+	if ei == nil || int(index) >= len(ei.Stakers) {
 		return common.Address{}
 	}
-
 	return ei.Stakers[index].Addr
+}
+
+func (ei *EpochInfo) GetValidatorIndexMap() map[common.Address]uint32 {
+	validatorIndexMap := make(map[common.Address]uint32)
+	for _, idx := range ei.Validators {
+		validatorIndexMap[ei.GetValidator(idx)] = idx
+	}
+	return validatorIndexMap
 }
 
 // EncodeRLP serializes epochInfo into the Ethereum RLP format.
@@ -158,19 +195,21 @@ func (ei *EpochInfo) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{
 		ei.Stakers,
 		ei.Validators,
+		ei.BLSPublicKeys,
 	})
 }
 
 // DecodeRLP implements rlp.Decoder, and load the EpochInfo fields from a RLP stream.
 func (ei *EpochInfo) DecodeRLP(s *rlp.Stream) error {
 	var epochInfo struct {
-		Stakers    []*Staker
-		Validators []uint32
+		Stakers       []*Staker
+		Validators    []uint32
+		BLSPublicKeys [][]byte
 	}
 	if err := s.Decode(&epochInfo); err != nil {
 		return err
 	}
-	ei.Stakers, ei.Validators = epochInfo.Stakers, epochInfo.Validators
+	ei.Stakers, ei.Validators, ei.BLSPublicKeys = epochInfo.Stakers, epochInfo.Validators, epochInfo.BLSPublicKeys
 	return nil
 }
 
@@ -223,8 +262,8 @@ func QBFTFilteredHeaderWithRound(h *Header, round uint32) *Header {
 		return nil
 	}
 
-	qbftExtra.PreparedSeal = [][]byte{}
-	qbftExtra.CommittedSeal = [][]byte{}
+	qbftExtra.PreparedSeal = nil
+	qbftExtra.CommittedSeal = nil
 	qbftExtra.Round = round
 
 	payload, err := rlp.EncodeToBytes(&qbftExtra)
@@ -235,6 +274,43 @@ func QBFTFilteredHeaderWithRound(h *Header, round uint32) *Header {
 	newHeader.Extra = payload
 
 	return newHeader
+}
+
+type SealerSet []byte
+
+func (s *SealerSet) SetSealer(index uint32) {
+	byteIndex := int(index / 8)
+	if len(*s) <= byteIndex {
+		*s = append(*s, make([]byte, byteIndex+1-len(*s))...)
+	}
+	(*s)[byteIndex] |= 1 << (index % 8)
+}
+
+func (s SealerSet) ClearSealer(index uint32) {
+	byteIndex := int(index / 8)
+	if byteIndex < len(s) {
+		s[byteIndex] &^= 1 << (index % 8)
+	}
+}
+
+func (s SealerSet) IsSealer(index uint32) bool {
+	byteIndex := int(index / 8)
+	if byteIndex >= len(s) {
+		return false
+	}
+	return ((s)[byteIndex] & (1 << (index % 8))) != 0
+}
+
+func (s SealerSet) GetSealers() []uint32 {
+	sealers := make([]uint32, 0)
+	for byteIndex := 0; byteIndex < len(s); byteIndex++ {
+		for bitOffset := 0; bitOffset < 8; bitOffset++ {
+			if s[byteIndex]&(1<<bitOffset) != 0 {
+				sealers = append(sealers, uint32(byteIndex*8+bitOffset))
+			}
+		}
+	}
+	return sealers
 }
 
 // ## Quorum QBFT END

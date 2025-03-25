@@ -10,19 +10,24 @@ import (
 // priorState stores prior consensus state
 // for collecting extra seals during StateAcceptRequest
 type priorState struct {
-	mu       *sync.RWMutex
-	round    *big.Int
-	proposal qbft.Proposal
+	mu           *sync.RWMutex
+	round        *big.Int
+	proposal     qbft.Proposal
+	validatorSet qbft.ValidatorSet
 }
 
-func (c *Core) updatePriorState(priorRound *big.Int, priorProposal qbft.Proposal) {
+func (c *Core) updatePriorState() {
 	c.priorState.mu.Lock()
 	defer c.priorState.mu.Unlock()
-	c.priorState.round = priorRound
-	if priorProposal != nil {
-		c.priorState.proposal = priorProposal
+	c.priorState.round = c.current.Round()
+	if c.current.Proposal() != nil {
+		c.priorState.proposal = c.current.Proposal()
+	}
+	if c.valSet != nil {
+		c.priorState.validatorSet = c.valSet
 	}
 }
+
 func (p *priorState) Round() *big.Int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -35,4 +40,11 @@ func (p *priorState) Proposal() qbft.Proposal {
 	defer p.mu.RUnlock()
 
 	return p.proposal
+}
+
+func (p *priorState) Validators() qbft.ValidatorSet {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.validatorSet
 }

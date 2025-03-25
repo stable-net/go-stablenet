@@ -236,6 +236,7 @@ func SetConfigFromChainConfig(qbftCfg *qbft.Config, config *params.ChainConfig) 
 	qbftCfg.MinStakers = config.QBFT.MinStakers
 	qbftCfg.TargetValidators = config.QBFT.TargetValidators
 	qbftCfg.Validators = config.QBFT.Validators
+	qbftCfg.BLSPublicKeys = config.QBFT.BLSPublicKeys
 
 	if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
 		qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds

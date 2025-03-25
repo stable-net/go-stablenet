@@ -26,8 +26,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/params"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 
+	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 	"github.com/naoina/toml"
 )
 
@@ -108,6 +108,7 @@ type Config struct {
 	BlockReward              *math.HexOrDecimal256   `toml:",omitempty"` // Reward
 	BlockRewardBeneficiary   *params.BeneficiaryInfo `toml:",omitempty"`
 	Validators               []common.Address        `toml:",omitempty"`
+	BLSPublicKeys            []string                `toml:",omitempty"`
 	MinStakers               uint64                  `toml:",omitempty"`
 	TargetValidators         uint64                  `toml:",omitempty"`
 	MaxRequestTimeoutSeconds uint64                  `toml:",omitempty"`
@@ -144,6 +145,9 @@ func (c Config) GetConfig(blockNumber *big.Int) Config {
 		}
 		if len(transition.Validators) > 0 {
 			newConfig.Validators = transition.Validators
+		}
+		if len(transition.BLSPublicKeys) > 0 {
+			newConfig.BLSPublicKeys = transition.BLSPublicKeys
 		}
 		if transition.MinStakers != nil {
 			newConfig.MinStakers = *transition.MinStakers
@@ -185,6 +189,16 @@ func (c *Config) getTransitionValue(num *big.Int, callback func(transition param
 // String implements the stringer interface, returning the consensus engine details.
 func (c *Config) String() string {
 	return "qbft"
+}
+
+func GetFirstWbftBlockNumber(config *params.ChainConfig) *big.Int {
+	if config.MontBlancBlock == nil {
+		// wbft engine started from genesis
+		return common.Big0
+	} else {
+		// wbft engine started with montblanc hardfork
+		return config.MontBlancBlock
+	}
 }
 
 func GetStateTransitions(chainConfig *params.ChainConfig, num *big.Int) []params.StateTransition {

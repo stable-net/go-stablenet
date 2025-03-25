@@ -30,15 +30,30 @@ import (
 )
 
 type defaultValidator struct {
-	address common.Address
+	address      common.Address
+	blsPublicKey []byte
 }
 
 func (val *defaultValidator) Address() common.Address {
 	return val.address
 }
 
+func (val *defaultValidator) BLSPublicKey() []byte {
+	return val.blsPublicKey
+}
+
 func (val *defaultValidator) String() string {
 	return val.Address().String()
+}
+
+func (val *defaultValidator) Copy() qbft.Validator {
+	newVal := &defaultValidator{
+		address:      val.address,
+		blsPublicKey: make([]byte, len(val.blsPublicKey)),
+	}
+	copy(newVal.blsPublicKey, val.blsPublicKey)
+
+	return newVal
 }
 
 // ----------------------------------------------------------------------------
@@ -53,15 +68,13 @@ type defaultSet struct {
 }
 
 // create an ordered validator set with given addrs order
-func newDefaultSet(addrs []common.Address, policy *qbft.ProposerPolicy) *defaultSet {
+func newDefaultSet(validators qbft.Validators, policy *qbft.ProposerPolicy) *defaultSet {
 	valSet := &defaultSet{}
 
 	valSet.policy = policy
+
 	// init validators
-	valSet.validators = make([]qbft.Validator, len(addrs))
-	for i, addr := range addrs {
-		valSet.validators[i] = New(addr)
-	}
+	valSet.validators = validators
 
 	// init proposer
 	if valSet.Size() > 0 {
@@ -170,7 +183,7 @@ func stickyProposer(valSet qbft.ValidatorSet, proposer common.Address, round uin
 	return valSet.GetByIndex(pick)
 }
 
-func (valSet *defaultSet) AddValidator(address common.Address) bool {
+func (valSet *defaultSet) AddValidator(address common.Address, blsPublicKey []byte) bool {
 	valSet.validatorMu.Lock()
 	defer valSet.validatorMu.Unlock()
 	for _, v := range valSet.validators {
@@ -178,7 +191,7 @@ func (valSet *defaultSet) AddValidator(address common.Address) bool {
 			return false
 		}
 	}
-	valSet.validators = append(valSet.validators, New(address))
+	valSet.validators = append(valSet.validators, New(address, blsPublicKey))
 	return true
 }
 
@@ -199,11 +212,11 @@ func (valSet *defaultSet) Copy() qbft.ValidatorSet {
 	valSet.validatorMu.RLock()
 	defer valSet.validatorMu.RUnlock()
 
-	addresses := make([]common.Address, 0, len(valSet.validators))
+	validators := make([]qbft.Validator, 0, len(valSet.validators))
 	for _, v := range valSet.validators {
-		addresses = append(addresses, v.Address())
+		validators = append(validators, v.Copy())
 	}
-	return NewSet(addresses, valSet.policy)
+	return NewSetByValidators(validators, valSet.policy)
 }
 
 func (valSet *defaultSet) F() float64 { return float64(valSet.Size()) / 3 }

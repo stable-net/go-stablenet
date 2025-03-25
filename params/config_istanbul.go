@@ -22,6 +22,7 @@ type QBFTConfig struct {
 	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`            // Reward from start, works only on QBFT consensus protocol
 	BlockRewardBeneficiary   *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"` // Reward beneficiaries
 	Validators               []common.Address      `json:"validators"`                       // Validators list when the number of stakers is below the minimum stakers
+	BLSPublicKeys            []string              `json:"blsPublicKeys"`                    // BLS PublicKey list of QBFTConfig.Validators
 	MinStakers               uint64                `json:"minStakers"`                       // Minimum number of stakers to escape stabilization stage
 	TargetValidators         uint64                `json:"targetValidators"`                 // Target number of validators
 	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds"`         // The max round time
@@ -75,6 +76,7 @@ type Transition struct {
 	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`              // Reward from start, works only on QBFT consensus protocol
 	BlockRewardBeneficiary   *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"`   // Reward beneficiaries
 	Validators               []common.Address      `json:"validators,omitempty"`               // Validators list when the number of stakers is below the minimum stakers
+	BLSPublicKeys            []string              `json:"blsPublicKeys,omitempty"`            // BLS PublicKey list of QBFTConfig.Validators
 	MinStakers               *uint64               `json:"minStakers,omitempty"`               // Minimum number of stakers to escape stabilization stage
 	TargetValidators         *uint64               `json:"targetValidators,omitempty"`         // Target number of validators
 	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds,omitempty"` // The max round time

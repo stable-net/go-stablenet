@@ -163,9 +163,11 @@ func (g *genesisGenerator) wbftChainConfig() {
 	fmt.Println("Which accounts are allowed to seal? (mandatory at least one)")
 
 	var validators []common.Address
+	var blsPublicKeys []string
 	for {
 		if address := readAddress(); address != nil {
 			validators = append(validators, *address)
+			blsPublicKeys = append(blsPublicKeys, readBLSPubKey())
 			continue
 		}
 		if len(validators) > 0 {
@@ -180,6 +182,7 @@ func (g *genesisGenerator) wbftChainConfig() {
 			Diligence: types.DefaultDiligence,
 		})
 		epochInfo.Validators = append(epochInfo.Validators, uint32(i))
+		epochInfo.BLSPublicKeys = append(epochInfo.BLSPublicKeys, hexutil.MustDecode(blsPublicKeys[i]))
 	}
 
 	g.Genesis.Config.QBFT = &params.QBFTConfig{
@@ -189,6 +192,7 @@ func (g *genesisGenerator) wbftChainConfig() {
 		RequestTimeoutSeconds: 2,
 		ProposerPolicy:        0,
 		Validators:            validators,
+		BLSPublicKeys:         blsPublicKeys,
 	}
 
 	// make extra data
@@ -196,11 +200,11 @@ func (g *genesisGenerator) wbftChainConfig() {
 	ist := &types.QBFTExtra{
 		VanityData:        vanity,
 		PrevRound:         0,
-		PrevPreparedSeal:  [][]byte{},
-		PrevCommittedSeal: [][]byte{},
+		PrevPreparedSeal:  nil,
+		PrevCommittedSeal: nil,
 		Round:             0,
-		PreparedSeal:      [][]byte{},
-		CommittedSeal:     [][]byte{},
+		PreparedSeal:      nil,
+		CommittedSeal:     nil,
 		EpochInfo:         epochInfo,
 	}
 
