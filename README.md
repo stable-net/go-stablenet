@@ -7,6 +7,7 @@ WBFT(WEMIX Byzantine Fault Tolerant) is a consensus algorithm that emphasizes de
 - Reward system and diligence metrics.
 - Concept of epoch: Defines a unit where the validator set changes.
 - Inclusion of consensus proof in the agreement process.
+- Apply BLS signature aggregation at the consensus proof to reduce the size of the seals.
 - Improved miner worker operations.
 - Enhanced block header verification.
 
@@ -33,7 +34,10 @@ In IBFT or QBFT, new validators could be added or removed via validator set voti
 - `Staker node address`: The nodekey address used in consensus if selected as a validator.
 - `Staker BLS public key`: The BLS public key used in verifing WBFT seal by others.
 - `Staker operator address`: The wallet address for performing stake/unstake operations.
-- `Staker reward address`: The address for receiving block rewards.
+- `Staker rewardee address`: The address of the GovRewardee contract for receiving block rewards.
+- `Staker fee recipient`: The address for receiving fees from delegators.
+- `Staker fee rate`: The fee rate for delegators.
+- `BLS public key`: The BLS public key used in verifying WBFT seals.
 - `Staking amount`: The amount staked, which must exceed the minimum staking amount.
 - `Delegated amount`: The amount received from delegations.
 
@@ -45,7 +49,7 @@ Rules related to staking:
   - Staker's own staking amount should be greater than or equal to the minimum staking threshold.
   - When unstaking, if the remaining staking amount falls below the minimum threshold and is not zero, the unstaking will fail.  
   - If the own staking amount reaches under minimum staking threshold by unstaking or slashing, it is removed from staker set.
-  - If a staker is removed from staker set, its remaining own staking amounts are unstaked and its delegated amounts are refunded to each delegator.
+  - If a staker is removed from staker set, its remaining own staking amounts are unstaked but its delegated amounts are remained as dangling delegated.
   - Unstaked funds are released to the _staker operator address_ after the unbonding period (1 weeks).
 - Slashing
   - Stakers considered as malicious may be slashed, paying their some own staked amounts to WEMIX ecosystem.
@@ -54,6 +58,8 @@ Rules related to staking:
   - Anyone can delegate funds to the staker with no amount limit.
   - Delegated amounts are credited to the recipient staker's staking amount.
   - Undelegated funds are released to the _delegator address_ after the unbonding period (72 hours).
+  - The delegation rewards is not accumulating for the dangling delegated amounts.
+  - Delegator can undelegate dangling delegated amount at any time and claim some accumulated rewards before being dangled. 
 
 ### Validator Selection
 In WBFT, the proposer of the last block in an epoch (referred to as the epoch block) selects the validator set for the next epoch and records it in the block. Validator selection rules:
@@ -89,7 +95,7 @@ Diligence is calculated at the end of each epoch:
 - Let `v` be the number of validators.
 - Let `w` be the number of times a validator is selected as a proposer during an epoch(including times by round change).
 - Let `p` be the total seals (prepare and commit) included in the proposed blocks by a validator.
-  - p can be equal to `2*v*w` at most.
+  - p can be equal to `2*v*w` at most. (prepare seal and commit seal for each block)
 - Let `s` be the seals submitted by the validator during the epoch.
   - s can be equal to `2*e` at most.
 - Diligence `d = p / (2*v*w) + s / (2*e)`.
@@ -124,8 +130,8 @@ Traditional IBFT and QBFT protocols only included and stored the minimum necessa
 
 - `Previous Prepare Seal`: The prepare seal for the previous block. It is included in the block hash and consensus.
 - `Previous Commit Seal`: The commit seal for the previous block. It is included in the block hash and consensus.
-- `Prepare Seal`: The prepare seal for the current block. It is not included in the block hash or consensus.
-- `Commit Seal`: The commit seal for the current block. It is not included in the block hash or consensus.
+- `Prepare Seal`: The prepare seal for the current block. It is included neither in the block hash nor in the consensus.
+- `Commit Seal`: The commit seal for the current block. It is included neither in the block hash nor in the consensus.
 
 When a validator becomes the proposer, they create the current block by combining the prepare and commit seals stored in the previous block with any additional prepare and commit messages received. These are recorded in the current block as the `Previous Prepare Seal` and `Previous Commit Seal`.
 
@@ -133,19 +139,14 @@ The prepare and commit seals stored in the previous block are messages collected
 
 This approach incentivizes proposers to include as many previous seals as possible in the block, which enhances their diligence score. It also encourages sealers whose seals are included to improve their diligence scores.
 
-Since each seal is 65 bytes in size and seals are recorded for all validators, block headers could become excessively large. To address this issue, BLS signatures are utilized to reduce the size of the seals.
+Since each seal is 65 bytes in size and seals are recorded for all validators, block headers could become excessively large. To address this issue, BLS signature aggregation is utilized to reduce the size of the seals.
 
 ### Improved Miner Worker Operations
 The existing miner worker is designed to be fit to the ethash algorithm. When a new block is received, the worker starts new work and enters a loop to find the nonce. After a certain time (recommit time), it starts new work to include newly in-came transactions in the block. However, this behavior is not suitable for the IBFT algorithm. While it is correct to start work when a new block is received, starting new work at each recommit time is inefficient. Instead, it is more appropriate to start new work when a new round begins. In IBFT, there are cases where consensus fails in a round, and in such cases, a new proposer must start new work. The timing for this should be determined by a round change, not by recommit time. Therefore, in WBFT, the worker is modified to start work at the beginning of each round. The following protocol is applied:
 - When the worker receives a new block, it notifies the WBFT engine to perform the final commit (Same to IBFT).
-- The WBFT engine notifies the worker to start new work whenever a new sequence begins with a new round (round 0) or when a round change occurs.
+- The WBFT engine notifies the worker to start new work whenever a new sequence begins with a new round (round 0) or when a round change occurs only if it is the proposer in this round.
 - The WBFT engine waits for the block period before notifying the worker(In the existing IBFT, the block period was waited for when sealing the block).
 - When new work starts, the worker begins the process of preparing the block.
-
-### Enhanced Block Header Verification
-In the existing IBFT, the block verification process involved validating the consensus proof of the validators. This process required knowledge of the validator set, which is available for blocks being added to the canonical chain. However, during the snap sync process, the target block for verification could belong to a distant future in the canonical chain, making it impossible to determine the validator set. As a result, errors would escalate, and the snap sync process was implemented to ignore such errors. This logic had the potential to overlook errors that should have been detected, necessitating improvement.
-
-In WBFT, verification requiring the validator set is performed only when the block is attached to the canonical chain. The validation step has been removed from the standard block verification logic to address this issue.
 
 ### Modified Sturctures
 The existing QBFT Config was revised by removing unnecessary fields and adding required ones, resulting in the following structure.
@@ -170,15 +171,14 @@ The existing QBFT Config was revised by removing unnecessary fields and adding r
              "name": "EcoSystem",
              "addr": "0xadd0000000000000000000000000000000000001",
              "numerator": 2500
-           }]},
-      "validators": ["0xadd0000000000000000000000000000000000002", ...]
+           }]}
     }
 ```
 
-`blockRewardBeneficiary` defines the address that will receive the block minting rewards consistently.
-`targetValidators` should be less than or equals to `epochLength`.
-`minStakers` should be less than or equals to `targetValidators`.
-
+- `blockRewardBeneficiary` defines the address that will receive the block minting rewards consistently.
+- `targetValidators` should be less than or equals to `epochLength`.
+- `minStakers` should be less than or equals to `targetValidators`.
+- `validators` in original QBFT config is removed because the validator set is defined in the extra field of genesis.json.
 ```
 type Staker struct {
     Addr      common.Address
