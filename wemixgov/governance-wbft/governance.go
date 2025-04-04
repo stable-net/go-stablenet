@@ -8,9 +8,10 @@ import (
 )
 
 var (
-	GovConstAddress   = common.HexToAddress(params.GOV_CONST_ADDRESS)
-	GovStakingAddress = common.HexToAddress(params.GOV_STAKING_ADDRESS)
-	GovNCPAddress     = common.HexToAddress(params.GOV_NCP_ADDRESS)
+	GovConstAddress       = common.HexToAddress(params.GOV_CONST_ADDRESS)
+	GovStakingAddress     = common.HexToAddress(params.GOV_STAKING_ADDRESS)
+	GovNCPAddress         = common.HexToAddress(params.GOV_NCP_ADDRESS)
+	GovRewardeeImpAddress = common.HexToAddress(params.GOV_REWARDEE_IMP_ADDRESS)
 )
 
 func InitializeNCP(ncps []common.Address) []params.StateParam {
@@ -78,7 +79,7 @@ func NCPTotalStaking(state StateReader) *big.Int {
 	totalStaking := new(big.Int)
 	stakers := NCPStakers(state)
 	for _, v := range stakers {
-		totalStaking.Add(totalStaking, GetStaking(state, v))
+		totalStaking.Add(totalStaking, GetTotalStaked(state, v))
 	}
 	return totalStaking
 }

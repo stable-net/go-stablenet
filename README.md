@@ -58,7 +58,7 @@ Rules related to staking:
   - Anyone can delegate funds to the staker with no amount limit.
   - Delegated amounts are credited to the recipient staker's staking amount.
   - Undelegated funds are released to the _delegator address_ after the unbonding period (72 hours).
-  - The delegation rewards is not accumulating for the dangling delegated amounts.
+  - The delegation rewards are not accumulating for the dangling delegated amounts.
   - Delegator can undelegate dangling delegated amount at any time and claim some accumulated rewards before being dangled. 
 
 ### Validator Selection

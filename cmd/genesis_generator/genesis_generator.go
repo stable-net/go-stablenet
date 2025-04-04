@@ -89,6 +89,7 @@ func (g *genesisGenerator) makeGenesis() {
 		// allocate governanace contract code in genesis block
 		g.Genesis.Alloc[govwbft.GovConstAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovConstContract), Balance: common.Big0}
 		g.Genesis.Alloc[govwbft.GovStakingAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract), Balance: common.Big0}
+		g.Genesis.Alloc[govwbft.GovRewardeeImpAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovRewardeeImpContract), Balance: common.Big0}
 
 	case choice == "2":
 		g.wbftChainConfig()
@@ -100,6 +101,7 @@ func (g *genesisGenerator) makeGenesis() {
 		if montblancBlock.Cmp(common.Big0) == 0 {
 			g.Genesis.Alloc[govwbft.GovConstAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovConstContract), Balance: common.Big0}
 			g.Genesis.Alloc[govwbft.GovStakingAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract), Balance: common.Big0}
+			g.Genesis.Alloc[govwbft.GovRewardeeImpAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovRewardeeImpContract), Balance: common.Big0}
 		}
 
 	case choice == "3":

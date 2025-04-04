@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	GOV_CONST_ADDRESS   = "0x1000"
-	GOV_STAKING_ADDRESS = "0x1001"
-	GOV_NCP_ADDRESS     = "0x1002"
+	GOV_CONST_ADDRESS        = "0x1000"
+	GOV_STAKING_ADDRESS      = "0x1001"
+	GOV_NCP_ADDRESS          = "0x1002"
+	GOV_REWARDEE_IMP_ADDRESS = "0x1003"
 )
 
 type CodeParam struct {

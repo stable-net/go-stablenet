@@ -9,4 +9,6 @@ var (
 	GovNCPContract string
 	//go:embed govcontracts/GovConst
 	GovConstContract string
+	//go:embed govcontracts/GovRewardeeImp
+	GovRewardeeImpContract string
 )

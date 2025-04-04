@@ -31,16 +31,19 @@ var (
 
 // GovConstMetaData contains all meta data concerning the GovConst contract.
 var GovConstMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"BLS_PUBLIC_KEY_LENGTH\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MAXIMUM_STAKING\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MINIMUM_STAKING\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MIN_STAKERS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"UNBONDING_PERIOD_DELEGATOR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"UNBONDING_PERIOD_STAKER\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[],\"name\":\"BLS_PUBLIC_KEY_LENGTH\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"CHANGE_FEE_DELAY\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"FEE_PRECISION\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MAXIMUM_STAKING\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MINIMUM_STAKING\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MIN_STAKERS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"REWARD_PRECISION\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"UNBONDING_PERIOD_DELEGATOR\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"UNBONDING_PERIOD_STAKER\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
 	Sigs: map[string]string{
 		"8280a25a": "BLS_PUBLIC_KEY_LENGTH()",
+		"af2a57bb": "CHANGE_FEE_DELAY()",
+		"e63a391f": "FEE_PRECISION()",
 		"129060ab": "MAXIMUM_STAKING()",
 		"ba631d3f": "MINIMUM_STAKING()",
 		"decf0206": "MIN_STAKERS()",
+		"3d6aa5e1": "REWARD_PRECISION()",
 		"840c1771": "UNBONDING_PERIOD_DELEGATOR()",
 		"fde7f371": "UNBONDING_PERIOD_STAKER()",
 	},
-	Bin: "0x608060405234801561001057600080fd5b5060ed8061001f6000396000f3fe6080604052348015600f57600080fd5b5060043610605a5760003560e01c8063129060ab14605f5780638280a25a146087578063840c177114608e578063ba631d3f146097578063decf02061460a7578063fde7f3711460ae575b600080fd5b60756fffffffffffffffffffffffffffffffff81565b60405190815260200160405180910390f35b6075603081565b60756203f48081565b60756969e10de76676d080000081565b6075600581565b607562093a808156fea2646970667358221220f87d3322cc283ac516b14414201cc37a6cc18a350aa595ebb3b74ed201abde3064736f6c634300080e0033",
+	Bin: "0x608060405234801561001057600080fd5b50610130806100206000396000f3fe6080604052348015600f57600080fd5b506004361060875760003560e01c8063af2a57bb11605e578063af2a57bb1460d2578063ba631d3f1460db578063decf02061460eb578063e63a391f1460f2578063fde7f3711460d257600080fd5b8063129060ab14608c5780633d6aa5e11460b45780638280a25a1460c2578063840c17711460c9575b600080fd5b60a26fffffffffffffffffffffffffffffffff81565b60405190815260200160405180910390f35b60a2670de0b6b3a764000081565b60a2603081565b60a26203f48081565b60a262093a8081565b60a26969e10de76676d080000081565b60a2600581565b60a26127108156fea2646970667358221220807711e629d1b15676d0e65f365dd144b684790d6d106aaa67a0f91e3ef7117064736f6c634300080e0033",
 }
 
 // GovConstABI is the input ABI used to generate the binding from.
@@ -245,6 +248,68 @@ func (_GovConst *GovConstCallerSession) BLSPUBLICKEYLENGTH() (*big.Int, error) {
 	return _GovConst.Contract.BLSPUBLICKEYLENGTH(&_GovConst.CallOpts)
 }
 
+// CHANGEFEEDELAY is a free data retrieval call binding the contract method 0xaf2a57bb.
+//
+// Solidity: function CHANGE_FEE_DELAY() view returns(uint256)
+func (_GovConst *GovConstCaller) CHANGEFEEDELAY(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _GovConst.contract.Call(opts, &out, "CHANGE_FEE_DELAY")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// CHANGEFEEDELAY is a free data retrieval call binding the contract method 0xaf2a57bb.
+//
+// Solidity: function CHANGE_FEE_DELAY() view returns(uint256)
+func (_GovConst *GovConstSession) CHANGEFEEDELAY() (*big.Int, error) {
+	return _GovConst.Contract.CHANGEFEEDELAY(&_GovConst.CallOpts)
+}
+
+// CHANGEFEEDELAY is a free data retrieval call binding the contract method 0xaf2a57bb.
+//
+// Solidity: function CHANGE_FEE_DELAY() view returns(uint256)
+func (_GovConst *GovConstCallerSession) CHANGEFEEDELAY() (*big.Int, error) {
+	return _GovConst.Contract.CHANGEFEEDELAY(&_GovConst.CallOpts)
+}
+
+// FEEPRECISION is a free data retrieval call binding the contract method 0xe63a391f.
+//
+// Solidity: function FEE_PRECISION() view returns(uint256)
+func (_GovConst *GovConstCaller) FEEPRECISION(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _GovConst.contract.Call(opts, &out, "FEE_PRECISION")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// FEEPRECISION is a free data retrieval call binding the contract method 0xe63a391f.
+//
+// Solidity: function FEE_PRECISION() view returns(uint256)
+func (_GovConst *GovConstSession) FEEPRECISION() (*big.Int, error) {
+	return _GovConst.Contract.FEEPRECISION(&_GovConst.CallOpts)
+}
+
+// FEEPRECISION is a free data retrieval call binding the contract method 0xe63a391f.
+//
+// Solidity: function FEE_PRECISION() view returns(uint256)
+func (_GovConst *GovConstCallerSession) FEEPRECISION() (*big.Int, error) {
+	return _GovConst.Contract.FEEPRECISION(&_GovConst.CallOpts)
+}
+
 // MAXIMUMSTAKING is a free data retrieval call binding the contract method 0x129060ab.
 //
 // Solidity: function MAXIMUM_STAKING() view returns(uint256)
@@ -336,6 +401,37 @@ func (_GovConst *GovConstSession) MINSTAKERS() (*big.Int, error) {
 // Solidity: function MIN_STAKERS() view returns(uint256)
 func (_GovConst *GovConstCallerSession) MINSTAKERS() (*big.Int, error) {
 	return _GovConst.Contract.MINSTAKERS(&_GovConst.CallOpts)
+}
+
+// REWARDPRECISION is a free data retrieval call binding the contract method 0x3d6aa5e1.
+//
+// Solidity: function REWARD_PRECISION() view returns(uint256)
+func (_GovConst *GovConstCaller) REWARDPRECISION(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _GovConst.contract.Call(opts, &out, "REWARD_PRECISION")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// REWARDPRECISION is a free data retrieval call binding the contract method 0x3d6aa5e1.
+//
+// Solidity: function REWARD_PRECISION() view returns(uint256)
+func (_GovConst *GovConstSession) REWARDPRECISION() (*big.Int, error) {
+	return _GovConst.Contract.REWARDPRECISION(&_GovConst.CallOpts)
+}
+
+// REWARDPRECISION is a free data retrieval call binding the contract method 0x3d6aa5e1.
+//
+// Solidity: function REWARD_PRECISION() view returns(uint256)
+func (_GovConst *GovConstCallerSession) REWARDPRECISION() (*big.Int, error) {
+	return _GovConst.Contract.REWARDPRECISION(&_GovConst.CallOpts)
 }
 
 // UNBONDINGPERIODDELEGATOR is a free data retrieval call binding the contract method 0x840c1771.

@@ -775,10 +775,10 @@ func TestDistributeRewardsOnlyForStakes(t *testing.T) {
 
 			getStakerInfo := func(addr common.Address) *govwbft.Staker {
 				return &govwbft.Staker{
-					Operator:  addr,
-					Rewardee:  addr,
-					Staking:   staking[addr],
-					Delegated: big.NewInt(0),
+					Operator:    addr,
+					Rewardee:    addr,
+					TotalStaked: staking[addr],
+					Delegated:   big.NewInt(0),
 				}
 			}
 

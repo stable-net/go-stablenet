@@ -12,6 +12,12 @@ func towei(x int64) *big.Int {
 	return new(big.Int).Mul(big.NewInt(x), big.NewInt(params.Ether))
 }
 
+func toRewardPerStaking(reward *big.Int, totalStaking *big.Int) *big.Int {
+	x := new(big.Int).Mul(reward, big.NewInt(params.Ether))
+	x.Div(x, totalStaking)
+	return x
+}
+
 func toGwei(x int64) *big.Int {
 	return new(big.Int).Mul(big.NewInt(x), big.NewInt(params.GWei))
 }

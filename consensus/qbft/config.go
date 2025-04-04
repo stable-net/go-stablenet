@@ -222,6 +222,7 @@ func getMontBlancTransition(config *params.MontBlancConfig) params.StateTransiti
 		Codes: []params.CodeParam{
 			{Address: govwbft.GovConstAddress, Code: govwbft.GovConstContract},
 			{Address: govwbft.GovStakingAddress, Code: govwbft.GovStakingContract},
+			{Address: govwbft.GovRewardeeImpAddress, Code: govwbft.GovRewardeeImpContract},
 		},
 	}
 	if config != nil && len(config.NCPs) > 0 {
