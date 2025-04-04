@@ -428,21 +428,13 @@ func TestEpochInfo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var parent *types.Header
 
-			// Setup validators
+			// Setup signers
 			signers := newAccounts(tc.totValidators)
-			var validators []common.Address
-			var blsPubKeys []string
-			for _, s := range signers {
-				validators = append(validators, s.addr)
-				blsPubKeys = append(blsPubKeys, hexutil.Encode(s.blsKey.PublicKey().Marshal()))
-			}
 
 			// Setup test chain genesis
 			c := new(fakeChain)
 			c.chainConfig = params.TestChainConfig
 			engine := NewEngine(&qbft.Config{
-				Validators:     validators,
-				BLSPublicKeys:  blsPubKeys,
 				ProposerPolicy: qbft.NewRoundRobinProposerPolicy(),
 				Epoch:          3,
 				MinStakers:     999,
@@ -474,7 +466,7 @@ func TestEpochInfo(t *testing.T) {
 				)
 
 				// Build epoch info
-				newEpoch := engine.buildEpochInfo(c, h, nil)
+				newEpoch, _ := engine.buildEpochInfo(c, h, nil)
 				ApplyHeaderQBFTExtra(h, WriteEpochInfo(newEpoch))
 				isEpoch, _, _ := engine.IsEpochBlockNumber(c.chainConfig, h.Number)
 				if newEpoch != nil && !isEpoch {
@@ -551,9 +543,11 @@ func TestEpochInfoTransition(t *testing.T) {
 			c.chainConfig = new(params.ChainConfig) // do not mess TestChainConfig
 			*c.chainConfig = *params.TestChainConfig
 			c.chainConfig.MontBlancBlock = tc.montBlancBlock
+			c.chainConfig.MontBlanc = &params.MontBlancConfig{
+				Validators:    validators,
+				BLSPublicKeys: blsPubKeys,
+			}
 			engine := NewEngine(&qbft.Config{
-				Validators:     validators,
-				BLSPublicKeys:  blsPubKeys,
 				ProposerPolicy: qbft.NewRoundRobinProposerPolicy(),
 				Epoch:          tc.epoch,
 				MinStakers:     999,
@@ -568,7 +562,7 @@ func TestEpochInfoTransition(t *testing.T) {
 				parent = h
 
 				// Build epoch info
-				newEpoch := engine.buildEpochInfo(c, h, nil)
+				newEpoch, _ := engine.buildEpochInfo(c, h, nil)
 				ApplyHeaderQBFTExtra(h, WriteEpochInfo(newEpoch))
 				isEpoch, _, _ := engine.IsEpochBlockNumber(c.chainConfig, h.Number)
 				if newEpoch != nil && !isEpoch {
@@ -733,17 +727,8 @@ func TestDistributeRewardsOnlyForStakes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup validators
+			// Setup signers
 			signers := newAccounts(len(tc.stakes))
-			var validators []common.Address
-			var blsPubKeys []string
-			for _, s := range signers {
-				validators = append(validators, s.addr)
-				blsPubKeys = append(blsPubKeys, hexutil.Encode(s.blsKey.PublicKey().Marshal()))
-			}
-
-			tc.qbftConfig.Validators = validators[:tc.totValidators]
-			tc.qbftConfig.BLSPublicKeys = blsPubKeys[:tc.totValidators]
 
 			// Setup test chain genesis (non-Brioche config)
 			c := new(fakeChain)
@@ -759,6 +744,7 @@ func TestDistributeRewardsOnlyForStakes(t *testing.T) {
 			// Change validator set
 			extra, _ := types.ExtractQBFTExtra(parent)
 			extra.EpochInfo.Validators = extra.EpochInfo.Validators[:tc.totValidators]
+			extra.EpochInfo.BLSPublicKeys = extra.EpochInfo.BLSPublicKeys[:tc.totValidators]
 			slices.Reverse(extra.EpochInfo.Validators) // deterministic shuffle
 			ApplyHeaderQBFTExtra(parent, WriteEpochInfo(extra.EpochInfo))
 

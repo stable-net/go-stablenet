@@ -32,12 +32,6 @@
       "proposerPolicy": 0,
       "epochLength": 10,
       "blockReward": "0xde0b6b3a7640000",
-      "validators": [
-        "0x8ec5137c7e4d166d7fd2b48310551a7ee2664aa7"
-      ],
-      "blsPublicKeys": [
-        "0x8666898868250923175fbe71a27b268c7ef7d04a29c402823b23d1487168ad17d12edf29b7b3615f7813c9c7c48d97f3"
-      ],
       "minStakers": 0,
       "targetValidators": 0,
       "maxRequestTimeoutSeconds": 4
@@ -45,7 +39,7 @@
   },
   "nonce": "0x0",
   "timestamp": "0x0",
-  "extraData": "0xf878a0000000000000000000000000000000000000000000000000000000000000000080c0c080c0c0f84fdad9948ec5137c7e4d166d7fd2b48310551a7ee2664aa7831cfde0c180f1b08666898868250923175fbe71a27b268c7ef7d04a29c402823b23d1487168ad17d12edf29b7b3615f7813c9c7c48d97f3",
+  "extraData": "0xf878a0000000000000000000000000000000000000000000000000000000000000000080c0c080c0c0f84fdad994e1ea67c1e427baa8f9a9aa126a610f4d1aba5948831cfde0c180f1b081a77a7a03b4628f42027d6fadac0b580f767772aa61f943e8db601e8b2670b7a3277b2fd7741c6d259614e2afc5c04a",
   "gasLimit": "0x23f3e20",
   "difficulty": "0x1",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -116,13 +110,13 @@
       "balance": "0x1",
       "nonce": "0x1"
     },
-    "8ec5137c7e4d166d7fd2b48310551a7ee2664aa7": {
-      "balance": "0xc097ce7bc90715b34b9f1000000000"
-    },
     "c7b99a164efd027a93f147376cc7da7c67c6bbe0": {
       "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
     "d803681e487e6ac18053afc5a6cd813c86ec3e4d": {
+      "balance": "0xc097ce7bc90715b34b9f1000000000"
+    },
+    "e1ea67c1e427baa8f9a9aa126a610f4d1aba5948": {
       "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
     "e7d13f7aa2a838d24c59b40186a0aca1e21cffcc": {

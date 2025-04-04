@@ -21,8 +21,6 @@ type QBFTConfig struct {
 	EpochLength              uint64                `json:"epochLength"`                      // The duration during which a fixed validator set remains active
 	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`            // Reward from start, works only on QBFT consensus protocol
 	BlockRewardBeneficiary   *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"` // Reward beneficiaries
-	Validators               []common.Address      `json:"validators"`                       // Validators list when the number of stakers is below the minimum stakers
-	BLSPublicKeys            []string              `json:"blsPublicKeys"`                    // BLS PublicKey list of QBFTConfig.Validators
 	MinStakers               uint64                `json:"minStakers"`                       // Minimum number of stakers to escape stabilization stage
 	TargetValidators         uint64                `json:"targetValidators"`                 // Target number of validators
 	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds"`         // The max round time
@@ -54,14 +52,13 @@ func (c *QBFTConfig) String() string {
 		maxRequestTimeoutSeconds = "<nil>"
 	}
 
-	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, BlockReward: %v, BlockRewardBeneficiaries: %+v, Validators: %v, MinStakers: %v, TargetValidators: %v, MaxRequestTimeoutSeconds: %v}",
+	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, BlockReward: %v, BlockRewardBeneficiaries: %+v, MinStakers: %v, TargetValidators: %v, MaxRequestTimeoutSeconds: %v}",
 		c.EpochLength,
 		c.BlockPeriodSeconds,
 		c.RequestTimeoutSeconds,
 		c.ProposerPolicy,
 		blockReward,
 		c.BlockRewardBeneficiary,
-		c.Validators,
 		c.MinStakers,
 		c.TargetValidators,
 		maxRequestTimeoutSeconds,
@@ -75,8 +72,6 @@ type Transition struct {
 	EpochLength              uint64                `json:"epochLength,omitempty"`              // The duration during which a fixed validator set remains active
 	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`              // Reward from start, works only on QBFT consensus protocol
 	BlockRewardBeneficiary   *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"`   // Reward beneficiaries
-	Validators               []common.Address      `json:"validators,omitempty"`               // Validators list when the number of stakers is below the minimum stakers
-	BLSPublicKeys            []string              `json:"blsPublicKeys,omitempty"`            // BLS PublicKey list of QBFTConfig.Validators
 	MinStakers               *uint64               `json:"minStakers,omitempty"`               // Minimum number of stakers to escape stabilization stage
 	TargetValidators         *uint64               `json:"targetValidators,omitempty"`         // Target number of validators
 	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds,omitempty"` // The max round time

@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 const (
@@ -58,5 +59,23 @@ func (st *StateTransition) String() string {
 }
 
 type MontBlancConfig struct {
-	NCPs []common.Address `json:"ncps,omitempty"`
+	NCPs          []common.Address `json:"ncps,omitempty"`
+	Validators    []common.Address `json:"validators"`    // Validators list when the number of stakers is below the minimum stakers
+	BLSPublicKeys []string         `json:"blsPublicKeys"` // BLS PublicKey list of Validators
+}
+
+func (c *MontBlancConfig) GetBLSPublicKeys() [][]byte {
+	blsPubKeys := make([][]byte, len(c.BLSPublicKeys))
+	for i, pk := range c.BLSPublicKeys {
+		blsPubKeys[i] = hexutil.MustDecode(pk)
+	}
+	return blsPubKeys
+}
+
+func (c *MontBlancConfig) String() string {
+	return fmt.Sprintf("{NCPs: %v, Validators: %v, BLSPublicKeys: %v}",
+		c.NCPs,
+		c.Validators,
+		c.BLSPublicKeys,
+	)
 }

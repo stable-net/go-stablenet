@@ -689,6 +689,12 @@ func (c *ChainConfig) Description() string {
 		banner += fmt.Sprintf("   - HalvingRate:               %-8v\n", c.Brioche.HalvingRate)
 	}
 	banner += fmt.Sprintf(" - MontBlanc:                   #%-8v\n", c.MontBlancBlock)
+	if c.MontBlanc != nil {
+		banner += fmt.Sprintf("   - NCPs:                      %v\n", c.MontBlanc.NCPs)
+		banner += fmt.Sprintf("   - Validators:                %v\n", c.MontBlanc.Validators)
+		banner += fmt.Sprintf("   - BLSPublicKeys:             %v\n", c.MontBlanc.BLSPublicKeys)
+	}
+	banner += " - QBFT\n"
 	if c.QBFT != nil {
 		banner += fmt.Sprintf("   - EpochLength:               %-8v\n", c.QBFT.EpochLength)
 		banner += fmt.Sprintf("   - BlockPeriodSeconds:        %-8v\n", c.QBFT.BlockPeriodSeconds)
@@ -707,8 +713,6 @@ func (c *ChainConfig) Description() string {
 				banner += fmt.Sprintf("   - BlockRewardBeneficiary[%v]: %v\n", i, b)
 			}
 		}
-		banner += fmt.Sprintf("   - Validators:                %v\n", c.QBFT.Validators)
-		banner += fmt.Sprintf("   - BLSPublicKeys:             %v\n", c.QBFT.BLSPublicKeys)
 		banner += fmt.Sprintf("   - MinStakers:                %v\n", c.QBFT.MinStakers)
 		banner += fmt.Sprintf("   - TargetValidators:          %v\n", c.QBFT.TargetValidators)
 		if c.QBFT.MaxRequestTimeoutSeconds == nil {
@@ -716,9 +720,6 @@ func (c *ChainConfig) Description() string {
 		} else {
 			banner += fmt.Sprintf("   - MaxRequestTimeoutSeconds:  %-8v\n", *c.QBFT.MaxRequestTimeoutSeconds)
 		}
-	}
-	if c.MontBlanc != nil {
-		banner += fmt.Sprintf("   - NCPs:                      %v\n", c.MontBlanc.NCPs)
 	}
 	banner += "\n"
 

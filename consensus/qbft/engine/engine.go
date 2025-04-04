@@ -494,18 +494,13 @@ func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyQBFTExtra {
 }
 
 // GetStakers
-// If number of stakers < minStakers, use validator list (regarded as staker list) from wbft config.
-// If number of stakers >= minStakers, use staker list from gov.
-//
-// TODO: After stabilization stage, although the number of stakers below
-// minStakers can cause the network unstable, use staker list only from gov
-// instead of the one from wbft config.
-func (e *Engine) GetStakers(config *params.ChainConfig, number *big.Int, state govwbft.StateReader) ([]common.Address, [][]byte) {
+// If number of stakers >= minStakers (after stabilization stage), use staker list from gov.
+// If number of stakers < minStakers , use validator list (regarded as staker list) from previous epoch.
+func (e *Engine) GetStakers(config *params.ChainConfig, latestEpochInfo *types.EpochInfo, state govwbft.StateReader) ([]common.Address, bool) {
 	var (
-		stakers    []common.Address
-		blsPubKeys [][]byte
+		stakers      []common.Address
+		isStabilized bool
 	)
-
 	if state != nil && govwbft.IsAfterStabilization(state) {
 		if config.MontBlancBlock == nil {
 			// WBFT chain
@@ -513,20 +508,14 @@ func (e *Engine) GetStakers(config *params.ChainConfig, number *big.Int, state g
 		} else {
 			stakers = govwbft.NCPStakers(state)
 		}
-		blsPubKeys = make([][]byte, len(stakers))
-		for i, addr := range stakers {
-			blsPubKeys[i] = e.GetBLSPublicKeyByAddress(state, addr)
-		}
+		isStabilized = true
 	} else {
-		config := e.cfg.GetConfig(number)
-		stakers = config.Validators
-		blsPubKeys = make([][]byte, len(config.BLSPublicKeys))
-		for i, pk := range config.BLSPublicKeys {
-			blsPubKeys[i] = hexutil.MustDecode(pk)
-		}
+		// epoch in a stabilization stage has the validator set which is same to the previous epoch
+		stakers = latestEpochInfo.GetValidators()
+		isStabilized = false
 	}
 
-	return stakers, blsPubKeys
+	return stakers, isStabilized
 }
 
 type stakerInfo struct {
@@ -534,22 +523,39 @@ type stakerInfo struct {
 	staker      *types.Staker
 }
 
-func (e *Engine) createInitialEpochBlock(config *params.ChainConfig, header *types.Header, state govwbft.StateReader) *types.EpochInfo {
+func checkMontBlancConfig(config *params.ChainConfig) error {
+	if config.MontBlanc == nil {
+		return errors.New("montblanc config is nil")
+	}
+	if len(config.MontBlanc.Validators) != len(config.MontBlanc.BLSPublicKeys) {
+		return fmt.Errorf("validators and blsPublicKeys length mismatch")
+	}
+	return nil
+}
+
+// The first set of validators for the MontBlanc Hardfork is defined in the MontBlanc Config
+func (e *Engine) createInitialEpochBlock(config *params.ChainConfig, header *types.Header, state govwbft.StateReader) (*types.EpochInfo, error) {
 	var newEpoch types.EpochInfo
 
+	// check montblanc config
+	if err := checkMontBlancConfig(config); err != nil {
+		log.Error("failed to create initial epoch block", "err", err)
+		return nil, err
+	}
+
+	stakers, blsPubKeys := config.MontBlanc.Validators, config.MontBlanc.GetBLSPublicKeys()
 	// Init diligence score of every staker to DefaultDiligence.
-	newStakers, blsPubkeys := e.GetStakers(config, header.Number, state)
-	newEpoch.Stakers = make([]*types.Staker, len(newStakers))
-	for i, staker := range newStakers {
+	newEpoch.Stakers = make([]*types.Staker, len(stakers))
+	for i, staker := range stakers {
 		newEpoch.Stakers[i] = &types.Staker{
 			Addr:      staker,
 			Diligence: types.DefaultDiligence,
 		}
 	}
-	newEpoch.Validators = e.decideValidators(header, newStakers)
+	newEpoch.Validators = e.decideValidators(header, stakers)
 	newEpoch.BLSPublicKeys = make([][]byte, len(newEpoch.Validators))
 	for i, validator := range newEpoch.Validators {
-		newEpoch.BLSPublicKeys[i] = blsPubkeys[validator]
+		newEpoch.BLSPublicKeys[i] = blsPubKeys[validator]
 	}
 
 	log.Trace("update epoch info", "header.Number", header.Number, "validators", newEpoch.Validators)
@@ -557,19 +563,19 @@ func (e *Engine) createInitialEpochBlock(config *params.ChainConfig, header *typ
 		log.Trace(fmt.Sprintf("  - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
 	}
 
-	return &newEpoch
+	return &newEpoch, nil
 }
 
 // verifyHeader() must catch inconsistent seals before calling this.
-func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) *types.EpochInfo {
+func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) (*types.EpochInfo, error) {
 	var newEpoch types.EpochInfo
 
 	config := chain.Config()
 	if isEpoch, _, err := e.IsEpochBlockNumber(config, header.Number); err != nil {
 		log.Error("IsEpochBlockNumber failed", "number", header.Number, "err", err)
-		return nil
+		return nil, err
 	} else if !isEpoch {
-		return nil
+		return nil, nil
 	}
 
 	// Generate initial epoch block if a transition occurs.
@@ -586,7 +592,8 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	var lastProposer common.Address
 	latestEpoch, latestEpochInfo, err := e.GetEpochInfo(chain, header, nil)
 	if err != nil {
-		log.Crit("failed to get latest epoch info", "err", err)
+		log.Error("failed to get latest epoch info", "err", err)
+		return nil, err
 	}
 
 	// Traverse blocks until reaching the epoch block.
@@ -594,12 +601,14 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	for it := header; latestEpoch.Cmp(it.Number) != 0; {
 		extra, err := types.ExtractQBFTExtra(it)
 		if err != nil {
-			log.Crit("failed to extract qbft extra data", "err", err)
+			log.Error("failed to extract qbft extra data", "err", err)
+			return nil, err
 		}
 
 		proposer, err := e.Author(it)
 		if err != nil {
-			log.Crit("failed to get proposer", "err", err)
+			log.Error("failed to get proposer", "err", err)
+			return nil, err
 		}
 		proposers = append(proposers, proposer)
 
@@ -608,7 +617,8 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 		if latestEpoch.Cmp(parent.Number) == 0 {
 			_, info, err := e.GetEpochInfo(chain, parent, nil)
 			if err != nil {
-				log.Crit("failed to get prev epoch info", "number(parent)", parent.Number, "err", err)
+				log.Error("failed to get prev epoch info", "number(parent)", parent.Number, "err", err)
+				return nil, err
 			}
 			lastProposer, _ = e.Author(parent)
 			epochInfo = info
@@ -619,7 +629,8 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 		if err != nil {
 			// If the parent block is the genesis block, PrevPreparedSeal can be nil
 			if err != qbftcommon.ErrEmptySeals || parent.Number.Sign() != 0 {
-				log.Crit("failed to get prev prepare signers", "err", err)
+				log.Error("failed to get prev prepare signers", "err", err)
+				return nil, err
 			}
 		}
 		proposedSealsInEpoch[proposer] += len(prepareSigners)
@@ -632,7 +643,8 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 		if err != nil {
 			// If the parent block is the genesis block, PrevCommittedSeal can be nil
 			if err != qbftcommon.ErrEmptySeals || parent.Number.Sign() != 0 {
-				log.Crit("failed to get prev commit signers", "err", err)
+				log.Error("failed to get prev commit signers", "err", err)
+				return nil, err
 			}
 		}
 		proposedSealsInEpoch[proposer] += len(commitSigners)
@@ -667,7 +679,9 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 			// If round change occurs for every validators more than once,
 			// latest round change cycle window will be used for counting.
 			if round >= len(validators) {
-				log.Crit("Invalid round")
+				err := errors.New("failed to find valid proposer")
+				log.Error("Invalid round", "err", err)
+				return nil, err
 			}
 
 			valSet.CalcProposer(lastProposer, uint64(round))
@@ -688,7 +702,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	)
 
 	// Update epoch info.
-	newStakers, blsPubkeys := e.GetStakers(config, header.Number, state)
+	newStakers, isStabilized := e.GetStakers(config, latestEpochInfo, state)
 	newEpoch.Stakers = make([]*types.Staker, len(newStakers))
 	for i, staker := range newStakers {
 		var d uint64
@@ -724,10 +738,23 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 			Diligence: d,
 		}
 	}
-	newEpoch.Validators = e.decideValidators(header, newStakers)
-	newEpoch.BLSPublicKeys = make([][]byte, len(newEpoch.Validators))
-	for i, validator := range newEpoch.Validators {
-		newEpoch.BLSPublicKeys[i] = blsPubkeys[validator]
+
+	// epoch in a stabilization stage has the validator set which is same to the previous epoch
+	if isStabilized {
+		newEpoch.Validators = e.decideValidators(header, newStakers)
+		newEpoch.BLSPublicKeys = make([][]byte, len(newEpoch.Validators))
+		for i, addr := range newEpoch.GetValidators() {
+			pk := govwbft.GetBLSPublicKey(state, addr)
+			if len(pk) == 0 {
+				err := errors.New("bls public key is zero")
+				log.Error("Invalid BLS Public Key", "err", err)
+				return nil, err
+			}
+			newEpoch.BLSPublicKeys[i] = pk
+		}
+	} else {
+		newEpoch.Validators = latestEpochInfo.Validators
+		newEpoch.BLSPublicKeys = latestEpochInfo.BLSPublicKeys
 	}
 
 	log.Trace("update epoch info", "header.Number", header.Number, "validators", newEpoch.Validators)
@@ -736,7 +763,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	}
 
 	e.epochCache.Add(header.Number.Uint64(), &newEpoch)
-	return &newEpoch
+	return &newEpoch, nil
 }
 
 // Finalize runs any post-transaction state modifications (e.g. block rewards)
@@ -744,8 +771,8 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 //
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (e *Engine) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
-	e.processFinalize(chain, header, state, txs, uncles, verifyEpoch)
+func (e *Engine) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) error {
+	return e.processFinalize(chain, header, state, txs, uncles, verifyEpoch)
 }
 
 // processFinalize is the internal implementation of Finalize.
@@ -756,7 +783,9 @@ func (e *Engine) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 //     and is the last block of the (N-1)th Epoch for the (N)th Epoch.
 func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, epochHandler func(*Engine, consensus.ChainHeaderReader, *types.Header, govwbft.StateReader) error) error {
 	// Accumulate any block and uncle rewards and commit the final state root
-	e.accumulateRewards(chain, state, header)
+	if err := e.accumulateRewards(chain, state, header); err != nil {
+		return err
+	}
 
 	if transitions := qbft.GetStateTransitions(chain.Config(), header.Number); len(transitions) > 0 {
 		for _, st := range transitions {
@@ -836,24 +865,33 @@ func (e *Engine) IsEpochBlockNumber(config *params.ChainConfig, number *big.Int)
 // exceptional case: blockNumber is genesis block number or montblanc hard fork block number, then
 // it returns the validators from chain config.
 func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *big.Int, parentHash common.Hash, parents []*types.Header) (qbft.ValidatorSet, error) {
+	chainConfig := chain.Config()
 	// 1. Check if the block is not a WBFT block
-	if chain.Config().MontBlancBlock != nil && !chain.Config().IsMontBlanc(blockNumber) {
+	if chainConfig.MontBlancBlock != nil && !chainConfig.IsMontBlanc(blockNumber) {
 		return nil, qbftcommon.ErrIsNotWBFTBlock
 	}
 
-	if qbft.GetFirstWbftBlockNumber(chain.Config()).Cmp(blockNumber) == 0 {
-		// genesis validators or montblanc hard fork validators from wbft config
-		blsPubKeys := make([][]byte, len(e.cfg.BLSPublicKeys))
-		for i, pk := range e.cfg.BLSPublicKeys {
-			blsPubKeys[i] = hexutil.MustDecode(pk)
+	var (
+		epochInfo *types.EpochInfo
+		err       error
+	)
+	if qbft.GetFirstWbftBlockNumber(chainConfig).Cmp(blockNumber) == 0 {
+		//montblanc hard fork validators from montblanc config
+		if chainConfig.MontBlancBlock != nil {
+			if err := checkMontBlancConfig(chainConfig); err != nil {
+				log.Error("failed to get epochInfo", "err", err)
+				return nil, err
+			}
+			vs := validator.NewSet(chainConfig.MontBlanc.Validators, chainConfig.MontBlanc.GetBLSPublicKeys(), e.cfg.ProposerPolicy)
+			return vs, nil
 		}
-		vs := validator.NewSet(e.cfg.Validators, blsPubKeys, e.cfg.ProposerPolicy)
-		return vs, nil
+		_, epochInfo, err = e.extractEpochInfo(chain.GetHeaderByNumber(0))
+	} else {
+		_, epochInfo, err = e.getEpochInfo(chain, blockNumber, parentHash, parents)
 	}
 
-	_, epochInfo, err := e.getEpochInfo(chain, blockNumber, parentHash, parents)
 	if err != nil {
-		log.Error("BFT: failed to get epochInfo", "err", err)
+		log.Error("failed to get epochInfo", "err", err)
 		return nil, err
 	}
 
@@ -950,7 +988,7 @@ func makeRewardFunc(state *state.StateDB, blockReward *big.Int) func(*govwbft.St
 }
 
 // AccumulateRewards credits the beneficiary of the given block with a reward.
-func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *state.StateDB, header *types.Header) {
+func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *state.StateDB, header *types.Header) error {
 	var blockReward *big.Int
 
 	if chain.Config().IsBrioche(header.Number) {
@@ -977,7 +1015,8 @@ func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *sta
 
 		if blockReward.Cmp(bReward) < 0 {
 			// Unreachable if genesis block is set correctly.
-			log.Crit("block reward underflow", "blockReward", blockReward, "bReward", bReward)
+			log.Error("block reward underflow", "blockReward", blockReward, "bReward", bReward)
+			return errors.New("block reward underflow")
 		}
 		blockReward.Sub(blockReward, bReward)
 	}
@@ -1006,7 +1045,8 @@ func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *sta
 			makeRewardFunc(state, blockReward),
 			getStakerInfo,
 		); err != nil {
-			log.Crit("Error while calculating rewards", "err", err)
+			log.Error("Error while calculating rewards", "err", err)
+			return err
 		}
 	}
 
@@ -1017,6 +1057,7 @@ func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *sta
 		state.AddBalance(staker.Rewardee, uint256.MustFromBig(blockReward))
 		log.Trace("Block reward left rewards to", "rewardee", staker.Rewardee, "amount", blockReward)
 	}
+	return nil
 }
 
 // calculateRewards calculates the reward for the given block.
@@ -1050,7 +1091,10 @@ func (e *Engine) calculateRewards(chain consensus.ChainHeaderReader, header *typ
 }
 
 func writeEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) error {
-	newEpoch := e.buildEpochInfo(chain, header, state)
+	newEpoch, err := e.buildEpochInfo(chain, header, state)
+	if err != nil {
+		return err
+	}
 
 	return ApplyHeaderQBFTExtra(header, WriteEpochInfo(newEpoch))
 }
@@ -1060,7 +1104,10 @@ func writeEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Head
 // It validates the validity of the ValidatorList associated with the EpochBlock.
 func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) error {
 	bHeader := types.CopyHeader(header)
-	epoch := e.buildEpochInfo(chain, bHeader, state)
+	epoch, err := e.buildEpochInfo(chain, bHeader, state)
+	if err != nil {
+		return err
+	}
 
 	extra, err := types.ExtractQBFTExtra(header)
 	if err != nil {
@@ -1105,15 +1152,6 @@ func (e *Engine) decideValidators(header *types.Header, newStakers []common.Addr
 	}
 
 	return l
-}
-
-func (e *Engine) GetBLSPublicKeyByAddress(state govwbft.StateReader, address common.Address) []byte {
-	pk := govwbft.GetBLSPublicKey(state, address)
-	if len(pk) == 0 {
-		log.Crit("Invalid BLS PublicKey")
-	}
-
-	return pk
 }
 
 func getSignerAddress(epochInfo *types.EpochInfo, signedSeal *types.QBFTAggregatedSeal) ([]common.Address, error) {

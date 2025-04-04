@@ -75,7 +75,7 @@ func (sb *Backend) VerifyHeader(chain consensus.ChainHeaderReader, header *types
 }
 
 func (sb *Backend) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
-	valSet, prevValSet, err := sb.GetValidatorsForVerifying(chain, header.Number, header.ParentHash, parents)
+	valSet, prevValSet, err := sb.GetValidatorsForVerifying(chain, header, parents)
 	if err != nil {
 		return err
 	}
@@ -178,8 +178,8 @@ func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 //
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
-func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, _ []*types.Withdrawal) {
-	sb.Engine().Finalize(chain, header, state, txs, uncles)
+func (sb *Backend) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, _ []*types.Withdrawal) error {
+	return sb.Engine().Finalize(chain, header, state, txs, uncles)
 }
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
@@ -384,19 +384,19 @@ func (sb *Backend) SealHash(header *types.Header) common.Hash {
 	return sb.Engine().SealHash(header)
 }
 
-func (sb *Backend) GetValidatorsForVerifying(chain consensus.ChainHeaderReader, blockNumber *big.Int, parentHash common.Hash, parents []*types.Header) (qbft.ValidatorSet, qbft.ValidatorSet, error) {
+func (sb *Backend) GetValidatorsForVerifying(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (qbft.ValidatorSet, qbft.ValidatorSet, error) {
 	var valSet, prevValSet qbft.ValidatorSet
 	var err error
 
 	// Retrieve the ValidatorSet for the block height
-	if valSet, err = sb.Engine().GetValidators(chain, blockNumber, parentHash, parents); err != nil {
+	if valSet, err = sb.Engine().GetValidators(chain, header.Number, header.ParentHash, parents); err != nil {
 		return nil, nil, consensus.ErrUnknownAncestor
 	}
 
-	if blockNumber.Uint64() >= qbft.GetFirstWbftBlockNumber(chain.Config()).Uint64()+2 {
+	if header.Number.Uint64() >= qbft.GetFirstWbftBlockNumber(chain.Config()).Uint64()+2 {
 		var parent *types.Header
 		if len(parents) == 0 {
-			parent = chain.GetHeader(parentHash, blockNumber.Uint64()-1)
+			parent = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 			parents = nil
 		} else {
 			parent = parents[len(parents)-1]

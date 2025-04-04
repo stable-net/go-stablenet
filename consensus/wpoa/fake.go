@@ -51,8 +51,8 @@ func (wfpoa *WemixFakePoA) Prepare(chain consensus.ChainHeaderReader, header *ty
 }
 
 func (wfpoa *WemixFakePoA) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, withdrawals []*types.Withdrawal) {
-	wfpoa.wpoa.Finalize(chain, header, state, txs, uncles, withdrawals)
+	uncles []*types.Header, withdrawals []*types.Withdrawal) error {
+	return wfpoa.wpoa.Finalize(chain, header, state, txs, uncles, withdrawals)
 }
 
 func (wfpoa *WemixFakePoA) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,

@@ -109,11 +109,11 @@ func (we *WemixConsensus) Prepare(chain consensus.ChainHeaderReader, header *typ
 }
 
 func (we *WemixConsensus) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, withdrawals []*types.Withdrawal) {
+	uncles []*types.Header, withdrawals []*types.Withdrawal) error {
 	if chain.Config().IsMontBlanc(header.Number) {
-		we.wbft.Finalize(chain, header, state, txs, uncles, withdrawals)
+		return we.wbft.Finalize(chain, header, state, txs, uncles, withdrawals)
 	} else {
-		we.wpoa.Finalize(chain, header, state, txs, uncles, withdrawals)
+		return we.wpoa.Finalize(chain, header, state, txs, uncles, withdrawals)
 	}
 }
 

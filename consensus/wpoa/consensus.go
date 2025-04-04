@@ -368,9 +368,10 @@ func (wpoa *WemixPoA) Prepare(chain consensus.ChainHeaderReader, header *types.H
 
 // Finalize implements consensus.Engine, accumulating the block and uncle rewards.
 func (wpoa *WemixPoA) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, withdrawals []*types.Withdrawal) {
+	uncles []*types.Header, withdrawals []*types.Withdrawal) error {
 	// Accumulate any block and uncle rewards
 	wpoa.accumulateRewards(chain.Config(), state, header, uncles)
+	return nil
 }
 
 // FinalizeAndAssemble implements consensus.Engine, accumulating the block and

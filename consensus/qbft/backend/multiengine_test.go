@@ -46,7 +46,7 @@ func MakeMultiEngineTestEnv(n int) (env *testEnv) {
 	env = &testEnv{}
 
 	// validators are ordered so the proposer will be selected in index order
-	genesis, nodeKeys, vals := testutils.GenesisAndFixedKeys(n)
+	genesis, nodeKeys, _ := testutils.GenesisAndFixedKeys(n)
 	env.parent = genesis.ToBlock()
 	env.down = make(map[common.Address]bool)
 	env.msgDisabled = make(map[common.Address]map[uint64]bool)
@@ -60,7 +60,6 @@ func MakeMultiEngineTestEnv(n int) (env *testEnv) {
 	config.MaxRequestTimeoutSeconds = 2
 	config.MinStakers = 1
 	config.AllowedFutureBlockTime = 100000000 // to skip future block check; this makes block creation time to be very short
-	config.Validators = vals
 
 	env.addrs = make([]common.Address, n)
 	env.index = make(map[common.Address]int)

@@ -201,8 +201,6 @@ func setConfigFromChainConfig(qbftCfg *qbft.Config, config *params.ChainConfig) 
 
 	qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.QBFT.ProposerPolicy))
 	qbftCfg.BlockReward = config.QBFT.BlockReward
-	qbftCfg.Validators = config.QBFT.Validators
-	qbftCfg.BLSPublicKeys = config.QBFT.BLSPublicKeys
 
 	if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
 		qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds

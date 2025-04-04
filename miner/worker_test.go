@@ -24,7 +24,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -160,8 +159,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 			},
 		}
 		gspec.ExtraData, _ = rlp.EncodeToBytes(sampleExtra)
-		gspec.Config.QBFT.Validators = []common.Address{testBankAddress}
-		gspec.Config.QBFT.BLSPublicKeys = []string{hexutil.Encode(testBankBlsPubKey.Marshal())}
 	default:
 		t.Fatalf("unexpected consensus engine type: %T", engine)
 	}

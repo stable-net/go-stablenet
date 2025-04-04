@@ -193,8 +193,6 @@ func (g *genesisGenerator) wbftChainConfig() {
 		BlockPeriodSeconds:    1,
 		RequestTimeoutSeconds: 2,
 		ProposerPolicy:        0,
-		Validators:            validators,
-		BLSPublicKeys:         blsPublicKeys,
 	}
 
 	// make extra data

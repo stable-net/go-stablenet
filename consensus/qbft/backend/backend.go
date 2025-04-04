@@ -265,7 +265,7 @@ func (sb *Backend) Verify(proposal qbft.Proposal) (time.Duration, error) {
 	}
 
 	header := block.Header()
-	valSet, prevValSet, err := sb.GetValidatorsForVerifying(sb.chain, header.Number, header.ParentHash, nil)
+	valSet, prevValSet, err := sb.GetValidatorsForVerifying(sb.chain, header, nil)
 	if err != nil {
 		return 0, err
 	}
