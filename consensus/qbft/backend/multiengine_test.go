@@ -112,6 +112,7 @@ type scenario struct {
 // all engines are waiting for this to be called
 func (env *testEnv) GoNewRound(t *testing.T, sc *scenario, rounds ...uint64) {
 	// wait for new round
+
 	actualRound := make([]uint64, len(env.addrs))
 	i := 0
 	for addr, newRoundReady := range env.newRoundReady {
@@ -310,8 +311,8 @@ func (env *testEnv) makeScenarioRandomDown(index ...int) *scenario {
 	}
 }
 
-func makeNotifyNewRound(notifyChan chan uint64, startChan chan struct{}) func(waitTime time.Duration, round *big.Int) {
-	return func(waitTime time.Duration, round *big.Int) {
+func makeNotifyNewRound(notifyChan chan uint64, startChan chan struct{}) func(isProposer bool, waitTime time.Duration, round *big.Int) {
+	return func(isProposer bool, waitTime time.Duration, round *big.Int) {
 		notifyChan <- round.Uint64()
 		<-startChan
 	}
@@ -431,7 +432,6 @@ func TestWBFTTwoEngineDown(t *testing.T) {
 
 	env.GoNewRound(t, env.makeScenarioEngineUp(2), 3, 3, 3, 3)
 	t.Log("round changed to 3")
-
 	env.MustSucceed(t, false, 0, 3) // proposer is engine 0 again after circulation
 }
 

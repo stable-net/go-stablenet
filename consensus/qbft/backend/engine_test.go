@@ -949,8 +949,8 @@ func TestMakingBlock(t *testing.T) {
 func TestAddingExtraSeals(t *testing.T) {
 	// assume 3 nodes,
 	// one is myself, two is normal node, three is slow node that sends extraSeals
-	expectedAdditionalPreparedSealCnt := 1
-	expectedAdditionalCommittedSealCnt := 2
+	expectedAdditionalPreparedSealCnt := 3
+	expectedAdditionalCommittedSealCnt := 3
 
 	chain, engine, nodes := newBlockChain(3)
 	normalNode := nodes[1]

@@ -228,6 +228,9 @@ func (c *Core) startNewRound(round *big.Int) {
 		nextValSet = c.backend.Validators(lastProposal)
 	}
 
+	// Add extra seal that contributed to consensus
+	c.addEffectiveSealToExtraSeal()
+
 	// New snapshot for new round
 	c.updateRoundState(nextValSet, newView, roundChange)
 
@@ -244,7 +247,9 @@ func (c *Core) startNewRound(round *big.Int) {
 		c.roundChangeSet.ClearLowerThan(round)
 	}
 	c.roundChangeSet.NewRound(round)
-	c.backend.NotifyNewRound(round)
+
+	c.backend.NotifyNewRound(c.IsProposer(), round)
+
 	// the order of NotifyNewRound() and newRoundChangeTimer() does not matter on actual consensus, but
 	// it matters on multi-engine test, so we keep the order as it is
 	c.newRoundChangeTimer()

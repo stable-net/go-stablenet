@@ -138,5 +138,5 @@ type Backend interface {
 
 	Close() error
 
-	NotifyNewRound(round *big.Int)
+	NotifyNewRound(isProposer bool, round *big.Int)
 }

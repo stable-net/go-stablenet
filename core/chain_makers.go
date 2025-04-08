@@ -313,7 +313,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 	}
 	cm := newChainMaker(parent, config, engine)
 
-	err := engine.CallEngineSpecific("Start", cm, cm.CurrentBlock, rawdb.HasBadBlock, func(waitTime time.Duration, round *big.Int) {})
+	err := engine.CallEngineSpecific("Start", cm, cm.CurrentBlock, rawdb.HasBadBlock, func(isProposer bool, waitTime time.Duration, round *big.Int) {})
 	if err != nil {
 		panic("invalid engine specific call")
 	}
