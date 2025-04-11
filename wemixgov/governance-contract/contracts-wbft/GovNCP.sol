@@ -46,6 +46,7 @@ contract GovNCP {
 
     uint256 public currentProposalID;
     mapping(uint256 => Proposal) private __proposals;
+    mapping(address => bool) private __lockedNCPs;
 
     event NewProposal(uint256 indexed id, uint256 proposalType, address ncp, address proposer, uint256 time, uint256 endtime);
     event Vote(uint256 indexed proposalID, address voter, bool accept);
@@ -54,6 +55,7 @@ contract GovNCP {
 
     event NCPAdded(address indexed ncp);
     event NCPRemoved(address indexed ncp);
+    event NCPChanged(address indexed oldNCP, address indexed newNCP);
 
     modifier onlyNCP() {
         require(__ncpList.contains(msg.sender), "msg.sender is not ncp");
@@ -76,6 +78,21 @@ contract GovNCP {
     function newProposalToRemoveNCP(address _ncp) external onlyNCP {
         require(__ncpList.contains(_ncp), "invalid ncp");
         _newProposal(_ncp, ProposalType.NCPRemoval);
+
+        if (msg.sender == _ncp) {
+            Proposal storage _proposal = _getVotingProposal(currentProposalID);
+            _finalizeProposal(_proposal, true);
+        }
+    }
+
+    function changeNCP(address _ncp) external onlyNCP {
+        require(!__ncpList.contains(_ncp), "ncp already exists");
+        require(!__lockedNCPs[msg.sender], "belong in an on-going proposal");
+
+        __ncpList.remove(msg.sender);
+        __ncpList.add(_ncp);
+
+        emit NCPChanged(msg.sender, _ncp);
     }
 
     function vote(uint256 _proposalID, bool _accept) external onlyNCP {
@@ -127,6 +144,9 @@ contract GovNCP {
         _proposal.proposalType = _proposalType;
         _proposal.state = ProposalState.Voting;
 
+        __lockedNCPs[msg.sender] = true;
+        __lockedNCPs[_targetNCP] = true;
+
         emit NewProposal(currentProposalID, uint(_proposalType), _targetNCP, msg.sender, block.timestamp, _proposal.endTime);
     }
 
@@ -149,6 +169,10 @@ contract GovNCP {
         } else {
             _proposal.state = ProposalState.Rejected;
         }
+
+        __lockedNCPs[_proposal.proposer] = false;
+        __lockedNCPs[_proposal.targetNCP] = false;
+
         emit ProposalFinalized(currentProposalID, _accepted);
 
         currentProposalID++;

@@ -140,8 +140,16 @@ func (g *GovWBFT) Claim(t *testing.T, user *EOA, staker common.Address, restake 
 	return g.stakingContractTx(t, "claim", user, nil, staker, restake)
 }
 
-func (g *GovWBFT) Withdraw(t *testing.T, sender *EOA, credentialID *big.Int) (*types.Transaction, error) {
-	return g.stakingContractTx(t, "withdraw", sender, nil, credentialID)
+func (g *GovWBFT) Withdraw(t *testing.T, sender *EOA, count *big.Int) (*types.Transaction, error) {
+	return g.stakingContractTx(t, "withdraw", sender, nil, count)
+}
+
+func (g *GovWBFT) RequestChangingFee(t *testing.T, sender *EOA, newFeeRate *big.Int) (*types.Transaction, error) {
+	return g.stakingContractTx(t, "requestChangingFee", sender, nil, newFeeRate)
+}
+
+func (g *GovWBFT) ExecuteChangingFee(t *testing.T, sender *EOA, staker common.Address) (*types.Transaction, error) {
+	return g.stakingContractTx(t, "executeChangingFee", sender, nil, staker)
 }
 
 func (g *GovWBFT) RequestChangeFee(t *testing.T, sender *EOA, newFeeRate *big.Int) (*types.Transaction, error) {
@@ -163,6 +171,10 @@ func (g *GovWBFT) NewProposalToAddNCP(t *testing.T, proposer *EOA, ncp common.Ad
 
 func (g *GovWBFT) NewProposalToRemoveNCP(t *testing.T, proposer *EOA, ncp common.Address) (*types.Transaction, error) {
 	return g.ncpContractTx(t, "newProposalToRemoveNCP", proposer, nil, ncp)
+}
+
+func (g *GovWBFT) ChangeNCP(t *testing.T, ncp *EOA, newNCP common.Address) (*types.Transaction, error) {
+	return g.ncpContractTx(t, "changeNCP", ncp, nil, newNCP)
 }
 
 func (g *GovWBFT) Vote(t *testing.T, voter *EOA, proposalID *big.Int, accept bool) (*types.Transaction, error) {

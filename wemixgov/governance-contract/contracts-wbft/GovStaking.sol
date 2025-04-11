@@ -34,23 +34,21 @@ contract GovStaking {
         uint256 feePerStaking;
     }
 
+    struct UserCredentialInfo {
+        uint256 credentialIndex;
+        uint256 withdrawalIndex;
+        // credentialCount = credentialIndex - withdrawalIndex
+    }
+
     struct WithdrawalCredential {
-        address requester;
         uint256 amount;
         uint256 requestTime;
         uint256 withdrawableTime;
-        WithdrawalStatus status;
     }
 
-    struct ChangeFeeRequest {
+    struct ChangingFeeRequest {
         uint256 newFeeRate;
         uint256 requestTime;
-    }
-
-    enum WithdrawalStatus {
-        None,
-        Requested,
-        Withdrawn
     }
 
     event StakerRegistered(address indexed staker, address operator, address rewardee, address feeRecipient, uint256 feeRate, uint256 staking, bytes blsPK);
@@ -60,10 +58,12 @@ contract GovStaking {
     event Delegated(address indexed delegator, address indexed staker, uint256 amount);
     event Undelegated(address indexed delegator, address indexed staker, uint256 amount);
     event NewCredential(uint256 indexed credentialID, address indexed requester, uint256 amount, uint256 time, uint256 unbonding);
-    event Withdrawn(uint256 indexed credentialID, address requester, uint256 amount);
+    event Withdrawn(address indexed requester, uint256 withdrawalIndex, uint256 amount);
     event RewardInfoUpdated(address indexed staker, uint256 totalStaked, uint256 balance, uint256 accBalance, uint256 accRewardPerStaking, uint256 accFeePerStaking);
     event UserRewardUpdated(address indexed staker, address indexed user, uint256 stakingAmount, uint256 pendingReward, uint256 accRewardPerStaking, uint256 accFeePerStaking);
     event Claimed(address indexed staker, address indexed rewardee, uint256 amount, bool restake);
+    event ChangingFeeRateRequested(address indexed staker, uint256 oldFeeRate, uint256 newFeeRate);
+    event ChangingFeeRateExecuted(address indexed staker, uint256 newFeeRate);
     event FeeRecipientChanged(address indexed staker, address oldRecipient, address newRecipient);
     event FeeRateChangeRequested(address indexed staker, uint256 oldFeeRate, uint256 newFeeRate);
 
@@ -82,12 +82,12 @@ contract GovStaking {
     mapping(address => address) public stakerByOperator; // 0x4
     mapping(address => address) public stakerByRewardee; // 0x5
 
-    // Withdrawal Credential
-    uint256 public credentialCount; // 0x6
-    mapping(uint256 => WithdrawalCredential) public credentials; // 0x7
+    // Withdrawal Credential: credentials[user][credentialIndex]
+    mapping(address => mapping(uint256 => WithdrawalCredential)) public credentials; // 0x6
+    mapping(address => UserCredentialInfo) public userCredential; // 0x7
 
     // pending request
-    mapping(address => ChangeFeeRequest) public pendingRequest; // 0x8
+    mapping(address => ChangingFeeRequest) public changingFeeRequests; // 0x8
 
     // User Reward Info
     mapping(address => mapping(address => UserInfo)) public userRewardInfo; // 0x9
@@ -97,14 +97,48 @@ contract GovStaking {
     uint256 public danglingDelegated; // 0xa
     bool public afterStabilization; // 0xb
 
-    modifier checkAmount(uint256 _amount) {
-        require(msg.value == _amount, "amount and msg.value mismatch");
+    // state definition
+    // - UNREGISTERED: stakerInfo[staker].operator = 0
+    // - REGISTERED: stakerInfo[staker].operator != 0
+    //   - ACTIVE: __stakerSet.contains(staker) = true
+    //   - INACTIVE: __stakerSet.contains(staker) = false
+    //
+    //
+    // staker operations and states in which they are permitted to execute
+    // - registerStaker: UNREGISTERED
+    // - changeFeeRecipient: REGISTERED
+    // - requestChangingFee: ACTIVE
+    // - stake: REGISTERED
+    // - unstake: ACTIVE
+    // - delegate: ACTIVE
+    // - undelegate: REGISTERED
+    // - claim: REGISTERED
+    // - withdraw: REGISTERED
+
+    modifier isNotRegistered(address _staker) {
+        require(stakerInfo[_staker].operator == address(0), "already registered staker");
         _;
     }
 
-    modifier checkStaker(address _staker) {
-        require(_staker != address(0), "unregistered staker");
-        require(isStaker(_staker), "unregistered staker");
+    modifier isRegistered(address _staker) {
+        require(stakerInfo[_staker].operator != address(0), "unregistered staker");
+        _;
+    }
+
+    modifier isActive(address _staker) {
+        require(stakerInfo[_staker].operator != address(0), "unregistered staker");
+        require(__stakerSet.contains(_staker), "staker is inactive");
+        _;
+    }
+
+    modifier isInactive(address _staker) {
+        require(stakerInfo[_staker].operator != address(0), "unregistered staker");
+        require(!__stakerSet.contains(_staker), "staker is active");
+        _;
+    }
+
+    modifier checkAmount(uint256 _amount) {
+        require(msg.value == _amount, "amount and msg.value mismatch");
         _;
     }
 
@@ -129,12 +163,16 @@ contract GovStaking {
         return __stakerSet.values();
     }
 
-    function registerStaker(uint256 _amount, address _staker, address _feeRecipient, uint256 _feeRate, bytes calldata _blsPK) external payable checkAmount(_amount) {
+    function registerStaker(
+        uint256 _amount,
+        address _staker,
+        address _feeRecipient,
+        uint256 _feeRate,
+        bytes calldata _blsPK) external payable checkAmount(_amount) isNotRegistered(_staker) {
         require(_amount >= GOV_CONST.MINIMUM_STAKING() && _amount <= GOV_CONST.MAXIMUM_STAKING(), "out of bounds");
         require(msg.sender != _staker, "operator cannot be staker");
         require(_staker != address(0), "zero address");
         require(!isOperator(msg.sender), "operator is already registered");
-        require(!isStaker(_staker), "staker is already registered");
         require(_feeRecipient != address(0), "fee recipient is zero address");
         require(_feeRate <= GOV_CONST.FEE_PRECISION(), "fee rate exceeds precision");
         require(_blsPK.length == GOV_CONST.BLS_PUBLIC_KEY_LENGTH(), "invalid bls public key");
@@ -150,8 +188,6 @@ contract GovStaking {
         stakerByRewardee[address(_rewardee)] = _staker;
 
         __stakerSet.add(_staker);
-
-        _updateRewardInfo(_staker, msg.sender);
 
         _addStaking(_staker, msg.sender, _amount);
 
@@ -170,7 +206,7 @@ contract GovStaking {
         );
     }
 
-    function changeFeeRecipient(address _newRecipient) external checkStaker(stakerByOperator[msg.sender]) {
+    function changeFeeRecipient(address _newRecipient) external isRegistered(stakerByOperator[msg.sender]) {
         require(_newRecipient != address(0), "zero address");
         address _staker = stakerByOperator[msg.sender];
         address oldRecipient = stakerInfo[_staker].feeRecipient;
@@ -179,35 +215,34 @@ contract GovStaking {
         emit FeeRecipientChanged(_staker, oldRecipient, _newRecipient);
     }
 
-    function requestChangeFee(uint256 _feeRate) external checkStaker(stakerByOperator[msg.sender]) {
+    function requestChangingFee(uint256 _feeRate) external isActive(stakerByOperator[msg.sender]) {
         require(_feeRate <= GOV_CONST.FEE_PRECISION(), "fee rate exceeds precision");
         address _staker = stakerByOperator[msg.sender];
-        require(pendingRequest[_staker].requestTime == 0, "request already is on going");
+        require(changingFeeRequests[_staker].requestTime == 0, "request already is on going");
 
         uint256 oldFeeRate = stakerInfo[_staker].feeRate;
         if (getDelegatedAmount(_staker) > 0) {
-            pendingRequest[_staker] = ChangeFeeRequest({ newFeeRate: _feeRate, requestTime: block.timestamp });
+            changingFeeRequests[_staker] = ChangingFeeRequest({ newFeeRate: _feeRate, requestTime: block.timestamp });
         }
         else {
             // if no delegator exists, change fee immediately
             stakerInfo[_staker].feeRate = _feeRate;
         }
 
-        emit FeeRateChangeRequested(_staker, oldFeeRate, _feeRate);
+        emit ChangingFeeRateRequested(_staker, oldFeeRate, _feeRate);
     }
 
-    function executeChangeFee(address _staker) external {
-        require(pendingRequest[_staker].requestTime > 0, "no request exists");
-        require(block.timestamp - pendingRequest[_staker].requestTime >= GOV_CONST.CHANGE_FEE_DELAY(),
+    function executeChangingFee(address _staker) external {
+        require(changingFeeRequests[_staker].requestTime > 0, "no request exists");
+        require(block.timestamp - changingFeeRequests[_staker].requestTime >= GOV_CONST.CHANGE_FEE_DELAY(),
             "the request cannot be executed before delay time");
 
         // don't update user info passing zero address
         _updateRewardInfo(_staker, address(0));
     }
 
-    function stake(uint256 _amount) external payable checkAmount(_amount) {
+    function stake(uint256 _amount) external payable isRegistered(stakerByOperator[msg.sender]) checkAmount(_amount) {
         address _staker = stakerByOperator[msg.sender];
-        require(_staker != address(0), "unregistered staker");
 
         // update stake info
         _updateRewardInfo(_staker, msg.sender);
@@ -226,7 +261,7 @@ contract GovStaking {
         emit Staked(_staker, _amount);
     }
 
-    function unstake(uint256 _amount) external checkStaker(stakerByOperator[msg.sender]) {
+    function unstake(uint256 _amount) external isActive(stakerByOperator[msg.sender]) {
         require(_amount > 0, "amount is zero");
 
         address _staker = stakerByOperator[msg.sender];
@@ -252,7 +287,7 @@ contract GovStaking {
         emit Unstaked(_staker, _amount);
     }
 
-    function delegate(address _staker, uint256 _amount) external payable checkAmount(_amount) checkStaker(_staker) {
+    function delegate(address _staker, uint256 _amount) external payable isActive(_staker) checkAmount(_amount) {
         require(msg.sender != _staker, "staker cannot delegate to self");
         require(msg.sender != stakerInfo[_staker].operator, "operator cannot delegate to self");
 
@@ -263,9 +298,7 @@ contract GovStaking {
         emit Delegated(msg.sender, _staker, _amount);
     }
 
-    function undelegate(address _staker, uint256 _amount) external {
-        // we don't checkStaker; one can undelegate even if the staker is not active
-
+    function undelegate(address _staker, uint256 _amount) external isRegistered(_staker) {
         require(msg.sender != _staker, "staker cannot undelegate to self");
         require(msg.sender != stakerInfo[_staker].operator, "operator cannot undelegate to self");
 
@@ -286,10 +319,9 @@ contract GovStaking {
         emit Undelegated(msg.sender, _staker, _amount);
     }
 
-    function claim(address _staker, bool _restake) external {
+    function claim(address _staker, bool _restake) external isRegistered(_staker) {
         require(userRewardInfo[_staker][msg.sender].stakingAmount > 0 ||
                 userRewardInfo[_staker][msg.sender].pendingReward > 0, "no reward to claim");
-        require(_staker != address(0), "unregistered staker");
         Staker storage _stakerInfo = stakerInfo[_staker];
         UserInfo storage _userInfo = userRewardInfo[_staker][msg.sender];
 
@@ -307,7 +339,7 @@ contract GovStaking {
         _userInfo.pendingFee = 0;
 
         if (_restake) {
-            require(isStaker(_staker), "unregistered staker");
+            require(isStaker(_staker), "staker is inactive");
             GovRewardeeImp(payable(_stakerInfo.rewardee)).sendRewardTo(payable(address(this)), _reward);
 
             _addStaking(_staker, msg.sender, _reward);
@@ -324,21 +356,35 @@ contract GovStaking {
         emit Claimed(_staker, msg.sender, _reward, _restake);
     }
 
-    function withdraw(uint256 _cid) external {
-        WithdrawalCredential storage _credential = credentials[_cid];
-        require(_credential.status == WithdrawalStatus.Requested, "invalid credential");
-        require(_credential.requester == msg.sender, "msg.sender is not requester");
-        require(block.timestamp >= _credential.withdrawableTime, "not yet time to withdraw");
+    function withdraw(uint256 _withdrawalCount) external {
+        UserCredentialInfo storage _userCredential = userCredential[msg.sender];
+        require(_userCredential.credentialIndex > _userCredential.withdrawalIndex , "no credential to withdraw");
 
-        _credential.status = WithdrawalStatus.Withdrawn; // modify status first to prevent reentrancy
-        (bool success, ) = payable(_credential.requester).call{value: _credential.amount}("");
-        require(success, "failed to send withdrawal amount");
+        uint256 _lastIndex = _userCredential.credentialIndex;
+        if (_withdrawalCount > 0) {
+            _lastIndex = _userCredential.withdrawalIndex + _withdrawalCount;
+            require(_lastIndex <= _userCredential.credentialIndex, "out of max user credential index");
+            require(credentials[msg.sender][_userCredential.withdrawalIndex+_withdrawalCount-1].withdrawableTime <= block.timestamp, "withdrawal time not reached");
+        }
+        for (uint256 i = _userCredential.withdrawalIndex; i < _lastIndex; i++) {
+            WithdrawalCredential storage _credential = credentials[msg.sender][i];
+            if (_withdrawalCount == 0 && block.timestamp < _credential.withdrawableTime) {
+                break;
+            }
+            _userCredential.withdrawalIndex++;
 
-        emit Withdrawn(_cid, msg.sender, _credential.amount);
+            (bool success, ) = payable(msg.sender).call{value: _credential.amount}("");
+            require(success, "failed to send withdrawal amount");
+
+            emit Withdrawn(msg.sender, _userCredential.withdrawalIndex, _credential.amount);
+
+            delete credentials[msg.sender][i];
+        }
     }
 
-    function _updateRewardInfo(address _staker, address _user) internal {
+    function _updateRewardInfo(address _staker, address _user) private {
         Staker storage _stakerInfo = stakerInfo[_staker];
+
         if (_stakerInfo.totalStaked > 0) {
             uint256 _accBalance = _stakerInfo.rewardee.balance - _stakerInfo.lastRewardBalance;
             uint256 _rewardPerStaking = _accBalance * GOV_CONST.REWARD_PRECISION() / _stakerInfo.totalStaked;
@@ -364,12 +410,14 @@ contract GovStaking {
 
                 emit UserRewardUpdated(_staker, _user, _userInfo.stakingAmount, _userInfo.pendingReward, _userInfo.rewardPerStaking, _userInfo.feePerStaking);
             }
+        }
 
-            // if any expired request exists, then execute it
-            if (pendingRequest[_staker].requestTime > 0 && block.timestamp - pendingRequest[_staker].requestTime >= GOV_CONST.CHANGE_FEE_DELAY()) {
-                stakerInfo[_staker].feeRate = pendingRequest[_staker].newFeeRate;
-                delete pendingRequest[_staker];
-            }
+        // if any expired request exists, then execute it
+        if (changingFeeRequests[_staker].requestTime > 0 && block.timestamp - changingFeeRequests[_staker].requestTime >= GOV_CONST.CHANGE_FEE_DELAY()) {
+            stakerInfo[_staker].feeRate = changingFeeRequests[_staker].newFeeRate;
+            delete changingFeeRequests[_staker];
+
+            emit ChangingFeeRateExecuted(_staker, stakerInfo[_staker].feeRate);
         }
     }
 
@@ -394,15 +442,15 @@ contract GovStaking {
     }
 
     function _newCredential(uint256 _amount, uint256 _unbondingPeriod) private {
-        credentials[++credentialCount] = WithdrawalCredential({
-            requester: msg.sender,
+        UserCredentialInfo storage _userCredential = userCredential[msg.sender];
+        credentials[msg.sender][_userCredential.credentialIndex] = WithdrawalCredential({
             amount: _amount,
             requestTime: block.timestamp,
-            withdrawableTime: block.timestamp + _unbondingPeriod,
-            status: WithdrawalStatus.Requested
+            withdrawableTime: block.timestamp + _unbondingPeriod
         });
 
-        emit NewCredential(credentialCount, msg.sender, _amount, block.timestamp, _unbondingPeriod);
+        _userCredential.credentialIndex++;
+        emit NewCredential(_userCredential.credentialIndex, msg.sender, _amount, block.timestamp, _unbondingPeriod);
     }
 
     function getStakerAmount(address _staker) external view returns (uint256) {

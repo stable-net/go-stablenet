@@ -134,7 +134,7 @@ func TestGovWithoutNCP(t *testing.T) {
 
 			ExpectedRevert(t,
 				g.ExpectedFail(g.RegisterStaker(t, &TestStaker{s1.Staker, s2.Operator, s2.FeeRecipient}, minStaking, feeRate)),
-				"staker is already registered",
+				"already registered staker",
 			)
 
 			ExpectedRevert(t,
@@ -250,19 +250,21 @@ func TestGovWithoutNCP(t *testing.T) {
 
 		t.Run("withdraw failure case", func(t *testing.T) {
 			ExpectedRevert(t,
-				g.ExpectedFail(g.stakingContractTx(t, "withdraw", s1.Operator, nil, common.Big0)),
-				"invalid credential",
+				g.ExpectedFail(g.Withdraw(t, s2.Operator, common.Big0)),
+				"no credential to withdraw",
 			)
 
 			ExpectedRevert(t,
-				g.ExpectedFail(g.Withdraw(t, s2.Operator, unstakeEvent["credentialID"].(*big.Int))),
-				"msg.sender is not requester",
+				g.ExpectedFail(g.Withdraw(t, s1.Operator, common.Big1)),
+				"withdrawal time not reached",
 			)
 
-			ExpectedRevert(t,
-				g.ExpectedFail(g.Withdraw(t, s1.Operator, unstakeEvent["credentialID"].(*big.Int))),
-				"not yet time to withdraw",
-			)
+			// no error, no withdrawal
+			beforeBalance := g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil)
+			_, err := g.ExpectedOk(g.Withdraw(t, s1.Operator, common.Big0))
+			require.NoError(t, err)
+			afterBalance := g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil)
+			require.Equal(t, beforeBalance, afterBalance)
 		})
 
 		t.Run("withdraw", func(t *testing.T) {
@@ -270,7 +272,7 @@ func TestGovWithoutNCP(t *testing.T) {
 
 			unbonding := unstakeEvent["unbonding"].(*big.Int)
 			g.adjustTime(time.Duration(unbonding.Int64()) * time.Second)
-			receipt, err := g.ExpectedOk(g.Withdraw(t, s1.Operator, unstakeEvent["credentialID"].(*big.Int)))
+			receipt, err := g.ExpectedOk(g.Withdraw(t, s1.Operator, common.Big0))
 			require.NoError(t, err)
 
 			gasCost := calcTxGasCost(receipt)
@@ -299,7 +301,7 @@ func TestGovWithoutNCP(t *testing.T) {
 
 				unbonding := unstakeEvent["unbonding"].(*big.Int)
 				g.adjustTime(time.Duration(unbonding.Int64()) * time.Second)
-				receipt, err := g.ExpectedOk(g.Withdraw(t, s2.Operator, unstakeEvent["credentialID"].(*big.Int)))
+				receipt, err := g.ExpectedOk(g.Withdraw(t, s2.Operator, common.Big0))
 				require.NoError(t, err)
 
 				gasCost := calcTxGasCost(receipt)
@@ -330,7 +332,7 @@ func TestGovWithoutNCP(t *testing.T) {
 			)
 			ExpectedRevert(t,
 				g.ExpectedFail(g.Delegate(t, delegator, s2.Staker.Address, delegateAmount)),
-				"unregistered staker",
+				"staker is inactive",
 			)
 			ExpectedRevert(t,
 				g.ExpectedFail(g.Delegate(t, delegator, s2.Operator.Address, delegateAmount)),
@@ -374,15 +376,14 @@ func TestGovWithoutNCP(t *testing.T) {
 
 		unstakeEvent := findEvent("NewCredential", receipt.Logs)
 		require.NotNil(t, unstakeEvent)
-
 		unbonding := unstakeEvent["unbonding"].(*big.Int)
 		g.adjustTime(time.Duration(unbonding.Int64()) * time.Second)
 
-		_, err = g.ExpectedOk(g.Withdraw(t, s1.Operator, unstakeEvent["credentialID"].(*big.Int)))
+		_, err = g.ExpectedOk(g.Withdraw(t, s1.Operator, common.Big0))
 		require.NoError(t, err)
 
 		t.Run("Failed to reactivate", func(t *testing.T) {
-			ExpectedRevert(t, g.ExpectedFail(g.RegisterStaker(t, s1, minStaking, feeRate)), "operator is already registered")
+			ExpectedRevert(t, g.ExpectedFail(g.RegisterStaker(t, s1, minStaking, feeRate)), "already registered staker")
 		})
 
 		t.Run("Reactivate Staker", func(t *testing.T) {
@@ -427,8 +428,8 @@ func TestGovWithoutNCP(t *testing.T) {
 
 		t.Run("failure case", func(t *testing.T) {
 			ExpectedRevert(t,
-				g.ExpectedFail(g.Withdraw(t, delegator, undelegateEvent["credentialID"].(*big.Int))),
-				"not yet time to withdraw",
+				g.ExpectedFail(g.Withdraw(t, delegator, common.Big1)),
+				"withdrawal time not reached",
 			)
 
 			ExpectedRevert(t,
@@ -453,7 +454,7 @@ func TestGovWithoutNCP(t *testing.T) {
 
 			unbonding := undelegateEvent["unbonding"].(*big.Int)
 			g.adjustTime(time.Duration(unbonding.Int64()) * time.Second)
-			receipt, err := g.ExpectedOk(g.Withdraw(t, delegator, undelegateEvent["credentialID"].(*big.Int)))
+			receipt, err := g.ExpectedOk(g.Withdraw(t, delegator, common.Big0))
 			require.NoError(t, err)
 
 			gasCost := calcTxGasCost(receipt)
@@ -483,7 +484,7 @@ func TestGovWithoutNCP(t *testing.T) {
 
 				unbonding := unstakeEvent["unbonding"].(*big.Int)
 				g.adjustTime(time.Duration(unbonding.Int64()) * time.Second)
-				withdrawReceipt, err := g.ExpectedOk(g.Withdraw(t, s1.Operator, unstakeEvent["credentialID"].(*big.Int)))
+				withdrawReceipt, err := g.ExpectedOk(g.Withdraw(t, s1.Operator, common.Big1))
 				require.NoError(t, err)
 
 				gasCost := calcTxGasCost(withdrawReceipt)
@@ -597,6 +598,32 @@ func TestGovWithNCP(t *testing.T) {
 				require.NoError(t, err)
 				totalStaking.Add(totalStaking, minStaking)
 			}
+		})
+	})
+
+	t.Run("Remove self and add again", func(t *testing.T) {
+		t.Run("remove ncp2", func(t *testing.T) {
+			defer checkNCPStaker()
+
+			_, err := g.ExpectedOk(g.NewProposalToRemoveNCP(t, ncp2.Operator, ncp2.Operator.Address))
+			require.NoError(t, err)
+
+			ncps = removeElement(ncps, ncp2.Operator.Address)
+		})
+
+		t.Run("add ncp2 again", func(t *testing.T) {
+			defer checkNCPStaker()
+
+			receipt, err := g.ExpectedOk(g.NewProposalToAddNCP(t, ncp1.Operator, ncp2.Operator.Address))
+			require.NoError(t, err)
+
+			proposalEvent := findEvent("NewProposal", receipt.Logs)
+			require.Equal(t, ProposalType_NCPAdd, proposalEvent["proposalType"].(*big.Int))
+
+			_, err = g.ExpectedOk(g.Vote(t, ncp1.Operator, proposalEvent["id"].(*big.Int), true))
+			require.NoError(t, err)
+
+			ncps = append(ncps, ncp2.Operator.Address)
 		})
 	})
 
@@ -859,7 +886,7 @@ func TestGovWithNCP(t *testing.T) {
 					defer checkNCPStaker()
 
 					// 2 NCP is required for accept
-					receipt, err := g.ExpectedOk(g.NewProposalToRemoveNCP(t, ncp3.Operator, ncp3.Operator.Address))
+					receipt, err := g.ExpectedOk(g.NewProposalToRemoveNCP(t, ncp2.Operator, ncp3.Operator.Address))
 					require.NoError(t, err)
 					proposalEvent := findEvent("NewProposal", receipt.Logs)
 
@@ -879,6 +906,34 @@ func TestGovWithNCP(t *testing.T) {
 				})
 			})
 		})
+	})
+
+	t.Run("Change NCP", func(t *testing.T) {
+		defer checkNCPStaker()
+
+		_, err := g.ExpectedOk(g.ChangeNCP(t, ncp2.Operator, ncp4.Operator.Address))
+		require.NoError(t, err)
+
+		ncps = removeElement(ncps, ncp2.Operator.Address)
+		ncps = append(ncps, ncp4.Operator.Address)
+	})
+
+	t.Run("Cannot change NCP for being locked", func(t *testing.T) {
+		defer checkNCPStaker()
+
+		_, err := g.ExpectedOk(g.NewProposalToRemoveNCP(t, ncp1.Operator, ncp4.Operator.Address))
+		require.NoError(t, err)
+		// ncp1, ncp4 locked
+
+		ExpectedRevert(t,
+			g.ExpectedFail(g.ChangeNCP(t, ncp1.Operator, ncp2.Operator.Address)),
+			"belong in an on-going proposal",
+		)
+
+		ExpectedRevert(t,
+			g.ExpectedFail(g.ChangeNCP(t, ncp4.Operator, ncp2.Operator.Address)),
+			"belong in an on-going proposal",
+		)
 	})
 }
 
@@ -1136,7 +1191,7 @@ func TestGovReward(t *testing.T) {
 
 		unbonding := undelegateEvent["unbonding"].(*big.Int)
 		g.adjustTime(time.Duration(unbonding.Int64()) * time.Second)
-		receipt, err = g.ExpectedOk(g.Withdraw(t, delegator1, undelegateEvent["credentialID"].(*big.Int)))
+		receipt, err = g.ExpectedOk(g.Withdraw(t, delegator1, common.Big0))
 		require.NoError(t, err)
 
 		gasCost := calcTxGasCost(receipt)
@@ -1234,7 +1289,7 @@ func TestGovChangeFeeRate(t *testing.T) {
 	})
 
 	t.Run("change fee rate when there is no delegator", func(t *testing.T) {
-		_, err := g.ExpectedOk(g.RequestChangeFee(t, v1.Operator, feeRate2))
+		_, err := g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate2))
 		require.NoError(t, err)
 
 		// check list
@@ -1243,17 +1298,17 @@ func TestGovChangeFeeRate(t *testing.T) {
 
 	t.Run("cannot execute if there is no request", func(t *testing.T) {
 		ExpectedRevert(t,
-			g.ExpectedFail(g.ExecuteChangeFee(t, v1.Operator, delegator1.Address)), "no request exists")
+			g.ExpectedFail(g.ExecuteChangingFee(t, v1.Operator, delegator1.Address)), "no request exists")
 
 		ExpectedRevert(t,
-			g.ExpectedFail(g.ExecuteChangeFee(t, v1.Operator, v1.Staker.Address)), "no request exists")
+			g.ExpectedFail(g.ExecuteChangingFee(t, v1.Operator, v1.Staker.Address)), "no request exists")
 	})
 
 	t.Run("change fee rate when there is a delegator", func(t *testing.T) {
 		_, err = g.ExpectedOk(g.Delegate(t, delegator1, v1.Staker.Address, minStaking))
 		require.NoError(t, err)
 
-		_, err := g.ExpectedOk(g.RequestChangeFee(t, v1.Operator, feeRate1))
+		_, err := g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate1))
 		require.NoError(t, err)
 
 		// check list
@@ -1262,11 +1317,11 @@ func TestGovChangeFeeRate(t *testing.T) {
 
 	t.Run("after CHANGE_FEE_DELAY", func(t *testing.T) {
 		ExpectedRevert(t,
-			g.ExpectedFail(g.ExecuteChangeFee(t, v1.Operator, v1.Staker.Address)), "the request cannot be executed before delay time")
+			g.ExpectedFail(g.ExecuteChangingFee(t, v1.Operator, v1.Staker.Address)), "the request cannot be executed before delay time")
 
 		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
 
-		_, err := g.ExpectedOk(g.ExecuteChangeFee(t, delegator1, v1.Staker.Address)) // anyone can ExecuteChangeFee
+		_, err := g.ExpectedOk(g.ExecuteChangingFee(t, delegator1, v1.Staker.Address)) // anyone can ExecuteChangingFee
 		require.NoError(t, err)
 
 		// check list
@@ -1356,7 +1411,7 @@ func TestGovFeeRateConsistency(t *testing.T) {
 
 	t.Run("fee of claiming after changing fee", func(t *testing.T) {
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
-		_, err := g.ExpectedOk(g.RequestChangeFee(t, v1.Operator, feeRate2))
+		_, err := g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate2))
 		require.NoError(t, err)
 		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
 		claimAndCheck(t, delegator1, towei(45), towei(5)) // feeRate1 should be applied
@@ -1368,21 +1423,21 @@ func TestGovFeeRateConsistency(t *testing.T) {
 	t.Run("fee changes several", func(t *testing.T) {
 		// fee2 should be applied
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
-		_, err := g.ExpectedOk(g.RequestChangeFee(t, v1.Operator, feeRate3))
+		_, err := g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate3))
 		require.NoError(t, err)
 		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
 		claimAndCheck(t, v1.Operator, towei(150), common.Big0)
 
 		// fee3 should be applied
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
-		_, err = g.ExpectedOk(g.RequestChangeFee(t, v1.Operator, feeRate4))
+		_, err = g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate4))
 		require.NoError(t, err)
 		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
 		claimAndCheck(t, v1.Operator, towei(50), common.Big0)
 
 		// fee4 should be applied
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
-		_, err = g.ExpectedOk(g.RequestChangeFee(t, v1.Operator, feeRate5))
+		_, err = g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate5))
 		require.NoError(t, err)
 		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
 		claimAndCheck(t, v1.Operator, towei(50), common.Big0)
@@ -1468,7 +1523,7 @@ func TestClaimForUnstakedStaker(t *testing.T) {
 		_, err = g.ExpectedOk(g.Delegate(t, delegator1, v1.Staker.Address, minStaking))
 		require.NoError(t, err)
 
-		_, err = g.ExpectedOk(g.RequestChangeFee(t, v1.Operator, feeRate2))
+		_, err = g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate2))
 		require.NoError(t, err)
 
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
@@ -1486,7 +1541,7 @@ func TestClaimForUnstakedStaker(t *testing.T) {
 
 		// cannot re-stake to unregistered staker
 		ExpectedRevert(t,
-			g.ExpectedFail(g.Claim(t, delegator1, v1.Staker.Address, true)), "unregistered staker")
+			g.ExpectedFail(g.Claim(t, delegator1, v1.Staker.Address, true)), "staker is inactive")
 
 		// claim and execute changing fee
 		claimAndCheck(t, delegator1, towei(45), towei(5))
@@ -1494,10 +1549,10 @@ func TestClaimForUnstakedStaker(t *testing.T) {
 
 	t.Run("cannot operate any more", func(t *testing.T) {
 		ExpectedRevert(t,
-			g.ExpectedFail(g.ExecuteChangeFee(t, v1.Operator, v1.Staker.Address)), "no request exists")
+			g.ExpectedFail(g.ExecuteChangingFee(t, v1.Operator, v1.Staker.Address)), "no request exists")
 
 		ExpectedRevert(t,
-			g.ExpectedFail(g.Delegate(t, delegator1, v1.Staker.Address, minStaking)), "unregistered staker")
+			g.ExpectedFail(g.Delegate(t, delegator1, v1.Staker.Address, minStaking)), "staker is inactive")
 	})
 
 	t.Run("staker can restake", func(t *testing.T) {
@@ -1527,6 +1582,168 @@ func TestClaimForUnstakedStaker(t *testing.T) {
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
 
 		claimAndCheck(t, delegator1, towei(40), towei(10))
+	})
+}
+
+func TestZeroTotalStaking(t *testing.T) {
+	var (
+		ctx        = context.TODO()
+		feeRate    = new(big.Int).SetUint64(1000)
+		minStaking = towei(500000)
+
+		v1         = NewTestStaker()
+		delegator1 = NewEOA()
+		delegator2 = NewEOA()
+		delegator3 = NewEOA()
+	)
+
+	g, err := NewGovWBFT(t, nil, types.GenesisAlloc{
+		v1.Operator.Address: {Balance: new(big.Int).Mul(MAX_UINT_128, common.Big2)},
+		delegator1.Address:  {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
+		delegator2.Address:  {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
+		delegator3.Address:  {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
+	})
+	require.NoError(t, err)
+	defer g.backend.Close()
+
+	stateDB := &TestStateDB{
+		getState: func(addr common.Address, hash common.Hash) (result common.Hash) {
+			value, _ := g.backend.Client().StorageAt(ctx, addr, hash, nil)
+			return common.BytesToHash(value)
+		},
+	}
+
+	claimAndCheck := func(t *testing.T, who *EOA, expectedClaimed *big.Int, expectedFee *big.Int) {
+		beforeBalance := g.balanceAt(t, ctx, who.Address, nil)
+		beforeFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(stateDB, v1.Staker.Address).FeeRecipient, nil)
+
+		receipt, err := g.ExpectedOk(g.Claim(t, who, v1.Staker.Address, false))
+		require.NoError(t, err)
+
+		gasCost := calcTxGasCost(receipt)
+		afterBalance := g.balanceAt(t, ctx, who.Address, nil)
+		afterFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(stateDB, v1.Staker.Address).FeeRecipient, nil)
+
+		if expectedClaimed.Sign() == 0 {
+			require.Equal(t, 0, afterBalance.Sub(afterBalance, new(big.Int).Sub(beforeBalance, gasCost)).Sign())
+		} else {
+			require.Equal(t, expectedClaimed, afterBalance.Sub(afterBalance, new(big.Int).Sub(beforeBalance, gasCost)))
+		}
+
+		if expectedFee.Sign() == 0 {
+			require.Equal(t, 0, afterFeeBalance.Sub(afterFeeBalance, beforeFeeBalance).Sign())
+		} else {
+			require.Equal(t, expectedFee, afterFeeBalance.Sub(afterFeeBalance, beforeFeeBalance))
+		}
+	}
+
+	t.Run("preparation", func(t *testing.T) {
+		// preparation:
+		//  - register staker
+		//  - delegation
+		//  - request changing fee
+		//  - distribute reward
+		//  - unstake
+		_, err := g.ExpectedOk(g.RegisterStaker(t, v1, minStaking, feeRate))
+		require.NoError(t, err)
+
+		_, err = g.ExpectedOk(g.Delegate(t, delegator1, v1.Staker.Address, minStaking))
+		require.NoError(t, err)
+
+		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
+
+		_, err = g.ExpectedOk(g.Undelegate(t, delegator1, v1.Staker.Address, minStaking))
+		require.NoError(t, err)
+
+		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
+
+		// make total staking zero
+		receipt, err := g.ExpectedOk(g.Unstake(t, v1.Operator, minStaking))
+		require.NoError(t, err)
+
+		unstakeEvent := findEvent("NewCredential", receipt.Logs)
+		require.NotNil(t, unstakeEvent)
+
+		unbonding := unstakeEvent["unbonding"].(*big.Int)
+		g.adjustTime(time.Duration(unbonding.Int64()) * time.Second)
+
+		// withdraw all
+		_, err = g.ExpectedOk(g.Withdraw(t, v1.Operator, common.Big0))
+		require.NoError(t, err)
+
+		_, err = g.ExpectedOk(g.Withdraw(t, delegator1, common.Big0))
+		require.NoError(t, err)
+
+		stakingBalance := g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil)
+		require.Equal(t, stakingBalance.Sign(), 0)
+	})
+
+	t.Run("delegator1 can claim", func(t *testing.T) {
+		// miss distribution for no staking; no one can take this reward
+		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
+
+		// this should not include miss distribution
+		claimAndCheck(t, delegator1, towei(45), towei(5))
+	})
+
+	t.Run("v1 restake", func(t *testing.T) {
+		_, err := g.ExpectedOk(g.Stake(t, v1.Operator, minStaking))
+		require.NoError(t, err)
+
+		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
+
+		_, err = g.ExpectedOk(g.Delegate(t, delegator1, v1.Staker.Address, minStaking))
+		require.NoError(t, err)
+
+		_, err = g.ExpectedOk(g.Delegate(t, delegator2, v1.Staker.Address, minStaking))
+		require.NoError(t, err)
+
+		_, err = g.ExpectedOk(g.Delegate(t, delegator3, v1.Staker.Address, minStaking))
+		require.NoError(t, err)
+	})
+
+	t.Run("v1, delegator1 claim", func(t *testing.T) {
+		distributeReward(t, g, stateDB, towei(200), v1.Staker.Address)
+
+		claimAndCheck(t, v1.Operator, towei(300), common.Big0)
+		claimAndCheck(t, delegator1, towei(45), towei(5))
+	})
+
+	t.Run("all unstake", func(t *testing.T) {
+		_, err := g.ExpectedOk(g.Unstake(t, v1.Operator, minStaking))
+		require.NoError(t, err)
+
+		distributeReward(t, g, stateDB, towei(300), v1.Staker.Address) // reward for delegator1, 2, 3
+
+		_, err = g.ExpectedOk(g.Undelegate(t, delegator1, v1.Staker.Address, minStaking))
+		require.NoError(t, err)
+
+		distributeReward(t, g, stateDB, towei(200), v1.Staker.Address) // reward for delegator2, 3
+
+		_, err = g.ExpectedOk(g.Undelegate(t, delegator2, v1.Staker.Address, minStaking))
+		require.NoError(t, err)
+
+		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address) // reward for delegator3
+
+		_, err = g.ExpectedOk(g.Undelegate(t, delegator3, v1.Staker.Address, minStaking))
+		require.NoError(t, err)
+	})
+
+	t.Run("v1 restake", func(t *testing.T) {
+		_, err := g.ExpectedOk(g.Stake(t, v1.Operator, minStaking))
+		require.NoError(t, err)
+
+		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address) // reward for v1
+	})
+
+	t.Run("all claim", func(t *testing.T) {
+		claimAndCheck(t, delegator1, towei(90), towei(10))
+		claimAndCheck(t, delegator2, towei(225), towei(25))
+
+		_, err := g.ExpectedOk(g.Unstake(t, v1.Operator, minStaking))
+		require.NoError(t, err)
+
+		claimAndCheck(t, delegator3, towei(315), towei(35))
 	})
 }
 
@@ -1702,7 +1919,7 @@ func TestGovGetBls(t *testing.T) {
 
 		unbonding := unstakeEvent["unbonding"].(*big.Int)
 		g.adjustTime(time.Duration(unbonding.Int64()) * time.Second)
-		_, err = g.ExpectedOk(g.Withdraw(t, s1.Operator, unstakeEvent["credentialID"].(*big.Int)))
+		_, err = g.ExpectedOk(g.Withdraw(t, s1.Operator, common.Big0))
 		require.NoError(t, err)
 
 		expected, err := s1.GetBLSPublicKey()
