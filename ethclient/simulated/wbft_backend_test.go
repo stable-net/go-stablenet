@@ -53,6 +53,13 @@ func TestNewWbftBackend(t *testing.T) {
 	if block.Hash() != hash {
 		t.Fatal("committed block hash is different")
 	}
+
+	var result map[string]interface{}
+	err = sim.client.Client.Client().CallContext(context.Background(), &result, "istanbul_getWbftExtraInfo", "0x1")
+
+	if err != nil {
+		t.Fatalf("istanbul_getWbftExtraInfo failed: %v", err)
+	}
 }
 
 func TestWbftAdjustTime(t *testing.T) {

@@ -637,6 +637,7 @@ web3._extend({
 			call: 'eth_signRawFeeDelegateTransaction',
 			params: 2,
 		}),
+		
 	],
 	properties: [
 		new web3._extend.Property({
@@ -1015,6 +1016,13 @@ web3._extend({
 		new web3._extend.Method({
 			name: 'isValidator',
 			call: 'istanbul_isValidator',
+			params: 1,
+            inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
+		}),
+
+		new web3._extend.Method({
+			name: 'getWbftExtraInfo',
+			call: 'istanbul_getWbftExtraInfo',
 			params: 1,
             inputFormatter: [web3._extend.formatters.inputBlockNumberFormatter]
 		}),

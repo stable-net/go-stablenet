@@ -21,12 +21,19 @@
 package backend
 
 import (
+	"bytes"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"math/big"
+	"unicode/utf8"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	qbft "github.com/ethereum/go-ethereum/consensus/qbft"
 	qbftcommon "github.com/ethereum/go-ethereum/consensus/qbft/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -216,4 +223,117 @@ func (api *API) IsValidator(blockNum *rpc.BlockNumber) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func sealForJSON(seal *types.QBFTAggregatedSeal, valSet []common.Address) map[string]interface{} {
+	if seal == nil {
+		return nil
+	}
+
+	sealerIndxs := seal.Sealers.GetSealers()
+	sealers := make([]string, 0, len(sealerIndxs))
+
+	for _, idx := range sealerIndxs {
+		if int(idx) < len(valSet) {
+			sealers = append(sealers, valSet[idx].Hex())
+		}
+	}
+
+	return map[string]interface{}{
+		"sealers":   sealers,
+		"signature": "0x" + hex.EncodeToString(seal.Signature),
+	}
+}
+
+func epochForJSON(epoch *types.EpochInfo) map[string]interface{} {
+	if epoch == nil {
+		return nil
+	}
+	// Stakers
+	stakers := make([]map[string]interface{}, 0, len(epoch.Stakers))
+
+	for _, s := range epoch.Stakers {
+		stakers = append(stakers, map[string]interface{}{
+			"addr":      s.Addr.Hex(),
+			"diligence": fmt.Sprintf("0x%x", s.Diligence),
+		})
+	}
+
+	// Validators
+	validators := make([]map[string]interface{}, 0, len(epoch.Validators))
+	for i, idx := range epoch.Validators {
+		validators = append(validators, map[string]interface{}{
+			"index": fmt.Sprintf("0x%x", idx),
+			"addr":  epoch.GetValidator(idx).Hex(),
+			"bls":   "0x" + hex.EncodeToString(epoch.BLSPublicKeys[i]),
+		})
+	}
+
+	return map[string]interface{}{
+		"stakers":    stakers,
+		"validators": validators,
+	}
+}
+
+// DecodeVanityData decodes a 32-byte vanityData field.
+// It detects if the input is UTF-8 or RLP encoded, and decodes accordingly.
+func DecodeVanityData(vanity []byte) string {
+	clean := bytes.TrimRight(vanity, "\x00")
+
+	if utf8.Valid(clean) {
+		return string(clean)
+	}
+
+	var val []interface{}
+
+	err := rlp.DecodeBytes(clean, &val)
+	versionBytes := val[0].([]uint8)
+	version := uint32(versionBytes[0])<<16 | uint32(versionBytes[1])<<8 | uint32(versionBytes[2])
+	if err == nil && version > 0 {
+		major, minor, patch := versionBytes[0], versionBytes[1], versionBytes[2]
+		clientBytes := val[1].([]byte)
+		goVerBytes := val[2].([]byte)
+		goOSBytes := val[3].([]byte)
+		return fmt.Sprintf("[version: v%d.%d.%d, client: %s, go: %s, os: %s]", major, minor, patch, string(clientBytes), string(goVerBytes), string(goOSBytes))
+	}
+
+	return fmt.Sprintf("Unknown vanityData format, hex: 0x%s", hex.EncodeToString(clean))
+}
+
+func (api *API) GetWbftExtraInfo(number rpc.BlockNumber) (map[string]interface{}, error) {
+	bNumber := big.NewInt(int64(number))
+
+	if qbft.GetFirstWbftBlockNumber(api.chain.Config()).Cmp(bNumber) > 0 {
+		return nil, qbftcommon.ErrIsNotWBFTBlock
+	}
+
+	header := api.chain.GetHeaderByNumber(uint64(number))
+
+	if header == nil {
+		return nil, fmt.Errorf("block %d not found", bNumber)
+	}
+
+	extra, err := types.ExtractQBFTExtra(header)
+
+	if err != nil {
+		return nil, err
+	}
+
+	validators, err := api.GetValidators(&number)
+	if err != nil {
+		return nil, err
+	}
+
+	result := map[string]interface{}{
+		"vanityData":        DecodeVanityData(extra.VanityData),
+		"prevRound":         fmt.Sprintf("0x%x", extra.PrevRound),
+		"prevPreparedSeal":  sealForJSON(extra.PrevPreparedSeal, validators),
+		"prevCommittedSeal": sealForJSON(extra.PrevCommittedSeal, validators),
+		"round":             fmt.Sprintf("0x%x", extra.Round),
+		"preparedSeal":      sealForJSON(extra.PreparedSeal, validators),
+		"committedSeal":     sealForJSON(extra.CommittedSeal, validators),
+		"epochInfo":         epochForJSON(extra.EpochInfo),
+	}
+
+	return result, nil
 }
