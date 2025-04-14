@@ -111,6 +111,15 @@ Cumulative diligence `D(n) = D(n-1) * 0.9 + d(n) * 0.1`.
 - `D(n-1)` is the cumulative diligence until the (n-1)th epoch. If it becomes a staker at first, its `D(n-1) = 1.9` (default. 95% of the maximum value of diligence).
   - If the default value is too low, the probability of being selected as a validator when first becoming a staker will be low. Conversely, if it is too high, it may be advantageous to become a new staker again after even minor mistakes. Therefore, an appropriate value is necessary.
 
+Exception rules:
+- `w` is not counted for the first block(this may not have any previous seals).
+- In the case where it was not a validator in the previous epoch but is a validator in the current epoch:
+  - `d = p / (2*v*w) + s / (2*(e-1))`
+  - `D(n) = D(n-1) * (9*e+1)/(10*e) + d(n) * (e-1)/(10*e)`
+- In the case where it was a validator in the previous epoch but is not a validator in the current epoch:
+  - `d = p / (2*v*w) + s / 2`
+  - `D(n) = D(n-1) * (10*e-1)/(10*e) + d(n) * 1/(10*e)`
+
 ### Concept of Epoch
 The WBFT configuration allows defining the size of an epoch. An epoch represents the period (in terms of block count) during which a predetermined validator set remains active. The last block of an epoch is referred to as an epoch block. The genesis block is considered an epoch block; hence, the first epoch starts from block 1. When the proposer suggests a block that is an epoch block, the following steps are performed:
 
