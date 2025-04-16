@@ -17,20 +17,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Check if Commit is a Merge
-        id: check_merge
-        run: |
-          if git log -1 --pretty=%B | grep -q "Merge pull request"; then
-            echo "This is a merge commit."
-          else
-            echo "Not a merge commit. Exiting..."
-            exit 1
-          fi
-
-      - name: Set Commit Identifier
+      - name: Set Commit Identifier (PR or Direct)
         id: identifier
         run: |
-          echo "identifier=PR-${{ github.event.before }}" >> $GITHUB_ENV
+          if git log -1 --pretty=%B | grep -Eq '\(#\d+\)'; then
+            echo "identifier=PR-${{ github.event.before }}" >> $GITHUB_ENV
+          else
+            echo "identifier=Direct-${{ github.event.before }}" >> $GITHUB_ENV
+          fi
 
       - name: Set up Go
         uses: actions/setup-go@v3
