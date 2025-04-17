@@ -157,7 +157,7 @@ The existing miner worker is designed to be fit to the ethash algorithm. When a 
 - The WBFT engine waits for the block period before notifying the worker(In the existing IBFT, the block period was waited for when sealing the block).
 - When new work starts, the worker begins the process of preparing the block.
 
-### Modified Sturctures
+### Modified Structures
 The existing QBFT Config was revised by removing unnecessary fields and adding required ones, resulting in the following structure.
 ```
 "qbft": {
@@ -208,6 +208,20 @@ type WBFTExtra struct {
 	Epoch                       EpochInfo
 }
 ```
+
+### Gas Fee Policy
+While the fee policy is not strictly part of the WBFT protocol itself, this section explains the changes compared to the existing WEMIX 3.0 fee structure.
+The previous [WEMIX 3.0 fee policy](https://docs.wemix.com/en/design/eip1559) followed [EIP-1559](https://eips.ethereum.org/EIPS/eip-1559) but included the following unique WEMIX-specific rules:
+- Modified behavior of the eth_maxPriorityFeePerGas API: It returned a fixed value of 100 Gwei.
+- Custom baseFee calculation method: (Refer to the document linked above).
+- Mandatory fixed priorityFee for dynamic fee transactions: When using dynamic fees in transactions, the priorityFee had to be explicitly set to >= 100 Gwei. Otherwise, the transaction would be immediately rejected by the mempool with an error.
+
+In contrast, WEMIX 3.5 and WBFT chains adhere strictly to the original EIP-1559 standard, which is designed to foster a competitive fee market among validators, suitable for a public chain environment.
+
+Consequently:
+- The return value of the eth_maxPriorityFeePerGas API can now vary based on network conditions.
+- The baseFee calculation follows the standard EIP-1559 specification.
+- The original EIP-1559 behavior, where specifying a higher priorityFee prioritizes the transaction for inclusion in the block (mempool), has been restored.
 
 ### WEMIX 3.5
 
@@ -445,7 +459,7 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
 ```json
 {
   "config": {
-    "chainId": <arbitrary positive integer>,
+    "chainId": 1234,
     "homesteadBlock": 0,
     "eip150Block": 0,
     "eip155Block": 0,

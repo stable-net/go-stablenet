@@ -688,6 +688,12 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 				stakerMap[addr].wasValidator = true
 			}
 		}
+	} else if it.Number.Sign() != 0 {
+		// exeption case: if "it" is the montblanc block, all current stakers were validators in the montblanc block
+		// in other words, all current stakers can have the previous seals in the point of the first block
+		for _, st := range stakerMap {
+			st.wasValidator = true
+		}
 	}
 
 	// Accumulate proposer counts being selected within epoch.
