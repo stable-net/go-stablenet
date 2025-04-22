@@ -251,7 +251,7 @@ func (sb *Backend) Start(
 	chain consensus.ChainHeaderReader,
 	currentBlock func() *types.Block,
 	hasBadBlock func(db ethdb.Reader, hash common.Hash) bool,
-	notifyNewRound func(isProposer bool, waitTime time.Duration, round *big.Int)) error {
+	notifyNewRound func(waitTime time.Duration, round *big.Int)) error {
 	sb.coreMu.Lock()
 	defer sb.coreMu.Unlock()
 	if sb.coreStarted {
@@ -282,13 +282,13 @@ func (sb *Backend) Start(
 	return nil
 }
 
-func (sb *Backend) NotifyNewRound(isProposer bool, round *big.Int) {
+func (sb *Backend) NotifyNewRound(round *big.Int) {
 	if sb.notifyNewRound != nil {
 		waitDuration := time.Duration(0)
 		if round.Uint64() == 0 {
 			waitDuration = time.Until(time.Unix(int64(sb.timeForNextWork()), 0))
 		}
-		sb.notifyNewRound(isProposer, waitDuration, round)
+		sb.notifyNewRound(waitDuration, round)
 	}
 }
 
@@ -326,7 +326,7 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		if !ok {
 			return qbftcommon.ErrInvalidSpecificCall
 		}
-		notifyNewRound, ok := args[3].(func(isProposer bool, waitTime time.Duration, round *big.Int))
+		notifyNewRound, ok := args[3].(func(waitTime time.Duration, round *big.Int))
 		if !ok {
 			return qbftcommon.ErrInvalidSpecificCall
 		}

@@ -311,8 +311,8 @@ func (env *testEnv) makeScenarioRandomDown(index ...int) *scenario {
 	}
 }
 
-func makeNotifyNewRound(notifyChan chan uint64, startChan chan struct{}) func(isProposer bool, waitTime time.Duration, round *big.Int) {
-	return func(isProposer bool, waitTime time.Duration, round *big.Int) {
+func makeNotifyNewRound(notifyChan chan uint64, startChan chan struct{}) func(waitTime time.Duration, round *big.Int) {
+	return func(waitTime time.Duration, round *big.Int) {
 		notifyChan <- round.Uint64()
 		<-startChan
 	}

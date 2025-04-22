@@ -124,7 +124,7 @@ type Backend struct {
 
 	simApplier SimApplier
 
-	notifyNewRound func(isProposer bool, waitTime time.Duration, round *big.Int)
+	notifyNewRound func(waitTime time.Duration, round *big.Int)
 }
 
 func (sb *Backend) InjectSimApplier(applier SimApplier) {

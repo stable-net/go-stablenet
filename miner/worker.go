@@ -390,16 +390,14 @@ func (w *worker) pendingBlockAndReceipts() (*types.Block, types.Receipts) {
 	return w.snapshotBlock, w.snapshotReceipts
 }
 
-func (w *worker) readyToCommit(isProposer bool, waitTime time.Duration, round *big.Int) {
-	if isProposer {
-		if w.config.SimulatedEnabled {
+func (w *worker) readyToCommit(waitTime time.Duration, round *big.Int) {
+	if w.config.SimulatedEnabled {
+		w.readyToCommitCh <- round
+	} else {
+		go func() {
+			time.Sleep(waitTime)
 			w.readyToCommitCh <- round
-		} else {
-			go func() {
-				time.Sleep(waitTime)
-				w.readyToCommitCh <- round
-			}()
-		}
+		}()
 	}
 }
 

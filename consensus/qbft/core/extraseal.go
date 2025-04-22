@@ -122,7 +122,7 @@ func (c *Core) ProcessExtraSeal(lastProposal qbft.Proposal, priorRound *big.Int,
 	}
 
 	// process prepare seal
-	for addr, msg := range c.prepareExtraSeals {
+	for _, msg := range c.prepareExtraSeals {
 		if msg != nil {
 			view := msg.View()
 			if latestView.Cmp(&view) == 0 && msg.Digest == lastProposal.Hash() {
@@ -135,14 +135,12 @@ func (c *Core) ProcessExtraSeal(lastProposal qbft.Proposal, priorRound *big.Int,
 					Sealer: uint32(idx),
 					Seal:   append([]byte{}, msg.PrepareSeal...),
 				})
-			} else {
-				delete(c.prepareExtraSeals, addr) // erase invalid seal
 			}
 		}
 	}
 
 	// process commit seal
-	for addr, msg := range c.commitExtraSeals {
+	for _, msg := range c.commitExtraSeals {
 		if msg != nil {
 			view := msg.View()
 			if latestView.Cmp(&view) == 0 && msg.Digest == lastProposal.Hash() {
@@ -155,11 +153,28 @@ func (c *Core) ProcessExtraSeal(lastProposal qbft.Proposal, priorRound *big.Int,
 					Sealer: uint32(idx),
 					Seal:   append([]byte{}, msg.CommitSeal...),
 				})
-			} else {
-				delete(c.commitExtraSeals, addr) // erase invalid seal
 			}
 		}
 	}
 
 	return preparedSeal, committedSeal
+}
+
+// Delete all extraSeals prior to the previous proposal
+func (c *Core) ClearExtraSeals(lastNum *big.Int) {
+	c.extraSealsMu.Lock()
+	defer c.extraSealsMu.Unlock()
+	// process prepare seal
+	for addr, msg := range c.prepareExtraSeals {
+		if msg != nil && msg.Sequence.Cmp(lastNum) < 0 {
+			delete(c.prepareExtraSeals, addr) // erase invalid seal
+		}
+	}
+
+	// process commit seal
+	for addr, msg := range c.commitExtraSeals {
+		if msg != nil && msg.Sequence.Cmp(lastNum) < 0 {
+			delete(c.commitExtraSeals, addr) // erase invalid seal
+		}
+	}
 }

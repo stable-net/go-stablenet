@@ -44,7 +44,7 @@ func (we *WemixConsensus) Start(
 	chain consensus.ChainHeaderReader,
 	currentBlock func() *types.Block,
 	subscribeChainHead func(ch chan<- core.ChainHeadEvent) event.Subscription,
-	notifyNewRound func(isProposer bool, waitTime time.Duration, round *big.Int)) {
+	notifyNewRound func(waitTime time.Duration, round *big.Int)) {
 	we.stopCh = make(chan struct{})
 	we.wbft.Start(chain, currentBlock, rawdb.HasBadBlock, notifyNewRound)
 }
