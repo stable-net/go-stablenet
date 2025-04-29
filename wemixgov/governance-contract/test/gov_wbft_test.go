@@ -118,32 +118,32 @@ func TestGovWithoutNCP(t *testing.T) {
 			)
 
 			ExpectedRevert(t,
-				g.ExpectedFail(g.RegisterStaker(t, &TestStaker{&EOA{Address: common.Address{}}, s2.Operator, s2.FeeRecipient}, minStaking, feeRate)),
+				g.ExpectedFail(g.RegisterStaker(t, &TestStaker[*EOA]{&EOA{Address: common.Address{}}, s2.Operator, s2.FeeRecipient}, minStaking, feeRate)),
 				"received ikm is invalid",
 			)
 
 			ExpectedRevert(t,
-				g.ExpectedFail(g.RegisterStaker(t, &TestStaker{s2.Staker, s2.Staker, s2.FeeRecipient}, minStaking, feeRate)),
+				g.ExpectedFail(g.RegisterStaker(t, &TestStaker[*EOA]{s2.Staker, s2.Staker, s2.FeeRecipient}, minStaking, feeRate)),
 				"insufficient funds for transfer",
 			)
 
 			ExpectedRevert(t,
-				g.ExpectedFail(g.RegisterStaker(t, &TestStaker{s2.Staker, s1.Operator, s2.FeeRecipient}, minStaking, feeRate)),
+				g.ExpectedFail(g.RegisterStaker(t, &TestStaker[*EOA]{s2.Staker, s1.Operator, s2.FeeRecipient}, minStaking, feeRate)),
 				"operator is already registered",
 			)
 
 			ExpectedRevert(t,
-				g.ExpectedFail(g.RegisterStaker(t, &TestStaker{s1.Staker, s2.Operator, s2.FeeRecipient}, minStaking, feeRate)),
+				g.ExpectedFail(g.RegisterStaker(t, &TestStaker[*EOA]{s1.Staker, s2.Operator, s2.FeeRecipient}, minStaking, feeRate)),
 				"already registered staker",
 			)
 
 			ExpectedRevert(t,
-				g.ExpectedFail(g.RegisterStaker(t, &TestStaker{s2.Staker, s2.Operator, &EOA{Address: common.Address{}}}, minStaking, feeRate)),
+				g.ExpectedFail(g.RegisterStaker(t, &TestStaker[*EOA]{s2.Staker, s2.Operator, &EOA{Address: common.Address{}}}, minStaking, feeRate)),
 				"fee recipient is zero address",
 			)
 
 			ExpectedRevert(t,
-				g.ExpectedFail(g.RegisterStaker(t, &TestStaker{s2.Staker, s2.Operator, s2.FeeRecipient}, minStaking, new(big.Int).SetUint64(10001))),
+				g.ExpectedFail(g.RegisterStaker(t, &TestStaker[*EOA]{s2.Staker, s2.Operator, s2.FeeRecipient}, minStaking, new(big.Int).SetUint64(10001))),
 				"fee rate exceeds precision",
 			)
 		})
@@ -1937,7 +1937,7 @@ func TestGovStabilization(t *testing.T) {
 	var (
 		ctx        = context.TODO()
 		minStaking = towei(500000)
-		stakers    = make([]*TestStaker, 0)
+		stakers    = make([]*TestStaker[*EOA], 0)
 		stakerLen  = 5
 		feeRate    = new(big.Int).SetUint64(100)
 	)

@@ -214,6 +214,10 @@ type EOA struct {
 	Address    common.Address
 }
 
+type CA struct {
+	Address common.Address
+}
+
 func NewEOA() (eoa *EOA) {
 	pk, _ := crypto.GenerateKey()
 	return &EOA{
@@ -373,4 +377,13 @@ func UnpackError(result []byte) (error, bool) {
 // gas used * gas price
 func calcTxGasCost(receipt *types.Receipt) *big.Int {
 	return new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice)
+}
+
+// Helper function to parse ABI types
+func mustParseType(typeString string) abi.Type {
+	typ, err := abi.NewType(typeString, "", nil)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to parse type: %v", err))
+	}
+	return typ
 }

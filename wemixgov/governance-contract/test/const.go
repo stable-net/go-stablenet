@@ -13,7 +13,7 @@ func towei(x int64) *big.Int {
 }
 
 func toRewardPerStaking(reward *big.Int, totalStaking *big.Int) *big.Int {
-	x := new(big.Int).Mul(reward, big.NewInt(params.Ether))
+	x := new(big.Int).Mul(reward, new(big.Int).Mul(big.NewInt(params.Ether), big.NewInt(1e9)))
 	x.Div(x, totalStaking)
 	return x
 }

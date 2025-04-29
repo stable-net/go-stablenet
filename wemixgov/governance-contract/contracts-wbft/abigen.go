@@ -28,6 +28,7 @@ func main() {
 		filepath.Join(root, "GovConst.sol"),
 		filepath.Join(root, "GovRewardee.sol"),
 		filepath.Join(root, "GovRewardeeImp.sol"),
+		filepath.Join(root, "OperatorSample.sol"),
 	); err != nil {
 		panic(err)
 	} else if err := contracts.BindContracts(pkg, filepath.Join(bindDir, "gen_govStaking_abi.go"), gov.CONTRACT_GOV_STAKING); err != nil {
@@ -50,6 +51,11 @@ func main() {
 		panic(err)
 	} else if err := contracts.ExportContractCode(codeDir, gov.CONTRACT_GOV_REWARDEE_IMP); err != nil {
 		panic(err)
+	} else if err := contracts.BindContracts(pkg, filepath.Join(bindDir, "gen_operatorSample_abi.go"), gov.CONTRACT_OPERATOR_SAMPLE); err != nil {
+		panic(err)
+	} else if err := contracts.ExportContractCode(codeDir, gov.CONTRACT_OPERATOR_SAMPLE); err != nil {
+		panic(err)
+	} else {
+		fmt.Println("success!")
 	}
-	fmt.Println("success!")
 }

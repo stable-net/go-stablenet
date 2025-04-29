@@ -30,7 +30,7 @@ func init() {
 }
 
 type compiledContractWBFT struct {
-	GovConst, GovStaking, GovNCP, GovRewardeeImp *bindContract
+	GovConst, GovStaking, GovNCP, GovRewardeeImp, OperatorSample *bindContract
 }
 
 func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
@@ -39,6 +39,7 @@ func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 		filepath.Join(root, "GovStaking.sol"),
 		filepath.Join(root, "GovNCP.sol"),
 		filepath.Join(root, "GovRewardeeImp.sol"),
+		filepath.Join(root, "OperatorSample.sol"),
 	); err != nil {
 		panic(err)
 	} else {
@@ -50,16 +51,19 @@ func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 			panic(err)
 		} else if c.GovRewardeeImp, err = newBindContract(contracts["GovRewardeeImp"]); err != nil {
 			panic(err)
+		} else if c.OperatorSample, err = newBindContract(contracts["OperatorSample"]); err != nil {
+			panic(err)
 		}
 	}
 }
 
 type GovWBFT struct {
-	backend         *simulated.WbftBackend
-	owner           *bind.TransactOpts
-	govConst        *bind.BoundContract
-	stakingContract *bind.BoundContract
-	ncpContract     *bind.BoundContract
+	backend          *simulated.WbftBackend
+	owner            *bind.TransactOpts
+	govConst         *bind.BoundContract
+	stakingContract  *bind.BoundContract
+	ncpContract      *bind.BoundContract
+	operatorContract *bind.BoundContract
 }
 
 var defaultBlockPeriod time.Duration
@@ -112,7 +116,7 @@ func (g *GovWBFT) ExpectedFail(tx *types.Transaction, txErr error) error {
 }
 
 // Staking Contract
-func (g *GovWBFT) RegisterStaker(t *testing.T, v *TestStaker, amount *big.Int, fee *big.Int) (*types.Transaction, error) {
+func (g *GovWBFT) RegisterStaker(t *testing.T, v *TestStaker[*EOA], amount *big.Int, fee *big.Int) (*types.Transaction, error) {
 	blsPubKey, err := v.GetBLSPublicKey()
 	if err != nil {
 		return nil, err
@@ -189,6 +193,96 @@ func (g *GovWBFT) ncpContractTx(t *testing.T, method string, sender *EOA, value 
 	return g.ncpContract.Transact(NewTxOptsWithValue(t, sender, value), method, params...)
 }
 
+// OperatorSample Contract
+func (g *GovWBFT) DeployOperatorSample(t *testing.T, owners []common.Address, fundManagers []common.Address, quorum *big.Int) common.Address {
+	operatorAddr, operatorContract, err := g.Deploy(compiledWBFT.OperatorSample.Deploy(g.backend.Client(), g.owner, owners, fundManagers, quorum))
+	require.NoError(t, err)
+	g.operatorContract = operatorContract
+	return operatorAddr
+}
+
+func (g *GovWBFT) SingleOwnerRegisterStaker(sender *bind.TransactOpts, v *TestStaker[*CA], amount *big.Int, feeRate *big.Int) (*types.Transaction, error) {
+	blsPubkey, err := v.GetBLSPublicKey()
+	if err != nil {
+		return nil, err
+	}
+	return g.operatorContractTx("registerStaker", sender, amount, v.Staker.Address, v.FeeRecipient.Address, feeRate, blsPubkey.Marshal())
+}
+
+func (g *GovWBFT) SingleOwnerStake(sender *bind.TransactOpts, amount *big.Int) (*types.Transaction, error) {
+	return g.operatorContractTx("stake", sender, amount)
+}
+
+func (g *GovWBFT) ClaimWithRestake(sender *bind.TransactOpts, v *TestStaker[*CA]) (*types.Transaction, error) {
+	return g.operatorContractTx("claimWithRestake", sender, v.Staker.Address)
+}
+
+func (g *GovWBFT) ClaimWithoutRestake(sender *bind.TransactOpts, v *TestStaker[*CA]) (*types.Transaction, error) {
+	return g.operatorContractTx("claimWithoutRestake", sender, v.Staker.Address)
+}
+
+func (g *GovWBFT) WithdrawRewardAmount(sender *bind.TransactOpts, to common.Address, amount *big.Int) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "withdrawReward", to, amount)
+}
+
+func (g *GovWBFT) SubmitTransaction(sender *bind.TransactOpts, to common.Address, value *big.Int, data []byte) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "submitTransaction", to, value, data)
+}
+
+func (g *GovWBFT) ConfirmTransaction(sender *bind.TransactOpts, transactionId *big.Int) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "confirmTransaction", transactionId)
+}
+
+func (g *GovWBFT) ExecuteTransaction(sender *bind.TransactOpts, transactionId *big.Int) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "executeTransaction", transactionId)
+}
+
+func (g *GovWBFT) WithdrawFeeAmount(sender *bind.TransactOpts, to common.Address, withdrawAmount *big.Int) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "withdrawFee", to, withdrawAmount)
+}
+
+func (g *GovWBFT) SingleOwnerUnstake(sender *bind.TransactOpts, unstakeAmount *big.Int) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "unstake", unstakeAmount)
+}
+
+func (g *GovWBFT) WithdrawViaOperatorContract(sender *bind.TransactOpts, withdrawalCount *big.Int) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "withdraw", withdrawalCount)
+}
+
+func (g *GovWBFT) WithdrawUnstakedAmount(sender *bind.TransactOpts, to common.Address, unstakedAmount *big.Int) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "withdrawUnstaked", to, unstakedAmount)
+}
+
+func (g *GovWBFT) AddOwner(sender *bind.TransactOpts, addr common.Address, increaseQuorum bool) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "addOwner", addr, increaseQuorum)
+}
+
+func (g *GovWBFT) RemoveOwner(sender *bind.TransactOpts, addr common.Address, reduceQuorum bool) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "removeOwner", addr, reduceQuorum)
+}
+
+func (g *GovWBFT) ReplaceOwner(sender *bind.TransactOpts, existing, new common.Address) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "replaceOwner", existing, new)
+}
+
+func (g *GovWBFT) ChangeQuorum(sender *bind.TransactOpts, quorum *big.Int) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "changeQuorum", quorum)
+}
+
+func (g *GovWBFT) AddFundManager(sender *bind.TransactOpts, addr common.Address) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "addFundManager", addr)
+}
+
+func (g *GovWBFT) RemoveFundManager(sender *bind.TransactOpts, addr common.Address) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, "removeFundManager", addr)
+}
+
+func (g *GovWBFT) operatorContractTx(method string, sender *bind.TransactOpts, params ...interface{}) (*types.Transaction, error) {
+	return g.operatorContract.Transact(sender, method, params...)
+}
+
+// General Functions
+
 func (g *GovWBFT) balanceAt(t *testing.T, ctx context.Context, addr common.Address, num *big.Int) *big.Int {
 	balance, err := g.backend.Client().BalanceAt(ctx, addr, num)
 	require.NoError(t, err)
@@ -201,21 +295,33 @@ func (g *GovWBFT) adjustTime(adjustment time.Duration) {
 	g.backend.AdjustTime(defaultBlockPeriod)
 }
 
-type TestStaker struct {
+type OperatorType interface {
+	*EOA | *CA
+}
+
+type TestStaker[T OperatorType] struct {
 	Staker       *EOA
-	Operator     *EOA
+	Operator     T
 	FeeRecipient *EOA
 }
 
-func NewTestStaker() *TestStaker {
-	return &TestStaker{
+func NewTestStaker() *TestStaker[*EOA] {
+	return &TestStaker[*EOA]{
 		Staker:       NewEOA(),
 		Operator:     NewEOA(),
 		FeeRecipient: NewEOA(),
 	}
 }
 
-func (s *TestStaker) GetBLSSecretKey() (bls.SecretKey, error) {
+func NewTestStakerWithOperatorCA(opperator *CA) *TestStaker[*CA] {
+	return &TestStaker[*CA]{
+		Staker:       NewEOA(),
+		Operator:     opperator,
+		FeeRecipient: NewEOA(),
+	}
+}
+
+func (s *TestStaker[T]) GetBLSSecretKey() (bls.SecretKey, error) {
 	blsSecretKey, err := bls.DeriveFromECDSA(s.Staker.PrivateKey)
 	if err != nil {
 		return nil, err
@@ -223,7 +329,7 @@ func (s *TestStaker) GetBLSSecretKey() (bls.SecretKey, error) {
 	return blsSecretKey, nil
 }
 
-func (s *TestStaker) GetBLSPublicKey() (bls.PublicKey, error) {
+func (s *TestStaker[T]) GetBLSPublicKey() (bls.PublicKey, error) {
 	blsSecretKey, err := s.GetBLSSecretKey()
 	if err != nil {
 		return nil, err

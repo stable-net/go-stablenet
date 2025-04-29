@@ -37,4 +37,6 @@ const (
 	CONTRACT_GOV_CONST        = "GovConst"
 	CONTRACT_GOV_REWARDEE_IMP = "GovRewardeeImp"
 	CONTRACT_GOV_REWARDEE     = "GovRewardee"
+	CONTRACT_MULTISIG_WALLET  = "MultiSigWallet"
+	CONTRACT_OPERATOR_SAMPLE  = "OperatorSample"
 )

@@ -2,10 +2,13 @@
 
 pragma solidity 0.8.14;
 
+import "./IFeeRecipient.sol";
+
 contract GovRewardeeImp {
     address public constant GOV_STAKING = address(0x1001);
 
     event RewardPaid(address indexed recipient, uint256 amount);
+    event FeePaid(address indexed recipient, uint256 amount);
 
     receive() external payable {}
 
@@ -14,14 +17,50 @@ contract GovRewardeeImp {
         _;
     }
 
-    function sendRewardTo(address payable recipient, uint256 amount) onlyGovStaking external {
+    function sendRewardTo(address payable recipient, uint256 amount) external onlyGovStaking {
         require(recipient != address(0), "GovRewardee: recipient is the zero address");
         require(amount > 0, "GovRewardee: amount is zero");
         require(amount <= address(this).balance, "GovRewardee: insufficient balance");
 
-        (bool success, ) = recipient.call{value: amount}(""); // don't use transfer to call receive logic of recipient
-        require(success, "failed to transfer");
-
+        (bool success, ) = recipient.call{ value: amount }(""); // don't use transfer to call receive logic of recipient
+        require(success, "GovRewardee: reward transfer failed");
         emit RewardPaid(recipient, amount);
+    }
+
+    function sendFeeTo(address payable recipient, uint256 amount) external onlyGovStaking {
+        require(recipient != address(0), "GovRewardee: recipient is the zero address");
+        require(amount > 0, "GovRewardee: amount is zero");
+        require(amount <= address(this).balance, "GovRewardee: insufficient balance");
+
+        uint256 size;
+        assembly {
+            size := extcodesize(recipient)
+        }
+        if (size > 0) {
+            // if it is for sending fee to recipient contract, try to call receiveFee()
+            try IERC165(recipient).supportsInterface(type(IFeeRecipient).interfaceId) returns (bool supported) {
+                if (supported) {
+                    // IFeeRecipient is implemented
+                    try IFeeRecipient(recipient).receiveFee{ value: amount }(amount) {
+                        emit FeePaid(recipient, amount);
+                        return;
+                    } catch {
+                        revert("GovRewardee: fee recipient contract reverted");
+                    }
+                } else {
+                    (bool success, ) = recipient.call{ value: amount }("");
+                    require(success, "GovRewardee: fee transfer failed");
+                }
+            } catch {
+                // if receiveFee is not implemented, transfer ether directly
+                (bool success, ) = recipient.call{ value: amount }("");
+                require(success, "GovRewardee: fee transfer failed");
+            }
+        } else {
+            // if it is for sending reward or recipient is EOA, transfer ether directly
+            (bool success, ) = recipient.call{ value: amount }("");
+            require(success, "GovRewardee: fee transfer failed");
+        }
+        emit FeePaid(recipient, amount);
     }
 }
