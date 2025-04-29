@@ -116,6 +116,8 @@ var (
 		utils.DiscoveryPortFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
+		utils.ForceSyncCycleFlag,
+		utils.TdSyncIntervalFlag,
 		utils.MiningEnabledFlag,
 		utils.MinerGasLimitFlag,
 		utils.MinerGasPriceFlag,

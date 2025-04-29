@@ -98,6 +98,8 @@ type handlerConfig struct {
 	Merger         *consensus.Merger      // The manager for eth1/2 transition
 	Network        uint64                 // Network identifier to advertise
 	Sync           downloader.SyncMode    // Whether to snap or full sync
+	ForceSyncCycle time.Duration          // Time interval to force syncs, even if few peers are available
+	TdSyncInterval time.Duration          // Time interval to verify TD changes and detect sync stalling
 	BloomCache     uint64                 // Megabytes to alloc for snap sync bloom
 	EventMux       *event.TypeMux         // Legacy event mux, deprecate for `feed`
 	RequiredBlocks map[uint64]common.Hash // Hard coded map of required block hashes for sync challenges
@@ -111,10 +113,12 @@ type handler struct {
 	snapSync atomic.Bool // Flag whether snap sync is enabled (gets disabled if we already have blocks)
 	synced   atomic.Bool // Flag whether we're considered synchronised (enables transaction processing)
 
-	database ethdb.Database
-	txpool   txPool
-	chain    *core.BlockChain
-	maxPeers int
+	database       ethdb.Database
+	txpool         txPool
+	chain          *core.BlockChain
+	maxPeers       int
+	forceSyncCycle time.Duration
+	tdSyncInterval time.Duration
 
 	downloader   *downloader.Downloader
 	blockFetcher *fetcher.BlockFetcher
@@ -161,6 +165,8 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		handlerDoneCh:  make(chan struct{}),
 		handlerStartCh: make(chan struct{}),
 		engine:         config.Engine, // ## Quorum QBFT
+		forceSyncCycle: config.ForceSyncCycle,
+		tdSyncInterval: config.TdSyncInterval,
 	}
 
 	// ## Quorum QBFT START

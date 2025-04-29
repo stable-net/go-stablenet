@@ -21,6 +21,8 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		Genesis                 *core.Genesis `toml:",omitempty"`
 		NetworkId               uint64
 		SyncMode                downloader.SyncMode
+		ForceSyncCycle          time.Duration
+		TdSyncInterval          time.Duration
 		EthDiscoveryURLs        []string
 		SnapDiscoveryURLs       []string
 		NoPruning               bool
@@ -63,6 +65,8 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.Genesis = c.Genesis
 	enc.NetworkId = c.NetworkId
 	enc.SyncMode = c.SyncMode
+	enc.ForceSyncCycle = c.ForceSyncCycle
+	enc.TdSyncInterval = c.TdSyncInterval
 	enc.EthDiscoveryURLs = c.EthDiscoveryURLs
 	enc.SnapDiscoveryURLs = c.SnapDiscoveryURLs
 	enc.NoPruning = c.NoPruning
@@ -109,6 +113,8 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		Genesis                 *core.Genesis `toml:",omitempty"`
 		NetworkId               *uint64
 		SyncMode                *downloader.SyncMode
+		ForceSyncCycle          *time.Duration
+		TdSyncInterval          *time.Duration
 		EthDiscoveryURLs        []string
 		SnapDiscoveryURLs       []string
 		NoPruning               *bool
@@ -159,6 +165,12 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.SyncMode != nil {
 		c.SyncMode = *dec.SyncMode
+	}
+	if dec.ForceSyncCycle != nil {
+		c.ForceSyncCycle = *dec.ForceSyncCycle
+	}
+	if dec.TdSyncInterval != nil {
+		c.TdSyncInterval = *dec.TdSyncInterval
 	}
 	if dec.EthDiscoveryURLs != nil {
 		c.EthDiscoveryURLs = dec.EthDiscoveryURLs

@@ -61,7 +61,9 @@ var Defaults = Config{
 	// ## Quorum QBFT START
 	//SyncMode: downloader.SnapSync,
 	// Quorum - make full sync the default sync mode in quorum (as opposed to upstream geth)
-	SyncMode: downloader.FullSync,
+	SyncMode:       downloader.FullSync,
+	ForceSyncCycle: 10 * time.Second, // Time interval to force syncs, even if few peers are available
+	TdSyncInterval: 10 * time.Second, // Time interval to verify TD changes and detect sync stalling
 	// ## Quorum QBFT END
 
 	NetworkId:          0, // enable auto configuration of networkID == chainID
@@ -94,8 +96,10 @@ type Config struct {
 
 	// Network ID separates blockchains on the peer-to-peer networking level. When left
 	// zero, the chain ID is used as network ID.
-	NetworkId uint64
-	SyncMode  downloader.SyncMode
+	NetworkId      uint64
+	SyncMode       downloader.SyncMode
+	ForceSyncCycle time.Duration
+	TdSyncInterval time.Duration
 
 	// This can be set to list of enrtree:// URLs which will be queried for
 	// for nodes to connect to.

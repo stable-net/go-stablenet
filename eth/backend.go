@@ -257,6 +257,8 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		Merger:         eth.merger,
 		Network:        networkID,
 		Sync:           config.SyncMode,
+		ForceSyncCycle: config.ForceSyncCycle,
+		TdSyncInterval: config.TdSyncInterval,
 		BloomCache:     uint64(cacheLimit),
 		EventMux:       eth.eventMux,
 		RequiredBlocks: config.RequiredBlocks,

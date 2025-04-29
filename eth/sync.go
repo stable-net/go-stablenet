@@ -30,8 +30,7 @@ import (
 )
 
 const (
-	forceSyncCycle      = 10 * time.Second // Time interval to force syncs, even if few peers are available
-	defaultMinSyncPeers = 5                // Amount of peers desired to start syncing
+	defaultMinSyncPeers = 5 // Amount of peers desired to start syncing
 )
 
 // syncTransactions starts sending all currently pending transactions to the given peer.
@@ -50,12 +49,15 @@ func (h *handler) syncTransactions(p *eth.Peer) {
 
 // chainSyncer coordinates blockchain sync components.
 type chainSyncer struct {
-	handler     *handler
-	force       *time.Timer
-	forced      bool // true when force timer fired
-	warned      time.Time
-	peerEventCh chan struct{}
-	doneCh      chan error // non-nil when sync is running
+	handler       *handler
+	force         *time.Timer
+	forced        bool // true when force timer fired
+	warned        time.Time
+	tdCheckTimer  *time.Timer
+	forceAdjustTD bool
+	previousTD    *big.Int
+	peerEventCh   chan struct{}
+	doneCh        chan error // non-nil when sync is running
 }
 
 // chainSyncOp is a scheduled sync operation.
@@ -98,8 +100,18 @@ func (cs *chainSyncer) loop() {
 
 	// The force timer lowers the peer count threshold down to one when it fires.
 	// This ensures we'll always start sync even if there aren't enough peers.
-	cs.force = time.NewTimer(forceSyncCycle)
+	cs.force = time.NewTimer(cs.handler.forceSyncCycle)
 	defer cs.force.Stop()
+
+	cs.tdCheckTimer = time.NewTimer(cs.handler.tdSyncInterval)
+	defer cs.tdCheckTimer.Stop()
+
+	_, headTD := cs.modeAndLocalHead()
+	if headTD != nil {
+		cs.previousTD = new(big.Int).Set(headTD)
+	} else {
+		cs.previousTD = big.NewInt(0)
+	}
 
 	for {
 		if op := cs.nextSyncOp(); op != nil {
@@ -110,7 +122,7 @@ func (cs *chainSyncer) loop() {
 			// Peer information changed, recheck.
 		case err := <-cs.doneCh:
 			cs.doneCh = nil
-			cs.force.Reset(forceSyncCycle)
+			cs.force.Reset(cs.handler.forceSyncCycle)
 			cs.forced = false
 
 			// If we've reached the merge transition but no beacon client is available, or
@@ -122,6 +134,15 @@ func (cs *chainSyncer) loop() {
 			}
 		case <-cs.force.C:
 			cs.forced = true
+
+		case <-cs.tdCheckTimer.C:
+			if _, headTD := cs.modeAndLocalHead(); headTD != nil {
+				if cs.previousTD != nil && cs.previousTD.Cmp(headTD) == 0 {
+					cs.forceAdjustTD = true
+				}
+				cs.previousTD = new(big.Int).Set(headTD)
+			}
+			cs.tdCheckTimer.Reset(cs.handler.tdSyncInterval)
 
 		case <-cs.handler.quitSync:
 			// Disable all insertion on the blockchain. This needs to happen before
@@ -171,6 +192,15 @@ func (cs *chainSyncer) nextSyncOp() *chainSyncOp {
 		return nil
 	}
 	mode, ourTD := cs.modeAndLocalHead()
+
+	// Normally, sync starts when the TD gap is 2 or greater.
+	// If forceAdjustTD is active, sync starts even when the gap is just 1.
+	tdAdjustment := int64(1)
+	if cs.forceAdjustTD {
+		tdAdjustment = 0
+		cs.forceAdjustTD = false
+	}
+
 	op := peerToSyncOp(mode, peer)
 	if cs.handler.chain.Config().QBFT == nil && op.td.Cmp(ourTD) <= 0 {
 		// We seem to be in sync according to the legacy rules. In the merge
@@ -181,8 +211,8 @@ func (cs *chainSyncer) nextSyncOp() *chainSyncOp {
 			cs.warned = time.Now()
 		}
 		return nil // We're in sync
-	} else if cs.handler.chain.Config().QBFT != nil && op.td.Cmp(new(big.Int).Add(ourTD, big.NewInt(1))) <= 0 {
-		// in QBFT, we're in sync if the peer's TD is within 1 of our own
+	} else if cs.handler.chain.Config().QBFT != nil && op.td.Cmp(new(big.Int).Add(ourTD, big.NewInt(tdAdjustment))) <= 0 {
+		// in QBFT, we're in sync if the peer's TD is within tdAdjustment of our own
 		return nil
 	}
 	return op

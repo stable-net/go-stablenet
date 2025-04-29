@@ -20,6 +20,7 @@ import (
 	"math/big"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -161,13 +162,15 @@ func newTestHandlerWithBlocks(blocks int) *testHandler {
 	txpool := newTestTxPool()
 
 	handler, _ := newHandler(&handlerConfig{
-		Database:   db,
-		Chain:      chain,
-		TxPool:     txpool,
-		Merger:     consensus.NewMerger(rawdb.NewMemoryDatabase()),
-		Network:    1,
-		Sync:       downloader.SnapSync,
-		BloomCache: 1,
+		Database:       db,
+		Chain:          chain,
+		TxPool:         txpool,
+		Merger:         consensus.NewMerger(rawdb.NewMemoryDatabase()),
+		Network:        1,
+		Sync:           downloader.SnapSync,
+		ForceSyncCycle: 10 * time.Second,
+		TdSyncInterval: 10 * time.Second,
+		BloomCache:     1,
 	})
 	handler.Start(1000)
 
