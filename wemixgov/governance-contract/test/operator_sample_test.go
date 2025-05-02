@@ -19,17 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TESTS
-
-// 1. single operator - multisig 없이 register, add stake, unstake, claim
-// 1-1. 각 amount 값 검증
-// 2, withdraw - revert when owner tries to withdraw by .cal() or .transfer() or .send()
-// 3. withdraw - withdraw when owner tries to submit tx that .cal() or .transfer() or .send()
-// 4. withdraw - withdraw when owner tires to withdraw by right function
-// 5. withdraw 후 각 amount 값 검증
-// 6. addOwner, removeOwner, change Owner 테스트
-// 7. multiple operator - multisig 동작 확인. ( 1~ 5) MultiSig 버전으로 확인
-
 func TestOperatorContractMultiSig(t *testing.T) {
 	var (
 		owner1        = getTxOpt(t, "operatorContractOwner1")
