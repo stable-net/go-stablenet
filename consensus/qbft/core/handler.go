@@ -263,7 +263,7 @@ func (c *Core) verifySignatures(m qbftmessage.QBFTMessage) error {
 			logger.Error("QBFT: invalid message payload", "err", err)
 			return err
 		}
-		source, err := c.validateFn(payload, m.Signature())
+		source, err := c.validateFn(payload, m.Signature(), m.View())
 		if err != nil {
 			logger.Error("QBFT: invalid message signature", "err", err)
 			return errInvalidSigner

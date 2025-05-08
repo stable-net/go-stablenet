@@ -91,7 +91,7 @@ type Core struct {
 	futurePreprepareTimer *time.Timer
 
 	valSet     qbft.ValidatorSet
-	validateFn func([]byte, []byte) (common.Address, error)
+	validateFn func([]byte, []byte, qbft.View) (common.Address, error)
 
 	backlogs   map[common.Address]*prque.Prque[int64, qbftmessage.QBFTMessage]
 	backlogsMu *sync.Mutex
@@ -357,7 +357,15 @@ func (c *Core) newRoundChangeTimer() {
 	})
 }
 
-func (c *Core) checkValidatorSignature(data []byte, sig []byte) (common.Address, error) {
+func (c *Core) checkValidatorSignature(data []byte, sig []byte, view qbft.View) (common.Address, error) {
+	if view.Cmp(c.currentView()) < 0 && c.state == StateAcceptRequest && view.Cmp(&qbft.View{
+		Sequence: new(big.Int).Sub(c.current.Sequence(), common.Big1),
+		Round:    c.PriorRound(),
+	}) == 0 {
+		if valSet := c.PriorValidators(); valSet != nil {
+			return qbft.CheckValidatorSignature(valSet, data, sig)
+		}
+	}
 	return qbft.CheckValidatorSignature(c.valSet, data, sig)
 }
 
