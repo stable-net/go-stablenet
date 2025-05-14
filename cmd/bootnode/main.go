@@ -27,7 +27,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -102,7 +104,11 @@ func main() {
 	}
 
 	if *writeAddr {
-		fmt.Printf("%x\n", crypto.FromECDSAPub(&nodeKey.PublicKey)[1:])
+		fmt.Printf("public key: 0x%x\n", crypto.FromECDSAPub(&nodeKey.PublicKey)[1:])
+		publicKey, _ := nodeKey.Public().(*ecdsa.PublicKey)
+		fmt.Printf("address: 0x%x\n", crypto.PubkeyToAddress(*publicKey))
+		blsKey, _ := bls.DeriveFromECDSA(nodeKey)
+		fmt.Printf("derived bls public key: %s\n", hexutil.Encode(blsKey.PublicKey().Marshal()))
 		os.Exit(0)
 	}
 

@@ -453,13 +453,31 @@ APIs!**
 Maintaining your own private network is more involved as a lot of configurations taken for
 granted in the official networks need to be manually set up. 
 
+#### Generating nodekey
+To generate a nodekey, you can use the `bootnode` tool. This will create a new nodekey file in the current directory:
+
+```
+> bootnode -genkey mynodekey
+```
+
+And you can see the public key, address, and a bls public key derived from the nodekey:
+```
+> bootnode -nodekey mynodekey -writeaddress
+
+public key: 0x9afad81eb6c7807b2f0edd2e4b55e07084d3ee66f28b563fa8ef1ca7147534f6acc734d069636263de70aa09f9f235398146684927fd147d75dcabb9c0762998
+address: 0x6e817a2b618bdcabcf15587af4f04b787a8894bc
+derived bls public key: 0xb7cfb997db1ccb18f4d84c5754ed0cbf1126791dec2ffa490c402c88bb0d5ea67df67a6d83c25dd047796376b59ac7b3
+```
+
+Use these information to define the genesis file. The address and bls key are used to define the `validators` and `blsPublicKeys` in the genesis file.
+
 #### Generating genesis.json
 First, you'll need to create the genesis state of your networks, which all nodes need to be
 aware of and agree upon. This consists of a small JSON file (e.g. call it `genesis.json`):
 ```json
 {
   "config": {
-    "chainId": 1234,
+    "chainId": 3010,
     "homesteadBlock": 0,
     "eip150Block": 0,
     "eip155Block": 0,
@@ -468,18 +486,55 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
     "constantinopleBlock": 0,
     "petersburgBlock": 0,
     "istanbulBlock": 0,
+    "muirGlacierBlock": 0,
     "berlinBlock": 0,
-    "londonBlock": 0
+    "londonBlock": 0,
+    "arrowGlacierBlock": 0,
+    "grayGlacierBlock": 0,
+    "qbft": {
+      "requestTimeoutSeconds": 2,
+      "blockPeriodSeconds": 1,
+      "proposerPolicy": 0,
+      "epochLength": 10,
+      "blockReward": "0xde0b6b3a7640000",
+      "validators": [
+        "0x6b0d675682f92a771042a70f60b2f199628a2ad0"
+      ],
+      "blsPublicKeys": [
+        "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
+      ],
+      "targetValidators": 0,
+      "maxRequestTimeoutSeconds": null,
+      "govParams": {
+        "minimumStaking": "0x69e10de76676d0800000",
+        "maximumStaking": "0xffffffffffffffffffffffffffffffff",
+        "unbondingPeriodStaker": 604800,
+        "unbondingPeriodDelegator": 259200,
+        "feePrecision": 10000,
+        "changeFeeDelay": 604800,
+        "minStakers": 1
+      }
+    }
   },
-  "alloc": {},
+  "nonce": "0x0",
+  "timestamp": "0x6822a639",
+  "extraData": "0x",
+  "gasLimit": "0x47b760",
+  "difficulty": "0x1",
+  "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "coinbase": "0x0000000000000000000000000000000000000000",
-  "difficulty": "0x20000",
-  "extraData": "",
-  "gasLimit": "0x2fefd8",
-  "nonce": "0x0000000000000042",
-  "mixhash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "alloc": {
+    "aa5faa65e9cc0f74a85b6fdfb5f6991f5c094697": {
+      "balance": "0x200000000000000000000000000000000000000000000000000000000000000"
+    }
+  },
+  "number": "0x0",
+  "gasUsed": "0x0",
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "timestamp": "0x00"
+  "baseFeePerGas": null,
+  "fees": null,
+  "excessBlobGas": null,
+  "blobGasUsed": null
 }
 ```
 
