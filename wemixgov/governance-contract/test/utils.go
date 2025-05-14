@@ -101,7 +101,7 @@ func getTxOpt(t *testing.T, alias string) *bind.TransactOpts {
 	} else {
 		pk, err := crypto.GenerateKey()
 		require.NoError(t, err)
-		opts, err := bind.NewKeyedTransactorWithChainID(pk, params.TestChainConfig.ChainID)
+		opts, err := bind.NewKeyedTransactorWithChainID(pk, params.TestQBFTChainConfig.ChainID)
 		require.NoError(t, err)
 		eoas[alias] = opts
 		return opts
@@ -227,7 +227,7 @@ func NewEOA() (eoa *EOA) {
 }
 
 func NewTxOptsWithValue(t *testing.T, eoa *EOA, value *big.Int) *bind.TransactOpts {
-	opts, err := bind.NewKeyedTransactorWithChainID(eoa.PrivateKey, params.TestChainConfig.ChainID)
+	opts, err := bind.NewKeyedTransactorWithChainID(eoa.PrivateKey, params.TestQBFTChainConfig.ChainID)
 	require.NoError(t, err)
 	if value != nil && value.Cmp(new(big.Int)) > 0 {
 		opts.Value = new(big.Int).Set(value)

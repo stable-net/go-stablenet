@@ -222,7 +222,7 @@ func initGenesis(ctx *cli.Context) error {
 	}
 
 	// Check sanity for QBFT.
-	checkSanityQBFT(genesis.Config)
+	checkSanityQBFT(genesis.Config, genesis.Alloc)
 
 	for _, name := range []string{"chaindata", "lightchaindata"} {
 		chaindb, err := stack.OpenDatabaseWithFreezer(name, 0, 0, ctx.String(utils.AncientFlag.Name), "", false)

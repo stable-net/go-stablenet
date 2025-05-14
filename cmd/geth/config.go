@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -43,6 +44,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
+	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 	"github.com/naoina/toml"
 	"github.com/urfave/cli/v2"
 )
@@ -166,7 +168,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	return stack, cfg
 }
 
-func checkSanityQBFT(chainConfig *params.ChainConfig) {
+func checkSanityQBFT(chainConfig *params.ChainConfig, alloc types.GenesisAlloc) {
 	if chainConfig.QBFT != nil {
 		checkSanityBeneficiaries(chainConfig.QBFT.BlockRewardBeneficiary)
 	}
@@ -175,6 +177,22 @@ func checkSanityQBFT(chainConfig *params.ChainConfig) {
 			checkSanityBeneficiaries(t.BlockRewardBeneficiary)
 		}
 	}
+
+	func() {
+		forbidden := []common.Address{
+			govwbft.GovConfigAddress,
+			govwbft.GovStakingAddress,
+			govwbft.GovRewardeeImpAddress,
+		}
+		for _, addr := range forbidden {
+			if _, exists := alloc[addr]; exists {
+				log.Crit(
+					"genesis.json must NOT include an allocation for %s; remove it before geth init",
+					addr.Hex(),
+				)
+			}
+		}
+	}()
 }
 
 func checkSanityBeneficiaries(l *params.BeneficiaryInfo) {

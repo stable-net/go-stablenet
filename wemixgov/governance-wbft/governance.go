@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	GovConstAddress       = common.HexToAddress(params.GOV_CONST_ADDRESS)
+	GovConfigAddress      = common.HexToAddress(params.GOV_CONFIG_ADDRESS)
 	GovStakingAddress     = common.HexToAddress(params.GOV_STAKING_ADDRESS)
 	GovNCPAddress         = common.HexToAddress(params.GOV_NCP_ADDRESS)
 	GovRewardeeImpAddress = common.HexToAddress(params.GOV_REWARDEE_IMP_ADDRESS)

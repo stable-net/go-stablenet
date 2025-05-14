@@ -86,6 +86,23 @@ var (
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
 			MaxRequestTimeoutSeconds: &mrts,
+			Validators:               []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
+			BLSPublicKeys:            []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+			BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
+				Name:      "Wemix Foundation",
+				Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
+				Numerator: 10000,
+			}}},
+			TargetValidators: 0,
+			GovParams: &GovParams{
+				MinimumStaking:     (*math.HexOrDecimal256)(big.NewInt(1e18)), // 1 WEMIX
+				MaximumStaking:     (*math.HexOrDecimal256)(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
+				UnbondingStaker:    604800,              // 7 days
+				UnbondingDelegator: 604800,              // 7 days
+				FeePrecision:       1000000000000000000, // 1 WEMIX
+				ChangeFeeDelay:     604800,              // 7 days
+				MinStakers:         1,
+			},
 		},
 	}
 
@@ -125,6 +142,23 @@ var (
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
 			MaxRequestTimeoutSeconds: &mrts,
+			Validators:               []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
+			BLSPublicKeys:            []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+			BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
+				Name:      "Wemix Foundation",
+				Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
+				Numerator: 10000,
+			}}},
+			TargetValidators: 0,
+			GovParams: &GovParams{
+				MinimumStaking:     (*math.HexOrDecimal256)(big.NewInt(1e18)), // 1 WEMIX
+				MaximumStaking:     (*math.HexOrDecimal256)(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
+				UnbondingStaker:    604800,              // 7 days
+				UnbondingDelegator: 604800,              // 7 days
+				FeePrecision:       1000000000000000000, // 1 WEMIX
+				ChangeFeeDelay:     604800,              // 7 days
+				MinStakers:         1,
+			},
 		},
 	}
 
@@ -293,7 +327,23 @@ var (
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
 			MaxRequestTimeoutSeconds: &mrts,
-			// You should assign `Validators` before using
+			Validators:               []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
+			BLSPublicKeys:            []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+			BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
+				Name:      "Wemix Foundation",
+				Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
+				Numerator: 10000,
+			}}},
+			TargetValidators: 0,
+			GovParams: &GovParams{
+				MinimumStaking:     (*math.HexOrDecimal256)(big.NewInt(1e18)), // 1 WEMIX
+				MaximumStaking:     (*math.HexOrDecimal256)(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
+				UnbondingStaker:    604800,              // 7 days
+				UnbondingDelegator: 604800,              // 7 days
+				FeePrecision:       1000000000000000000, // 1 WEMIX
+				ChangeFeeDelay:     604800,              // 7 days
+				MinStakers:         1,
+			},
 		},
 	}
 
@@ -400,6 +450,46 @@ var (
 			HalvingTimes:      8,
 			HalvingRate:       50,
 		},
+	}
+
+	// TestQBFTChainConfig contains every protocol change (EIPs) introduced
+	// and accepted by the Ethereum core developers for testing purposes
+	// and used for QBFT engine tests.
+	TestQBFTChainConfig = &ChainConfig{
+		ChainID:                       big.NewInt(1111),
+		HomesteadBlock:                big.NewInt(0),
+		DAOForkBlock:                  nil,
+		DAOForkSupport:                false,
+		EIP150Block:                   big.NewInt(0),
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(0),
+		MuirGlacierBlock:              big.NewInt(0),
+		BerlinBlock:                   big.NewInt(0),
+		LondonBlock:                   big.NewInt(0),
+		ArrowGlacierBlock:             big.NewInt(0),
+		GrayGlacierBlock:              big.NewInt(0),
+		MergeNetsplitBlock:            nil,
+		BriocheBlock:                  big.NewInt(0),
+		ShanghaiTime:                  nil,
+		CancunTime:                    nil,
+		PragueTime:                    nil,
+		VerkleTime:                    nil,
+		TerminalTotalDifficulty:       nil,
+		TerminalTotalDifficultyPassed: false,
+		Ethash:                        new(EthashConfig),
+		Clique:                        nil,
+		Brioche: &BriocheConfig{
+			BlockReward:       big.NewInt(1e18),
+			FirstHalvingBlock: big.NewInt(50),
+			HalvingPeriod:     big.NewInt(50),
+			FinishRewardBlock: big.NewInt(450),
+			HalvingTimes:      8,
+			HalvingRate:       50,
+		},
 		QBFT: &QBFTConfig{
 			EpochLength:              10,
 			BlockPeriodSeconds:       3,
@@ -407,7 +497,23 @@ var (
 			ProposerPolicy:           0,
 			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
 			MaxRequestTimeoutSeconds: &mrts,
-			// You should assign `Validators` before using
+			Validators:               []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
+			BLSPublicKeys:            []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+			BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
+				Name:      "Wemix Foundation",
+				Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
+				Numerator: 10000,
+			}}},
+			TargetValidators: 0,
+			GovParams: &GovParams{
+				MinimumStaking:     (*math.HexOrDecimal256)(big.NewInt(1e18)), // 1 WEMIX
+				MaximumStaking:     (*math.HexOrDecimal256)(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
+				UnbondingStaker:    604800,              // 7 days
+				UnbondingDelegator: 604800,              // 7 days
+				FeePrecision:       1000000000000000000, // 1 WEMIX
+				ChangeFeeDelay:     604800,              // 7 days
+				MinStakers:         1,
+			},
 		},
 	}
 
@@ -470,7 +576,6 @@ var (
 		Ethash:                        new(EthashConfig),
 		Clique:                        nil,
 	}
-	TestRules = TestChainConfig.Rules(new(big.Int), false, 0)
 )
 
 // NetworkNames are user friendly names to use in the chain spec banner.
@@ -691,8 +796,6 @@ func (c *ChainConfig) Description() string {
 	banner += fmt.Sprintf(" - MontBlanc:                   #%-8v\n", c.MontBlancBlock)
 	if c.MontBlanc != nil {
 		banner += fmt.Sprintf("   - NCPs:                      %v\n", c.MontBlanc.NCPs)
-		banner += fmt.Sprintf("   - Validators:                %v\n", c.MontBlanc.Validators)
-		banner += fmt.Sprintf("   - BLSPublicKeys:             %v\n", c.MontBlanc.BLSPublicKeys)
 	}
 	banner += " - QBFT\n"
 	if c.QBFT != nil {
@@ -713,12 +816,18 @@ func (c *ChainConfig) Description() string {
 				banner += fmt.Sprintf("   - BlockRewardBeneficiary[%v]: %v\n", i, b)
 			}
 		}
-		banner += fmt.Sprintf("   - MinStakers:                %v\n", c.QBFT.MinStakers)
+		banner += fmt.Sprintf("   - Validators:                %v\n", c.QBFT.Validators)
+		banner += fmt.Sprintf("   - BLSPublicKeys:             %v\n", c.QBFT.BLSPublicKeys)
 		banner += fmt.Sprintf("   - TargetValidators:          %v\n", c.QBFT.TargetValidators)
 		if c.QBFT.MaxRequestTimeoutSeconds == nil {
 			banner += fmt.Sprintf("   - MaxRequestTimeoutSeconds:  %-8v\n", 0)
 		} else {
 			banner += fmt.Sprintf("   - MaxRequestTimeoutSeconds:  %-8v\n", *c.QBFT.MaxRequestTimeoutSeconds)
+		}
+		if c.QBFT.GovParams == nil {
+			banner += fmt.Sprintf("   - GovParams:                 %v\n", nil)
+		} else {
+			banner += fmt.Sprintf("   - GovParams:                 %+v\n", c.QBFT.GovParams)
 		}
 	}
 	banner += "\n"

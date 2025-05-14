@@ -51,7 +51,7 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 
 	ethConf := ethconfig.Defaults
 	ethConf.Genesis = &core.Genesis{
-		Config:     params.TestChainConfig,
+		Config:     params.TestQBFTChainConfig,
 		GasLimit:   ethconfig.Defaults.Miner.GasCeil,
 		Alloc:      alloc,
 		Difficulty: new(big.Int).SetUint64(1),
@@ -60,10 +60,12 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 	ethConf.Istanbul.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
 	ethConf.Genesis.Config.QBFT.BlockPeriodSeconds = 1
 	ethConf.Genesis.Config.QBFT.EpochLength = 1000
-	ethConf.Genesis.Config.QBFT.MinStakers = 999
+	ethConf.Genesis.Config.QBFT.GovParams.MinStakers = 999
 	validator := crypto.PubkeyToAddress(nodeConf.P2P.PrivateKey.PublicKey)
 	blsKey, _ := bls.DeriveFromECDSA(nodeConf.P2P.PrivateKey)
 	blsPubKey := blsKey.PublicKey().Marshal()
+	ethConf.Genesis.Config.QBFT.Validators = []common.Address{validator}
+	ethConf.Genesis.Config.QBFT.BLSPublicKeys = []string{hexutil.Encode(blsPubKey)}
 	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey) // simulated chain block
 	ethConf.SyncMode = downloader.FullSync
 	ethConf.Miner.GasPrice = big.NewInt(1)

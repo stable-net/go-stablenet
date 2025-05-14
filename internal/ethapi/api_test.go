@@ -1564,6 +1564,8 @@ func TestRPCMarshalBlock(t *testing.T) {
 	}
 }
 
+// If this test fails, it means that the test data is not up to date with the
+// current block structure. Please run `WRITE_TEST_FILES=y go test -count 1 ./internal/ethapi` to resolve it.
 func TestRPCGetBlockOrHeader(t *testing.T) {
 	t.Parallel()
 

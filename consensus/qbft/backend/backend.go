@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
@@ -153,6 +154,12 @@ func (sb *Backend) Address() common.Address {
 func (sb *Backend) Broadcast(valSet qbft.ValidatorSet, code uint64, payload []byte) error {
 	_, validator := valSet.GetByAddress(sb.address)
 	if validator == nil {
+		sb.logger.Error("BFT: invalid validator",
+			"address", sb.Address(),
+			"validator", validator,
+			"payload", hexutil.Encode(payload),
+			"code", code,
+		)
 		return qbft.ErrUnauthorizedAddress
 	}
 

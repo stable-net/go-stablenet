@@ -7,8 +7,8 @@ var (
 	GovStakingContract string
 	//go:embed govcontracts/GovNCP
 	GovNCPContract string
-	//go:embed govcontracts/GovConst
-	GovConstContract string
+	//go:embed govcontracts/GovConfig
+	GovConfigContract string
 	//go:embed govcontracts/GovRewardeeImp
 	GovRewardeeImpContract string
 )

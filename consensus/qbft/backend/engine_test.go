@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
@@ -204,6 +205,20 @@ func setConfigFromChainConfig(qbftCfg *qbft.Config, config *params.ChainConfig) 
 
 	if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
 		qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds
+	}
+	if config.QBFT.GovParams != nil {
+		qbftCfg.GovParams = config.QBFT.GovParams
+	} else {
+		value, _ := new(big.Int).SetString("340282366920938463463374607431768211455", 10)
+		qbftCfg.GovParams = &params.GovParams{
+			MinimumStaking:     (*math.HexOrDecimal256)(new(big.Int).Mul(big.NewInt(params.Ether), big.NewInt(500_000))),
+			MaximumStaking:     (*math.HexOrDecimal256)(value),
+			UnbondingStaker:    604800, // 7 days
+			UnbondingDelegator: 604800, // 7 days
+			FeePrecision:       1000,   //0.1%
+			ChangeFeeDelay:     604800, // 7 days
+			MinStakers:         5,
+		}
 	}
 }
 

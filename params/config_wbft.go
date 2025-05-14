@@ -6,14 +6,37 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 )
 
 const (
-	GOV_CONST_ADDRESS        = "0x1000"
+	GOV_CONFIG_ADDRESS       = "0x1000"
 	GOV_STAKING_ADDRESS      = "0x1001"
 	GOV_NCP_ADDRESS          = "0x1002"
 	GOV_REWARDEE_IMP_ADDRESS = "0x1003"
 )
+
+type GovParams struct {
+	MinimumStaking     *math.HexOrDecimal256 `json:"minimumStaking"`           // Minimum Staking Amount (WEI)
+	MaximumStaking     *math.HexOrDecimal256 `json:"maximumStaking"`           // Maximum staking amount (WEI)
+	UnbondingStaker    uint64                `json:"unbondingPeriodStaker"`    // Staker unbonding duration (seconds)
+	UnbondingDelegator uint64                `json:"unbondingPeriodDelegator"` // Delegate unbundling period (seconds)
+	FeePrecision       uint64                `json:"feePrecision"`             // Fee precision
+	ChangeFeeDelay     uint64                `json:"changeFeeDelay"`           // Fee change latency (seconds)
+	MinStakers         uint64                `json:"minStakers"`               // Minimum number of stakers
+}
+
+func (gp *GovParams) String() string {
+	return fmt.Sprintf("{MinimumStaking: %v MaximumStaking: %v UnbondingStaker: %v UnbondingDelegator: %v FeePrecision: %v ChangeFeeDelay: %v MinStakers: %v}",
+		((*big.Int)(gp.MinimumStaking)).String(),
+		((*big.Int)(gp.MaximumStaking)).String(),
+		gp.UnbondingStaker,
+		gp.UnbondingDelegator,
+		gp.FeePrecision,
+		gp.ChangeFeeDelay,
+		gp.MinStakers,
+	)
+}
 
 type CodeParam struct {
 	Address common.Address `json:"address"`
@@ -59,23 +82,19 @@ func (st *StateTransition) String() string {
 }
 
 type MontBlancConfig struct {
-	NCPs          []common.Address `json:"ncps,omitempty"`
-	Validators    []common.Address `json:"validators"`    // Validators list when the number of stakers is below the minimum stakers
-	BLSPublicKeys []string         `json:"blsPublicKeys"` // BLS PublicKey list of Validators
+	NCPs []common.Address `json:"ncps,omitempty"`
 }
 
-func (c *MontBlancConfig) GetBLSPublicKeys() [][]byte {
-	blsPubKeys := make([][]byte, len(c.BLSPublicKeys))
-	for i, pk := range c.BLSPublicKeys {
+func (c *ChainConfig) GetBLSPublicKeys() [][]byte {
+	blsPubKeys := make([][]byte, len(c.QBFT.BLSPublicKeys))
+	for i, pk := range c.QBFT.BLSPublicKeys {
 		blsPubKeys[i] = hexutil.MustDecode(pk)
 	}
 	return blsPubKeys
 }
 
 func (c *MontBlancConfig) String() string {
-	return fmt.Sprintf("{NCPs: %v, Validators: %v, BLSPublicKeys: %v}",
+	return fmt.Sprintf("{NCPs: %v}",
 		c.NCPs,
-		c.Validators,
-		c.BLSPublicKeys,
 	)
 }

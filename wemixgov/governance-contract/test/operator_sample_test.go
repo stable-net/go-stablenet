@@ -385,7 +385,7 @@ func TestOperatorContractMultiSig(t *testing.T) {
 				args := abi.Arguments{
 					{Type: mustParseType("address")},
 				}
-				packedArgs, err := args.Pack(govwbft.GovConstAddress) // just used as random contract address. nothing to do with govConst contract
+				packedArgs, err := args.Pack(govwbft.GovConfigAddress) // just used as random contract address. nothing to do with govConst contract
 				if err != nil {
 					panic(fmt.Sprintf("Failed to pack arguments: %v", err))
 				}

@@ -528,9 +528,6 @@ func checkMontBlancConfig(config *params.ChainConfig) error {
 	if config.MontBlanc == nil {
 		return errors.New("montblanc config is nil")
 	}
-	if len(config.MontBlanc.Validators) != len(config.MontBlanc.BLSPublicKeys) {
-		return fmt.Errorf("validators and blsPublicKeys length mismatch")
-	}
 	return nil
 }
 
@@ -544,7 +541,7 @@ func (e *Engine) createInitialEpochBlock(config *params.ChainConfig, header *typ
 		return nil, err
 	}
 
-	stakers, blsPubKeys := config.MontBlanc.Validators, config.MontBlanc.GetBLSPublicKeys()
+	stakers, blsPubKeys := e.cfg.Validators, e.cfg.BLSPublicKeys
 	// Init diligence score of every staker to DefaultDiligence.
 	newEpoch.Stakers = make([]*types.Staker, len(stakers))
 	for i, staker := range stakers {
@@ -555,8 +552,8 @@ func (e *Engine) createInitialEpochBlock(config *params.ChainConfig, header *typ
 	}
 	newEpoch.Validators = e.decideValidators(header, stakers)
 	newEpoch.BLSPublicKeys = make([][]byte, len(newEpoch.Validators))
-	for i, validator := range newEpoch.Validators {
-		newEpoch.BLSPublicKeys[i] = blsPubKeys[validator]
+	for i, validatorIdx := range newEpoch.Validators {
+		newEpoch.BLSPublicKeys[i] = blsPubKeys[validatorIdx]
 	}
 
 	log.Trace("update epoch info", "header.Number", header.Number, "validators", newEpoch.Validators)
@@ -924,7 +921,8 @@ func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *b
 				log.Error("failed to get epochInfo", "err", err)
 				return nil, err
 			}
-			vs := validator.NewSet(chainConfig.MontBlanc.Validators, chainConfig.MontBlanc.GetBLSPublicKeys(), e.cfg.ProposerPolicy)
+
+			vs := validator.NewSet(e.cfg.Validators, e.cfg.BLSPublicKeys, e.cfg.ProposerPolicy)
 			return vs, nil
 		}
 		_, epochInfo, err = e.extractEpochInfo(chain.GetHeaderByNumber(0))

@@ -153,7 +153,7 @@ Since each seal is 65 bytes in size and seals are recorded for all validators, b
 ### Improved Miner Worker Operations
 The existing miner worker is designed to be fit to the ethash algorithm. When a new block is received, the worker starts new work and enters a loop to find the nonce. After a certain time (recommit time), it starts new work to include newly in-came transactions in the block. However, this behavior is not suitable for the IBFT algorithm. While it is correct to start work when a new block is received, starting new work at each recommit time is inefficient. Instead, it is more appropriate to start new work when a new round begins. In IBFT, there are cases where consensus fails in a round, and in such cases, a new proposer must start new work. The timing for this should be determined by a round change, not by recommit time. Therefore, in WBFT, the worker is modified to start work at the beginning of each round. The following protocol is applied:
 - When the worker receives a new block, it notifies the WBFT engine to perform the final commit (Same to IBFT).
-- The WBFT engine notifies the worker to start new work whenever a new sequence begins with a new round (round 0) or when a round change occurs only if it is the proposer in this round.
+- The WBFT engine notifies the worker to start new work whenever a new round starts.
 - The WBFT engine waits for the block period before notifying the worker(In the existing IBFT, the block period was waited for when sealing the block).
 - When new work starts, the worker begins the process of preparing the block.
 
@@ -165,8 +165,7 @@ The existing QBFT Config was revised by removing unnecessary fields and adding r
       "blockPeriodSeconds": 1,
       "requestTimeoutSeconds": 2,
       "maxRequestTimeoutSeconds": 2,
-      "targetValidators": 20,
-      "minStakers": 13,
+      "targetValidators": 1,
       "blockReward": 1000000000000000000,
       "blockRewardBeneficiary":  {
          "denominator": 10000,
@@ -180,14 +179,29 @@ The existing QBFT Config was revised by removing unnecessary fields and adding r
              "name": "EcoSystem",
              "addr": "0xadd0000000000000000000000000000000000001",
              "numerator": 2500
-           }]}
+           }
+         ]
+      },
+      "validators": ["0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697"],
+      "blsPublicKeys": ["0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"],
+      "govParams": {
+        "minimumStaking": 1000000000000000000000000,
+        "maximumStaking": 10000000000000000000000000,
+        "unbondingStaker": 604800,
+        "unbondingDelegator": 259200,
+        "feePrecision": 1000,
+        "rewardPrecision": 1000000000000000000000000000,
+        "changeFeeDelay": 604800,
+        "minStakers": 1
+      }
     }
 ```
 
 - `blockRewardBeneficiary` defines the address that will receive the block minting rewards consistently.
 - `targetValidators` should be less than or equals to `epochLength`.
-- `minStakers` should be less than or equals to `targetValidators`.
-- `validators` in original QBFT config is removed because the validator set is defined in the extra field of genesis.json.
+- `validators` defines initial validator set. order is matter.
+- `blsPublicKeys` defines initial validator's bls key signing BFT messages. order must be same to `validators`.
+- `govParams` defines the parameters of the GovConfig contract.
 ```
 type Staker struct {
     Addr      common.Address
@@ -280,15 +294,16 @@ make all
 The go-ethereum project comes with several wrappers/executables found in the `cmd`
 directory.
 
-|  Command   | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| :--------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`geth`** | Our main Ethereum CLI client. It is the entry point into the Ethereum network (main-, test- or private net), capable of running as a full node (default), archive node (retaining all historical state) or a light node (retrieving data live). It can be used by other processes as a gateway into the Ethereum network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `geth --help` and the [CLI page](https://geth.ethereum.org/docs/fundamentals/command-line-options) for command line options. |
-|   `clef`   | Stand-alone signing tool, which can be used as a backend signer for `geth`.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-|  `devp2p`  | Utilities to interact with nodes on the networking layer, without running a full blockchain.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-|  `abigen`  | Source code generator to convert Ethereum contract definitions into easy-to-use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://docs.soliditylang.org/en/develop/abi-spec.html) with expanded functionality if the contract bytecode is also available. However, it also accepts Solidity source files, making development much more streamlined. Please see our [Native DApps](https://geth.ethereum.org/docs/developers/dapp-developer/native-bindings) page for details.                                  |
-| `bootnode` | Stripped down version of our Ethereum client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks.                                                                                                                                                                                                                                               |
-|   `evm`    | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug run`).                                                                                                                                                                                                                                               |
-| `rlpdump`  | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp)) dumps (data encoding used by the Ethereum protocol both network as well as consensus wise) to user-friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`).                                                                                                                                                                                |
+|          Command          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+|:-------------------------:|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|        **`geth`**         | Our main Ethereum CLI client. It is the entry point into the Ethereum network (main-, test- or private net), capable of running as a full node (default), archive node (retaining all historical state) or a light node (retrieving data live). It can be used by other processes as a gateway into the Ethereum network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `geth --help` and the [CLI page](https://geth.ethereum.org/docs/fundamentals/command-line-options) for command line options. |
+| `genesis_generator` | Genesis generator tool. It is used for the first genesis.json file. |
+|          `clef`           | Stand-alone signing tool, which can be used as a backend signer for `geth`.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+|         `devp2p`          | Utilities to interact with nodes on the networking layer, without running a full blockchain.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+|         `abigen`          | Source code generator to convert Ethereum contract definitions into easy-to-use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://docs.soliditylang.org/en/develop/abi-spec.html) with expanded functionality if the contract bytecode is also available. However, it also accepts Solidity source files, making development much more streamlined. Please see our [Native DApps](https://geth.ethereum.org/docs/developers/dapp-developer/native-bindings) page for details.                |
+|        `bootnode`         | Stripped down version of our Ethereum client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks.                                                                                                                                                                                                                                                  |
+|           `evm`           | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug run`).                                                                                                                                                                                                                                                  |
+|         `rlpdump`         | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp)) dumps (data encoding used by the Ethereum protocol both network as well as consensus wise) to user-friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`).                                                                                                                                                                                   |
 
 ## Running `geth`
 
@@ -549,16 +564,15 @@ $ genesis_generator
 
 This will help you generate genesis file by simply choosing the options it gives like below : 
 ``` shell
-Which consensus engine to use? (default = Wemix)
- 1. Ethash (proof-of-work)
- 2. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)
- 3. Clique (proof-of-authority)
- 4. Beacon (proof-of-stake), merging/merged from Clique (proof-of-authority)
- 5. WBFT (wemix-byzantine-fault-tolerance)
- 6. WEMIX (wemix-byzantine-fault-tolerance), merged from Wemix3.0 (proof-of-authority)
- ```
+Which consensus engine to use? (default = Wbft)
+ 1. WBFT (wemix-byzantine-fault-tolerance)
+ 2. Ethash (proof-of-work)
+ 3. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)
+ 4. Clique (proof-of-authority)
+ 5. Beacon (proof-of-stake), merging/merged from Clique (proof-of-authority)
+```
 
-If you want more specific genesis file settings,simply modify the desired fields after it has been generated.
+If you want more specific genesis file settings, simply modify the desired fields after it has been generated.
 
 
 With the genesis state defined in the above JSON file, you'll need to initialize **every**
@@ -617,49 +631,39 @@ Note that this setting is not recommended for production.
 
     ```shell
    Example) 
-   
-   Which consensus engine to use? (default = Wbft)
-     1. Ethash (proof-of-work)
-     2. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)
-     3. Clique (proof-of-authority)
-     4. Beacon (proof-of-stake), merging/merged from Clique (proof-of-authority)
-     5. WBFT (wemix-byzantine-fault-tolerance)
-     6. WEMIX (wemix-byzantine-fault-tolerance), merged from Wemix3.0 (proof-of-authority)
-    > 5
-    
+
+    Which consensus engine to use? (default = Wbft)
+     1. WBFT (wemix-byzantine-fault-tolerance)
+     2. Ethash (proof-of-work)
+     3. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)
+     4. Clique (proof-of-authority)
+     5. Beacon (proof-of-stake), merging/merged from Clique (proof-of-authority)
+    > 1
+
     Which accounts are allowed to seal? (mandatory at least one)
-    > 0x6B0d675682f92a771042a70F60b2f199628A2Ad0
+    > 0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697
+    └> BLS Public Key : 0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b
     > 0x
     
     Want to generate config.toml file to configure static nodes to connect?
     Else you have to manage peer node manually (default true)
-    > yes
-    
-    Enter enode URLs for static nodes (press enter with empty input when done):
-    > enode://8937d3a33683e5395c4be88f1dcebf8d105bec5a88130177407ca2b960a68a4271c46b97b8f0aa097d7c18c96e410dbd0a38fdc956371e8dbae742bdc380428e@127.0.0.1:0?discport=30301
-    > 
-    
-     Do you want to export generated config file?
-     If not it will be just printed (default true)
-    > yes
-    
-    Which folder to save the config.toml into? (default = current)
-    > /my/working/directory
+    > no
     
     Which accounts should be pre-funded? (advisable at least one)
+    > 0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697
     > 0x
     
     Specify your chain/network ID if you want an explicit one (default = random)
-    > 
+    >
     
-     Do you want to export generated genesis file?
-     If not it will be just printed (default true)
-    > yes
+    Do you want to export generated genesis file?
+    If not it will be just printed (default true)
+    >
     
     Which folder to save the genesis spec into? (default = current)
     It will create genesis.json
-    > /my/working/directory
-    
+    >
+
     ```
 
 7. init genesis block

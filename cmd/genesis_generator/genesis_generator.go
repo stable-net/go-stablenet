@@ -15,15 +15,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
-
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 )
 
 type genesisGenerator struct {
@@ -76,45 +71,27 @@ func (g *genesisGenerator) makeGenesis() {
 	fmt.Println()
 	fmt.Println("Which consensus engine to use? (default = Wbft)")
 	fmt.Println(" 1. WBFT (wemix-byzantine-fault-tolerance)")
-	fmt.Println(" 2. WEMIX (wemix-byzantine-fault-tolerance), merged from Wemix3.0 (proof-of-authority)")
-	fmt.Println(" 3. Ethash (proof-of-work)")
-	fmt.Println(" 4. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)")
-	fmt.Println(" 5. Clique (proof-of-authority)")
-	fmt.Println(" 6. Beacon (proof-of-stake), merging/merged from Clique (proof-of-authority)")
+	fmt.Println(" 2. Ethash (proof-of-work)")
+	fmt.Println(" 3. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)")
+	fmt.Println(" 4. Clique (proof-of-authority)")
+	fmt.Println(" 5. Beacon (proof-of-stake), merging/merged from Clique (proof-of-authority)")
 
 	choice := read()
 	switch {
 	case choice == "1" || choice == "":
 		g.wbftChainConfig()
-		// allocate governanace contract code in genesis block
-		g.Genesis.Alloc[govwbft.GovConstAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovConstContract), Balance: common.Big0}
-		g.Genesis.Alloc[govwbft.GovStakingAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract), Balance: common.Big0}
-		g.Genesis.Alloc[govwbft.GovRewardeeImpAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovRewardeeImpContract), Balance: common.Big0}
 
 	case choice == "2":
-		g.wbftChainConfig()
-		fmt.Println()
-		fmt.Println("Enter block number you want to enable Montblanc Fork (default 1)")
-		montblancBlock := readDefaultBigInt(common.Big1)
-		g.Genesis.Config.MontBlancBlock = montblancBlock
-		// allocate governanace contract code in genesis block if montblanc block is genesis block
-		if montblancBlock.Cmp(common.Big0) == 0 {
-			g.Genesis.Alloc[govwbft.GovConstAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovConstContract), Balance: common.Big0}
-			g.Genesis.Alloc[govwbft.GovStakingAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract), Balance: common.Big0}
-			g.Genesis.Alloc[govwbft.GovRewardeeImpAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovRewardeeImpContract), Balance: common.Big0}
-		}
+		g.ethashConfig()
 
 	case choice == "3":
 		g.ethashConfig()
-
-	case choice == "4":
-		g.ethashConfig()
 		g.beaconChainConfig()
 
-	case choice == "5":
+	case choice == "4":
 		g.cliqueConfig()
 
-	case choice == "6":
+	case choice == "5":
 		g.cliqueConfig()
 		g.beaconChainConfig()
 
@@ -177,42 +154,12 @@ func (g *genesisGenerator) wbftChainConfig() {
 		}
 	}
 
-	epochInfo := new(types.EpochInfo)
+	g.Genesis.Config.QBFT = params.DefaultQBFTConfig
+
 	for i, val := range validators {
-		epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
-			Addr:      val,
-			Diligence: types.DefaultDiligence,
-		})
-		epochInfo.Validators = append(epochInfo.Validators, uint32(i))
-		epochInfo.BLSPublicKeys = append(epochInfo.BLSPublicKeys, hexutil.MustDecode(blsPublicKeys[i]))
+		g.Genesis.Config.QBFT.Validators = append(g.Genesis.Config.QBFT.Validators, val)
+		g.Genesis.Config.QBFT.BLSPublicKeys = append(g.Genesis.Config.QBFT.BLSPublicKeys, blsPublicKeys[i])
 	}
-
-	g.Genesis.Config.QBFT = &params.QBFTConfig{
-		BlockReward:           (*math.HexOrDecimal256)(big.NewInt(params.Ether)),
-		EpochLength:           100,
-		BlockPeriodSeconds:    1,
-		RequestTimeoutSeconds: 2,
-		ProposerPolicy:        0,
-	}
-
-	// make extra data
-	vanity := append(g.Genesis.ExtraData, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(g.Genesis.ExtraData))...)
-	ist := &types.QBFTExtra{
-		VanityData:        vanity,
-		PrevRound:         0,
-		PrevPreparedSeal:  nil,
-		PrevCommittedSeal: nil,
-		Round:             0,
-		PreparedSeal:      nil,
-		CommittedSeal:     nil,
-		EpochInfo:         epochInfo,
-	}
-
-	istPayload, err := rlp.EncodeToBytes(&ist)
-	if err != nil {
-		log.Crit("failed to encode qbft extra")
-	}
-	g.Genesis.ExtraData = istPayload
 
 	// you can add config file for static nodes if you want
 	fmt.Println()

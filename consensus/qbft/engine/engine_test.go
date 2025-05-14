@@ -432,11 +432,10 @@ func TestEpochInfo(t *testing.T) {
 
 			// Setup test chain genesis
 			c := new(fakeChain)
-			c.chainConfig = params.TestChainConfig
+			c.chainConfig = params.TestQBFTChainConfig
 			engine := NewEngine(&qbft.Config{
 				ProposerPolicy: qbft.NewRoundRobinProposerPolicy(),
 				Epoch:          3,
-				MinStakers:     999,
 			}, common.Address{}, nil)
 			parent = makeGenesis(signers)
 			c.insertHeader(parent)
@@ -531,26 +530,26 @@ func TestEpochInfoTransition(t *testing.T) {
 			// Setup validators
 			signers := newAccounts(4)
 			var validators []common.Address
-			var blsPubKeys []string
+			var blsPubKeys [][]byte
 			for _, s := range signers {
 				validators = append(validators, s.addr)
-				blsPubKeys = append(blsPubKeys, hexutil.Encode(s.blsKey.PublicKey().Marshal()))
+				blsPubKeys = append(blsPubKeys, s.blsKey.PublicKey().Marshal())
 			}
 
 			// Setup test chain genesis
 			c := new(fakeChain)
 			c.chainConfig = new(params.ChainConfig) // do not mess TestChainConfig
-			*c.chainConfig = *params.TestChainConfig
+			*c.chainConfig = *params.TestQBFTChainConfig
 			c.chainConfig.MontBlancBlock = tc.montBlancBlock
 			c.chainConfig.MontBlanc = &params.MontBlancConfig{
-				Validators:    validators,
-				BLSPublicKeys: blsPubKeys,
+				NCPs: validators,
 			}
-			engine := NewEngine(&qbft.Config{
-				ProposerPolicy: qbft.NewRoundRobinProposerPolicy(),
-				Epoch:          tc.epoch,
-				MinStakers:     999,
-			}, common.Address{}, nil)
+
+			testConfig := *qbft.DefaultConfig
+			testConfig.Epoch = tc.epoch
+			testConfig.Validators = validators
+			testConfig.BLSPublicKeys = blsPubKeys
+			engine := NewEngine(&testConfig, common.Address{}, nil)
 			parent = makeGenesis(signers)
 			c.insertHeader(parent)
 
@@ -649,7 +648,7 @@ func TestDistributeRewardsForZeroStakes(t *testing.T) {
 
 			// Setup test chain genesis
 			c := new(fakeChain)
-			c.chainConfig = params.TestChainConfig
+			c.chainConfig = params.TestQBFTChainConfig
 			c.chainConfig.QBFT.BlockReward = (*math.HexOrDecimal256)(big.NewInt(params.Ether))
 			state, _ := state.New(types.EmptyRootHash, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 			engine := NewEngine(tc.qbftConfig, common.Address{}, nil)
@@ -731,7 +730,7 @@ func TestDistributeRewardsOnlyForStakes(t *testing.T) {
 
 			// Setup test chain genesis (non-Brioche config)
 			c := new(fakeChain)
-			c.chainConfig = params.TestChainConfig
+			c.chainConfig = params.TestQBFTChainConfig
 			c.chainConfig.BriocheBlock = nil
 			c.chainConfig.QBFT.BlockReward = (*math.HexOrDecimal256)(big.NewInt(3000000))
 

@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -59,10 +60,12 @@ var (
 	ethashChainConfig *params.ChainConfig
 	cliqueChainConfig *params.ChainConfig
 	wbftChainConfig   *params.ChainConfig
+	wbftConfig        *qbft.Config
 
 	// Test accounts
 	testBankKey, _  = crypto.GenerateKey()
 	testBankAddress = crypto.PubkeyToAddress(testBankKey.PublicKey)
+	testBlsKey, _   = bls.DeriveFromECDSA(testBankKey)
 	testBankFunds   = big.NewInt(1000000000000000000)
 
 	testUserKey, _  = crypto.GenerateKey()
@@ -98,8 +101,24 @@ func init() {
 		Epoch:  30000,
 	}
 	wbftChainConfig = new(params.ChainConfig)
-	*wbftChainConfig = *params.TestChainConfig
+	*wbftChainConfig = *params.TestQBFTChainConfig
+	wbftChainConfig.QBFT.Validators = []common.Address{testBankAddress}
+	wbftChainConfig.QBFT.BLSPublicKeys = []string{hexutil.Encode(testBlsKey.PublicKey().Marshal())}
 	wbftChainConfig.Ethash = nil
+
+	wbftConfig = new(qbft.Config)
+	wbftConfig.BlockPeriod = wbftChainConfig.QBFT.BlockPeriodSeconds
+	wbftConfig.RequestTimeout = wbftChainConfig.QBFT.RequestTimeoutSeconds * 1000
+	wbftConfig.Epoch = wbftChainConfig.QBFT.EpochLength
+	wbftConfig.Validators = wbftChainConfig.QBFT.Validators
+	blsPubKey, _ := hexutil.Decode(wbftChainConfig.QBFT.BLSPublicKeys[0])
+	wbftConfig.BLSPublicKeys = [][]byte{blsPubKey}
+	wbftConfig.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(wbftChainConfig.QBFT.ProposerPolicy))
+	wbftConfig.BlockReward = wbftChainConfig.QBFT.BlockReward
+	wbftConfig.BlockRewardBeneficiary = wbftChainConfig.QBFT.BlockRewardBeneficiary
+	wbftConfig.GovParams = wbftChainConfig.QBFT.GovParams
+	wbftConfig.TargetValidators = wbftChainConfig.QBFT.TargetValidators
+	wbftConfig.MaxRequestTimeoutSeconds = *wbftChainConfig.QBFT.MaxRequestTimeoutSeconds
 
 	signer := types.LatestSigner(params.TestChainConfig)
 	tx1 := types.MustSignNewTx(testBankKey, signer, &types.AccessListTx{
@@ -411,9 +430,7 @@ func TestGetSealingWorkPostMerge(t *testing.T) {
 
 func TestGetSealingWorkWBFT(t *testing.T) {
 	t.Parallel()
-	config := qbft.DefaultConfig
-	config.BlockPeriod = 1
-	testGetSealingWork(t, wbftChainConfig, qbftBackend.New(config, testBankKey, rawdb.NewMemoryDatabase()))
+	testGetSealingWork(t, wbftChainConfig, qbftBackend.New(wbftConfig, testBankKey, rawdb.NewMemoryDatabase()))
 }
 
 func testGetSealingWork(t *testing.T, chainConfig *params.ChainConfig, engine consensus.Engine) {

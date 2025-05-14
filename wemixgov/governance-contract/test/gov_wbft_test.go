@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	"github.com/ethereum/go-ethereum/params"
@@ -45,6 +46,7 @@ func TestGovWithoutNCP(t *testing.T) {
 		delegator.Address:   {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
 	})
 	require.NoError(t, err)
+	setWbftGovConfig(g)
 	defer g.backend.Close()
 
 	stateDB := &TestStateDB{
@@ -538,6 +540,7 @@ func TestGovWithNCP(t *testing.T) {
 		ncp4.Operator.Address: {Balance: MAX_UINT_128},
 	})
 	require.NoError(t, err)
+	setWbftGovConfig(g)
 
 	stateDB := &TestStateDB{
 		getState: func(addr common.Address, hash common.Hash) (result common.Hash) {
@@ -978,6 +981,7 @@ func TestGovReward(t *testing.T) {
 		delegator2.Address:  {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
 	})
 	require.NoError(t, err)
+	setWbftGovConfig(g)
 	defer g.backend.Close()
 
 	stateDB := &TestStateDB{
@@ -1258,6 +1262,7 @@ func TestGovChangeFeeRate(t *testing.T) {
 		delegator1.Address:  {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
 	})
 	require.NoError(t, err)
+	setWbftGovConfig(g)
 	defer g.backend.Close()
 
 	stateDB := &TestStateDB{
@@ -1319,7 +1324,7 @@ func TestGovChangeFeeRate(t *testing.T) {
 		ExpectedRevert(t,
 			g.ExpectedFail(g.ExecuteChangingFee(t, v1.Operator, v1.Staker.Address)), "the request cannot be executed before delay time")
 
-		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
+		g.adjustTime(time.Duration(int64(getConst(t, "changeFeeDelay").Uint64())) * time.Second)
 
 		_, err := g.ExpectedOk(g.ExecuteChangingFee(t, delegator1, v1.Staker.Address)) // anyone can ExecuteChangingFee
 		require.NoError(t, err)
@@ -1348,6 +1353,7 @@ func TestGovFeeRateConsistency(t *testing.T) {
 		delegator1.Address:  {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
 	})
 	require.NoError(t, err)
+	setWbftGovConfig(g)
 	defer g.backend.Close()
 
 	stateDB := &TestStateDB{
@@ -1413,7 +1419,7 @@ func TestGovFeeRateConsistency(t *testing.T) {
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
 		_, err := g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate2))
 		require.NoError(t, err)
-		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
+		g.adjustTime(time.Duration(int64(getConst(t, "changeFeeDelay").Uint64())) * time.Second)
 		claimAndCheck(t, delegator1, towei(45), towei(5)) // feeRate1 should be applied
 
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
@@ -1425,21 +1431,21 @@ func TestGovFeeRateConsistency(t *testing.T) {
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
 		_, err := g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate3))
 		require.NoError(t, err)
-		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
+		g.adjustTime(time.Duration(int64(getConst(t, "changeFeeDelay").Uint64())) * time.Second)
 		claimAndCheck(t, v1.Operator, towei(150), common.Big0)
 
 		// fee3 should be applied
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
 		_, err = g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate4))
 		require.NoError(t, err)
-		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
+		g.adjustTime(time.Duration(int64(getConst(t, "changeFeeDelay").Uint64())) * time.Second)
 		claimAndCheck(t, v1.Operator, towei(50), common.Big0)
 
 		// fee4 should be applied
 		distributeReward(t, g, stateDB, towei(100), v1.Staker.Address)
 		_, err = g.ExpectedOk(g.RequestChangingFee(t, v1.Operator, feeRate5))
 		require.NoError(t, err)
-		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
+		g.adjustTime(time.Duration(int64(getConst(t, "changeFeeDelay").Uint64())) * time.Second)
 		claimAndCheck(t, v1.Operator, towei(50), common.Big0)
 
 		// fee5 should be applied
@@ -1470,6 +1476,7 @@ func TestClaimForUnstakedStaker(t *testing.T) {
 		delegator1.Address:  {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
 	})
 	require.NoError(t, err)
+	setWbftGovConfig(g)
 	defer g.backend.Close()
 
 	stateDB := &TestStateDB{
@@ -1537,7 +1544,7 @@ func TestClaimForUnstakedStaker(t *testing.T) {
 	})
 
 	t.Run("delegator1 can claim", func(t *testing.T) {
-		g.adjustTime(time.Duration(int64(getConst(t, "CHANGE_FEE_DELAY").Uint64())) * time.Second)
+		g.adjustTime(time.Duration(int64(getConst(t, "changeFeeDelay").Uint64())) * time.Second)
 
 		// cannot re-stake to unregistered staker
 		ExpectedRevert(t,
@@ -1604,6 +1611,7 @@ func TestZeroTotalStaking(t *testing.T) {
 		delegator3.Address:  {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
 	})
 	require.NoError(t, err)
+	setWbftGovConfig(g)
 	defer g.backend.Close()
 
 	stateDB := &TestStateDB{
@@ -1751,15 +1759,14 @@ func TestSetCode(t *testing.T) {
 	var testSource string = `
 		pragma solidity ^0.8.0;
 		contract TestGovConst{
-			uint256 public constant MINIMUM_STAKING = 100000e18;
-			uint256 public constant MAXIMUM_STAKING = type(uint128).max;
-			uint256 public constant UNBONDING_PERIOD_STAKER = 3 hours;
-			uint256 public constant UNBONDING_PERIOD_DELEGATOR = 72 hours;
-			uint256 public constant FEE_PRECISION = 100;
-			uint256 public constant REWARD_PRECISION = 1e18;
-		    uint256 public constant CHANGE_FEE_DELAY = 1 hours;
-			uint256 public constant BLS_PUBLIC_KEY_LENGTH = 48;
-			uint256 public constant MIN_STAKERS = 5;
+			uint256 public constant minimumStaking     = 100000e18;
+			uint256 public constant maximumStaking     = type(uint128).max;
+			uint256 public constant unbondingPeriodStaker    = 3 hours;
+			uint256 public constant unbondingPeriodDelegator = 72 hours;
+			uint256 public constant feePrecision       = 100;
+			uint256 public constant rewardPrecision    = 1e18;
+			uint256 public constant changeFeeDelay     = 1 hours;
+			uint256 public constant minStakers         = 5;
 		}`
 
 	var (
@@ -1794,6 +1801,7 @@ func TestSetCode(t *testing.T) {
 		ncp2.Operator.Address: {Balance: new(big.Int).Mul(MAX_UINT_128, common.Big2)},
 	})
 	require.NoError(t, err)
+	setWbftGovConfig(g)
 	defer g.backend.Close()
 
 	stateDB := &TestStateDB{
@@ -1839,7 +1847,7 @@ func TestSetCode(t *testing.T) {
 
 		// upgrade contract
 		g.backend.CommitWithState(params.StateTransition{
-			Codes: []params.CodeParam{{Address: govwbft.GovConstAddress, Code: testGovConst}},
+			Codes: []params.CodeParam{{Address: govwbft.GovConfigAddress, Code: testGovConst}},
 		})
 	})
 
@@ -1867,9 +1875,9 @@ func TestSetCode(t *testing.T) {
 		expectedBalance := new(big.Int).Sub(beforeBalance, new(big.Int).Add(minStaking2, gasCost))
 		require.Equal(t, expectedBalance, g.balanceAt(t, ctx, ncp2.Operator.Address, nil))
 
-		// restore GovConst
+		// restore GovConfig
 		g.backend.CommitWithState(params.StateTransition{
-			Codes: []params.CodeParam{{Address: govwbft.GovConstAddress, Code: govwbft.GovConstContract}},
+			Codes: []params.CodeParam{{Address: govwbft.GovConfigAddress, Code: govwbft.GovConfigContract}},
 		})
 	})
 }
@@ -1886,6 +1894,7 @@ func TestGovGetBls(t *testing.T) {
 		s1.Operator.Address: {Balance: new(big.Int).Mul(MAX_UINT_128, common.Big2)},
 	})
 	require.NoError(t, err)
+	setWbftGovConfig(g)
 	defer g.backend.Close()
 
 	stateDB := &TestStateDB{
@@ -1951,6 +1960,7 @@ func TestGovStabilization(t *testing.T) {
 
 	g, err := NewGovWBFT(t, nil, genesisAlloc)
 	require.NoError(t, err)
+	setWbftGovConfig(g)
 	defer g.backend.Close()
 
 	stateDB := &TestStateDB{
@@ -1971,4 +1981,31 @@ func TestGovStabilization(t *testing.T) {
 	require.NoError(t, err)
 
 	require.True(t, govwbft.IsAfterStabilization(stateDB))
+}
+
+func setWbftGovConfig(g *GovWBFT) {
+	govParams := &params.GovParams{
+		MinimumStaking:     (*math.HexOrDecimal256)(towei(500000)),
+		MaximumStaking:     (*math.HexOrDecimal256)(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
+		UnbondingStaker:    604800,
+		UnbondingDelegator: 604800,
+		FeePrecision:       10000,
+		ChangeFeeDelay:     604800,
+		MinStakers:         5,
+	}
+	addr := govwbft.GovConfigAddress
+	g.backend.CommitWithState(params.StateTransition{
+		Codes: []params.CodeParam{
+			{Address: addr, Code: govwbft.GovConfigContract},
+		},
+		States: []params.StateParam{
+			{Address: addr, Key: common.BigToHash(big.NewInt(0)), Value: common.BigToHash((*big.Int)(govParams.MinimumStaking))},
+			{Address: addr, Key: common.BigToHash(big.NewInt(1)), Value: common.BigToHash((*big.Int)(govParams.MaximumStaking))},
+			{Address: addr, Key: common.BigToHash(big.NewInt(2)), Value: common.BigToHash(new(big.Int).SetUint64(govParams.UnbondingStaker))},
+			{Address: addr, Key: common.BigToHash(big.NewInt(3)), Value: common.BigToHash(new(big.Int).SetUint64(govParams.UnbondingDelegator))},
+			{Address: addr, Key: common.BigToHash(big.NewInt(4)), Value: common.BigToHash(new(big.Int).SetUint64(govParams.FeePrecision))},
+			{Address: addr, Key: common.BigToHash(big.NewInt(5)), Value: common.BigToHash(new(big.Int).SetUint64(govParams.ChangeFeeDelay))},
+			{Address: addr, Key: common.BigToHash(big.NewInt(6)), Value: common.BigToHash(new(big.Int).SetUint64(govParams.MinStakers))},
+		},
+	})
 }
