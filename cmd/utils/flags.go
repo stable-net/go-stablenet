@@ -306,7 +306,7 @@ var (
 	TxPoolRejournalFlag = &cli.DurationFlag{
 		Name:     "txpool.rejournal",
 		Usage:    "Time interval to regenerate the local transaction journal",
-		Value:    ethconfig.Defaults.TxPool.Rejournal,
+		Value:    ethconfig.Defaults.TxPool.Rejournal.Duration(),
 		Category: flags.TxPoolCategory,
 	}
 	TxPoolPriceLimitFlag = &cli.Uint64Flag{
@@ -348,7 +348,7 @@ var (
 	TxPoolLifetimeFlag = &cli.DurationFlag{
 		Name:     "txpool.lifetime",
 		Usage:    "Maximum amount of time non-executable transaction are queued",
-		Value:    ethconfig.Defaults.TxPool.Lifetime,
+		Value:    ethconfig.Defaults.TxPool.Lifetime.Duration(),
 		Category: flags.TxPoolCategory,
 	}
 	// Blob transaction pool settings
@@ -460,13 +460,13 @@ var (
 	MinerRecommitIntervalFlag = &cli.DurationFlag{
 		Name:     "miner.recommit",
 		Usage:    "Time interval to recreate the block being mined",
-		Value:    ethconfig.Defaults.Miner.Recommit,
+		Value:    ethconfig.Defaults.Miner.Recommit.Duration(),
 		Category: flags.MinerCategory,
 	}
 	MinerNewPayloadTimeout = &cli.DurationFlag{
 		Name:     "miner.newpayload-timeout",
 		Usage:    "Specify the maximum time allowance for creating a new payload",
-		Value:    ethconfig.Defaults.Miner.NewPayloadTimeout,
+		Value:    ethconfig.Defaults.Miner.NewPayloadTimeout.Duration(),
 		Category: flags.MinerCategory,
 	}
 
@@ -512,7 +512,7 @@ var (
 	RPCGlobalEVMTimeoutFlag = &cli.DurationFlag{
 		Name:     "rpc.evmtimeout",
 		Usage:    "Sets a timeout used for eth_call (0=infinite)",
-		Value:    ethconfig.Defaults.RPCEVMTimeout,
+		Value:    ethconfig.Defaults.RPCEVMTimeout.Duration(),
 		Category: flags.APICategory,
 	}
 	RPCGlobalTxFeeCapFlag = &cli.Float64Flag{
@@ -781,13 +781,13 @@ var (
 	ForceSyncCycleFlag = &cli.DurationFlag{
 		Name:     "sync.forcecycle",
 		Usage:    "Time interval to force syncs, even if few peers are available",
-		Value:    ethconfig.Defaults.ForceSyncCycle,
+		Value:    ethconfig.Defaults.ForceSyncCycle.Duration(),
 		Category: flags.NetworkingCategory,
 	}
 	TdSyncIntervalFlag = &cli.DurationFlag{
 		Name:     "sync.tdinterval",
 		Usage:    "Time interval to verify TD changes and detect sync stalling",
-		Value:    ethconfig.Defaults.TdSyncInterval,
+		Value:    ethconfig.Defaults.TdSyncInterval.Duration(),
 		Category: flags.NetworkingCategory,
 	}
 
@@ -839,7 +839,7 @@ var (
 	}
 	MetricsEnabledExpensiveFlag = &cli.BoolFlag{
 		Name:     "metrics.expensive",
-		Usage:    "Enable expensive metrics collection and reporting",
+		Usage:    "Enable expensive metrics collection and reporting (deprecated)",
 		Category: flags.MetricsCategory,
 	}
 
@@ -1490,7 +1490,7 @@ func setTxPool(ctx *cli.Context, cfg *legacypool.Config) {
 		cfg.Journal = ctx.String(TxPoolJournalFlag.Name)
 	}
 	if ctx.IsSet(TxPoolRejournalFlag.Name) {
-		cfg.Rejournal = ctx.Duration(TxPoolRejournalFlag.Name)
+		cfg.Rejournal = common.Duration(ctx.Duration(TxPoolRejournalFlag.Name))
 	}
 	if ctx.IsSet(TxPoolPriceLimitFlag.Name) {
 		cfg.PriceLimit = ctx.Uint64(TxPoolPriceLimitFlag.Name)
@@ -1511,7 +1511,7 @@ func setTxPool(ctx *cli.Context, cfg *legacypool.Config) {
 		cfg.GlobalQueue = ctx.Uint64(TxPoolGlobalQueueFlag.Name)
 	}
 	if ctx.IsSet(TxPoolLifetimeFlag.Name) {
-		cfg.Lifetime = ctx.Duration(TxPoolLifetimeFlag.Name)
+		cfg.Lifetime = common.Duration(ctx.Duration(TxPoolLifetimeFlag.Name))
 	}
 }
 
@@ -1526,10 +1526,10 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 		cfg.GasPrice = flags.GlobalBig(ctx, MinerGasPriceFlag.Name)
 	}
 	if ctx.IsSet(MinerRecommitIntervalFlag.Name) {
-		cfg.Recommit = ctx.Duration(MinerRecommitIntervalFlag.Name)
+		cfg.Recommit = common.Duration(ctx.Duration(MinerRecommitIntervalFlag.Name))
 	}
 	if ctx.IsSet(MinerNewPayloadTimeout.Name) {
-		cfg.NewPayloadTimeout = ctx.Duration(MinerNewPayloadTimeout.Name)
+		cfg.NewPayloadTimeout = common.Duration(ctx.Duration(MinerNewPayloadTimeout.Name))
 	}
 }
 
@@ -1645,10 +1645,10 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		cfg.NetworkId = ctx.Uint64(NetworkIdFlag.Name)
 	}
 	if ctx.IsSet(ForceSyncCycleFlag.Name) {
-		cfg.ForceSyncCycle = ctx.Duration(ForceSyncCycleFlag.Name)
+		cfg.ForceSyncCycle = common.Duration(ctx.Duration(ForceSyncCycleFlag.Name))
 	}
 	if ctx.IsSet(TdSyncIntervalFlag.Name) {
-		cfg.TdSyncInterval = ctx.Duration(TdSyncIntervalFlag.Name)
+		cfg.TdSyncInterval = common.Duration(ctx.Duration(TdSyncIntervalFlag.Name))
 	}
 	if ctx.IsSet(CacheFlag.Name) || ctx.IsSet(CacheDatabaseFlag.Name) {
 		cfg.DatabaseCache = ctx.Int(CacheFlag.Name) * ctx.Int(CacheDatabaseFlag.Name) / 100
@@ -1739,7 +1739,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		log.Info("Global gas cap disabled")
 	}
 	if ctx.IsSet(RPCGlobalEVMTimeoutFlag.Name) {
-		cfg.RPCEVMTimeout = ctx.Duration(RPCGlobalEVMTimeoutFlag.Name)
+		cfg.RPCEVMTimeout = common.Duration(ctx.Duration(RPCGlobalEVMTimeoutFlag.Name))
 	}
 	if ctx.IsSet(RPCGlobalTxFeeCapFlag.Name) {
 		cfg.RPCTxFeeCap = ctx.Float64(RPCGlobalTxFeeCapFlag.Name)
@@ -1933,65 +1933,52 @@ func RegisterFullSyncTester(stack *node.Node, eth *eth.Ethereum, target common.H
 	log.Info("Registered full-sync tester", "hash", target)
 }
 
-func SetupMetrics(ctx *cli.Context) {
-	if metrics.Enabled {
-		log.Info("Enabling metrics collection")
-
-		var (
-			enableExport   = ctx.Bool(MetricsEnableInfluxDBFlag.Name)
-			enableExportV2 = ctx.Bool(MetricsEnableInfluxDBV2Flag.Name)
-		)
-
-		if enableExport || enableExportV2 {
-			CheckExclusive(ctx, MetricsEnableInfluxDBFlag, MetricsEnableInfluxDBV2Flag)
-
-			v1FlagIsSet := ctx.IsSet(MetricsInfluxDBUsernameFlag.Name) ||
-				ctx.IsSet(MetricsInfluxDBPasswordFlag.Name)
-
-			v2FlagIsSet := ctx.IsSet(MetricsInfluxDBTokenFlag.Name) ||
-				ctx.IsSet(MetricsInfluxDBOrganizationFlag.Name) ||
-				ctx.IsSet(MetricsInfluxDBBucketFlag.Name)
-
-			if enableExport && v2FlagIsSet {
-				Fatalf("Flags --influxdb.metrics.organization, --influxdb.metrics.token, --influxdb.metrics.bucket are only available for influxdb-v2")
-			} else if enableExportV2 && v1FlagIsSet {
-				Fatalf("Flags --influxdb.metrics.username, --influxdb.metrics.password are only available for influxdb-v1")
-			}
-		}
-
-		var (
-			endpoint = ctx.String(MetricsInfluxDBEndpointFlag.Name)
-			database = ctx.String(MetricsInfluxDBDatabaseFlag.Name)
-			username = ctx.String(MetricsInfluxDBUsernameFlag.Name)
-			password = ctx.String(MetricsInfluxDBPasswordFlag.Name)
-
-			token        = ctx.String(MetricsInfluxDBTokenFlag.Name)
-			bucket       = ctx.String(MetricsInfluxDBBucketFlag.Name)
-			organization = ctx.String(MetricsInfluxDBOrganizationFlag.Name)
-		)
-
-		if enableExport {
-			tagsMap := SplitTagsFlag(ctx.String(MetricsInfluxDBTagsFlag.Name))
-
-			log.Info("Enabling metrics export to InfluxDB")
-
-			go influxdb.InfluxDBWithTags(metrics.DefaultRegistry, 10*time.Second, endpoint, database, username, password, "geth.", tagsMap)
-		} else if enableExportV2 {
-			tagsMap := SplitTagsFlag(ctx.String(MetricsInfluxDBTagsFlag.Name))
-
-			log.Info("Enabling metrics export to InfluxDB (v2)")
-
-			go influxdb.InfluxDBV2WithTags(metrics.DefaultRegistry, 10*time.Second, endpoint, token, bucket, organization, "geth.", tagsMap)
-		}
-
-		if ctx.IsSet(MetricsHTTPFlag.Name) {
-			address := net.JoinHostPort(ctx.String(MetricsHTTPFlag.Name), fmt.Sprintf("%d", ctx.Int(MetricsPortFlag.Name)))
-			log.Info("Enabling stand-alone metrics HTTP endpoint", "address", address)
-			exp.Setup(address)
-		} else if ctx.IsSet(MetricsPortFlag.Name) {
-			log.Warn(fmt.Sprintf("--%s specified without --%s, metrics server will not start.", MetricsPortFlag.Name, MetricsHTTPFlag.Name))
-		}
+func SetupMetrics(cfg *metrics.Config) {
+	if !cfg.Enabled {
+		return
 	}
+	log.Info("Enabling metrics collection")
+	metrics.Enable()
+
+	// InfluxDB exporter.
+	var (
+		enableExport   = cfg.EnableInfluxDB
+		enableExportV2 = cfg.EnableInfluxDBV2
+	)
+	if cfg.EnableInfluxDB && cfg.EnableInfluxDBV2 {
+		Fatalf("Flags %v can't be used at the same time", strings.Join([]string{MetricsEnableInfluxDBFlag.Name, MetricsEnableInfluxDBV2Flag.Name}, ", "))
+	}
+	var (
+		endpoint = cfg.InfluxDBEndpoint
+		database = cfg.InfluxDBDatabase
+		username = cfg.InfluxDBUsername
+		password = cfg.InfluxDBPassword
+
+		token        = cfg.InfluxDBToken
+		bucket       = cfg.InfluxDBBucket
+		organization = cfg.InfluxDBOrganization
+		tagsMap      = SplitTagsFlag(cfg.InfluxDBTags)
+	)
+	if enableExport {
+		log.Info("Enabling metrics export to InfluxDB")
+		go influxdb.InfluxDBWithTags(metrics.DefaultRegistry, 10*time.Second, endpoint, database, username, password, "geth.", tagsMap)
+	} else if enableExportV2 {
+		tagsMap := SplitTagsFlag(cfg.InfluxDBTags)
+		log.Info("Enabling metrics export to InfluxDB (v2)")
+		go influxdb.InfluxDBV2WithTags(metrics.DefaultRegistry, 10*time.Second, endpoint, token, bucket, organization, "geth.", tagsMap)
+	}
+
+	// Expvar exporter.
+	if cfg.HTTP != "" {
+		address := net.JoinHostPort(cfg.HTTP, fmt.Sprintf("%d", cfg.Port))
+		log.Info("Enabling stand-alone metrics HTTP endpoint", "address", address)
+		exp.Setup(address)
+	} else if cfg.HTTP == "" && cfg.Port != 0 {
+		log.Warn(fmt.Sprintf("--%s specified without --%s, metrics server will not start.", MetricsPortFlag.Name, MetricsHTTPFlag.Name))
+	}
+
+	// Enable system metrics collection.
+	go metrics.CollectProcessMetrics(3 * time.Second)
 }
 
 func SplitTagsFlag(tagsFlag string) map[string]string {
@@ -2129,7 +2116,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node, readonly bool) (*core.BlockCh
 		TrieCleanNoPrefetch: ctx.Bool(CacheNoPrefetchFlag.Name),
 		TrieDirtyLimit:      ethconfig.Defaults.TrieDirtyCache,
 		TrieDirtyDisabled:   ctx.String(GCModeFlag.Name) == "archive",
-		TrieTimeLimit:       ethconfig.Defaults.TrieTimeout,
+		TrieTimeLimit:       ethconfig.Defaults.TrieTimeout.Duration(),
 		SnapshotLimit:       ethconfig.Defaults.SnapshotCache,
 		Preimages:           ctx.Bool(CachePreimagesFlag.Name),
 		StateScheme:         scheme,

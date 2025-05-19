@@ -40,15 +40,15 @@ type triePrefetcher struct {
 	fetches  map[string]Trie        // Partially or fully fetched tries. Only populated for inactive copies.
 	fetchers map[string]*subfetcher // Subfetchers for each trie
 
-	deliveryMissMeter metrics.Meter
-	accountLoadMeter  metrics.Meter
-	accountDupMeter   metrics.Meter
-	accountSkipMeter  metrics.Meter
-	accountWasteMeter metrics.Meter
-	storageLoadMeter  metrics.Meter
-	storageDupMeter   metrics.Meter
-	storageSkipMeter  metrics.Meter
-	storageWasteMeter metrics.Meter
+	deliveryMissMeter *metrics.Meter
+	accountLoadMeter  *metrics.Meter
+	accountDupMeter   *metrics.Meter
+	accountSkipMeter  *metrics.Meter
+	accountWasteMeter *metrics.Meter
+	storageLoadMeter  *metrics.Meter
+	storageDupMeter   *metrics.Meter
+	storageSkipMeter  *metrics.Meter
+	storageWasteMeter *metrics.Meter
 }
 
 func newTriePrefetcher(db Database, root common.Hash, namespace string) *triePrefetcher {
@@ -77,7 +77,7 @@ func (p *triePrefetcher) close() {
 	for _, fetcher := range p.fetchers {
 		fetcher.abort() // safe to do multiple times
 
-		if metrics.Enabled {
+		if metrics.Enabled() {
 			if fetcher.root == p.root {
 				p.accountLoadMeter.Mark(int64(len(fetcher.seen)))
 				p.accountDupMeter.Mark(int64(fetcher.dups))

@@ -135,7 +135,7 @@ func setupGeth(stack *node.Node, dir string) error {
 		DatabaseCache:  10,
 		TrieCleanCache: 10,
 		TrieDirtyCache: 16,
-		TrieTimeout:    60 * time.Minute,
+		TrieTimeout:    common.Duration(60 * time.Minute),
 		SnapshotCache:  10,
 	})
 	if err != nil {

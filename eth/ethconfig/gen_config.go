@@ -3,8 +3,6 @@
 package ethconfig
 
 import (
-	"time"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
 	"github.com/ethereum/go-ethereum/core"
@@ -21,8 +19,8 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		Genesis                 *core.Genesis `toml:",omitempty"`
 		NetworkId               uint64
 		SyncMode                downloader.SyncMode
-		ForceSyncCycle          time.Duration
-		TdSyncInterval          time.Duration
+		ForceSyncCycle          common.Duration `toml:"ForceSyncCycle"`
+		TdSyncInterval          common.Duration `toml:"TdSyncInterval"`
 		EthDiscoveryURLs        []string
 		SnapDiscoveryURLs       []string
 		NoPruning               bool
@@ -44,7 +42,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		DatabaseFreezer         string
 		TrieCleanCache          int
 		TrieDirtyCache          int
-		TrieTimeout             time.Duration
+		TrieTimeout             common.Duration `toml:"TrieTimeout"`
 		SnapshotCache           int
 		Preimages               bool
 		FilterLogCacheSize      int
@@ -56,7 +54,7 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		EnablePreimageRecording bool
 		DocRoot                 string `toml:"-"`
 		RPCGasCap               uint64
-		RPCEVMTimeout           time.Duration
+		RPCEVMTimeout           common.Duration `toml:"RPCEVMTimeout"`
 		RPCTxFeeCap             float64
 		OverrideCancun          *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`
@@ -113,8 +111,8 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		Genesis                 *core.Genesis `toml:",omitempty"`
 		NetworkId               *uint64
 		SyncMode                *downloader.SyncMode
-		ForceSyncCycle          *time.Duration
-		TdSyncInterval          *time.Duration
+		ForceSyncCycle          *common.Duration `toml:"ForceSyncCycle"`
+		TdSyncInterval          *common.Duration `toml:"TdSyncInterval"`
 		EthDiscoveryURLs        []string
 		SnapDiscoveryURLs       []string
 		NoPruning               *bool
@@ -136,7 +134,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		DatabaseFreezer         *string
 		TrieCleanCache          *int
 		TrieDirtyCache          *int
-		TrieTimeout             *time.Duration
+		TrieTimeout             *common.Duration `toml:"TrieTimeout"`
 		SnapshotCache           *int
 		Preimages               *bool
 		FilterLogCacheSize      *int
@@ -148,7 +146,7 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		EnablePreimageRecording *bool
 		DocRoot                 *string `toml:"-"`
 		RPCGasCap               *uint64
-		RPCEVMTimeout           *time.Duration
+		RPCEVMTimeout           *common.Duration `toml:"RPCEVMTimeout"`
 		RPCTxFeeCap             *float64
 		OverrideCancun          *uint64 `toml:",omitempty"`
 		OverrideVerkle          *uint64 `toml:",omitempty"`

@@ -64,8 +64,8 @@ var Defaults = Config{
 	//SyncMode: downloader.SnapSync,
 	// Quorum - make full sync the default sync mode in quorum (as opposed to upstream geth)
 	SyncMode:       downloader.FullSync,
-	ForceSyncCycle: 10 * time.Second, // Time interval to force syncs, even if few peers are available
-	TdSyncInterval: 10 * time.Second, // Time interval to verify TD changes and detect sync stalling
+	ForceSyncCycle: common.Duration(10 * time.Second), // Time interval to force syncs, even if few peers are available
+	TdSyncInterval: common.Duration(10 * time.Second), // Time interval to verify TD changes and detect sync stalling
 	// ## Quorum QBFT END
 
 	NetworkId:          0, // enable auto configuration of networkID == chainID
@@ -76,14 +76,14 @@ var Defaults = Config{
 	DatabaseCache:      512,
 	TrieCleanCache:     154,
 	TrieDirtyCache:     256,
-	TrieTimeout:        60 * time.Minute,
+	TrieTimeout:        common.Duration(60 * time.Minute),
 	SnapshotCache:      102,
 	FilterLogCacheSize: 32,
 	Miner:              miner.DefaultConfig,
 	TxPool:             legacypool.DefaultConfig,
 	BlobPool:           blobpool.DefaultConfig,
 	RPCGasCap:          50000000,
-	RPCEVMTimeout:      5 * time.Second,
+	RPCEVMTimeout:      common.Duration(5 * time.Second),
 	GPO:                FullNodeGPO,
 	RPCTxFeeCap:        1, // 1 ether
 }
@@ -98,10 +98,11 @@ type Config struct {
 
 	// Network ID separates blockchains on the peer-to-peer networking level. When left
 	// zero, the chain ID is used as network ID.
-	NetworkId      uint64
-	SyncMode       downloader.SyncMode
-	ForceSyncCycle time.Duration
-	TdSyncInterval time.Duration
+	NetworkId uint64
+	SyncMode  downloader.SyncMode
+
+	ForceSyncCycle common.Duration `toml:"ForceSyncCycle"`
+	TdSyncInterval common.Duration `toml:"TdSyncInterval"`
 
 	// This can be set to list of enrtree:// URLs which will be queried for
 	// for nodes to connect to.
@@ -142,7 +143,7 @@ type Config struct {
 
 	TrieCleanCache int
 	TrieDirtyCache int
-	TrieTimeout    time.Duration
+	TrieTimeout    common.Duration `toml:"TrieTimeout"`
 	SnapshotCache  int
 	Preimages      bool
 
@@ -172,7 +173,7 @@ type Config struct {
 	RPCGasCap uint64
 
 	// RPCEVMTimeout is the global timeout for eth-call.
-	RPCEVMTimeout time.Duration
+	RPCEVMTimeout common.Duration `toml:"RPCEVMTimeout"`
 
 	// RPCTxFeeCap is the global transaction fee(price * gaslimit) cap for
 	// send-transaction variants. The unit is ether.

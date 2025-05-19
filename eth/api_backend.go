@@ -395,7 +395,7 @@ func (b *EthAPIBackend) RPCGasCap() uint64 {
 }
 
 func (b *EthAPIBackend) RPCEVMTimeout() time.Duration {
-	return b.eth.config.RPCEVMTimeout
+	return b.eth.config.RPCEVMTimeout.Duration()
 }
 
 func (b *EthAPIBackend) RPCTxFeeCap() float64 {

@@ -138,7 +138,7 @@ func newMeteredTable(t transport, db *enode.DB, cfg Config) (*Table, error) {
 	if err != nil {
 		return nil, err
 	}
-	if metrics.Enabled {
+	if metrics.Enabled() {
 		tab.nodeAddedHook = func(b *bucket, n *node) {
 			bucketsCounter[b.index].Inc(1)
 		}

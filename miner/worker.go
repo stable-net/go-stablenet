@@ -290,7 +290,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 
 	// Sanitize recommit interval if the user-specified one is too short.
-	recommit := worker.config.Recommit
+	recommit := worker.config.Recommit.Duration()
 	if recommit < minRecommitInterval {
 		log.Warn("Sanitizing miner recommit interval", "provided", recommit, "updated", minRecommitInterval)
 		recommit = minRecommitInterval
@@ -298,10 +298,10 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	worker.recommit = recommit
 
 	// Sanitize the timeout config for creating payload.
-	newpayloadTimeout := worker.config.NewPayloadTimeout
+	newpayloadTimeout := worker.config.NewPayloadTimeout.Duration()
 	if newpayloadTimeout == 0 {
 		log.Warn("Sanitizing new payload timeout to default", "provided", newpayloadTimeout, "updated", DefaultConfig.NewPayloadTimeout)
-		newpayloadTimeout = DefaultConfig.NewPayloadTimeout
+		newpayloadTimeout = DefaultConfig.NewPayloadTimeout.Duration()
 	}
 	if newpayloadTimeout < time.Millisecond*100 {
 		log.Warn("Low payload timeout may cause high amount of non-full blocks", "provided", newpayloadTimeout, "default", DefaultConfig.NewPayloadTimeout)
@@ -629,7 +629,7 @@ func (w *worker) newWorkLoopWBFT() {
 			}
 
 		case <-w.resubmitIntervalCh:
-			log.Warn("ResubmitAdjust is not used in WBFT")
+			log.Warn("resubmitInterval is not used in WBFT")
 
 		case <-w.resubmitAdjustCh:
 			log.Trace("ResubmitAdjust is not used in WBFT")

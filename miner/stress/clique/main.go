@@ -211,7 +211,7 @@ func makeSealer(genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
 		Miner: miner.Config{
 			GasCeil:  genesis.GasLimit * 11 / 10,
 			GasPrice: big.NewInt(1),
-			Recommit: time.Second,
+			Recommit: common.Duration(time.Second),
 		},
 	})
 	if err != nil {

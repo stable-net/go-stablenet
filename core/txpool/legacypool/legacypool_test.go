@@ -1006,7 +1006,7 @@ func testQueueTimeLimiting(t *testing.T, nolocals bool) {
 	blockchain := newTestBlockChain(params.TestChainConfig, 1000000, statedb, new(event.Feed))
 
 	config := testTxPoolConfig
-	config.Lifetime = time.Second
+	config.Lifetime = common.Duration(time.Second)
 	config.NoLocals = nolocals
 
 	pool := New(config, blockchain)
@@ -1054,7 +1054,7 @@ func testQueueTimeLimiting(t *testing.T, nolocals bool) {
 	}
 
 	// Wait a bit for eviction to run and clean up any leftovers, and ensure only the local remains
-	time.Sleep(2 * config.Lifetime)
+	time.Sleep(2 * config.Lifetime.Duration())
 
 	pending, queued = pool.Stats()
 	if pending != 0 {
@@ -1121,7 +1121,7 @@ func testQueueTimeLimiting(t *testing.T, nolocals bool) {
 	}
 
 	// The whole life time pass after last promotion, kick out stale transactions
-	time.Sleep(2 * config.Lifetime)
+	time.Sleep(2 * config.Lifetime.Duration())
 	pending, queued = pool.Stats()
 	if pending != 2 {
 		t.Fatalf("pending transactions mismatched: have %d, want %d", pending, 2)
@@ -2368,7 +2368,7 @@ func testJournaling(t *testing.T, nolocals bool) {
 	config := testTxPoolConfig
 	config.NoLocals = nolocals
 	config.Journal = journal
-	config.Rejournal = time.Second
+	config.Rejournal = common.Duration(time.Second)
 
 	pool := New(config, blockchain)
 	pool.Init(config.PriceLimit, blockchain.CurrentBlock(), makeAddressReserver())
@@ -2430,7 +2430,7 @@ func testJournaling(t *testing.T, nolocals bool) {
 	// Bump the nonce temporarily and ensure the newly invalidated transaction is removed
 	statedb.SetNonce(crypto.PubkeyToAddress(local.PublicKey), 2)
 	<-pool.requestReset(nil, nil)
-	time.Sleep(2 * config.Rejournal)
+	time.Sleep(2 * config.Rejournal.Duration())
 	pool.Close()
 
 	statedb.SetNonce(crypto.PubkeyToAddress(local.PublicKey), 1)

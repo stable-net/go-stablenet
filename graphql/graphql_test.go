@@ -451,7 +451,7 @@ func newGQLService(t *testing.T, stack *node.Node, shanghai bool, gspec *core.Ge
 		NetworkId:      1337,
 		TrieCleanCache: 5,
 		TrieDirtyCache: 5,
-		TrieTimeout:    60 * time.Minute,
+		TrieTimeout:    common.Duration(60 * time.Minute),
 		SnapshotCache:  5,
 	}
 	var engine consensus.Engine = ethash.NewFaker()

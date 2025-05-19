@@ -70,7 +70,7 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 	ethConf.SyncMode = downloader.FullSync
 	ethConf.Miner.GasPrice = big.NewInt(1)
 	ethConf.Miner.SimulatedEnabled = true
-	ethConf.Miner.Recommit = 10 * time.Second // prevent block interruption
+	ethConf.Miner.Recommit = common.Duration(10 * time.Second) // prevent block interruption
 	ethConf.TxPool.NoLocals = true
 
 	for _, option := range options {

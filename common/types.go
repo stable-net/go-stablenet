@@ -28,6 +28,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"golang.org/x/crypto/sha3"
@@ -474,4 +475,23 @@ func (d *Decimal) UnmarshalJSON(input []byte) error {
 	} else {
 		return err
 	}
+}
+
+type Duration time.Duration
+
+func (d *Duration) UnmarshalText(data []byte) error {
+	dur, err := time.ParseDuration(string(data))
+	if err != nil {
+		return err
+	}
+	*d = Duration(dur)
+	return nil
+}
+
+func (d Duration) MarshalText() ([]byte, error) {
+	return []byte(time.Duration(d).String()), nil
+}
+
+func (d Duration) Duration() time.Duration {
+	return time.Duration(d)
 }
