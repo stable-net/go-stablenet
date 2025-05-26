@@ -67,20 +67,31 @@ func (m *Preprepare) DecodeRLP(stream *rlp.Stream) error {
 			Signature []byte
 		}
 		Justification struct {
-			RoundChanges []*SignedRoundChangePayload
+			RoundChanges []rlp.RawValue
 			Prepares     []*Prepare
 		}
 	}
+
 	if err := stream.Decode(&message); err != nil {
-		return err
+		return fmt.Errorf("failed to decode preprepare: %w", err)
 	}
+
+	var decodedSignedRoundChange []*SignedRoundChangePayload
+	for i, rawItem := range message.Justification.RoundChanges {
+		var rc SignedRoundChangePayload
+		if err := rlp.DecodeBytes(rawItem, &rc); err != nil {
+			return fmt.Errorf("failed to decode SignedRoundChange[%d]: %w", i, err)
+		}
+		decodedSignedRoundChange = append(decodedSignedRoundChange, &rc)
+	}
+
 	m.code = PreprepareCode
 	m.Sequence = message.SignedPayload.Payload.Sequence
 	m.Round = message.SignedPayload.Payload.Round
 	m.Proposal = message.SignedPayload.Payload.Proposal
 	m.signature = message.SignedPayload.Signature
 	m.JustificationPrepares = message.Justification.Prepares
-	m.JustificationRoundChanges = message.Justification.RoundChanges
+	m.JustificationRoundChanges = decodedSignedRoundChange
 	return nil
 }
 
