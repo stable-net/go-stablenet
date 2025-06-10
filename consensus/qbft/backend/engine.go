@@ -397,7 +397,7 @@ func (sb *Backend) GetValidatorsForVerifying(chain consensus.ChainHeaderReader, 
 		return nil, nil, consensus.ErrUnknownAncestor
 	}
 
-	if header.Number.Uint64() >= qbft.GetFirstWbftBlockNumber(chain.Config()).Uint64()+2 {
+	if header.Number.Uint64() >= chain.Config().MontBlancBlock.Uint64()+2 {
 		var parent *types.Header
 		if len(parents) == 0 {
 			parent = chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)

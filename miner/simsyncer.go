@@ -14,7 +14,22 @@ type simSyncer struct {
 	workCh              chan *newWorkReq
 	resultCh            chan common.Hash
 	adjustedBlockPeriod map[uint64]uint64
-	stateTransitions    map[uint64]params.StateTransition
+	upgradeContracts    map[uint64]*params.GovContracts
+}
+
+func combineGovContracts(source *params.GovContracts, target *params.GovContracts) {
+	if target.GovConfig != nil {
+		source.GovConfig = target.GovConfig
+	}
+	if target.GovStaking != nil {
+		source.GovStaking = target.GovStaking
+	}
+	if target.GovNCP != nil {
+		source.GovNCP = target.GovNCP
+	}
+	if target.GovRewardeeImp != nil {
+		source.GovRewardeeImp = target.GovRewardeeImp
+	}
 }
 
 func (ss *simSyncer) Apply(chainConfig *params.ChainConfig, config *qbft.Config, num *big.Int) {
@@ -25,8 +40,37 @@ func (ss *simSyncer) Apply(chainConfig *params.ChainConfig, config *qbft.Config,
 			BlockPeriodSeconds: ss.adjustedBlockPeriod[number],
 		})
 	}
-	if transition, ok := ss.stateTransitions[number]; ok {
-		chainConfig.StateTransitions = append(chainConfig.StateTransitions, transition)
+	if upgradeContracts, ok := ss.upgradeContracts[number]; ok {
+		if chainConfig.MontBlancBlock.Cmp(num) == 0 {
+			if chainConfig.MontBlanc.Init.GovContracts == nil {
+				chainConfig.MontBlanc.Init.GovContracts = new(params.GovContracts)
+			}
+			combineGovContracts(chainConfig.MontBlanc.Init.GovContracts, upgradeContracts)
+		} else {
+			newUpgrade := params.Upgrade{
+				Block:        num,
+				GovContracts: upgradeContracts,
+			}
+			if chainConfig.MontBlanc.Upgrades == nil {
+				chainConfig.MontBlanc.Upgrades = make([]params.Upgrade, 0)
+				chainConfig.MontBlanc.Upgrades = append(chainConfig.MontBlanc.Upgrades, newUpgrade)
+			} else {
+				for i, upgrade := range chainConfig.MontBlanc.Upgrades {
+					if upgrade.Block.Cmp(num) == 0 {
+						combineGovContracts(upgrade.GovContracts, upgradeContracts)
+						return
+					} else if upgrade.Block.Cmp(num) > 0 {
+						chainConfig.MontBlanc.Upgrades = append(chainConfig.MontBlanc.Upgrades, newUpgrade)
+						for j := len(chainConfig.MontBlanc.Upgrades) - 1; j > i; j-- {
+							chainConfig.MontBlanc.Upgrades[j] = chainConfig.MontBlanc.Upgrades[j-1]
+						}
+						chainConfig.MontBlanc.Upgrades[i] = newUpgrade
+						return
+					}
+				}
+				chainConfig.MontBlanc.Upgrades = append(chainConfig.MontBlanc.Upgrades, newUpgrade)
+			}
+		}
 	}
 }
 
@@ -45,7 +89,7 @@ func newSimSyncer(worker *worker) *simSyncer {
 		workCh:              make(chan *newWorkReq),
 		resultCh:            make(chan common.Hash),
 		adjustedBlockPeriod: make(map[uint64]uint64),
-		stateTransitions:    make(map[uint64]params.StateTransition),
+		upgradeContracts:    make(map[uint64]*params.GovContracts),
 	}
 }
 
@@ -73,12 +117,12 @@ func (ss *simSyncer) commitWithPeriod(duration time.Duration) common.Hash {
 	return <-ss.resultCh
 }
 
-func (ss *simSyncer) commitWithState(transition params.StateTransition) common.Hash {
+func (ss *simSyncer) commitWithState(upgradeContracts *params.GovContracts, num *big.Int) common.Hash {
 	req := <-ss.workCh
-	if transition.Block == nil {
-		transition.Block = new(big.Int).Add(ss.worker.chain.CurrentBlock().Number, common.Big1)
+	if num == nil {
+		num = new(big.Int).Add(ss.worker.chain.CurrentBlock().Number, common.Big1)
 	}
-	ss.stateTransitions[transition.Block.Uint64()] = transition
+	ss.upgradeContracts[num.Uint64()] = upgradeContracts
 	ss.commitWork(req)
 	return <-ss.resultCh
 }

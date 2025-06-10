@@ -89,36 +89,32 @@ func init() {
 	ethashChainConfig.BriocheBlock = nil
 	ethashChainConfig.MontBlancBlock = nil
 	ethashChainConfig.Brioche = nil
-	ethashChainConfig.QBFT = nil
+	ethashChainConfig.MontBlanc = nil
 	cliqueChainConfig = new(params.ChainConfig)
 	*cliqueChainConfig = *params.TestChainConfig
 	cliqueChainConfig.BriocheBlock = nil
 	cliqueChainConfig.MontBlancBlock = nil
 	cliqueChainConfig.Brioche = nil
-	cliqueChainConfig.QBFT = nil
+	cliqueChainConfig.MontBlanc = nil
 	cliqueChainConfig.Clique = &params.CliqueConfig{
 		Period: 10,
 		Epoch:  30000,
 	}
 	wbftChainConfig = new(params.ChainConfig)
 	*wbftChainConfig = *params.TestQBFTChainConfig
-	wbftChainConfig.QBFT.Validators = []common.Address{testBankAddress}
-	wbftChainConfig.QBFT.BLSPublicKeys = []string{hexutil.Encode(testBlsKey.PublicKey().Marshal())}
+	wbftChainConfig.MontBlanc.Init.Validators = []common.Address{testBankAddress}
+	wbftChainConfig.MontBlanc.Init.BLSPublicKeys = []string{hexutil.Encode(testBlsKey.PublicKey().Marshal())}
 	wbftChainConfig.Ethash = nil
 
 	wbftConfig = new(qbft.Config)
-	wbftConfig.BlockPeriod = wbftChainConfig.QBFT.BlockPeriodSeconds
-	wbftConfig.RequestTimeout = wbftChainConfig.QBFT.RequestTimeoutSeconds * 1000
-	wbftConfig.Epoch = wbftChainConfig.QBFT.EpochLength
-	wbftConfig.Validators = wbftChainConfig.QBFT.Validators
-	blsPubKey, _ := hexutil.Decode(wbftChainConfig.QBFT.BLSPublicKeys[0])
-	wbftConfig.BLSPublicKeys = [][]byte{blsPubKey}
-	wbftConfig.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(wbftChainConfig.QBFT.ProposerPolicy))
-	wbftConfig.BlockReward = wbftChainConfig.QBFT.BlockReward
-	wbftConfig.BlockRewardBeneficiary = wbftChainConfig.QBFT.BlockRewardBeneficiary
-	wbftConfig.GovParams = wbftChainConfig.QBFT.GovParams
-	wbftConfig.TargetValidators = wbftChainConfig.QBFT.TargetValidators
-	wbftConfig.MaxRequestTimeoutSeconds = *wbftChainConfig.QBFT.MaxRequestTimeoutSeconds
+	wbftConfig.BlockPeriod = wbftChainConfig.MontBlanc.WBFT.BlockPeriodSeconds
+	wbftConfig.RequestTimeout = wbftChainConfig.MontBlanc.WBFT.RequestTimeoutSeconds * 1000
+	wbftConfig.Epoch = wbftChainConfig.MontBlanc.WBFT.EpochLength
+	wbftConfig.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(wbftChainConfig.MontBlanc.WBFT.ProposerPolicy))
+	wbftConfig.BlockReward = wbftChainConfig.MontBlanc.WBFT.BlockReward
+	wbftConfig.BlockRewardBeneficiary = wbftChainConfig.MontBlanc.WBFT.BlockRewardBeneficiary
+	wbftConfig.TargetValidators = wbftChainConfig.MontBlanc.WBFT.TargetValidators
+	wbftConfig.MaxRequestTimeoutSeconds = *wbftChainConfig.MontBlanc.WBFT.MaxRequestTimeoutSeconds
 
 	signer := types.LatestSigner(params.TestChainConfig)
 	tx1 := types.MustSignNewTx(testBankKey, signer, &types.AccessListTx{
@@ -173,6 +169,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 				Stakers: []*types.Staker{
 					{Addr: testBankAddress, Diligence: types.DefaultDiligence},
 				},
+				Stabilizing:   true,
 				Validators:    []uint32{0},
 				BLSPublicKeys: [][]byte{testBankBlsPubKey.Marshal()},
 			},

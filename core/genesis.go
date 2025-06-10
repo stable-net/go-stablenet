@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/consensus/qbft"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -38,7 +39,6 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/pathdb"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 	"github.com/holiman/uint256"
 )
 
@@ -256,13 +256,17 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 		}
 		applyOverrides(genesis.Config)
 
-		if genesis.Config.QBFT != nil &&
-			(genesis.Config.MontBlancBlock == nil || genesis.Config.MontBlancBlock.Sign() == 0) {
-			err := buildInitialExtraData(genesis, genesis.Config)
+		if genesis.Config.MontBlancEnabled() && genesis.Config.MontBlancBlock.Sign() == 0 {
+			if err := genesis.Config.MontBlanc.CheckValidity(); err != nil {
+				return nil, common.Hash{}, fmt.Errorf("Invalid genesis config: %v", err)
+			}
+
+			var err error
+			genesis.ExtraData, err = qbft.CreateInitialExtraData(genesis.Config.MontBlanc)
 			if err != nil {
 				return genesis.Config, common.Hash{}, err
 			}
-			err = injectContracts(genesis, genesis.Config)
+			err = InjectContracts(genesis, genesis.Config)
 			if err != nil {
 				return genesis.Config, common.Hash{}, err
 			}
@@ -285,13 +289,16 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 		}
 		applyOverrides(genesis.Config)
 
-		if genesis.Config.QBFT != nil &&
-			(genesis.Config.MontBlancBlock == nil || genesis.Config.MontBlancBlock.Sign() == 0) {
-			err := buildInitialExtraData(genesis, genesis.Config)
+		if genesis.Config.MontBlancEnabled() && genesis.Config.MontBlancBlock.Sign() == 0 {
+			if err := genesis.Config.MontBlanc.CheckValidity(); err != nil {
+				return nil, common.Hash{}, fmt.Errorf("Invalid genesis config: %v", err)
+			}
+			var err error
+			genesis.ExtraData, err = qbft.CreateInitialExtraData(genesis.Config.MontBlanc)
 			if err != nil {
 				return genesis.Config, stored, err
 			}
-			err = injectContracts(genesis, genesis.Config)
+			err = InjectContracts(genesis, genesis.Config)
 			if err != nil {
 				return genesis.Config, stored, err
 			}
@@ -636,94 +643,22 @@ func TestGenesisBlock() *Genesis {
 	}
 }
 
-// the initial extra data for the genesis block
-func buildInitialExtraData(genesis *Genesis, config *params.ChainConfig) error {
-	qbft := config.QBFT
-	if qbft == nil {
-		return errors.New("genesis.json: missing `qbft` section")
-	}
-	if qbft.Validators == nil {
-		return errors.New("genesis.json `qbft`: missing `validators` field")
-	}
-	if qbft.BLSPublicKeys == nil {
-		return errors.New("genesis.json `qbft`: missing `blsPublicKeys` field")
-	}
-	if len(qbft.Validators) == 0 {
-		return errors.New("genesis.json `qbft.validators` must contain at least one address")
-	}
-	if len(qbft.BLSPublicKeys) == 0 {
-		return errors.New("genesis.json `qbft.blsPublicKeys` must contain at least one key")
-	}
-	if len(qbft.Validators) != len(qbft.BLSPublicKeys) {
-		return fmt.Errorf(
-			"genesis.json `qbft`: mismatched lengths: %d validators vs %d blsPublicKeys",
-			len(qbft.Validators), len(qbft.BLSPublicKeys),
-		)
-	}
-	var (
-		validators    []common.Address
-		blsPublicKeys []string
-		epochInfo     = new(types.EpochInfo)
-	)
-
-	validators = append(validators, config.QBFT.Validators...)
-	blsPublicKeys = append(blsPublicKeys, config.QBFT.BLSPublicKeys...)
-	for i, addr := range validators {
-		epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
-			Addr:      addr,
-			Diligence: types.DefaultDiligence,
-		})
-		epochInfo.Validators = append(epochInfo.Validators, uint32(i))
-		epochInfo.BLSPublicKeys = append(epochInfo.BLSPublicKeys, hexutil.MustDecode(blsPublicKeys[i]))
-	}
-	ist := &types.QBFTExtra{
-		VanityData:        append([]byte{}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity)...),
-		PrevRound:         0,
-		PrevPreparedSeal:  nil,
-		PrevCommittedSeal: nil,
-		Round:             0,
-		PreparedSeal:      nil,
-		CommittedSeal:     nil,
-		EpochInfo:         epochInfo,
-	}
-	istPayload, err := rlp.EncodeToBytes(&ist)
+func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
+	transition, err := qbft.GetMontBlancTransition(config, common.Big0)
 	if err != nil {
-		return errors.New("failed to encode qbft extra")
+		return err
 	}
-	genesis.ExtraData = istPayload
-	return nil
-}
-
-func injectContracts(genesis *Genesis, config *params.ChainConfig) error {
-	if config == nil || config.QBFT == nil || config.QBFT.GovParams == nil {
-		return errors.New("Some or all of the QBFT parameters are missing from the genesis configuration.")
+	if transition == nil {
+		return errors.New("Some or all of the MontBlanc parameters are missing from the genesis configuration.")
 	}
-	qbftContract := []common.Address{
-		common.HexToAddress(params.GOV_CONFIG_ADDRESS),
-		common.HexToAddress(params.GOV_STAKING_ADDRESS),
-		common.HexToAddress(params.GOV_REWARDEE_IMP_ADDRESS),
+	if genesis.Alloc == nil {
+		genesis.Alloc = map[common.Address]types.Account{}
 	}
-	for _, addr := range qbftContract {
-		switch addr {
-		case common.HexToAddress(params.GOV_CONFIG_ADDRESS):
-			if genesis.Alloc == nil {
-				genesis.Alloc = map[common.Address]types.Account{}
-			}
-			genesis.Alloc[addr] = types.Account{Code: hexutil.MustDecode(govwbft.GovConfigContract), Balance: common.Big0, Storage: make(map[common.Hash]common.Hash)}
-			genesis.Alloc[addr].Storage[common.BigToHash(big.NewInt(0))] = common.BigToHash((*big.Int)(config.QBFT.GovParams.MinimumStaking))
-			genesis.Alloc[addr].Storage[common.BigToHash(big.NewInt(1))] = common.BigToHash((*big.Int)(config.QBFT.GovParams.MaximumStaking))
-			genesis.Alloc[addr].Storage[common.BigToHash(big.NewInt(2))] = common.BigToHash(new(big.Int).SetUint64(config.QBFT.GovParams.UnbondingStaker))
-			genesis.Alloc[addr].Storage[common.BigToHash(big.NewInt(3))] = common.BigToHash(new(big.Int).SetUint64(config.QBFT.GovParams.UnbondingDelegator))
-			genesis.Alloc[addr].Storage[common.BigToHash(big.NewInt(4))] = common.BigToHash(new(big.Int).SetUint64(config.QBFT.GovParams.FeePrecision))
-			genesis.Alloc[addr].Storage[common.BigToHash(big.NewInt(5))] = common.BigToHash(new(big.Int).SetUint64(config.QBFT.GovParams.ChangeFeeDelay))
-			genesis.Alloc[addr].Storage[common.BigToHash(big.NewInt(6))] = common.BigToHash(new(big.Int).SetUint64(config.QBFT.GovParams.MinStakers))
-
-		case common.HexToAddress(params.GOV_STAKING_ADDRESS):
-			genesis.Alloc[addr] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract), Balance: common.Big0}
-
-		case common.HexToAddress(params.GOV_REWARDEE_IMP_ADDRESS):
-			genesis.Alloc[addr] = types.Account{Code: hexutil.MustDecode(govwbft.GovRewardeeImpContract), Balance: common.Big0}
-		}
+	for _, c := range transition.Codes {
+		genesis.Alloc[c.Address] = types.Account{Code: hexutil.MustDecode(c.Code), Balance: common.Big0, Storage: make(map[common.Hash]common.Hash)}
+	}
+	for _, s := range transition.States {
+		genesis.Alloc[s.Address].Storage[s.Key] = s.Value
 	}
 	return nil
 }

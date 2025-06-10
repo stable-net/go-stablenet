@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strings"
 	"testing"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	gov "github.com/ethereum/go-ethereum/wemixgov/bind"
 	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 
 	"github.com/stretchr/testify/require"
@@ -21,20 +19,18 @@ import (
 
 func TestOperatorContractMultiSig(t *testing.T) {
 	var (
-		owner1        = getTxOpt(t, "operatorContractOwner1")
-		owner2        = getTxOpt(t, "operatorContractOwner2")
-		owner3        = getTxOpt(t, "operatorContractOwner3")
-		owner4        = getTxOpt(t, "operatorContractOwner4")
-		fundManager   = getTxOpt(t, "fundManager")
-		minStaking    = towei(500000)
-		feeRate       = new(big.Int).SetUint64(1500)
-		ctx           = context.Background()
-		rewardAmount  = towei(10)
-		delegator1    = NewEOA()
-		operatorAbi   abi.ABI
-		govStakingAbi abi.ABI
-		err           error
-		receipt       *types.Receipt
+		owner1       = getTxOpt(t, "operatorContractOwner1")
+		owner2       = getTxOpt(t, "operatorContractOwner2")
+		owner3       = getTxOpt(t, "operatorContractOwner3")
+		owner4       = getTxOpt(t, "operatorContractOwner4")
+		fundManager  = getTxOpt(t, "fundManager")
+		minStaking   = towei(500000)
+		feeRate      = new(big.Int).SetUint64(1500)
+		ctx          = context.Background()
+		rewardAmount = towei(10)
+		delegator1   = NewEOA()
+		err          error
+		receipt      *types.Receipt
 	)
 	// initiate gov
 	g, err := NewGovWBFT(t, nil, types.GenesisAlloc{
@@ -47,12 +43,6 @@ func TestOperatorContractMultiSig(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer g.backend.Close()
-
-	operatorAbi, err = abi.JSON(strings.NewReader(gov.OperatorSampleMetaData.ABI))
-	require.NoError(t, err)
-
-	govStakingAbi, err = abi.JSON(strings.NewReader(gov.GovStakingMetaData.ABI))
-	require.NoError(t, err)
 
 	stateDB := &TestStateDB{
 		getState: func(addr common.Address, hash common.Hash) (result common.Hash) {
@@ -91,10 +81,10 @@ func TestOperatorContractMultiSig(t *testing.T) {
 
 			// 2-2. cannot submit multisig transaction that calls govContract's registerStaker function
 			blsPubkey, _ := s1.GetBLSPublicKey()
-			callData, _ := govStakingAbi.Pack("registerStaker", minStaking, s1.Staker.Address, operatorSampleAddr, feeRate, blsPubkey.Marshal())
+			callData, _ := g.stakingContract.Pack("registerStaker", minStaking, s1.Staker.Address, operatorSampleAddr, feeRate, blsPubkey.Marshal())
 			ExpectedRevert(
 				t,
-				g.ExpectedFail(g.SubmitTransaction(owner1, govwbft.GovStakingAddress, common.Big0, callData)),
+				g.ExpectedFail(g.SubmitTransaction(owner1, TestGovStakingAddress, common.Big0, callData)),
 				"Operator: use proper stake functions",
 			)
 		})
@@ -103,13 +93,13 @@ func TestOperatorContractMultiSig(t *testing.T) {
 		t.Run("Success case", func(t *testing.T) {
 			// submit multiSig transaction that calls operatorContract's registerStaker function
 			blsPubkey, _ := s1.GetBLSPublicKey()
-			callData, _ := operatorAbi.Pack("registerStaker", minStaking, s1.Staker.Address, operatorSampleAddr, feeRate, blsPubkey.Marshal())
+			callData, _ := g.operatorContract.Pack("registerStaker", minStaking, s1.Staker.Address, operatorSampleAddr, feeRate, blsPubkey.Marshal())
 			receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData))
 			txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
 			// confirm and execute
 			_, err = multiSigConfirmTxAndExecute(g, []*bind.TransactOpts{owner2, owner3}, owner4, 2, txId)
 			require.NoError(t, err)
-			require.Equal(t, govwbft.StakerInfo(stateDB, s1.Staker.Address).TotalStaked, minStaking)
+			require.Equal(t, govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).TotalStaked, minStaking)
 		})
 	})
 
@@ -122,22 +112,22 @@ func TestOperatorContractMultiSig(t *testing.T) {
 			ExpectedRevert(t, g.ExpectedFail(g.SingleOwnerStake(owner1, minStaking)), "Operator: only wallet can access")
 
 			// 2. cannot submit multisig transaction that calls govContract's stake function
-			callData, _ := govStakingAbi.Pack("stake", minStaking)
+			callData, _ := g.stakingContract.Pack("stake", minStaking)
 			ExpectedRevert(
 				t,
-				g.ExpectedFail(g.SubmitTransaction(owner1, govwbft.GovStakingAddress, common.Big0, callData)),
+				g.ExpectedFail(g.SubmitTransaction(owner1, TestGovStakingAddress, common.Big0, callData)),
 				"Operator: use proper stake functions",
 			)
 		})
 
 		t.Run("Success cases", func(t *testing.T) {
-			callData, _ := operatorAbi.Pack("stake", minStaking)
+			callData, _ := g.operatorContract.Pack("stake", minStaking)
 			receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData))
 			txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
 			// confirm and execute
 			_, err = multiSigConfirmTxAndExecute(g, []*bind.TransactOpts{owner2, owner3}, owner4, 2, txId)
 			require.NoError(t, err)
-			require.Equal(t, govwbft.StakerInfo(stateDB, s1.Staker.Address).TotalStaked, new(big.Int).Mul(minStaking, common.Big2))
+			require.Equal(t, govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).TotalStaked, new(big.Int).Mul(minStaking, common.Big2))
 		})
 	})
 
@@ -153,10 +143,10 @@ func TestOperatorContractMultiSig(t *testing.T) {
 			)
 
 			//cannot submit claim tx whose destination is govStaking contract
-			callData, _ := govStakingAbi.Pack("claim", s1.Staker.Address, true)
+			callData, _ := g.stakingContract.Pack("claim", s1.Staker.Address, true)
 			ExpectedRevert(
 				t,
-				g.ExpectedFail(g.SubmitTransaction(owner1, govwbft.GovStakingAddress, common.Big0, callData)),
+				g.ExpectedFail(g.SubmitTransaction(owner1, TestGovStakingAddress, common.Big0, callData)),
 				"Operator: use proper claim/withdraw functions",
 			)
 		})
@@ -167,10 +157,10 @@ func TestOperatorContractMultiSig(t *testing.T) {
 				tracedReward  *big.Int
 			)
 			// 1. owners must multiSig claimWithRestake function of operator contract
-			beforeStakedAmt := govwbft.StakerInfo(stateDB, s1.Staker.Address).TotalStaked
+			beforeStakedAmt := govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).TotalStaked
 
 			distributeReward(t, g, stateDB, rewardAmount, s1.Staker.Address)
-			callData, _ := operatorAbi.Pack("claimWithRestake", s1.Staker.Address)
+			callData, _ := g.operatorContract.Pack("claimWithRestake", s1.Staker.Address)
 			receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData))
 			require.NoError(t, err)
 			txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
@@ -178,7 +168,7 @@ func TestOperatorContractMultiSig(t *testing.T) {
 			receipt, err = multiSigConfirmTxAndExecute(g, []*bind.TransactOpts{owner2, owner3}, owner4, 2, txId)
 			require.NoError(t, err)
 			pendingReward = findEvents("UserRewardUpdated", receipt.Logs)[0]["pendingReward"].(*big.Int)
-			require.Equal(t, govwbft.StakerInfo(stateDB, s1.Staker.Address).TotalStaked, beforeStakedAmt.Add(beforeStakedAmt, pendingReward))
+			require.Equal(t, govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).TotalStaked, beforeStakedAmt.Add(beforeStakedAmt, pendingReward))
 			require.NoError(t, g.operatorContract.Call(callOpts, &[]interface{}{&tracedReward}, "rewardAmount"))
 			require.True(t, tracedReward.Cmp(common.Big0) == 0)
 		})
@@ -187,7 +177,7 @@ func TestOperatorContractMultiSig(t *testing.T) {
 		t.Run("Claim for Reward, not restake", func(t *testing.T) {
 			t.Run("Failure cases", func(t *testing.T) {
 				// submitting claimWithoutRestake is banned
-				callData, _ := operatorAbi.Pack("claimWithoutRestake", s1.Staker.Address)
+				callData, _ := g.operatorContract.Pack("claimWithoutRestake", s1.Staker.Address)
 				ExpectedRevert(
 					t,
 					g.ExpectedFail(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData)),
@@ -195,10 +185,10 @@ func TestOperatorContractMultiSig(t *testing.T) {
 				)
 
 				// cannot submit claim tx whose destination is govStaking contract
-				callData, _ = govStakingAbi.Pack("claim", s1.Staker.Address, false)
+				callData, _ = g.stakingContract.Pack("claim", s1.Staker.Address, false)
 				ExpectedRevert(
 					t,
-					g.ExpectedFail(g.SubmitTransaction(owner1, govwbft.GovStakingAddress, common.Big0, callData)),
+					g.ExpectedFail(g.SubmitTransaction(owner1, TestGovStakingAddress, common.Big0, callData)),
 					"Operator: use proper claim/withdraw functions",
 				)
 			})
@@ -227,7 +217,7 @@ func TestOperatorContractMultiSig(t *testing.T) {
 				// only fundManager can access this function
 				ExpectedRevert(t, g.ExpectedFail(g.WithdrawRewardAmount(owner1, owner1.From, claimedReward)), "Operator: only fundManager can access")
 				// multiSig obviously not works
-				callData, _ := operatorAbi.Pack("withdrawReward", owner4.From, claimedReward)
+				callData, _ := g.operatorContract.Pack("withdrawReward", owner4.From, claimedReward)
 				receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData))
 				require.NoError(t, err)
 				txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
@@ -279,7 +269,7 @@ func TestOperatorContractMultiSig(t *testing.T) {
 				ExpectedRevert(t, g.ExpectedFail(g.WithdrawFeeAmount(owner1, owner1.From, claimedFee)), "Operator: only fundManager can access")
 
 				// multiSig obviously not works
-				callData, _ := operatorAbi.Pack("withdrawFee", owner4.From, claimedFee)
+				callData, _ := g.operatorContract.Pack("withdrawFee", owner4.From, claimedFee)
 				receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData))
 				require.NoError(t, err)
 				txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
@@ -304,7 +294,7 @@ func TestOperatorContractMultiSig(t *testing.T) {
 		var unbonding *big.Int
 		var stakedAmt *big.Int
 		t.Run("Unstake and withdraw unstaked amount", func(t *testing.T) {
-			stakedAmt = govwbft.UserInfo(stateDB, s1.Staker.Address, operatorSampleAddr).StakingAmount
+			stakedAmt = govwbft.UserInfo(TestGovStakingAddress, stateDB, s1.Staker.Address, s1.Staker.Address).StakingAmount
 			t.Run("Unstake failure case", func(t *testing.T) {
 				// need multiSig
 				ExpectedRevert(t, g.ExpectedFail(g.SingleOwnerUnstake(owner1, stakedAmt)), "Operator: only wallet can access")
@@ -312,7 +302,7 @@ func TestOperatorContractMultiSig(t *testing.T) {
 			// unstake the staked amount
 			t.Run("Unstake success case", func(t *testing.T) {
 				// 1. owner can multiSig unstake function of operator contract
-				callData, _ := operatorAbi.Pack("unstake", minStaking)
+				callData, _ := g.operatorContract.Pack("unstake", minStaking)
 				receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData))
 				require.NoError(t, err)
 				txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
@@ -321,8 +311,8 @@ func TestOperatorContractMultiSig(t *testing.T) {
 				require.NoError(t, err)
 
 				// 2. owner can submit claim function of governance contract
-				callData, _ = govStakingAbi.Pack("unstake", new(big.Int).Sub(stakedAmt, minStaking))
-				receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, govwbft.GovStakingAddress, common.Big0, callData))
+				callData, _ = g.stakingContract.Pack("unstake", new(big.Int).Sub(stakedAmt, minStaking))
+				receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, TestGovStakingAddress, common.Big0, callData))
 				require.NoError(t, err)
 				txId = findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
 
@@ -338,7 +328,7 @@ func TestOperatorContractMultiSig(t *testing.T) {
 
 			t.Run("Failure case", func(t *testing.T) {
 				// submitting withdraw is banned
-				callData, _ := operatorAbi.Pack("withdraw", common.Big1)
+				callData, _ := g.operatorContract.Pack("withdraw", common.Big1)
 				ExpectedRevert(
 					t,
 					g.ExpectedFail(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData)),
@@ -346,10 +336,10 @@ func TestOperatorContractMultiSig(t *testing.T) {
 				)
 
 				// cannot submit withdraw tx whose destination is govStaking contract
-				callData, _ = govStakingAbi.Pack("withdraw", common.Big1)
+				callData, _ = g.stakingContract.Pack("withdraw", common.Big1)
 				ExpectedRevert(
 					t,
-					g.ExpectedFail(g.SubmitTransaction(owner1, govwbft.GovStakingAddress, common.Big0, callData)),
+					g.ExpectedFail(g.SubmitTransaction(owner1, TestGovStakingAddress, common.Big0, callData)),
 					"Operator: use proper claim/withdraw functions",
 				)
 			})
@@ -385,7 +375,7 @@ func TestOperatorContractMultiSig(t *testing.T) {
 				args := abi.Arguments{
 					{Type: mustParseType("address")},
 				}
-				packedArgs, err := args.Pack(govwbft.GovConfigAddress) // just used as random contract address. nothing to do with govConst contract
+				packedArgs, err := args.Pack(TestGovConfigAddress) // just used as random contract address. nothing to do with govConst contract
 				if err != nil {
 					panic(fmt.Sprintf("Failed to pack arguments: %v", err))
 				}
@@ -398,7 +388,7 @@ func TestOperatorContractMultiSig(t *testing.T) {
 				require.NoError(t, g.operatorContract.Call(callOpts, &[]interface{}{&tracedUnstaked}, "unstakedAmount"))
 				beforeBalance := g.balanceAt(t, ctx, owner4.From, nil)
 				// withdraw claimedFee to owner4
-				callData, _ := operatorAbi.Pack("withdrawUnstaked", owner4.From, stakedAmt)
+				callData, _ := g.operatorContract.Pack("withdrawUnstaked", owner4.From, stakedAmt)
 				receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData))
 				require.NoError(t, err)
 				txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
@@ -470,7 +460,7 @@ func TestOperatorContractSingleOwner(t *testing.T) {
 		//2. owner executes registerStaker function of operator contract
 		_, err := g.ExpectedOk(g.SingleOwnerRegisterStaker(operatorContractSingleOwner, s1, minStaking, feeRate))
 		require.NoError(t, err)
-		require.Equal(t, g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil), minStaking)
+		require.Equal(t, g.balanceAt(t, ctx, TestGovStakingAddress, nil), minStaking)
 		require.True(t, big.NewInt(0).Cmp(g.balanceAt(t, ctx, operatorSampleAddr, nil)) == 0)
 	})
 
@@ -480,7 +470,7 @@ func TestOperatorContractSingleOwner(t *testing.T) {
 		// restake the reward
 		_, err := g.ExpectedOk(g.ClaimWithRestake(operatorContractSingleOwner, s1))
 		require.NoError(t, err)
-		require.Equal(t, g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil), new(big.Int).Add(minStaking, rewardAmount))
+		require.Equal(t, g.balanceAt(t, ctx, TestGovStakingAddress, nil), new(big.Int).Add(minStaking, rewardAmount))
 	})
 
 	var claimedReward *big.Int
@@ -524,7 +514,7 @@ func TestOperatorContractSingleOwner(t *testing.T) {
 		callData := append(methodID, packedArgs...)
 		// 2. submit tx to set operatorContract as feeRecipient
 
-		receipt, err := g.ExpectedOk(g.SubmitTransaction(operatorContractSingleOwner, govwbft.GovStakingAddress, new(big.Int), callData))
+		receipt, err := g.ExpectedOk(g.SubmitTransaction(operatorContractSingleOwner, TestGovStakingAddress, new(big.Int), callData))
 		require.NoError(t, err)
 		txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
 
@@ -537,7 +527,7 @@ func TestOperatorContractSingleOwner(t *testing.T) {
 		require.NoError(t, err)
 
 		// 5. Check if FeeRecipient has changed
-		require.Equal(t, operatorSampleAddr, govwbft.StakerInfo(stateDB, s1.Staker.Address).FeeRecipient)
+		require.Equal(t, operatorSampleAddr, govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).FeeRecipient)
 
 		beforeBalance := g.balanceAt(t, ctx, operatorSampleAddr, nil)
 		// 6. Delegator claims reward, fee will be sent to operatorContract
@@ -572,7 +562,7 @@ func TestOperatorContractSingleOwner(t *testing.T) {
 
 	t.Run("Unstake and withdraw undstaked amount", func(t *testing.T) {
 		// unstake the staked amount
-		stakedAmt := govwbft.UserInfo(stateDB, s1.Staker.Address, operatorSampleAddr).StakingAmount
+		stakedAmt := govwbft.UserInfo(TestGovStakingAddress, stateDB, s1.Staker.Address, s1.Staker.Address).StakingAmount
 		receipt, err := g.ExpectedOk(g.SingleOwnerUnstake(operatorContractSingleOwner, stakedAmt))
 		require.NoError(t, err)
 		unbondingPeriod := findEvents("NewCredential", receipt.Logs)[0]["unbonding"].(*big.Int)
@@ -630,7 +620,6 @@ func TestMultiSig(t *testing.T) {
 		owner2      = getTxOpt(t, "operatorContractOwner2")
 		owner3      = getTxOpt(t, "operatorContractOwner3")
 		notOwner    = getTxOpt(t, "notOwner")
-		operatorAbi abi.ABI
 		fundManager = getTxOpt(t, "fundManger")
 		err         error
 		receipt     *types.Receipt
@@ -644,9 +633,6 @@ func TestMultiSig(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer g.backend.Close()
-
-	operatorAbi, err = abi.JSON(strings.NewReader(gov.OperatorSampleMetaData.ABI))
-	require.NoError(t, err)
 
 	// deploy operatorSample with single owner
 	owners := []common.Address{owner1.From}
@@ -669,7 +655,7 @@ func TestMultiSig(t *testing.T) {
 		})
 
 		t.Run("Quorum size auto changed", func(t *testing.T) {
-			callData, _ := operatorAbi.Pack("removeOwner", owner2.From, false)
+			callData, _ := g.operatorContract.Pack("removeOwner", owner2.From, false)
 			receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData))
 			require.NoError(t, err)
 			txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
@@ -685,7 +671,7 @@ func TestMultiSig(t *testing.T) {
 		})
 
 		// cannot remove non-existing owner
-		callData, _ := operatorAbi.Pack("removeOwner", owner2.From, true)
+		callData, _ := g.operatorContract.Pack("removeOwner", owner2.From, true)
 		receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData))
 		require.NoError(t, err)
 		txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
@@ -709,7 +695,7 @@ func TestMultiSig(t *testing.T) {
 			_, err = g.ExpectedOk(g.AddOwner(owner1, owner2.From, false))
 			require.NoError(t, err)
 
-			callData, _ := operatorAbi.Pack("addFundManager", owner2.From, true)
+			callData, _ := g.operatorContract.Pack("addFundManager", owner2.From, true)
 			receipt, err = g.ExpectedOk(g.SubmitTransaction(owner1, operatorSampleAddr, common.Big0, callData))
 			require.NoError(t, err)
 			txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
@@ -733,7 +719,6 @@ func TestCallingNCPContract(t *testing.T) {
 		ncp3   = new(EOA)
 		ncp4   = new(EOA)
 		err    error
-		ncpAbi abi.ABI
 	)
 	ncpList := []common.Address{owner1.From, ncp2.Address, ncp3.Address, ncp4.Address}
 	// initiate gov
@@ -745,10 +730,6 @@ func TestCallingNCPContract(t *testing.T) {
 	require.NoError(t, err)
 	defer g.backend.Close()
 
-	//operatorAbi, err = abi.JSON(strings.NewReader(gov.OperatorSampleMetaData.ABI))
-	//require.NoError(t, err)
-	//
-	ncpAbi, err = abi.JSON(strings.NewReader(gov.GovNCPMetaData.ABI))
 	require.NoError(t, err)
 
 	// deploy operatorSample with single owner
@@ -765,8 +746,8 @@ func TestCallingNCPContract(t *testing.T) {
 
 	t.Run("operator contract call ncpContract methods", func(t *testing.T) {
 		// call change ncp method - change ncp to owner1 address again
-		callData, _ := ncpAbi.Pack("changeNCP", owner1.From)
-		receipt, err := g.ExpectedOk(g.SubmitTransaction(owner1, govwbft.GovNCPAddress, common.Big0, callData))
+		callData, _ := g.ncpContract.Pack("changeNCP", owner1.From)
+		receipt, err := g.ExpectedOk(g.SubmitTransaction(owner1, TestGovNCPAddress, common.Big0, callData))
 		require.NoError(t, err)
 		txId := findEvents("SubmitTransaction", receipt.Logs)[0]["txIndex"].(*big.Int)
 

@@ -406,7 +406,7 @@ func (w *worker) start() {
 	w.running.Store(true)
 	if qbftEngine, ok := w.engine.(*qbftBackend.Backend); ok {
 		qbftEngine.Start(w.chain, w.chain.CurrentFullBlock, rawdb.HasBadBlock, w.readyToCommit)
-	} else if wemixEngine, ok := w.engine.(*wemix.WemixConsensus); ok {
+	} else if wemixEngine, ok := w.engine.(*wemix.MontBlancConsensus); ok {
 		wemixEngine.Start(w.chainConfig, w.chain, w.chain.CurrentFullBlock, w.eth.BlockChain().SubscribeChainHeadEvent, w.readyToCommit)
 	}
 	w.startCh <- struct{}{}
@@ -416,7 +416,7 @@ func (w *worker) start() {
 func (w *worker) stop() {
 	if qbftEngine, ok := w.engine.(*qbftBackend.Backend); ok {
 		qbftEngine.Stop()
-	} else if wemixEngine, ok := w.engine.(*wemix.WemixConsensus); ok {
+	} else if wemixEngine, ok := w.engine.(*wemix.MontBlancConsensus); ok {
 		wemixEngine.Stop()
 	}
 
@@ -465,7 +465,7 @@ func recalcRecommit(minRecommit, prev time.Duration, target float64, inc bool) t
 
 // newWorkLoop is a standalone goroutine to submit new sealing work upon received events.
 func (w *worker) newWorkLoop(recommit time.Duration) {
-	if w.chainConfig.QBFT == nil {
+	if w.chainConfig.MontBlanc == nil {
 		w.newWorkLoopOrigin(recommit)
 	} else {
 		w.newWorkLoopWBFT()

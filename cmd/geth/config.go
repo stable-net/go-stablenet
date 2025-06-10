@@ -34,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -44,7 +43,6 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 	"github.com/naoina/toml"
 	"github.com/urfave/cli/v2"
 )
@@ -167,60 +165,6 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	applyMetricConfig(ctx, &cfg)
 
 	return stack, cfg
-}
-
-func checkSanityQBFT(chainConfig *params.ChainConfig, alloc types.GenesisAlloc) {
-	if chainConfig.QBFT != nil {
-		checkSanityBeneficiaries(chainConfig.QBFT.BlockRewardBeneficiary)
-	}
-	if chainConfig.Transitions != nil {
-		for _, t := range chainConfig.Transitions {
-			checkSanityBeneficiaries(t.BlockRewardBeneficiary)
-		}
-	}
-
-	func() {
-		forbidden := []common.Address{
-			govwbft.GovConfigAddress,
-			govwbft.GovStakingAddress,
-			govwbft.GovRewardeeImpAddress,
-		}
-		for _, addr := range forbidden {
-			if _, exists := alloc[addr]; exists {
-				log.Crit(
-					"genesis.json must NOT include an allocation for %s; remove it before geth init",
-					addr.Hex(),
-				)
-			}
-		}
-	}()
-}
-
-func checkSanityBeneficiaries(l *params.BeneficiaryInfo) {
-	var totNumerator uint64
-
-	if l == nil {
-		return
-	}
-
-	if l.Denominator == 0 {
-		utils.Fatalf("Denominator cannot be zero")
-	}
-
-	for _, beneficiary := range l.Beneficiaries {
-		if beneficiary.Addr == (common.Address{}) {
-			utils.Fatalf("Beneficiary address cannot be zero address")
-		}
-		if beneficiary.Numerator > l.Denominator {
-			utils.Fatalf("Numerator (%v) > denominator (%v)", beneficiary.Numerator, l.Denominator)
-		}
-
-		totNumerator += beneficiary.Numerator
-	}
-
-	if totNumerator > l.Denominator {
-		utils.Fatalf("Total of numerator (%v) > denominator (%v)", totNumerator, l.Denominator)
-	}
 }
 
 // makeFullNode loads geth configuration and creates the Ethereum backend.

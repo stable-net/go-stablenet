@@ -27,6 +27,7 @@ func TestGeneratingGenesisExtra(t *testing.T) {
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0xd19f9374f4549B2fB182ED766d6b7501494a3634")), Diligence: types.DefaultDiligence},
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0x02cF1E577C79EF0E93947cCd82a4D41E0485Be73")), Diligence: types.DefaultDiligence},
 			},
+			Stabilizing:   true,
 			Validators:    []uint32{0, 1, 2, 3},
 			BLSPublicKeys: [][]byte{{}, {}, {}, {}},
 		},

@@ -3,18 +3,14 @@ package test
 import (
 	"context"
 	"math/big"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	"github.com/ethereum/go-ethereum/params"
-	compile "github.com/ethereum/go-ethereum/wemixgov/governance-contract"
 	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 	"github.com/stretchr/testify/require"
 )
@@ -38,12 +34,14 @@ func TestGovWithoutNCP(t *testing.T) {
 		s1        = NewTestStaker()
 		s2        = NewTestStaker()
 		delegator = NewEOA()
+		newStaker = NewEOA()
 	)
 
 	g, err := NewGovWBFT(t, nil, types.GenesisAlloc{
 		s1.Operator.Address: {Balance: new(big.Int).Mul(MAX_UINT_128, common.Big2)},
 		s2.Operator.Address: {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
 		delegator.Address:   {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
+		newStaker.Address:   {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
 	})
 	require.NoError(t, err)
 	setWbftGovConfig(g)
@@ -57,14 +55,14 @@ func TestGovWithoutNCP(t *testing.T) {
 	}
 
 	checkGovBalanceFn := func() {
-		require.True(t, totalStaking.Cmp(g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil)) == 0)
+		require.True(t, totalStaking.Cmp(g.balanceAt(t, ctx, TestGovStakingAddress, nil)) == 0)
 	}
 
 	t.Run("New Staker", func(t *testing.T) {
 		defer checkGovBalanceFn()
 		t.Run("add staker", func(t *testing.T) {
-			require.True(t, govwbft.TotalStaking(stateDB).Sign() == 0)
-			require.True(t, len(govwbft.Stakers(stateDB)) == 0)
+			require.True(t, govwbft.TotalStaking(TestGovStakingAddress, stateDB).Sign() == 0)
+			require.True(t, len(govwbft.Stakers(TestGovStakingAddress, stateDB)) == 0)
 			beforeBalance := g.balanceAt(t, ctx, s1.Operator.Address, nil)
 
 			receipt, err := g.ExpectedOk(g.RegisterStaker(t, s1, minStaking, feeRate))
@@ -72,8 +70,8 @@ func TestGovWithoutNCP(t *testing.T) {
 			stakers = append(stakers, s1.Staker.Address)
 			totalStaking.Add(totalStaking, minStaking)
 
-			require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-			require.Equal(t, stakers, govwbft.Stakers(stateDB))
+			require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+			require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
 
 			gasCost := calcTxGasCost(receipt)
 			expectedBalance := new(big.Int).Sub(beforeBalance, new(big.Int).Add(minStaking, gasCost))
@@ -151,8 +149,8 @@ func TestGovWithoutNCP(t *testing.T) {
 		})
 
 		t.Run("add another staker", func(t *testing.T) {
-			require.Equal(t, minStaking, govwbft.TotalStaking(stateDB))
-			require.Equal(t, stakers, govwbft.Stakers(stateDB))
+			require.Equal(t, minStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+			require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
 			beforeBalance := g.balanceAt(t, ctx, s2.Operator.Address, nil)
 
 			receipt, err := g.ExpectedOk(g.RegisterStaker(t, s2, minStaking, feeRate))
@@ -161,8 +159,8 @@ func TestGovWithoutNCP(t *testing.T) {
 			stakers = append(stakers, s2.Staker.Address)
 			totalStaking.Add(totalStaking, minStaking)
 
-			require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-			require.Equal(t, stakers, govwbft.Stakers(stateDB))
+			require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+			require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
 
 			gasCost := calcTxGasCost(receipt)
 			expectedBalance := new(big.Int).Sub(beforeBalance, new(big.Int).Add(minStaking, gasCost))
@@ -196,8 +194,8 @@ func TestGovWithoutNCP(t *testing.T) {
 			require.NoError(t, err)
 
 			totalStaking.Add(totalStaking, minStaking)
-			require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-			require.Equal(t, new(big.Int).Mul(minStaking, common.Big2), govwbft.StakerInfo(stateDB, s1.Staker.Address).TotalStaked)
+			require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+			require.Equal(t, new(big.Int).Mul(minStaking, common.Big2), govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).TotalStaked)
 
 			gasCost := calcTxGasCost(receipt)
 			expectedBalance := new(big.Int).Sub(beforeBalance, new(big.Int).Add(minStaking, gasCost))
@@ -239,8 +237,8 @@ func TestGovWithoutNCP(t *testing.T) {
 
 			totalStaking.Sub(totalStaking, minStaking)
 
-			require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-			require.Equal(t, minStaking, govwbft.StakerInfo(stateDB, s1.Staker.Address).TotalStaked)
+			require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+			require.Equal(t, minStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).TotalStaked)
 
 			gasCost := calcTxGasCost(receipt)
 			expectedBalance := new(big.Int).Sub(beforeBalance, gasCost)
@@ -262,10 +260,10 @@ func TestGovWithoutNCP(t *testing.T) {
 			)
 
 			// no error, no withdrawal
-			beforeBalance := g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil)
+			beforeBalance := g.balanceAt(t, ctx, TestGovStakingAddress, nil)
 			_, err := g.ExpectedOk(g.Withdraw(t, s1.Operator, common.Big0))
 			require.NoError(t, err)
-			afterBalance := g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil)
+			afterBalance := g.balanceAt(t, ctx, TestGovStakingAddress, nil)
 			require.Equal(t, beforeBalance, afterBalance)
 		})
 
@@ -290,9 +288,9 @@ func TestGovWithoutNCP(t *testing.T) {
 				totalStaking.Sub(totalStaking, minStaking)
 				stakers = removeElement(stakers, s2.Staker.Address)
 
-				require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-				require.Equal(t, stakers, govwbft.Stakers(stateDB))
-				require.True(t, govwbft.StakerInfo(stateDB, s2.Staker.Address).TotalStaked.Sign() == 0)
+				require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+				require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+				require.True(t, govwbft.StakerInfo(TestGovStakingAddress, stateDB, s2.Staker.Address).TotalStaked.Sign() == 0)
 
 				unstakeEvent = findEvent("NewCredential", receipt.Logs)
 				require.NotNil(t, unstakeEvent)
@@ -320,7 +318,7 @@ func TestGovWithoutNCP(t *testing.T) {
 			{
 				_, err := g.ExpectedOk(TransferCoin(g.backend.Client(), g.owner, minStaking, &s1.Staker.Address))
 				require.NoError(t, err)
-				rewardee := govwbft.StakerInfo(stateDB, s1.Staker.Address).Rewardee
+				rewardee := govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).Rewardee
 				_, err = g.ExpectedOk(TransferCoin(g.backend.Client(), g.owner, minStaking, &rewardee))
 				require.NoError(t, err)
 			}
@@ -348,15 +346,15 @@ func TestGovWithoutNCP(t *testing.T) {
 
 		t.Run("delegate", func(t *testing.T) {
 			beforeBalance := g.balanceAt(t, ctx, delegator.Address, nil)
-			beforeInfo_s1 := govwbft.StakerInfo(stateDB, s1.Staker.Address)
+			beforeInfo_s1 := govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address)
 
 			receipt, err := g.ExpectedOk(g.Delegate(t, delegator, s1.Staker.Address, delegateAmount))
 			require.NoError(t, err)
 
 			totalStaking.Add(totalStaking, delegateAmount)
-			require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
+			require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
 
-			afterInfo_s1 := govwbft.StakerInfo(stateDB, s1.Staker.Address)
+			afterInfo_s1 := govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address)
 			require.Equal(t, delegateAmount, new(big.Int).Sub(afterInfo_s1.TotalStaked, beforeInfo_s1.TotalStaked))
 			require.Equal(t, delegateAmount, new(big.Int).Sub(afterInfo_s1.Delegated, beforeInfo_s1.Delegated))
 
@@ -367,14 +365,14 @@ func TestGovWithoutNCP(t *testing.T) {
 	})
 
 	t.Run("Deactivate & Reactivate Staker", func(t *testing.T) {
-		delegatedAmount := govwbft.StakerInfo(stateDB, s1.Staker.Address).Delegated
+		delegatedAmount := govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).Delegated
 		receipt, err := g.ExpectedOk(g.Unstake(t, s1.Operator, minStaking))
 		require.NoError(t, err)
 		stakers = removeElement(stakers, s1.Staker.Address)
 
-		require.Equal(t, delegatedAmount, govwbft.TotalStaking(stateDB))
+		require.Equal(t, delegatedAmount, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
 		require.Equal(t, []common.Address{}, stakers)
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
 
 		unstakeEvent := findEvent("NewCredential", receipt.Logs)
 		require.NotNil(t, unstakeEvent)
@@ -394,8 +392,8 @@ func TestGovWithoutNCP(t *testing.T) {
 
 			stakers = append(stakers, s1.Staker.Address)
 			require.Equal(t, totalStaking, new(big.Int).Add(minStaking, delegatedAmount))
-			require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-			require.Equal(t, stakers, govwbft.Stakers(stateDB))
+			require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+			require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
 		})
 	})
 
@@ -408,15 +406,15 @@ func TestGovWithoutNCP(t *testing.T) {
 
 		t.Run("undelegate", func(t *testing.T) {
 			beforeBalance := g.balanceAt(t, ctx, delegator.Address, nil)
-			beforeInfo_s1 := govwbft.StakerInfo(stateDB, s1.Staker.Address)
+			beforeInfo_s1 := govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address)
 
 			receipt, err := g.ExpectedOk(g.Undelegate(t, delegator, s1.Staker.Address, undelegateAmount))
 			require.NoError(t, err)
 
 			totalStaking.Sub(totalStaking, undelegateAmount)
-			require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
+			require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
 
-			afterInfo_s1 := govwbft.StakerInfo(stateDB, s1.Staker.Address)
+			afterInfo_s1 := govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address)
 			require.Equal(t, undelegateAmount, new(big.Int).Sub(beforeInfo_s1.TotalStaked, afterInfo_s1.TotalStaked))
 			require.Equal(t, undelegateAmount, new(big.Int).Sub(beforeInfo_s1.Delegated, afterInfo_s1.Delegated))
 
@@ -446,7 +444,7 @@ func TestGovWithoutNCP(t *testing.T) {
 
 			// try unstake, including the delegated amount
 			ExpectedRevert(t,
-				g.ExpectedFail(g.Unstake(t, s1.Operator, govwbft.StakerInfo(stateDB, s1.Staker.Address).TotalStaked)),
+				g.ExpectedFail(g.Unstake(t, s1.Operator, govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).TotalStaked)),
 				"insufficient balance",
 			)
 		})
@@ -472,12 +470,12 @@ func TestGovWithoutNCP(t *testing.T) {
 
 				totalStaking.Sub(totalStaking, minStaking)
 
-				delegated := govwbft.StakerInfo(stateDB, s1.Staker.Address).Delegated
-				require.Equal(t, delegated, govwbft.DanglingDelegated(stateDB))
+				delegated := govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).Delegated
+				require.Equal(t, delegated, govwbft.DanglingDelegated(TestGovStakingAddress, stateDB))
 
 				stakers = removeElement(stakers, s1.Staker.Address)
 
-				require.Equal(t, stakers, govwbft.Stakers(stateDB))
+				require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
 
 				unstakeEvent := findEvent("NewCredential", receipt.Logs)
 				require.NotNil(t, unstakeEvent)
@@ -504,6 +502,23 @@ func TestGovWithoutNCP(t *testing.T) {
 			expectedBalance := new(big.Int).Add(beforeBalance, new(big.Int).Sub(undelegateAmount, gasCost))
 			require.Equal(t, expectedBalance, g.balanceAt(t, ctx, delegator.Address, nil))
 		})
+	})
+
+	t.Run("Transfer operator ship", func(t *testing.T) {
+		_, err := g.ExpectedOk(g.TransferOperatorShip(t, s1.Operator, newStaker.Address))
+		require.NoError(t, err)
+
+		require.Equal(t, govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).Operator, newStaker.Address)
+
+		ExpectedRevert(t,
+			g.ExpectedFail(g.TransferOperatorShip(t, s1.Operator, newStaker.Address)),
+			"unregistered staker",
+		)
+
+		_, err = g.ExpectedOk(g.TransferOperatorShip(t, newStaker, s1.Operator.Address))
+		require.NoError(t, err)
+
+		require.Equal(t, govwbft.StakerInfo(TestGovStakingAddress, stateDB, s1.Staker.Address).Operator, s1.Operator.Address)
 	})
 }
 
@@ -540,7 +555,7 @@ func TestGovWithNCP(t *testing.T) {
 		ncp4.Operator.Address: {Balance: MAX_UINT_128},
 	})
 	require.NoError(t, err)
-	setWbftGovConfig(g)
+	setWbftGovConfigWithGovCouncil(g)
 
 	stateDB := &TestStateDB{
 		getState: func(addr common.Address, hash common.Hash) (result common.Hash) {
@@ -550,19 +565,19 @@ func TestGovWithNCP(t *testing.T) {
 	}
 
 	checkNCPStaker := func() {
-		require.True(t, totalStaking.Cmp(govwbft.TotalStaking(stateDB)) == 0)
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
-		require.Equal(t, ncps, govwbft.NCPList(stateDB))
-		require.Equal(t, ncpTotalStaking, govwbft.NCPTotalStaking(stateDB))
-		require.Equal(t, ncpStakers, govwbft.NCPStakers(stateDB))
+		require.True(t, totalStaking.Cmp(govwbft.TotalStaking(TestGovStakingAddress, stateDB)) == 0)
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+		require.Equal(t, ncps, govwbft.NCPList(TestGovNCPAddress, stateDB))
+		require.Equal(t, ncpTotalStaking, govwbft.NCPTotalStaking(TestGovStakingAddress, TestGovNCPAddress, stateDB))
+		require.Equal(t, ncpStakers, govwbft.NCPStakers(TestGovStakingAddress, TestGovNCPAddress, stateDB))
 	}
 
 	t.Run("NCP Staking", func(t *testing.T) {
-		require.True(t, govwbft.TotalStaking(stateDB).Sign() == 0)
-		require.True(t, govwbft.NCPTotalStaking(stateDB).Sign() == 0)
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
-		require.Equal(t, ncps, govwbft.NCPList(stateDB))
-		require.Equal(t, ncpStakers, govwbft.NCPStakers(stateDB))
+		require.True(t, govwbft.TotalStaking(TestGovStakingAddress, stateDB).Sign() == 0)
+		require.True(t, govwbft.NCPTotalStaking(TestGovStakingAddress, TestGovNCPAddress, stateDB).Sign() == 0)
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+		require.Equal(t, ncps, govwbft.NCPList(TestGovNCPAddress, stateDB))
+		require.Equal(t, ncpStakers, govwbft.NCPStakers(TestGovStakingAddress, TestGovNCPAddress, stateDB))
 
 		t.Run("NCP staking", func(t *testing.T) {
 			defer checkNCPStaker()
@@ -675,7 +690,7 @@ func TestGovWithNCP(t *testing.T) {
 
 			ncps = append(ncps, ncp3.Operator.Address)
 			ncpStakers = append(ncpStakers, ncp3.Staker.Address)
-			ncpTotalStaking.Add(ncpTotalStaking, govwbft.StakerInfo(stateDB, ncp3.Staker.Address).TotalStaked)
+			ncpTotalStaking.Add(ncpTotalStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, ncp3.Staker.Address).TotalStaked)
 		})
 	})
 
@@ -714,7 +729,7 @@ func TestGovWithNCP(t *testing.T) {
 
 			ncps = removeElement(ncps, ncp3.Operator.Address)
 			ncpStakers = removeElement(ncpStakers, ncp3.Staker.Address)
-			ncpTotalStaking.Sub(ncpTotalStaking, govwbft.StakerInfo(stateDB, ncp3.Staker.Address).TotalStaked)
+			ncpTotalStaking.Sub(ncpTotalStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, ncp3.Staker.Address).TotalStaked)
 		})
 	})
 
@@ -859,7 +874,7 @@ func TestGovWithNCP(t *testing.T) {
 
 					ncps = append(ncps, ncp3.Operator.Address)
 					ncpStakers = append(ncpStakers, ncp3.Staker.Address)
-					ncpTotalStaking.Add(ncpTotalStaking, govwbft.StakerInfo(stateDB, ncp3.Staker.Address).TotalStaked)
+					ncpTotalStaking.Add(ncpTotalStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, ncp3.Staker.Address).TotalStaked)
 
 					finalizedEvent := findEvent("ProposalFinalized", receipt.Logs)
 					require.NotNil(t, finalizedEvent)
@@ -901,7 +916,7 @@ func TestGovWithNCP(t *testing.T) {
 
 					ncps = removeElement(ncps, ncp3.Operator.Address)
 					ncpStakers = removeElement(ncpStakers, ncp3.Staker.Address)
-					ncpTotalStaking.Sub(ncpTotalStaking, govwbft.StakerInfo(stateDB, ncp3.Staker.Address).TotalStaked)
+					ncpTotalStaking.Sub(ncpTotalStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, ncp3.Staker.Address).TotalStaked)
 
 					finalizedEvent := findEvent("ProposalFinalized", receipt.Logs)
 					require.NotNil(t, finalizedEvent)
@@ -924,8 +939,9 @@ func TestGovWithNCP(t *testing.T) {
 	t.Run("Cannot change NCP for being locked", func(t *testing.T) {
 		defer checkNCPStaker()
 
-		_, err := g.ExpectedOk(g.NewProposalToRemoveNCP(t, ncp1.Operator, ncp4.Operator.Address))
+		receipt, err := g.ExpectedOk(g.NewProposalToRemoveNCP(t, ncp1.Operator, ncp4.Operator.Address))
 		require.NoError(t, err)
+		proposalEvent := findEvent("NewProposal", receipt.Logs)
 		// ncp1, ncp4 locked
 
 		ExpectedRevert(t,
@@ -937,6 +953,45 @@ func TestGovWithNCP(t *testing.T) {
 			g.ExpectedFail(g.ChangeNCP(t, ncp4.Operator, ncp2.Operator.Address)),
 			"belong in an on-going proposal",
 		)
+
+		_, err = g.ExpectedOk(g.CancelProposal(t, ncp1.Operator, proposalEvent["id"].(*big.Int)))
+		require.NoError(t, err)
+	})
+
+	t.Run("Set emergency", func(t *testing.T) {
+		defer checkNCPStaker()
+
+		// set emergency mode
+		receipt, err := g.ExpectedOk(g.NewProposalEmergencyMode(t, ncp1.Operator, true))
+		require.NoError(t, err)
+		proposalEvent := findEvent("NewProposal", receipt.Logs)
+
+		_, err = g.ExpectedOk(g.Vote(t, ncp1.Operator, proposalEvent["id"].(*big.Int), true))
+		require.NoError(t, err)
+
+		_, err = g.ExpectedOk(g.Vote(t, ncp4.Operator, proposalEvent["id"].(*big.Int), true))
+		require.NoError(t, err)
+
+		ExpectedRevert(t,
+			g.ExpectedFail(g.Stake(t, ncp1.Operator, minStaking)),
+			"operation not permitted by council",
+		)
+
+		// set emergency mode off
+		receipt, err = g.ExpectedOk(g.NewProposalEmergencyMode(t, ncp1.Operator, false))
+		require.NoError(t, err)
+		proposalEvent = findEvent("NewProposal", receipt.Logs)
+
+		_, err = g.ExpectedOk(g.Vote(t, ncp1.Operator, proposalEvent["id"].(*big.Int), true))
+		require.NoError(t, err)
+
+		_, err = g.ExpectedOk(g.Vote(t, ncp4.Operator, proposalEvent["id"].(*big.Int), true))
+		require.NoError(t, err)
+
+		_, err = g.ExpectedOk(g.Stake(t, ncp1.Operator, minStaking))
+		require.NoError(t, err)
+		totalStaking = totalStaking.Add(totalStaking, minStaking)
+		ncpTotalStaking = ncpTotalStaking.Add(ncpTotalStaking, minStaking)
 	})
 }
 
@@ -951,7 +1006,7 @@ func removeElement(slice []common.Address, value common.Address) []common.Addres
 
 func distributeReward(t *testing.T, g *GovWBFT, stateDB *TestStateDB, rewardAmount *big.Int, stakers ...common.Address) {
 	for _, _staker := range stakers {
-		_rewardee := govwbft.StakerInfo(stateDB, _staker).Rewardee
+		_rewardee := govwbft.StakerInfo(TestGovStakingAddress, stateDB, _staker).Rewardee
 		_, err := g.ExpectedOk(TransferCoin(g.backend.Client(), g.owner, rewardAmount, &_rewardee))
 		require.NoError(t, err)
 	}
@@ -992,10 +1047,10 @@ func TestGovReward(t *testing.T) {
 	}
 
 	checkGovBalanceFn := func() {
-		if totalStaking.Cmp(g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil)) != 0 {
-			t.Logf("total = %v, balance = %v", totalStaking, g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil))
+		if totalStaking.Cmp(g.balanceAt(t, ctx, TestGovStakingAddress, nil)) != 0 {
+			t.Logf("total = %v, balance = %v", totalStaking, g.balanceAt(t, ctx, TestGovStakingAddress, nil))
 		}
-		require.True(t, totalStaking.Cmp(g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil)) == 0)
+		require.True(t, totalStaking.Cmp(g.balanceAt(t, ctx, TestGovStakingAddress, nil)) == 0)
 	}
 
 	defer checkGovBalanceFn()
@@ -1008,14 +1063,14 @@ func TestGovReward(t *testing.T) {
 		stakers = append(stakers, v1.Staker.Address)
 		totalStaking = totalStaking.Add(totalStaking, minStaking)
 		// check list
-		require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
-		require.Equal(t, minStaking, govwbft.StakerInfo(stateDB, v1.Staker.Address).TotalStaked)
-		require.Equal(t, 0, govwbft.StakerInfo(stateDB, v1.Staker.Address).AccRewardPerStaking.Sign())
-		require.Equal(t, 0, govwbft.StakerInfo(stateDB, v1.Staker.Address).LastRewardBalance.Sign())
-		require.Equal(t, minStaking, govwbft.UserInfo(stateDB, v1.Staker.Address, v1.Operator.Address).StakingAmount)
-		require.Equal(t, 0, govwbft.UserInfo(stateDB, v1.Staker.Address, v1.Operator.Address).PendingReward.Sign())
-		require.Equal(t, 0, govwbft.UserInfo(stateDB, v1.Staker.Address, v1.Operator.Address).RewardPerStaking.Sign())
+		require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+		require.Equal(t, minStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).TotalStaked)
+		require.Equal(t, 0, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).AccRewardPerStaking.Sign())
+		require.Equal(t, 0, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).LastRewardBalance.Sign())
+		require.Equal(t, minStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, v1.Staker.Address).StakingAmount)
+		require.Equal(t, 0, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, v1.Staker.Address).PendingReward.Sign())
+		require.Equal(t, 0, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, v1.Staker.Address).RewardPerStaking.Sign())
 	})
 
 	t.Run("second staking", func(t *testing.T) {
@@ -1028,14 +1083,14 @@ func TestGovReward(t *testing.T) {
 		stakers = append(stakers, v2.Staker.Address)
 		totalStaking = totalStaking.Add(totalStaking, minStaking)
 		// check list
-		require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
-		require.Equal(t, minStaking, govwbft.StakerInfo(stateDB, v2.Staker.Address).TotalStaked)
-		require.Equal(t, 0, govwbft.StakerInfo(stateDB, v2.Staker.Address).AccRewardPerStaking.Sign())
-		require.Equal(t, 0, govwbft.StakerInfo(stateDB, v2.Staker.Address).LastRewardBalance.Sign())
-		require.Equal(t, minStaking, govwbft.UserInfo(stateDB, v2.Staker.Address, v2.Operator.Address).StakingAmount)
-		require.Equal(t, 0, govwbft.UserInfo(stateDB, v2.Staker.Address, v2.Operator.Address).PendingReward.Sign())
-		require.Equal(t, 0, govwbft.UserInfo(stateDB, v2.Staker.Address, v2.Operator.Address).RewardPerStaking.Sign())
+		require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+		require.Equal(t, minStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v2.Staker.Address).TotalStaked)
+		require.Equal(t, 0, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v2.Staker.Address).AccRewardPerStaking.Sign())
+		require.Equal(t, 0, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v2.Staker.Address).LastRewardBalance.Sign())
+		require.Equal(t, minStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v2.Staker.Address, v2.Staker.Address).StakingAmount)
+		require.Equal(t, 0, govwbft.UserInfo(TestGovStakingAddress, stateDB, v2.Staker.Address, v2.Staker.Address).PendingReward.Sign())
+		require.Equal(t, 0, govwbft.UserInfo(TestGovStakingAddress, stateDB, v2.Staker.Address, v2.Staker.Address).RewardPerStaking.Sign())
 	})
 
 	t.Run("delegator1 delegates to v1", func(t *testing.T) {
@@ -1055,14 +1110,14 @@ func TestGovReward(t *testing.T) {
 		calcRewardPerStaking = toRewardPerStaking(rewardAmount, minStaking)
 
 		// check list
-		require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
-		require.Equal(t, new(big.Int).Add(minStaking, minStaking), govwbft.StakerInfo(stateDB, v1.Staker.Address).TotalStaked)
-		require.Equal(t, calcRewardPerStaking, govwbft.StakerInfo(stateDB, v1.Staker.Address).AccRewardPerStaking)
-		require.Equal(t, rewardAmount, govwbft.StakerInfo(stateDB, v1.Staker.Address).LastRewardBalance)
-		require.Equal(t, minStaking, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator1.Address).StakingAmount)
-		require.Equal(t, 0, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator1.Address).PendingReward.Sign())
-		require.Equal(t, calcRewardPerStaking, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator1.Address).RewardPerStaking)
+		require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+		require.Equal(t, new(big.Int).Add(minStaking, minStaking), govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).TotalStaked)
+		require.Equal(t, calcRewardPerStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).AccRewardPerStaking)
+		require.Equal(t, rewardAmount, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).LastRewardBalance)
+		require.Equal(t, minStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator1.Address).StakingAmount)
+		require.Equal(t, 0, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator1.Address).PendingReward.Sign())
+		require.Equal(t, calcRewardPerStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator1.Address).RewardPerStaking)
 	})
 
 	t.Run("v1 claim reward", func(t *testing.T) {
@@ -1084,14 +1139,14 @@ func TestGovReward(t *testing.T) {
 		expectedBalance := towei(5)
 
 		// check list
-		require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
-		require.Equal(t, new(big.Int).Add(minStaking, minStaking), govwbft.StakerInfo(stateDB, v1.Staker.Address).TotalStaked)
-		require.Equal(t, calcRewardPerStaking, govwbft.StakerInfo(stateDB, v1.Staker.Address).AccRewardPerStaking)
-		require.Equal(t, expectedBalance, govwbft.StakerInfo(stateDB, v1.Staker.Address).LastRewardBalance)
-		require.Equal(t, minStaking, govwbft.UserInfo(stateDB, v1.Staker.Address, v1.Operator.Address).StakingAmount)
-		require.Equal(t, 0, govwbft.UserInfo(stateDB, v1.Staker.Address, v1.Operator.Address).PendingReward.Sign())
-		require.Equal(t, calcRewardPerStaking, govwbft.UserInfo(stateDB, v1.Staker.Address, v1.Operator.Address).RewardPerStaking)
+		require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+		require.Equal(t, new(big.Int).Add(minStaking, minStaking), govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).TotalStaked)
+		require.Equal(t, calcRewardPerStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).AccRewardPerStaking)
+		require.Equal(t, expectedBalance, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).LastRewardBalance)
+		require.Equal(t, minStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, v1.Staker.Address).StakingAmount)
+		require.Equal(t, 0, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, v1.Staker.Address).PendingReward.Sign())
+		require.Equal(t, calcRewardPerStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, v1.Staker.Address).RewardPerStaking)
 		afterBalance := g.balanceAt(t, ctx, v1.Operator.Address, nil)
 		require.Equal(t, expectedClaimed, afterBalance.Sub(afterBalance, beforeBalance).Add(afterBalance, gasCost))
 	})
@@ -1114,14 +1169,14 @@ func TestGovReward(t *testing.T) {
 		v2CalcRewardPerStaking := toRewardPerStaking(v2Reward, minStaking)
 
 		// check list
-		require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
-		require.Equal(t, new(big.Int).Add(minStaking, minStaking), govwbft.StakerInfo(stateDB, v2.Staker.Address).TotalStaked)
-		require.Equal(t, v2CalcRewardPerStaking, govwbft.StakerInfo(stateDB, v2.Staker.Address).AccRewardPerStaking)
-		require.Equal(t, v2Reward, govwbft.StakerInfo(stateDB, v2.Staker.Address).LastRewardBalance)
-		require.Equal(t, minStaking, govwbft.UserInfo(stateDB, v2.Staker.Address, delegator1.Address).StakingAmount)
-		require.Equal(t, 0, govwbft.UserInfo(stateDB, v2.Staker.Address, delegator1.Address).PendingReward.Sign())
-		require.Equal(t, v2CalcRewardPerStaking, govwbft.UserInfo(stateDB, v2.Staker.Address, delegator1.Address).RewardPerStaking)
+		require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+		require.Equal(t, new(big.Int).Add(minStaking, minStaking), govwbft.StakerInfo(TestGovStakingAddress, stateDB, v2.Staker.Address).TotalStaked)
+		require.Equal(t, v2CalcRewardPerStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v2.Staker.Address).AccRewardPerStaking)
+		require.Equal(t, v2Reward, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v2.Staker.Address).LastRewardBalance)
+		require.Equal(t, minStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v2.Staker.Address, delegator1.Address).StakingAmount)
+		require.Equal(t, 0, govwbft.UserInfo(TestGovStakingAddress, stateDB, v2.Staker.Address, delegator1.Address).PendingReward.Sign())
+		require.Equal(t, v2CalcRewardPerStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v2.Staker.Address, delegator1.Address).RewardPerStaking)
 	})
 
 	t.Run("delegator2 delegates to v1", func(t *testing.T) {
@@ -1145,14 +1200,14 @@ func TestGovReward(t *testing.T) {
 		v1Staking = v1Staking.Add(v1Staking, minStaking)
 
 		// check list
-		require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
-		require.Equal(t, v1Staking, govwbft.StakerInfo(stateDB, v1.Staker.Address).TotalStaked)
-		require.Equal(t, calcRewardPerStaking, govwbft.StakerInfo(stateDB, v1.Staker.Address).AccRewardPerStaking)
-		require.Equal(t, v1Reward, govwbft.StakerInfo(stateDB, v1.Staker.Address).LastRewardBalance)
-		require.Equal(t, minStaking, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator2.Address).StakingAmount)
-		require.Equal(t, 0, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator2.Address).PendingReward.Sign())
-		require.Equal(t, calcRewardPerStaking, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator2.Address).RewardPerStaking)
+		require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+		require.Equal(t, v1Staking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).TotalStaked)
+		require.Equal(t, calcRewardPerStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).AccRewardPerStaking)
+		require.Equal(t, v1Reward, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).LastRewardBalance)
+		require.Equal(t, minStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator2.Address).StakingAmount)
+		require.Equal(t, 0, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator2.Address).PendingReward.Sign())
+		require.Equal(t, calcRewardPerStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator2.Address).RewardPerStaking)
 	})
 
 	t.Run("delegator1 undelegates from v1", func(t *testing.T) {
@@ -1181,14 +1236,14 @@ func TestGovReward(t *testing.T) {
 		expectedReward := towei(25)
 
 		// check list
-		require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
-		require.Equal(t, v1Staking, govwbft.StakerInfo(stateDB, v1.Staker.Address).TotalStaked)
-		require.Equal(t, calcRewardPerStaking, govwbft.StakerInfo(stateDB, v1.Staker.Address).AccRewardPerStaking)
-		require.Equal(t, v1Reward, govwbft.StakerInfo(stateDB, v1.Staker.Address).LastRewardBalance)
-		require.Equal(t, 0, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator1.Address).StakingAmount.Sign())
-		require.Equal(t, expectedReward, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator1.Address).PendingReward)
-		require.Equal(t, calcRewardPerStaking, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator1.Address).RewardPerStaking)
+		require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+		require.Equal(t, v1Staking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).TotalStaked)
+		require.Equal(t, calcRewardPerStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).AccRewardPerStaking)
+		require.Equal(t, v1Reward, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).LastRewardBalance)
+		require.Equal(t, 0, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator1.Address).StakingAmount.Sign())
+		require.Equal(t, expectedReward, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator1.Address).PendingReward)
+		require.Equal(t, calcRewardPerStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator1.Address).RewardPerStaking)
 
 		// withdraw
 		beforeBalance := g.balanceAt(t, ctx, delegator1.Address, nil)
@@ -1232,17 +1287,17 @@ func TestGovReward(t *testing.T) {
 		totalStaking = totalStaking.Add(totalStaking, expectedClaimed)
 
 		// check list
-		require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
-		require.Equal(t, v1Staking, govwbft.StakerInfo(stateDB, v1.Staker.Address).TotalStaked)
-		require.Equal(t, calcRewardPerStaking, govwbft.StakerInfo(stateDB, v1.Staker.Address).AccRewardPerStaking)
-		require.Equal(t, expectedBalance, govwbft.StakerInfo(stateDB, v1.Staker.Address).LastRewardBalance)
-		require.Equal(t, expectedClaimed, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator1.Address).StakingAmount)
-		require.Equal(t, 0, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator1.Address).PendingReward.Sign())
-		require.Equal(t, calcRewardPerStaking, govwbft.UserInfo(stateDB, v1.Staker.Address, delegator1.Address).RewardPerStaking)
+		require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
+		require.Equal(t, v1Staking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).TotalStaked)
+		require.Equal(t, calcRewardPerStaking, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).AccRewardPerStaking)
+		require.Equal(t, expectedBalance, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).LastRewardBalance)
+		require.Equal(t, expectedClaimed, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator1.Address).StakingAmount)
+		require.Equal(t, 0, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator1.Address).PendingReward.Sign())
+		require.Equal(t, calcRewardPerStaking, govwbft.UserInfo(TestGovStakingAddress, stateDB, v1.Staker.Address, delegator1.Address).RewardPerStaking)
 		afterBalance := g.balanceAt(t, ctx, delegator1.Address, nil)
 		require.Equal(t, afterBalance, beforeBalance.Sub(beforeBalance, gasCost))
-		require.Equal(t, fee, g.balanceAt(t, ctx, govwbft.StakerInfo(stateDB, v1.Staker.Address).FeeRecipient, nil))
+		require.Equal(t, fee, g.balanceAt(t, ctx, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).FeeRecipient, nil))
 	})
 }
 
@@ -1273,7 +1328,7 @@ func TestGovChangeFeeRate(t *testing.T) {
 	}
 
 	checkFee := func(t *testing.T, staker common.Address, expectedFee *big.Int) {
-		require.Equal(t, expectedFee, govwbft.StakerInfo(stateDB, staker).FeeRate)
+		require.Equal(t, expectedFee, govwbft.StakerInfo(TestGovStakingAddress, stateDB, staker).FeeRate)
 	}
 
 	getConst := func(t *testing.T, method string) *big.Int {
@@ -1372,14 +1427,14 @@ func TestGovFeeRateConsistency(t *testing.T) {
 
 	claimAndCheck := func(t *testing.T, who *EOA, expectedClaimed *big.Int, expectedFee *big.Int) {
 		beforeBalance := g.balanceAt(t, ctx, who.Address, nil)
-		beforeFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(stateDB, v1.Staker.Address).FeeRecipient, nil)
+		beforeFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).FeeRecipient, nil)
 
 		receipt, err := g.ExpectedOk(g.Claim(t, who, v1.Staker.Address, false))
 		require.NoError(t, err)
 
 		gasCost := calcTxGasCost(receipt)
 		afterBalance := g.balanceAt(t, ctx, who.Address, nil)
-		afterFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(stateDB, v1.Staker.Address).FeeRecipient, nil)
+		afterFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).FeeRecipient, nil)
 
 		if expectedClaimed.Sign() == 0 {
 			require.Equal(t, 0, afterBalance.Sub(afterBalance, new(big.Int).Sub(beforeBalance, gasCost)).Sign())
@@ -1495,14 +1550,14 @@ func TestClaimForUnstakedStaker(t *testing.T) {
 
 	claimAndCheck := func(t *testing.T, who *EOA, expectedClaimed *big.Int, expectedFee *big.Int) {
 		beforeBalance := g.balanceAt(t, ctx, who.Address, nil)
-		beforeFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(stateDB, v1.Staker.Address).FeeRecipient, nil)
+		beforeFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).FeeRecipient, nil)
 
 		receipt, err := g.ExpectedOk(g.Claim(t, who, v1.Staker.Address, false))
 		require.NoError(t, err)
 
 		gasCost := calcTxGasCost(receipt)
 		afterBalance := g.balanceAt(t, ctx, who.Address, nil)
-		afterFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(stateDB, v1.Staker.Address).FeeRecipient, nil)
+		afterFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).FeeRecipient, nil)
 
 		if expectedClaimed.Sign() == 0 {
 			require.Equal(t, 0, afterBalance.Sub(afterBalance, new(big.Int).Sub(beforeBalance, gasCost)).Sign())
@@ -1567,7 +1622,7 @@ func TestClaimForUnstakedStaker(t *testing.T) {
 		require.NoError(t, err)
 
 		// check list
-		newStakers := govwbft.Stakers(stateDB)
+		newStakers := govwbft.Stakers(TestGovStakingAddress, stateDB)
 		require.Equal(t, 1, len(newStakers))
 		require.Equal(t, v1.Staker.Address, newStakers[0])
 	})
@@ -1623,14 +1678,14 @@ func TestZeroTotalStaking(t *testing.T) {
 
 	claimAndCheck := func(t *testing.T, who *EOA, expectedClaimed *big.Int, expectedFee *big.Int) {
 		beforeBalance := g.balanceAt(t, ctx, who.Address, nil)
-		beforeFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(stateDB, v1.Staker.Address).FeeRecipient, nil)
+		beforeFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).FeeRecipient, nil)
 
 		receipt, err := g.ExpectedOk(g.Claim(t, who, v1.Staker.Address, false))
 		require.NoError(t, err)
 
 		gasCost := calcTxGasCost(receipt)
 		afterBalance := g.balanceAt(t, ctx, who.Address, nil)
-		afterFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(stateDB, v1.Staker.Address).FeeRecipient, nil)
+		afterFeeBalance := g.balanceAt(t, ctx, govwbft.StakerInfo(TestGovStakingAddress, stateDB, v1.Staker.Address).FeeRecipient, nil)
 
 		if expectedClaimed.Sign() == 0 {
 			require.Equal(t, 0, afterBalance.Sub(afterBalance, new(big.Int).Sub(beforeBalance, gasCost)).Sign())
@@ -1682,7 +1737,7 @@ func TestZeroTotalStaking(t *testing.T) {
 		_, err = g.ExpectedOk(g.Withdraw(t, delegator1, common.Big0))
 		require.NoError(t, err)
 
-		stakingBalance := g.balanceAt(t, ctx, govwbft.GovStakingAddress, nil)
+		stakingBalance := g.balanceAt(t, ctx, TestGovStakingAddress, nil)
 		require.Equal(t, stakingBalance.Sign(), 0)
 	})
 
@@ -1756,30 +1811,17 @@ func TestZeroTotalStaking(t *testing.T) {
 }
 
 func TestSetCode(t *testing.T) {
-	var testSource string = `
-		pragma solidity ^0.8.0;
-		contract TestGovConst{
-			uint256 public constant minimumStaking     = 100000e18;
-			uint256 public constant maximumStaking     = type(uint128).max;
-			uint256 public constant unbondingPeriodStaker    = 3 hours;
-			uint256 public constant unbondingPeriodDelegator = 72 hours;
-			uint256 public constant feePrecision       = 100;
-			uint256 public constant rewardPrecision    = 1e18;
-			uint256 public constant changeFeeDelay     = 1 hours;
-			uint256 public constant minStakers         = 5;
-		}`
+	var testParams = map[string]string{
+		"minimumStaking":           "100000000000000000000000",
+		"maximumStaking":           "100000000000000000000000000",
+		"unbondingPeriodStaker":    "10800",  // 3 hours
+		"unbondingPeriodDelegator": "259200", // 3 days
+		"feePrecision":             "100",
+		"changeFeeDelay":           "3600", // 1 hour
+	}
 
 	var (
-		dir      = t.TempDir()
-		filename = "Test.sol"
-	)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, filename), []byte(testSource), 0700))
-	compiled, err := compile.Compile(dir, filepath.Join(dir, filename))
-	require.NoError(t, err)
-
-	var (
-		testGovConst = compiled["TestGovConst"].RuntimeCode
-
+		testVersion  = "test_version"
 		ctx          = context.TODO()
 		minStaking1  = towei(500000)
 		minStaking2  = towei(100000)
@@ -1792,6 +1834,9 @@ func TestSetCode(t *testing.T) {
 		ncp2 = NewTestStaker()
 		ncp3 = NewTestStaker()
 	)
+
+	// register upgrading contract
+	govwbft.GovContractCodes[govwbft.CONTRACT_GOV_CONFIG][testVersion] = govwbft.GovContractCodes[govwbft.CONTRACT_GOV_CONFIG][params.DefaultGovVersion]
 
 	// for duplicate test
 	ncpInput := []common.Address{ncp3.Operator.Address, ncp3.Operator.Address}
@@ -1813,12 +1858,12 @@ func TestSetCode(t *testing.T) {
 
 	t.Run("duplicated ncp", func(t *testing.T) {
 		ncps := []common.Address{ncp3.Operator.Address}
-		require.Equal(t, ncps, govwbft.NCPList(stateDB))
+		require.Equal(t, ncps, govwbft.NCPList(TestGovNCPAddress, stateDB))
 	})
 
 	t.Run("add staker", func(t *testing.T) {
-		require.True(t, govwbft.TotalStaking(stateDB).Sign() == 0)
-		require.True(t, len(govwbft.Stakers(stateDB)) == 0)
+		require.True(t, govwbft.TotalStaking(TestGovStakingAddress, stateDB).Sign() == 0)
+		require.True(t, len(govwbft.Stakers(TestGovStakingAddress, stateDB)) == 0)
 		beforeBalance := g.balanceAt(t, ctx, ncp1.Operator.Address, nil)
 
 		receipt, err := g.ExpectedOk(g.RegisterStaker(t, ncp1, minStaking1, feeRate1))
@@ -1826,8 +1871,8 @@ func TestSetCode(t *testing.T) {
 		stakers = append(stakers, ncp1.Staker.Address)
 		totalStaking.Add(totalStaking, minStaking1)
 
-		require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
+		require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
 
 		gasCost := calcTxGasCost(receipt)
 		expectedBalance := new(big.Int).Sub(beforeBalance, new(big.Int).Add(minStaking1, gasCost))
@@ -1846,9 +1891,13 @@ func TestSetCode(t *testing.T) {
 		)
 
 		// upgrade contract
-		g.backend.CommitWithState(params.StateTransition{
-			Codes: []params.CodeParam{{Address: govwbft.GovConfigAddress, Code: testGovConst}},
-		})
+		g.backend.CommitWithState(&params.GovContracts{
+			GovConfig: &params.GovContract{
+				Address: TestGovConfigAddress,
+				Version: testVersion,
+				Params:  testParams,
+			},
+		}, nil)
 	})
 
 	t.Run("retry add staker", func(t *testing.T) {
@@ -1868,17 +1917,28 @@ func TestSetCode(t *testing.T) {
 		stakers = append(stakers, ncp2.Staker.Address)
 		totalStaking.Add(totalStaking, minStaking2)
 
-		require.Equal(t, totalStaking, govwbft.TotalStaking(stateDB))
-		require.Equal(t, stakers, govwbft.Stakers(stateDB))
+		require.Equal(t, totalStaking, govwbft.TotalStaking(TestGovStakingAddress, stateDB))
+		require.Equal(t, stakers, govwbft.Stakers(TestGovStakingAddress, stateDB))
 
 		gasCost := calcTxGasCost(receipt)
 		expectedBalance := new(big.Int).Sub(beforeBalance, new(big.Int).Add(minStaking2, gasCost))
 		require.Equal(t, expectedBalance, g.balanceAt(t, ctx, ncp2.Operator.Address, nil))
 
 		// restore GovConfig
-		g.backend.CommitWithState(params.StateTransition{
-			Codes: []params.CodeParam{{Address: govwbft.GovConfigAddress, Code: govwbft.GovConfigContract}},
-		})
+		g.backend.CommitWithState(&params.GovContracts{
+			GovConfig: &params.GovContract{
+				Address: TestGovConfigAddress,
+				Version: govwbft.GOV_CONTRACT_VERSION_1,
+				Params: map[string]string{
+					govwbft.GOV_CONFIG_PARAM_MINIMUM_STAKING:     towei(500000).String(),
+					govwbft.GOV_CONFIG_PARAM_MAXIMUM_STAKING:     (new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))).String(),
+					govwbft.GOV_CONFIG_PARAM_UNBONDING_STAKER:    "604800",
+					govwbft.GOV_CONFIG_PARAM_UNBONDING_DELEGATOR: "259200",
+					govwbft.GOV_CONFIG_PARAM_FEE_PRECISION:       "10000",
+					govwbft.GOV_CONFIG_PARAM_CHANGE_FEE_DELAY:    "604800",
+				},
+			},
+		}, nil)
 	})
 }
 
@@ -1909,7 +1969,7 @@ func TestGovGetBls(t *testing.T) {
 	t.Run("Get BLS PublicKey", func(t *testing.T) {
 		expected, err := s1.GetBLSPublicKey()
 		require.NoError(t, err)
-		pubKeyFromState := govwbft.GetBLSPublicKey(stateDB, s1.Staker.Address)
+		pubKeyFromState := govwbft.GetBLSPublicKey(TestGovStakingAddress, stateDB, s1.Staker.Address)
 
 		actual, err := blst.PublicKeyFromBytes(pubKeyFromState)
 		require.NoError(t, err)
@@ -1921,7 +1981,7 @@ func TestGovGetBls(t *testing.T) {
 		receipt, err := g.ExpectedOk(g.Unstake(t, s1.Operator, minStaking))
 		require.NoError(t, err)
 
-		require.True(t, govwbft.TotalStaking(stateDB).Sign() == 0)
+		require.True(t, govwbft.TotalStaking(TestGovStakingAddress, stateDB).Sign() == 0)
 
 		unstakeEvent := findEvent("NewCredential", receipt.Logs)
 		require.NotNil(t, unstakeEvent)
@@ -1933,7 +1993,7 @@ func TestGovGetBls(t *testing.T) {
 
 		expected, err := s1.GetBLSPublicKey()
 		require.NoError(t, err)
-		pubKeyFromState := govwbft.GetBLSPublicKey(stateDB, s1.Staker.Address)
+		pubKeyFromState := govwbft.GetBLSPublicKey(TestGovStakingAddress, stateDB, s1.Staker.Address)
 
 		actual, err := blst.PublicKeyFromBytes(pubKeyFromState)
 		require.NoError(t, err)
@@ -1942,70 +2002,37 @@ func TestGovGetBls(t *testing.T) {
 	})
 }
 
-func TestGovStabilization(t *testing.T) {
-	var (
-		ctx        = context.TODO()
-		minStaking = towei(500000)
-		stakers    = make([]*TestStaker[*EOA], 0)
-		stakerLen  = 5
-		feeRate    = new(big.Int).SetUint64(100)
-	)
-
-	genesisAlloc := types.GenesisAlloc{}
-	for i := 0; i < stakerLen; i++ {
-		staker := NewTestStaker()
-		stakers = append(stakers, staker)
-		genesisAlloc[staker.Operator.Address] = types.Account{Balance: new(big.Int).Mul(MAX_UINT_128, common.Big2)}
-	}
-
-	g, err := NewGovWBFT(t, nil, genesisAlloc)
-	require.NoError(t, err)
-	setWbftGovConfig(g)
-	defer g.backend.Close()
-
-	stateDB := &TestStateDB{
-		getState: func(addr common.Address, hash common.Hash) (result common.Hash) {
-			value, _ := g.backend.Client().StorageAt(ctx, addr, hash, nil)
-			return common.BytesToHash(value)
+func setWbftGovConfig(g *GovWBFT) {
+	g.backend.CommitWithState(&params.GovContracts{
+		GovConfig: &params.GovContract{
+			Address: TestGovConfigAddress,
+			Version: govwbft.GOV_CONTRACT_VERSION_1,
+			Params: map[string]string{
+				govwbft.GOV_CONFIG_PARAM_MINIMUM_STAKING:     towei(500000).String(),
+				govwbft.GOV_CONFIG_PARAM_MAXIMUM_STAKING:     (new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))).String(),
+				govwbft.GOV_CONFIG_PARAM_UNBONDING_STAKER:    "604800",
+				govwbft.GOV_CONFIG_PARAM_UNBONDING_DELEGATOR: "259200",
+				govwbft.GOV_CONFIG_PARAM_FEE_PRECISION:       "10000",
+				govwbft.GOV_CONFIG_PARAM_CHANGE_FEE_DELAY:    "604800",
+			},
 		},
-	}
-
-	require.False(t, govwbft.IsAfterStabilization(stateDB))
-	for _, s := range stakers[1:] {
-		_, err := g.ExpectedOk(g.RegisterStaker(t, s, minStaking, feeRate))
-		require.NoError(t, err)
-	}
-	require.False(t, govwbft.IsAfterStabilization(stateDB))
-
-	_, err = g.ExpectedOk(g.RegisterStaker(t, stakers[0], minStaking, feeRate))
-	require.NoError(t, err)
-
-	require.True(t, govwbft.IsAfterStabilization(stateDB))
+	}, nil)
 }
 
-func setWbftGovConfig(g *GovWBFT) {
-	govParams := &params.GovParams{
-		MinimumStaking:     (*math.HexOrDecimal256)(towei(500000)),
-		MaximumStaking:     (*math.HexOrDecimal256)(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
-		UnbondingStaker:    604800,
-		UnbondingDelegator: 604800,
-		FeePrecision:       10000,
-		ChangeFeeDelay:     604800,
-		MinStakers:         5,
-	}
-	addr := govwbft.GovConfigAddress
-	g.backend.CommitWithState(params.StateTransition{
-		Codes: []params.CodeParam{
-			{Address: addr, Code: govwbft.GovConfigContract},
+func setWbftGovConfigWithGovCouncil(g *GovWBFT) {
+	g.backend.CommitWithState(&params.GovContracts{
+		GovConfig: &params.GovContract{
+			Address: TestGovConfigAddress,
+			Version: govwbft.GOV_CONTRACT_VERSION_1,
+			Params: map[string]string{
+				govwbft.GOV_CONFIG_PARAM_MINIMUM_STAKING:     towei(500000).String(),
+				govwbft.GOV_CONFIG_PARAM_MAXIMUM_STAKING:     (new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))).String(),
+				govwbft.GOV_CONFIG_PARAM_UNBONDING_STAKER:    "604800",
+				govwbft.GOV_CONFIG_PARAM_UNBONDING_DELEGATOR: "259200",
+				govwbft.GOV_CONFIG_PARAM_FEE_PRECISION:       "10000",
+				govwbft.GOV_CONFIG_PARAM_CHANGE_FEE_DELAY:    "604800",
+				govwbft.GOV_CONFIG_PARAM_GOV_COUNCIL:         TestGovNCPAddress.String(),
+			},
 		},
-		States: []params.StateParam{
-			{Address: addr, Key: common.BigToHash(big.NewInt(0)), Value: common.BigToHash((*big.Int)(govParams.MinimumStaking))},
-			{Address: addr, Key: common.BigToHash(big.NewInt(1)), Value: common.BigToHash((*big.Int)(govParams.MaximumStaking))},
-			{Address: addr, Key: common.BigToHash(big.NewInt(2)), Value: common.BigToHash(new(big.Int).SetUint64(govParams.UnbondingStaker))},
-			{Address: addr, Key: common.BigToHash(big.NewInt(3)), Value: common.BigToHash(new(big.Int).SetUint64(govParams.UnbondingDelegator))},
-			{Address: addr, Key: common.BigToHash(big.NewInt(4)), Value: common.BigToHash(new(big.Int).SetUint64(govParams.FeePrecision))},
-			{Address: addr, Key: common.BigToHash(big.NewInt(5)), Value: common.BigToHash(new(big.Int).SetUint64(govParams.ChangeFeeDelay))},
-			{Address: addr, Key: common.BigToHash(big.NewInt(6)), Value: common.BigToHash(new(big.Int).SetUint64(govParams.MinStakers))},
-		},
-	})
+	}, nil)
 }

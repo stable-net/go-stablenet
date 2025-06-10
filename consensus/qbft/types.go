@@ -25,7 +25,6 @@ package qbft
 import (
 	"bytes"
 	"fmt"
-
 	"io"
 	"math/big"
 	"sort"

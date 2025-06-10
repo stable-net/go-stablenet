@@ -10,22 +10,22 @@ const (
 	SLOT_NCP_LIST = "0x0" // ,0x1
 )
 
-func NCPLength(state StateReader) uint64 {
+func NCPLength(govNCPAddress common.Address, state StateReader) uint64 {
 	ncpSet := NewAddressSet(common.HexToHash(SLOT_NCP_LIST))
-	return ncpSet.Length(state, GovNCPAddress)
+	return ncpSet.Length(state, govNCPAddress)
 }
 
-func IsNCP(state StateReader, ncp common.Address) bool {
+func IsNCP(govNCPAddress common.Address, state StateReader, ncp common.Address) bool {
 	ncpSet := NewAddressSet(common.HexToHash(SLOT_NCP_LIST))
-	return ncpSet.Contains(state, GovNCPAddress, ncp)
+	return ncpSet.Contains(state, govNCPAddress, ncp)
 }
 
-func NCPList(state StateReader) []common.Address {
+func NCPList(govNCPAddress common.Address, state StateReader) []common.Address {
 	ncpSet := NewAddressSet(common.HexToHash(SLOT_NCP_LIST))
-	return ncpSet.Values(state, GovNCPAddress)
+	return ncpSet.Values(state, govNCPAddress)
 }
 
-func NCPAt(state StateReader, index *big.Int) common.Address {
+func NCPAt(govNCPAddress common.Address, state StateReader, index *big.Int) common.Address {
 	ncpSet := NewAddressSet(common.HexToHash(SLOT_NCP_LIST))
-	return ncpSet.At(state, GovNCPAddress, index)
+	return ncpSet.At(state, govNCPAddress, index)
 }

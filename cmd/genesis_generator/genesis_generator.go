@@ -154,11 +154,12 @@ func (g *genesisGenerator) wbftChainConfig() {
 		}
 	}
 
-	g.Genesis.Config.QBFT = params.DefaultQBFTConfig
+	g.Genesis.Config.MontBlancBlock = new(big.Int).SetUint64(0)
+	g.Genesis.Config.MontBlanc = params.DefaultMontBlancConfig
 
 	for i, val := range validators {
-		g.Genesis.Config.QBFT.Validators = append(g.Genesis.Config.QBFT.Validators, val)
-		g.Genesis.Config.QBFT.BLSPublicKeys = append(g.Genesis.Config.QBFT.BLSPublicKeys, blsPublicKeys[i])
+		g.Genesis.Config.MontBlanc.Init.Validators = append(g.Genesis.Config.MontBlanc.Init.Validators, val)
+		g.Genesis.Config.MontBlanc.Init.BLSPublicKeys = append(g.Genesis.Config.MontBlanc.Init.BLSPublicKeys, blsPublicKeys[i])
 	}
 
 	// you can add config file for static nodes if you want

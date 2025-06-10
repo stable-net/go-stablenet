@@ -42,6 +42,12 @@ var (
 
 type SignerFn func(data []byte) ([]byte, error)
 
+type Candidate struct {
+	Addr      common.Address
+	Power     *big.Int
+	Diligence uint64
+}
+
 type Engine struct {
 	cfg        *qbft.Config
 	signer     common.Address // Ethereum address of the signing key
@@ -56,6 +62,10 @@ func NewEngine(cfg *qbft.Config, signer common.Address, sign SignerFn) *Engine {
 		sign:       sign,
 		epochCache: lru.NewCache[uint64, *types.EpochInfo](inmemoryCache),
 	}
+}
+
+func mustHavePrevSeals(header *types.Header, config *params.ChainConfig) bool {
+	return header.Number.Cmp(config.MontBlancBlock) > 0 && header.Number.Cmp(common.Big1) > 0
 }
 
 func (e *Engine) Author(header *types.Header) (common.Address, error) {
@@ -284,7 +294,9 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 	}
 
 	// prev seals validation for monblanc block or first block after genesis is skipped because it's empty
-	if qbft.GetFirstWbftBlockNumber(chain.Config()).Cmp(header.Number) != 0 {
+	if mustHavePrevSeals(header, chain.Config()) {
+		// if montBlanc == 0: montBlanc+1(== 1) has no prev seals;
+		// if montBlanc > 0: montBlanc+1 has prev seals;
 		// Verify prevPreparedSeals and prevCommittedSeals
 		if err := e.verifyPrevSeals(header, parent, prevValidators); err != nil {
 			return err
@@ -444,11 +456,7 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 		header.Time = uint64(time.Now().Unix())
 	}
 
-	if qbft.GetFirstWbftBlockNumber(chain.Config()).Cmp(header.Number) == 0 {
-		// monblac hardFork block has empty prev seal
-		// validators will be written at FinalizeAndAssemble
-		return ApplyHeaderQBFTExtra(header)
-	} else {
+	if mustHavePrevSeals(header, chain.Config()) {
 		lastCanonicalHeader := chain.GetHeaderByNumber(header.Number.Uint64() - 1)
 		if lastCanonicalHeader.Number.Sign() == 0 {
 			return ApplyHeaderQBFTExtra(header)
@@ -474,6 +482,10 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 			header,
 			WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
 		)
+	} else {
+		// monblac hardFork block has empty prev seal
+		// next block of genesis montblanc block has empty prev seal
+		return ApplyHeaderQBFTExtra(header)
 	}
 }
 
@@ -496,72 +508,35 @@ func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyQBFTExtra {
 // GetStakers
 // If number of stakers >= minStakers (after stabilization stage), use staker list from gov.
 // If number of stakers < minStakers , use validator list (regarded as staker list) from previous epoch.
-func (e *Engine) GetStakers(config *params.ChainConfig, latestEpochInfo *types.EpochInfo, state govwbft.StateReader) ([]common.Address, bool) {
+func (e *Engine) GetStakers(config *params.ChainConfig, latestEpochInfo *types.EpochInfo, state govwbft.StateReader, num *big.Int) ([]common.Address, bool) {
 	var (
-		stakers      []common.Address
-		isStabilized bool
+		stakers     []common.Address
+		stabilizing bool = latestEpochInfo.Stabilizing
 	)
-	if state != nil && govwbft.IsAfterStabilization(state) {
-		if config.MontBlancBlock == nil {
-			// WBFT chain
-			stakers = govwbft.Stakers(state)
-		} else {
-			stakers = govwbft.NCPStakers(state)
-		}
-		isStabilized = true
+	govStakingAddress := config.MontBlanc.GetGovStakingAddress(num)
+	if e.cfg.GetConfig(num).UseNCP {
+		govNCPAddress := config.MontBlanc.GetGovNCPAddress(num)
+		stakers = govwbft.NCPStakers(govStakingAddress, govNCPAddress, state)
 	} else {
-		// epoch in a stabilization stage has the validator set which is same to the previous epoch
-		stakers = latestEpochInfo.GetValidators()
-		isStabilized = false
+		stakers = govwbft.Stakers(govStakingAddress, state)
+	}
+	if stabilizing {
+		if uint64(len(stakers)) >= e.cfg.StabilizingStakersThreshold {
+			// finally we have enough stakers to be stabilized!!
+			stabilizing = false
+		} else {
+			// epoch in a stabilization stage has the validator set which is same to the previous epoch
+			stakers = latestEpochInfo.GetValidators()
+		}
 	}
 
-	return stakers, isStabilized
+	return stakers, stabilizing
 }
 
 type stakerInfo struct {
 	isValidator  bool // in current epoch
 	wasValidator bool // in previous epoch
 	staker       *types.Staker
-}
-
-func checkMontBlancConfig(config *params.ChainConfig) error {
-	if config.MontBlanc == nil {
-		return errors.New("montblanc config is nil")
-	}
-	return nil
-}
-
-// The first set of validators for the MontBlanc Hardfork is defined in the MontBlanc Config
-func (e *Engine) createInitialEpochBlock(config *params.ChainConfig, header *types.Header, state govwbft.StateReader) (*types.EpochInfo, error) {
-	var newEpoch types.EpochInfo
-
-	// check montblanc config
-	if err := checkMontBlancConfig(config); err != nil {
-		log.Error("failed to create initial epoch block", "err", err)
-		return nil, err
-	}
-
-	stakers, blsPubKeys := e.cfg.Validators, e.cfg.BLSPublicKeys
-	// Init diligence score of every staker to DefaultDiligence.
-	newEpoch.Stakers = make([]*types.Staker, len(stakers))
-	for i, staker := range stakers {
-		newEpoch.Stakers[i] = &types.Staker{
-			Addr:      staker,
-			Diligence: types.DefaultDiligence,
-		}
-	}
-	newEpoch.Validators = e.decideValidators(header, stakers)
-	newEpoch.BLSPublicKeys = make([][]byte, len(newEpoch.Validators))
-	for i, validatorIdx := range newEpoch.Validators {
-		newEpoch.BLSPublicKeys[i] = blsPubKeys[validatorIdx]
-	}
-
-	log.Trace("update epoch info", "header.Number", header.Number, "validators", newEpoch.Validators)
-	for i, staker := range newEpoch.Stakers {
-		log.Trace(fmt.Sprintf("  - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
-	}
-
-	return &newEpoch, nil
 }
 
 // verifyHeader() must catch inconsistent seals before calling this.
@@ -578,7 +553,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 
 	// Generate initial epoch block if a transition occurs.
 	if config.MontBlancBlock != nil && header.Number.Cmp(config.MontBlancBlock) == 0 {
-		return e.createInitialEpochBlock(config, header, state)
+		return qbft.CreateInitialEpochInfo(config.MontBlanc)
 	}
 
 	proposedSealsInEpoch := make(map[common.Address]int)
@@ -671,8 +646,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	}
 
 	// set prior validator
-	firstEpochNum := qbft.GetFirstWbftBlockNumber(config)
-	if it.Number.Cmp(firstEpochNum) > 0 {
+	if it.Number.Cmp(config.MontBlancBlock) > 0 {
 		parent := chain.GetHeader(it.ParentHash, it.Number.Uint64()-1)
 		_, priorEpochInfo, err2 := e.GetEpochInfo(chain, parent, nil)
 		if err2 != nil {
@@ -725,7 +699,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	)
 
 	// Update epoch info.
-	newStakers, isStabilized := e.GetStakers(config, latestEpochInfo, state)
+	newStakers, stabilizing := e.GetStakers(config, latestEpochInfo, state, header.Number)
 	newEpoch.Stakers = make([]*types.Staker, len(newStakers))
 	for i, staker := range newStakers {
 		var d uint64
@@ -779,11 +753,24 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	}
 
 	// epoch in a stabilization stage has the validator set which is same to the previous epoch
-	if isStabilized {
-		newEpoch.Validators = e.decideValidators(header, newStakers)
+	if stabilizing {
+		newEpoch.Validators = latestEpochInfo.Validators
+		newEpoch.BLSPublicKeys = latestEpochInfo.BLSPublicKeys
+	} else {
+		govStakingAddress := config.MontBlanc.GetGovStakingAddress(header.Number)
+		candidates := make([]Candidate, 0, len(newStakers))
+		for _, s := range newEpoch.Stakers {
+			candidate := Candidate{
+				Addr:      s.Addr,
+				Diligence: s.Diligence,
+				Power:     govwbft.GetTotalStaked(govStakingAddress, state, s.Addr),
+			}
+			candidates = append(candidates, candidate)
+		}
+		newEpoch.Validators = e.decideValidators(header, candidates, e.cfg.GetConfig(header.Number).TargetValidators)
 		newEpoch.BLSPublicKeys = make([][]byte, len(newEpoch.Validators))
 		for i, addr := range newEpoch.GetValidators() {
-			pk := govwbft.GetBLSPublicKey(state, addr)
+			pk := govwbft.GetBLSPublicKey(govStakingAddress, state, addr)
 			if len(pk) == 0 {
 				err := errors.New("bls public key is zero")
 				log.Error("Invalid BLS Public Key", "err", err)
@@ -791,10 +778,8 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 			}
 			newEpoch.BLSPublicKeys[i] = pk
 		}
-	} else {
-		newEpoch.Validators = latestEpochInfo.Validators
-		newEpoch.BLSPublicKeys = latestEpochInfo.BLSPublicKeys
 	}
+	newEpoch.Stabilizing = stabilizing
 
 	log.Trace("update epoch info", "header.Number", header.Number, "validators", newEpoch.Validators)
 	for i, staker := range newEpoch.Stakers {
@@ -826,14 +811,14 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 		return err
 	}
 
-	if transitions := qbft.GetStateTransitions(chain.Config(), header.Number); len(transitions) > 0 {
-		for _, st := range transitions {
-			for _, c := range st.Codes {
-				state.SetCode(c.Address, hexutil.MustDecode(c.Code))
-			}
-			for _, s := range st.States {
-				state.SetState(s.Address, s.Key, s.Value)
-			}
+	if transition, err := qbft.GetMontBlancTransition(chain.Config(), header.Number); err != nil {
+		return err
+	} else if transition != nil {
+		for _, c := range transition.Codes {
+			state.SetCode(c.Address, hexutil.MustDecode(c.Code))
+		}
+		for _, s := range transition.States {
+			state.SetState(s.Address, s.Key, s.Value)
 		}
 	}
 
@@ -914,22 +899,13 @@ func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *b
 		epochInfo *types.EpochInfo
 		err       error
 	)
-	if qbft.GetFirstWbftBlockNumber(chainConfig).Cmp(blockNumber) == 0 {
+	if blockNumber.Cmp(chainConfig.MontBlancBlock) == 0 {
 		//montblanc hard fork validators from montblanc config
-		if chainConfig.MontBlancBlock != nil {
-			if err := checkMontBlancConfig(chainConfig); err != nil {
-				log.Error("failed to get epochInfo", "err", err)
-				return nil, err
-			}
-
-			vs := validator.NewSet(e.cfg.Validators, e.cfg.BLSPublicKeys, e.cfg.ProposerPolicy)
-			return vs, nil
-		}
-		_, epochInfo, err = e.extractEpochInfo(chain.GetHeaderByNumber(0))
-	} else {
-		_, epochInfo, err = e.getEpochInfo(chain, blockNumber, parentHash, parents)
+		vs := validator.NewSet(chainConfig.MontBlanc.Init.Validators, chainConfig.MontBlanc.GetInitialBLSPublicKeys(), e.cfg.ProposerPolicy)
+		return vs, nil
 	}
 
+	_, epochInfo, err = e.getEpochInfo(chain, blockNumber, parentHash, parents)
 	if err != nil {
 		log.Error("failed to get epochInfo", "err", err)
 		return nil, err
@@ -1034,7 +1010,7 @@ func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *sta
 	if chain.Config().IsBrioche(header.Number) {
 		blockReward = chain.Config().Brioche.GetBriocheBlockReward(params.DefaultBriocheBlockReward, header.Number)
 	} else {
-		blockReward = chain.Config().GetBlockReward(header.Number)
+		blockReward = chain.Config().MontBlanc.WBFT.GetBlockReward(header.Number)
 	}
 
 	// Deduct rewards of beneficiaries.
@@ -1061,9 +1037,10 @@ func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *sta
 		blockReward.Sub(blockReward, bReward)
 	}
 
+	govStakingAddress := chain.Config().MontBlanc.GetGovStakingAddress(header.Number)
 	getStakerInfo := func(addr common.Address) *govwbft.Staker {
 		// If the staker is removed from gov, use fallback staker info with zero staking.
-		if !govwbft.IsStaker(state, addr) {
+		if !govwbft.IsStaker(govStakingAddress, state, addr) {
 			log.Trace("QBFT: fallback staker info", "staker", addr)
 			return &govwbft.Staker{
 				Operator:    addr,
@@ -1073,7 +1050,7 @@ func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *sta
 			}
 		}
 
-		s := govwbft.StakerInfo(state, addr)
+		s := govwbft.StakerInfo(govStakingAddress, state, addr)
 		return &s
 	}
 
@@ -1168,11 +1145,27 @@ func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Hea
 	if len(epoch.Validators) != len(extra.EpochInfo.Validators) {
 		return errors.New("WBFT: mismatch in validator sizes")
 	}
-	for _, valIdx := range epoch.Validators {
-		if epoch.Stakers[valIdx].Addr != extra.EpochInfo.GetValidator(valIdx) {
+	for i := range extra.EpochInfo.Validators {
+		if epoch.Validators[i] != extra.EpochInfo.Validators[i] {
 			return errors.New("WBFT: The two validators do not match")
 		}
 	}
+
+	// Check BLS public keys.
+	if len(epoch.BLSPublicKeys) != len(extra.EpochInfo.BLSPublicKeys) {
+		return errors.New("WBFT: mismatch in BLS public key sizes")
+	}
+	for i, pk := range epoch.BLSPublicKeys {
+		if !bytes.Equal(pk, extra.EpochInfo.BLSPublicKeys[i]) {
+			return errors.New("WBFT: The two BLS public keys do not match")
+		}
+	}
+
+	// Check Stabilizing flag.
+	if epoch.Stabilizing != extra.EpochInfo.Stabilizing {
+		return errors.New("WBFT: mismatch in stabilizing flag")
+	}
+
 	return nil
 }
 
@@ -1183,7 +1176,7 @@ func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Hea
 // If number of stakers <= targetValidators, use staker list as it is.
 // If number of stakers > targetValidators, random selection from the list in VRF manner
 // depending on their staking amounts and diligence score.
-func (e *Engine) decideValidators(header *types.Header, newStakers []common.Address) []uint32 {
+func (e *Engine) decideValidators(header *types.Header, newStakers []Candidate, targetValidators uint64) []uint32 {
 	validators := make([]uint32, len(newStakers))
 
 	l := make([]uint32, len(validators))
@@ -1272,7 +1265,7 @@ func mergeSeals(seal *types.QBFTAggregatedSeal, extraSeals []qbft.SealData) *typ
 }
 
 func (e *Engine) GetEpochInfo(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (*big.Int, *types.EpochInfo, error) {
-	if qbft.GetFirstWbftBlockNumber(chain.Config()).Cmp(header.Number) == 0 {
+	if chain.Config().MontBlancBlock.Cmp(header.Number) == 0 {
 		if epochInfo, ok := e.epochCache.Get(header.Number.Uint64()); ok {
 			return header.Number, epochInfo, nil
 		}

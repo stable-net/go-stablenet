@@ -129,12 +129,15 @@ func (compiled compiledTy) BindContracts(pkg, filename string, contracts ...stri
 	return writeFile(filename, filedata)
 }
 
-func (compiled compiledTy) ExportContractCode(outDir string, contractName string) error {
-	contract, ok := compiled[contractName]
-	if !ok {
-		return fmt.Errorf("not found contract : %v", contractName)
+func (compiled compiledTy) ExportContractCode(outDir string, outFiles []string) error {
+	for _, outFileName := range outFiles {
+		contract := compiled[outFileName]
+		err := writeFile(filepath.Join(outDir, outFileName), []byte(contract.RuntimeCode))
+		if err != nil {
+			return fmt.Errorf("failed to write contract %s: %v", outFileName, err)
+		}
 	}
-	return writeFile(filepath.Join(outDir, contractName), []byte(contract.RuntimeCode))
+	return nil
 }
 
 func abiToString(contract *compiler.Contract) (abi string, err error) {

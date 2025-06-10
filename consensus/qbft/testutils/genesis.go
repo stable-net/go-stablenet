@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 )
 
 // ## Wemix QBFT START
@@ -29,8 +28,6 @@ func GenesisWithSeals(validators []common.Address, blsPublicKeys [][]byte) *core
 	// generate genesis block
 	genesis := core.DefaultGenesisBlock()
 	genesis.Config = params.TestQBFTChainConfig
-	// force enable QBFT engine
-	genesis.Config.QBFT = &params.QBFTConfig{}
 	genesis.Config.Ethash = nil
 	genesis.Difficulty = types.QBFTDefaultDifficulty
 	genesis.Nonce = qbftcommon.EmptyBlockNonce.Uint64()
@@ -48,9 +45,7 @@ func Genesis(validators []common.Address, blsPublicKeys [][]byte) *core.Genesis 
 	genesis.Difficulty = types.QBFTDefaultDifficulty
 	genesis.Nonce = qbftcommon.EmptyBlockNonce.Uint64()
 
-	// deploy governance contracts
-	genesis.Alloc[govwbft.GovConfigAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovConfigContract), Balance: common.Big0}
-	genesis.Alloc[govwbft.GovStakingAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract), Balance: common.Big0}
+	_ = core.InjectContracts(genesis, genesis.Config)
 
 	appendValidators(genesis, validators, blsPublicKeys)
 
@@ -131,7 +126,7 @@ func setQBFTExtra(genesis *core.Genesis, validators []common.Address, blsPublicK
 		epochInfo.BLSPublicKeys = append(epochInfo.BLSPublicKeys, blsPublicKeys[i])
 		blsPubKeys[i] = hexutil.Encode(blsPublicKeys[i])
 	}
-
+	epochInfo.Stabilizing = true
 	ist := &types.QBFTExtra{
 		VanityData:    vanity,
 		Round:         0,

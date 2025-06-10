@@ -57,15 +57,13 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 		Difficulty: new(big.Int).SetUint64(1),
 		BaseFee:    big.NewInt(1000000000),
 	}
-	ethConf.Istanbul.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
-	ethConf.Genesis.Config.QBFT.BlockPeriodSeconds = 1
-	ethConf.Genesis.Config.QBFT.EpochLength = 1000
-	ethConf.Genesis.Config.QBFT.GovParams.MinStakers = 999
 	validator := crypto.PubkeyToAddress(nodeConf.P2P.PrivateKey.PublicKey)
 	blsKey, _ := bls.DeriveFromECDSA(nodeConf.P2P.PrivateKey)
 	blsPubKey := blsKey.PublicKey().Marshal()
-	ethConf.Genesis.Config.QBFT.Validators = []common.Address{validator}
-	ethConf.Genesis.Config.QBFT.BLSPublicKeys = []string{hexutil.Encode(blsPubKey)}
+
+	ethConf.Genesis.Config.MontBlanc.Init.Validators = []common.Address{validator}
+	ethConf.Genesis.Config.MontBlanc.Init.BLSPublicKeys = []string{hexutil.Encode(blsPubKey)}
+	ethConf.Istanbul.AllowedFutureBlockTime = 3153600000           // disable time verification of a block ( == 100 years )
 	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey) // simulated chain block
 	ethConf.SyncMode = downloader.FullSync
 	ethConf.Miner.GasPrice = big.NewInt(1)
@@ -98,6 +96,7 @@ func genExtraData(validator common.Address, blsPubKey []byte) []byte {
 			Stakers: []*types.Staker{
 				{Addr: validator, Diligence: types.DefaultDiligence},
 			},
+			Stabilizing:   true,
 			Validators:    []uint32{0},
 			BLSPublicKeys: [][]byte{blsPubKey},
 		},
@@ -110,6 +109,9 @@ func genExtraData(validator common.Address, blsPubKey []byte) []byte {
 // newWithNode sets up a simulated backend on an existing node. The provided node
 // must not be started and will be started by this method.
 func newWbftWithNode(stack *node.Node, conf *eth.Config) (*WbftBackend, error) {
+	if err := conf.Genesis.Config.MontBlanc.CheckValidity(); err != nil {
+		return nil, err
+	}
 	backend, err := eth.New(stack, conf)
 	if err != nil {
 		return nil, err
@@ -171,8 +173,8 @@ func (n *WbftBackend) Commit() common.Hash {
 	return n.eth.Miner().CommitSimulated()
 }
 
-func (n *WbftBackend) CommitWithState(transition params.StateTransition) common.Hash {
-	return n.eth.Miner().CommitSimulatedWithState(transition)
+func (n *WbftBackend) CommitWithState(upgradeContracts *params.GovContracts, num *big.Int) common.Hash {
+	return n.eth.Miner().CommitSimulatedWithState(upgradeContracts, num)
 }
 
 func (n *WbftBackend) AdjustTime(duration time.Duration) common.Hash {

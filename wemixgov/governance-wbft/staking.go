@@ -8,13 +8,14 @@ import (
 
 // staker state
 const (
-	SLOT_TOTAL_STAKING       = "0x0"
-	SLOT_STAKER_SET          = "0x1" // ,0x2
-	SLOT_STAKER_INFO         = "0x3"
-	SLOT_STAKER_BY_OPERATOR  = "0x4"
-	SLOT_USER_REWARD_INFO    = "0x9"
-	SLOT_DANGLING_DELEGATED  = "0xa"
-	SLOT_AFTER_STABILIZATION = "0xb"
+	SLOT_GOV_CONFIG_ADDRESS       = "0x0"
+	SLOT_GOV_REWARDEE_IMP_ADDRESS = "0x1"
+	SLOT_TOTAL_STAKING            = "0x2"
+	SLOT_STAKER_SET               = "0x3"
+	SLOT_STAKER_INFO              = "0x5"
+	SLOT_STAKER_BY_OPERATOR       = "0x6"
+	SLOT_USER_REWARD_INFO         = "0xb"
+	SLOT_DANGLING_DELEGATED       = "0xc"
 )
 
 type Staker struct {
@@ -50,102 +51,98 @@ const (
 	StakerInfo_LastRewardBalance
 )
 
-func IsAfterStabilization(state StateReader) bool {
-	return state.GetState(GovStakingAddress, common.HexToHash(SLOT_AFTER_STABILIZATION)).Big().Sign() > 0
+func TotalStaking(govStakingAddress common.Address, state StateReader) *big.Int {
+	return state.GetState(govStakingAddress, common.HexToHash(SLOT_TOTAL_STAKING)).Big()
 }
 
-func TotalStaking(state StateReader) *big.Int {
-	return state.GetState(GovStakingAddress, common.HexToHash(SLOT_TOTAL_STAKING)).Big()
+func DanglingDelegated(govStakingAddress common.Address, state StateReader) *big.Int {
+	return state.GetState(govStakingAddress, common.HexToHash(SLOT_DANGLING_DELEGATED)).Big()
 }
 
-func DanglingDelegated(state StateReader) *big.Int {
-	return state.GetState(GovStakingAddress, common.HexToHash(SLOT_DANGLING_DELEGATED)).Big()
-}
-
-func StakerLength(state StateReader) uint64 {
+func StakerLength(govStakingAddress common.Address, state StateReader) uint64 {
 	stakerSet := NewAddressSet(common.HexToHash(SLOT_STAKER_SET))
-	return stakerSet.Length(state, GovStakingAddress)
+	return stakerSet.Length(state, govStakingAddress)
 }
 
-func IsStaker(state StateReader, staker common.Address) bool {
+func IsStaker(govStakingAddress common.Address, state StateReader, staker common.Address) bool {
 	stakerSet := NewAddressSet(common.HexToHash(SLOT_STAKER_SET))
-	return stakerSet.Contains(state, GovStakingAddress, staker)
+	return stakerSet.Contains(state, govStakingAddress, staker)
 }
 
-func Stakers(state StateReader) []common.Address {
+func Stakers(govStakingAddress common.Address, state StateReader) []common.Address {
 	stakerSet := NewAddressSet(common.HexToHash(SLOT_STAKER_SET))
-	return stakerSet.Values(state, GovStakingAddress)
+	return stakerSet.Values(state, govStakingAddress)
 }
 
-func StakerAt(state StateReader, index *big.Int) common.Address {
+func StakerAt(govStakingAddress common.Address, state StateReader, index *big.Int) common.Address {
 	stakerSet := NewAddressSet(common.HexToHash(SLOT_STAKER_SET))
-	return stakerSet.At(state, GovStakingAddress, index)
+	return stakerSet.At(state, govStakingAddress, index)
 }
 
-func StakerByOperator(state StateReader, operator common.Address) common.Address {
-	staker := state.GetState(GovStakingAddress, CalculateMappingSlot(common.HexToHash(SLOT_STAKER_BY_OPERATOR), operator))
+func StakerByOperator(govStakingAddress common.Address, state StateReader, operator common.Address) common.Address {
+	staker := state.GetState(govStakingAddress, CalculateMappingSlot(common.HexToHash(SLOT_STAKER_BY_OPERATOR), operator))
 	return HashToAddress(staker)
 }
 
-func StakerInfo(state StateReader, staker common.Address) Staker {
+func StakerInfo(govStakingAddress common.Address, state StateReader, staker common.Address) Staker {
 	baseSlot := stakerInfoSlot(staker)
 
 	stakerInfo := Staker{
-		Operator:            getOperator(state, baseSlot),
-		Rewardee:            HashToAddress(state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_Rewardee)))),
-		FeeRecipient:        HashToAddress(state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_FeeRecipient)))),
-		BLSPublicKey:        getBLSPublicKey(state, baseSlot),
-		FeeRate:             state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_FeeRate))).Big(),
-		TotalStaked:         state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_TotalStaked))).Big(),
-		AccRewardPerStaking: state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_AccRewardPerStaking))).Big(),
-		AccFeePerStaking:    state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_AccFeePerStaking))).Big(),
-		LastRewardBalance:   state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_LastRewardBalance))).Big(),
+		Operator:            getOperator(govStakingAddress, state, baseSlot),
+		Rewardee:            HashToAddress(state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_Rewardee)))),
+		FeeRecipient:        HashToAddress(state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_FeeRecipient)))),
+		BLSPublicKey:        getBLSPublicKey(govStakingAddress, state, baseSlot),
+		FeeRate:             state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_FeeRate))).Big(),
+		TotalStaked:         state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_TotalStaked))).Big(),
+		AccRewardPerStaking: state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_AccRewardPerStaking))).Big(),
+		AccFeePerStaking:    state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_AccFeePerStaking))).Big(),
+		LastRewardBalance:   state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_LastRewardBalance))).Big(),
 	}
-	userInfo := UserInfo(state, staker, stakerInfo.Operator)
+	userInfo := UserInfo(govStakingAddress, state, staker, staker)
 	x := new(big.Int).Set(stakerInfo.TotalStaked)
 	stakerInfo.Delegated = x.Sub(x, userInfo.StakingAmount)
 	return stakerInfo
 }
 
-func UserInfo(state StateReader, staker common.Address, user common.Address) UserRewardInfo {
+func UserInfo(govStakingAddress common.Address, state StateReader, staker common.Address, user common.Address) UserRewardInfo {
 	baseSlot := userInfoSlot(staker, user)
 
 	return UserRewardInfo{
-		StakingAmount:    state.GetState(GovStakingAddress, baseSlot).Big(),
-		PendingReward:    state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(1))).Big(),
-		PendingFee:       state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(2))).Big(),
-		RewardPerStaking: state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(3))).Big(),
-		FeePerStaking:    state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(4))).Big(),
+		StakingAmount:    state.GetState(govStakingAddress, baseSlot).Big(),
+		PendingReward:    state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(1))).Big(),
+		PendingFee:       state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(2))).Big(),
+		RewardPerStaking: state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(3))).Big(),
+		FeePerStaking:    state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(4))).Big(),
 	}
 }
 
-func StakerInfoMap(state StateReader) map[common.Address]Staker {
+func StakerInfoMap(govStakingAddress common.Address, state StateReader) map[common.Address]Staker {
 	stakerInfos := make(map[common.Address]Staker)
-	stakers := Stakers(state)
+	stakers := Stakers(govStakingAddress, state)
 	for _, v := range stakers {
-		stakerInfos[v] = StakerInfo(state, v)
+		stakerInfos[v] = StakerInfo(govStakingAddress, state, v)
 	}
 	return stakerInfos
 }
 
-func GetTotalStaked(state StateReader, staker common.Address) *big.Int {
-	return getTotalStaked(state, stakerInfoSlot(staker))
+func GetTotalStaked(govStakingAddress common.Address, state StateReader, staker common.Address) *big.Int {
+	return getTotalStaked(govStakingAddress, state, stakerInfoSlot(staker))
 }
 
-func GetBLSPublicKey(state StateReader, staker common.Address) []byte {
-	return getBLSPublicKey(state, stakerInfoSlot(staker))
+func GetBLSPublicKey(govStakingAddress common.Address, state StateReader, staker common.Address) []byte {
+	return getBLSPublicKey(govStakingAddress, state, stakerInfoSlot(staker))
 }
 
-func getOperator(state StateReader, baseSlot common.Hash) common.Address {
-	return HashToAddress(state.GetState(GovStakingAddress, baseSlot))
+func getOperator(govStakingAddress common.Address, state StateReader, baseSlot common.Hash) common.Address {
+	return HashToAddress(state.GetState(govStakingAddress, baseSlot))
 }
 
-func getTotalStaked(state StateReader, baseSlot common.Hash) *big.Int {
-	return state.GetState(GovStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_TotalStaked))).Big()
+func getTotalStaked(govStakingAddress common.Address, state StateReader, baseSlot common.Hash) *big.Int {
+	return state.GetState(govStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_TotalStaked))).Big()
 }
 
-func getBLSPublicKey(state StateReader, baseSlot common.Hash) []byte {
-	return GetBytes(state, GovStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_BLSPublicKey)))
+func getBLSPublicKey(govStakingAddress common.Address, state StateReader, baseSlot common.Hash) []byte {
+	return GetBytes(state, govStakingAddress, IncrementHash(baseSlot, big.NewInt(StakerInfo_BLSPublicKey)))
 }
 
 func stakerInfoSlot(staker common.Address) common.Hash {

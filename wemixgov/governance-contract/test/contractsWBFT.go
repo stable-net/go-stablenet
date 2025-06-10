@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -22,11 +21,17 @@ import (
 )
 
 var (
+	TestGovConfigAddress  = params.DefaultGovConfigAddress
+	TestGovStakingAddress = params.DefaultGovStakingAddress
+	TestGovNCPAddress     = params.DefaultGovNCPAddress
+)
+
+var (
 	compiledWBFT compiledContractWBFT
 )
 
 func init() {
-	compiledWBFT.Compile("../contracts-wbft", "../contracts")
+	compiledWBFT.Compile("../contracts-wbft/v1", "../contracts")
 }
 
 type compiledContractWBFT struct {
@@ -68,6 +73,17 @@ type GovWBFT struct {
 
 var defaultBlockPeriod time.Duration
 
+func toNCPsString(ncpList []common.Address) string {
+	ncpStr := ""
+	for _, ncp := range ncpList {
+		if ncpStr != "" {
+			ncpStr += ","
+		}
+		ncpStr += ncp.Hex()
+	}
+	return ncpStr
+}
+
 func NewGovWBFT(t *testing.T, ncpList []common.Address, alloc types.GenesisAlloc) (*GovWBFT, error) {
 	owner := getTxOpt(t, "owner")
 
@@ -75,26 +91,29 @@ func NewGovWBFT(t *testing.T, ncpList []common.Address, alloc types.GenesisAlloc
 		alloc = make(types.GenesisAlloc)
 	}
 	alloc[owner.From] = types.Account{Balance: MAX_UINT_128}
-	alloc[govwbft.GovConfigAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovConfigContract)}
-	alloc[govwbft.GovStakingAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovStakingContract)}
-	alloc[govwbft.GovRewardeeImpAddress] = types.Account{Code: hexutil.MustDecode(govwbft.GovRewardeeImpContract)}
 
 	g := &GovWBFT{
 		owner: owner,
 		backend: simulated.NewWbftBackend(alloc, func(nodeConf *node.Config, ethConf *ethconfig.Config) {
-			defaultBlockPeriod = time.Duration(ethConf.Genesis.Config.QBFT.BlockPeriodSeconds) * time.Second
+			ethConf.Genesis.Config.MontBlanc.WBFT.UseNCP = len(ncpList) > 0
+			defaultBlockPeriod = time.Duration(ethConf.Genesis.Config.MontBlanc.WBFT.BlockPeriodSeconds) * time.Second
 		}),
 	}
 	if len(ncpList) > 0 {
-		g.backend.CommitWithState(params.StateTransition{
-			Codes:  []params.CodeParam{{Address: govwbft.GovNCPAddress, Code: govwbft.GovNCPContract}},
-			States: govwbft.InitializeNCP(ncpList),
-		})
+		g.backend.CommitWithState(&params.GovContracts{
+			GovNCP: &params.GovContract{
+				Address: TestGovNCPAddress,
+				Version: govwbft.GOV_CONTRACT_VERSION_1,
+				Params: map[string]string{
+					"ncps": toNCPsString(ncpList),
+				},
+			},
+		}, nil)
+		g.ncpContract = compiledWBFT.GovNCP.New(g.backend.Client(), TestGovNCPAddress)
 	}
 
-	g.govConst = compiledWBFT.GovConst.New(g.backend.Client(), govwbft.GovConfigAddress)
-	g.stakingContract = compiledWBFT.GovStaking.New(g.backend.Client(), govwbft.GovStakingAddress)
-	g.ncpContract = compiledWBFT.GovNCP.New(g.backend.Client(), govwbft.GovNCPAddress)
+	g.govConst = compiledWBFT.GovConst.New(g.backend.Client(), TestGovConfigAddress)
+	g.stakingContract = compiledWBFT.GovStaking.New(g.backend.Client(), TestGovStakingAddress)
 	return g, nil
 }
 
@@ -130,6 +149,10 @@ func (g *GovWBFT) Stake(t *testing.T, operator *EOA, amount *big.Int) (*types.Tr
 
 func (g *GovWBFT) Unstake(t *testing.T, operator *EOA, amount *big.Int) (*types.Transaction, error) {
 	return g.stakingContractTx(t, "unstake", operator, nil, amount)
+}
+
+func (g *GovWBFT) TransferOperatorShip(t *testing.T, sender *EOA, newOperator common.Address) (*types.Transaction, error) {
+	return g.stakingContractTx(t, "transferOperatorShip", sender, nil, newOperator)
 }
 
 func (g *GovWBFT) Delegate(t *testing.T, delegator *EOA, staker common.Address, amount *big.Int) (*types.Transaction, error) {
@@ -175,6 +198,10 @@ func (g *GovWBFT) NewProposalToAddNCP(t *testing.T, proposer *EOA, ncp common.Ad
 
 func (g *GovWBFT) NewProposalToRemoveNCP(t *testing.T, proposer *EOA, ncp common.Address) (*types.Transaction, error) {
 	return g.ncpContractTx(t, "newProposalToRemoveNCP", proposer, nil, ncp)
+}
+
+func (g *GovWBFT) NewProposalEmergencyMode(t *testing.T, proposer *EOA, mode bool) (*types.Transaction, error) {
+	return g.ncpContractTx(t, "newProposalEmergencyMode", proposer, nil, mode)
 }
 
 func (g *GovWBFT) ChangeNCP(t *testing.T, ncp *EOA, newNCP common.Address) (*types.Transaction, error) {

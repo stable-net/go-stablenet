@@ -30,7 +30,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	qbft "github.com/ethereum/go-ethereum/consensus/qbft"
 	qbftcommon "github.com/ethereum/go-ethereum/consensus/qbft/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -303,7 +302,7 @@ func DecodeVanityData(vanity []byte) string {
 func (api *API) GetWbftExtraInfo(number rpc.BlockNumber) (map[string]interface{}, error) {
 	bNumber := big.NewInt(int64(number))
 
-	if qbft.GetFirstWbftBlockNumber(api.chain.Config()).Cmp(bNumber) > 0 {
+	if !api.chain.Config().IsMontBlanc(bNumber) {
 		return nil, qbftcommon.ErrIsNotWBFTBlock
 	}
 

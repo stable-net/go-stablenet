@@ -268,11 +268,11 @@ func (miner *Miner) CommitSimulatedWithPeriod(duration time.Duration) common.Has
 	return miner.worker.simSyncer.commitWithPeriod(duration)
 }
 
-func (miner *Miner) CommitSimulatedWithState(transition params.StateTransition) common.Hash {
+func (miner *Miner) CommitSimulatedWithState(upgradeContracts *params.GovContracts, num *big.Int) common.Hash {
 	if !miner.worker.config.SimulatedEnabled {
 		panic("only simulated")
 	}
-	return miner.worker.simSyncer.commitWithState(transition)
+	return miner.worker.simSyncer.commitWithState(upgradeContracts, num)
 }
 
 func (miner *Miner) InjectSimApplierTo(engine *qbftBackend.Backend) {

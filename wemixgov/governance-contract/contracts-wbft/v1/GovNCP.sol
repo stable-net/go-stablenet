@@ -3,8 +3,9 @@
 pragma solidity 0.8.14;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {IGovCouncil} from "./IGovCouncil.sol";
 
-contract GovNCP {
+contract GovNCP is IGovCouncil {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     enum Decision {
@@ -24,7 +25,9 @@ contract GovNCP {
     enum ProposalType {
         None,
         NCPAdd,
-        NCPRemoval
+        NCPRemoval,
+        EmergencyMode,
+        ReleaseEmergencyMode
     }
 
     struct Proposal {
@@ -42,11 +45,19 @@ contract GovNCP {
 
     uint256 public constant VOTING_PERIOD = 1 weeks;
 
-    EnumerableSet.AddressSet private __ncpList;
+    EnumerableSet.AddressSet private __ncpList; // staker operator addresses
 
     uint256 public currentProposalID;
     mapping(uint256 => Proposal) private __proposals;
     mapping(address => bool) private __lockedNCPs;
+
+    bool public emergencyMode;
+
+    //***********************************************************************
+    //* Caution for Upgrading
+    //* - If you add new state variables, please add them after this comment
+    //* - Never modify existing state variables
+    //***********************************************************************
 
     event NewProposal(uint256 indexed id, uint256 proposalType, address ncp, address proposer, uint256 time, uint256 endtime);
     event Vote(uint256 indexed proposalID, address voter, bool accept);
@@ -60,6 +71,11 @@ contract GovNCP {
     modifier onlyNCP() {
         require(__ncpList.contains(msg.sender), "msg.sender is not ncp");
         _;
+    }
+
+    function inspectOperation(bytes4 selector, address _sender, bytes memory arguments) external view override returns (bool) {
+        // in NCP governance, we do not restrict any operations if not in emergency mode
+        return !emergencyMode;
     }
 
     function isNCP(address _ncp) external view returns (bool) {
@@ -82,6 +98,16 @@ contract GovNCP {
         if (msg.sender == _ncp) {
             Proposal storage _proposal = _getVotingProposal(currentProposalID);
             _finalizeProposal(_proposal, true);
+        }
+    }
+
+    function newProposalEmergencyMode(bool toMode) external onlyNCP {
+        require(emergencyMode != toMode, "already in the mode");
+
+        if (toMode) {
+            _newProposal(address(0), ProposalType.EmergencyMode);
+        } else {
+            _newProposal(address(0), ProposalType.ReleaseEmergencyMode);
         }
     }
 
@@ -161,9 +187,13 @@ contract GovNCP {
             if (_proposal.proposalType == ProposalType.NCPAdd) {
                 __ncpList.add(_proposal.targetNCP);
                 emit NCPAdded(_proposal.targetNCP);
-            } else {
+            } else if (_proposal.proposalType == ProposalType.NCPRemoval) {
                 __ncpList.remove(_proposal.targetNCP);
                 emit NCPRemoved(_proposal.targetNCP);
+            } else if (_proposal.proposalType == ProposalType.EmergencyMode) {
+                emergencyMode = true;
+            } else if (_proposal.proposalType == ProposalType.ReleaseEmergencyMode) {
+                emergencyMode = false;
             }
             _proposal.state = ProposalState.Accepted;
         } else {

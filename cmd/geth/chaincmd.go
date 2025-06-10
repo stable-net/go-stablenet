@@ -221,7 +221,14 @@ func initGenesis(ctx *cli.Context) error {
 	}
 
 	// Check sanity for QBFT.
-	checkSanityQBFT(genesis.Config, genesis.Alloc)
+	if genesis.Config.MontBlancEnabled() {
+		if err := genesis.Config.MontBlanc.CheckValidity(); err != nil {
+			utils.Fatalf("Invalid genesis config: %v", err)
+		}
+		if err := checkAllocAddress(genesis); err != nil {
+			utils.Fatalf("Invalid genesis alloc: %v", err)
+		}
+	}
 
 	for _, name := range []string{"chaindata", "lightchaindata"} {
 		chaindb, err := stack.OpenDatabaseWithFreezer(name, 0, 0, ctx.String(utils.AncientFlag.Name), "", false)
@@ -238,6 +245,28 @@ func initGenesis(ctx *cli.Context) error {
 			utils.Fatalf("Failed to write genesis block: %v", err)
 		}
 		log.Info("Successfully wrote genesis state", "database", name, "hash", hash)
+	}
+	return nil
+}
+
+func checkAllocAddress(genesis *core.Genesis) error {
+	if genesis.Alloc != nil && genesis.Config.MontBlancEnabled() {
+		forbidden := []common.Address{
+			genesis.Config.MontBlanc.Init.GovContracts.GovConfig.Address,
+			genesis.Config.MontBlanc.Init.GovContracts.GovStaking.Address,
+			genesis.Config.MontBlanc.Init.GovContracts.GovRewardeeImp.Address,
+		}
+		if genesis.Config.MontBlanc.Init.GovContracts.GovNCP != nil {
+			forbidden = append(forbidden, genesis.Config.MontBlanc.Init.GovContracts.GovNCP.Address)
+		}
+		for _, addr := range forbidden {
+			if _, exists := genesis.Alloc[addr]; exists {
+				log.Crit(
+					"genesis.json must NOT include an allocation for %s; remove it before geth init",
+					addr.Hex(),
+				)
+			}
+		}
 	}
 	return nil
 }

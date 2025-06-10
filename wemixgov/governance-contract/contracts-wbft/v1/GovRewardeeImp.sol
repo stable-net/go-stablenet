@@ -5,7 +5,13 @@ pragma solidity 0.8.14;
 import "./IFeeRecipient.sol";
 
 contract GovRewardeeImp {
-    address public constant GOV_STAKING = address(0x1001);
+    address public govStaking;
+
+    //***********************************************************************
+    //* Caution for Upgrading
+    //* - If you add new state variables, please add them after this comment
+    //* - Never modify existing state variables
+    //***********************************************************************
 
     event RewardPaid(address indexed recipient, uint256 amount);
     event FeePaid(address indexed recipient, uint256 amount);
@@ -13,8 +19,13 @@ contract GovRewardeeImp {
     receive() external payable {}
 
     modifier onlyGovStaking() {
-        require(msg.sender == address(GOV_STAKING), "GovRewardee: caller is not the GovStaking contract");
+        require(msg.sender == address(govStaking), "GovRewardee: caller is not the GovStaking contract");
         _;
+    }
+
+    function initialize(address _govStaking) external {
+        require(govStaking == address(0), "GovRewardee: already initialized");
+        govStaking = _govStaking;
     }
 
     function sendRewardTo(address payable recipient, uint256 amount) external onlyGovStaking {

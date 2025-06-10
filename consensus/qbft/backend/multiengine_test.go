@@ -58,7 +58,6 @@ func MakeMultiEngineTestEnv(n int) (env *testEnv) {
 	config.Epoch = 4
 	config.RequestTimeout = 2000
 	config.MaxRequestTimeoutSeconds = 2
-	config.GovParams.MinStakers = 1
 	config.AllowedFutureBlockTime = 100000000 // to skip future block check; this makes block creation time to be very short
 
 	env.addrs = make([]common.Address, n)
@@ -151,7 +150,6 @@ func (env *testEnv) commitNewWork() {
 		block := makeBlockNoNewChainHead(chain, engine, chain.CurrentFullBlock())
 		currState, _ := chain.State()
 		block, _ = engine.FinalizeAndAssemble(chain, block.Header(), currState, nil, nil, nil, nil)
-
 		// all engines try to seal
 		engine.Seal(chain, block, env.results[engine.address], env.stopSealingCh)
 	}

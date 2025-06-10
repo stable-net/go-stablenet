@@ -68,7 +68,8 @@ var (
 		VerkleTime:          nil,
 		PangyoBlock:         big.NewInt(0),
 		ApplepieBlock:       big.NewInt(20_476_911),
-		BriocheBlock:        big.NewInt(53_525_500), // target date: 24-07-01 00:00:00 (GMT+09)
+		BriocheBlock:        big.NewInt(53_525_500),  // target date: 24-07-01 00:00:00 (GMT+09)
+		MontBlancBlock:      big.NewInt(100_000_000), // TODO: decide the block number
 		Ethash:              new(EthashConfig),
 		Brioche: &BriocheConfig{
 			BlockReward:       big.NewInt(1e18),
@@ -78,30 +79,59 @@ var (
 			HalvingTimes:      16,
 			HalvingRate:       50,
 		},
-		MontBlancBlock: big.NewInt(100_000_000), // TODO: decide montblanc hard fork date; this is just for test on mainnet
-		QBFT: &QBFTConfig{ // TODO: this is just for test on mainnet
-			EpochLength:              100,
-			BlockPeriodSeconds:       1,
-			RequestTimeoutSeconds:    1000,
-			ProposerPolicy:           0,
-			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
-			MaxRequestTimeoutSeconds: &mrts,
-			Validators:               []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
-			BLSPublicKeys:            []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
-			BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
-				Name:      "Wemix Foundation",
-				Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
-				Numerator: 10000,
-			}}},
-			TargetValidators: 0,
-			GovParams: &GovParams{
-				MinimumStaking:     (*math.HexOrDecimal256)(big.NewInt(1e18)), // 1 WEMIX
-				MaximumStaking:     (*math.HexOrDecimal256)(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
-				UnbondingStaker:    604800,              // 7 days
-				UnbondingDelegator: 604800,              // 7 days
-				FeePrecision:       1000000000000000000, // 1 WEMIX
-				ChangeFeeDelay:     604800,              // 7 days
-				MinStakers:         1,
+		MontBlanc: &MontBlancConfig{
+			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
+				EpochLength:              100,
+				BlockPeriodSeconds:       1,
+				RequestTimeoutSeconds:    1000,
+				ProposerPolicy:           0,
+				BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
+				MaxRequestTimeoutSeconds: &mrts,
+				BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
+					Name:      "Maintenance",
+					Addr:      common.HexToAddress("0x1620cf4bD57087236025516cdd8D70e127da5331"),
+					Numerator: 2500,
+				}, {
+					Name:      "EcoSystem",
+					Addr:      common.HexToAddress("0xC79d535f6EDD3E0Fa648D6169eA5b8e1Aa38921e"),
+					Numerator: 2500,
+				}}},
+				TargetValidators:            1, // TODO: define validators
+				StabilizingStakersThreshold: 1, // TODO: define min stakers
+			},
+			Init: &Init{
+				Validators:    []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")}, // TODO: define initial validators
+				BLSPublicKeys: []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+				GovContracts: &GovContracts{
+					GovConfig: &GovContract{
+						Address: DefaultGovConfigAddress,
+						Version: DefaultGovVersion,
+						Params: map[string]string{
+							"minimumStaking":           "500000000000000000000000",
+							"maximumStaking":           "1000000000000000000000000000",
+							"unbondingPeriodStaker":    "604800", // 7 days
+							"unbondingPeriodDelegator": "259200", // 3 days
+							"feePrecision":             "10000",  // 0.01%
+							"changeFeeDelay":           "604800", // 7 days
+							"govCouncil":               DefaultGovNCPAddress.String(),
+						},
+					},
+					GovStaking: &GovContract{
+						Address: DefaultGovStakingAddress,
+						Version: DefaultGovVersion,
+					},
+					GovRewardeeImp: &GovContract{
+						Address: DefaultGovRewardeeImpAddress,
+						Version: DefaultGovVersion,
+					},
+					GovNCP: &GovContract{
+						Address: DefaultGovNCPAddress,
+						Version: DefaultGovVersion,
+						Params: map[string]string{
+							"ncps": "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697", // comma separated; TODO: define NCPs
+						},
+					},
+				},
 			},
 		},
 	}
@@ -124,7 +154,8 @@ var (
 		LondonBlock:         big.NewInt(0),
 		PangyoBlock:         big.NewInt(10_000_000),
 		ApplepieBlock:       big.NewInt(26_240_268),
-		BriocheBlock:        big.NewInt(59_414_700), // target date: 24-06-04 11:00:41 (GMT+09)
+		BriocheBlock:        big.NewInt(59_414_700),  // target date: 24-06-04 11:00:41 (GMT+09)
+		MontBlancBlock:      big.NewInt(100_000_000), // TODO: decide the block number
 		Ethash:              new(EthashConfig),
 		Brioche: &BriocheConfig{
 			BlockReward:       big.NewInt(1e18),
@@ -134,30 +165,59 @@ var (
 			HalvingTimes:      16,
 			HalvingRate:       50,
 		},
-		MontBlancBlock: big.NewInt(100_000_000), // TODO: decide montblanc hard fork date; this is just for test on mainnet
-		QBFT: &QBFTConfig{ // TODO: this is just for test on mainnet
-			EpochLength:              100,
-			BlockPeriodSeconds:       1,
-			RequestTimeoutSeconds:    1000,
-			ProposerPolicy:           0,
-			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
-			MaxRequestTimeoutSeconds: &mrts,
-			Validators:               []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
-			BLSPublicKeys:            []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
-			BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
-				Name:      "Wemix Foundation",
-				Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
-				Numerator: 10000,
-			}}},
-			TargetValidators: 0,
-			GovParams: &GovParams{
-				MinimumStaking:     (*math.HexOrDecimal256)(big.NewInt(1e18)), // 1 WEMIX
-				MaximumStaking:     (*math.HexOrDecimal256)(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
-				UnbondingStaker:    604800,              // 7 days
-				UnbondingDelegator: 604800,              // 7 days
-				FeePrecision:       1000000000000000000, // 1 WEMIX
-				ChangeFeeDelay:     604800,              // 7 days
-				MinStakers:         1,
+		MontBlanc: &MontBlancConfig{
+			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
+				EpochLength:              100,
+				BlockPeriodSeconds:       1,
+				RequestTimeoutSeconds:    1000,
+				ProposerPolicy:           0,
+				BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
+				MaxRequestTimeoutSeconds: &mrts,
+				BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
+					Name:      "Maintenance",
+					Addr:      common.HexToAddress("0x1620cf4bD57087236025516cdd8D70e127da5331"),
+					Numerator: 2500,
+				}, {
+					Name:      "EcoSystem",
+					Addr:      common.HexToAddress("0xC79d535f6EDD3E0Fa648D6169eA5b8e1Aa38921e"),
+					Numerator: 2500,
+				}}},
+				TargetValidators:            1, // TODO: define validators
+				StabilizingStakersThreshold: 1,
+			},
+			Init: &Init{
+				Validators:    []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")}, // TODO: define initial validators
+				BLSPublicKeys: []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+				GovContracts: &GovContracts{
+					GovConfig: &GovContract{
+						Address: DefaultGovConfigAddress,
+						Version: DefaultGovVersion,
+						Params: map[string]string{
+							"minimumStaking":           "500000000000000000000000",
+							"maximumStaking":           "1000000000000000000000000000",
+							"unbondingPeriodStaker":    "604800", // 7 days
+							"unbondingPeriodDelegator": "259200", // 3 days
+							"feePrecision":             "10000",  // 0.01%
+							"changeFeeDelay":           "604800", // 7 days
+							"govCouncil":               DefaultGovNCPAddress.String(),
+						},
+					},
+					GovStaking: &GovContract{
+						Address: DefaultGovStakingAddress,
+						Version: DefaultGovVersion,
+					},
+					GovRewardeeImp: &GovContract{
+						Address: DefaultGovRewardeeImpAddress,
+						Version: DefaultGovVersion,
+					},
+					GovNCP: &GovContract{
+						Address: DefaultGovNCPAddress,
+						Version: DefaultGovVersion,
+						Params: map[string]string{
+							"ncps": "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697", // comma separated
+						},
+					},
+				},
 			},
 		},
 	}
@@ -320,29 +380,47 @@ var (
 			HalvingTimes:      8,
 			HalvingRate:       50,
 		},
-		QBFT: &QBFTConfig{
-			EpochLength:              10,
-			BlockPeriodSeconds:       3,
-			RequestTimeoutSeconds:    1000,
-			ProposerPolicy:           0,
-			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
-			MaxRequestTimeoutSeconds: &mrts,
-			Validators:               []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
-			BLSPublicKeys:            []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
-			BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
-				Name:      "Wemix Foundation",
-				Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
-				Numerator: 10000,
-			}}},
-			TargetValidators: 0,
-			GovParams: &GovParams{
-				MinimumStaking:     (*math.HexOrDecimal256)(big.NewInt(1e18)), // 1 WEMIX
-				MaximumStaking:     (*math.HexOrDecimal256)(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
-				UnbondingStaker:    604800,              // 7 days
-				UnbondingDelegator: 604800,              // 7 days
-				FeePrecision:       1000000000000000000, // 1 WEMIX
-				ChangeFeeDelay:     604800,              // 7 days
-				MinStakers:         1,
+		MontBlanc: &MontBlancConfig{
+			WBFT: &WBFTConfig{
+				EpochLength:              100,
+				BlockPeriodSeconds:       1,
+				RequestTimeoutSeconds:    1000,
+				ProposerPolicy:           0,
+				BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
+				MaxRequestTimeoutSeconds: &mrts,
+				BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
+					Name:      "Wemix Foundation",
+					Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
+					Numerator: 5000,
+				}}},
+				TargetValidators:            1,
+				StabilizingStakersThreshold: 1,
+			},
+			Init: &Init{
+				Validators:    []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
+				BLSPublicKeys: []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+				GovContracts: &GovContracts{
+					GovConfig: &GovContract{
+						Address: DefaultGovConfigAddress,
+						Version: DefaultGovVersion,
+						Params:  DefaultGovConfigParams,
+					},
+					GovStaking: &GovContract{
+						Address: DefaultGovStakingAddress,
+						Version: DefaultGovVersion,
+					},
+					GovRewardeeImp: &GovContract{
+						Address: DefaultGovRewardeeImpAddress,
+						Version: DefaultGovVersion,
+					},
+					GovNCP: &GovContract{
+						Address: DefaultGovNCPAddress,
+						Version: DefaultGovVersion,
+						Params: map[string]string{
+							"ncps": "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697", // comma separated
+						},
+					},
+				},
 			},
 		},
 	}
@@ -474,6 +552,7 @@ var (
 		GrayGlacierBlock:              big.NewInt(0),
 		MergeNetsplitBlock:            nil,
 		BriocheBlock:                  big.NewInt(0),
+		MontBlancBlock:                big.NewInt(0),
 		ShanghaiTime:                  nil,
 		CancunTime:                    nil,
 		PragueTime:                    nil,
@@ -490,29 +569,40 @@ var (
 			HalvingTimes:      8,
 			HalvingRate:       50,
 		},
-		QBFT: &QBFTConfig{
-			EpochLength:              10,
-			BlockPeriodSeconds:       3,
-			RequestTimeoutSeconds:    1000,
-			ProposerPolicy:           0,
-			BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
-			MaxRequestTimeoutSeconds: &mrts,
-			Validators:               []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
-			BLSPublicKeys:            []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
-			BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
-				Name:      "Wemix Foundation",
-				Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
-				Numerator: 10000,
-			}}},
-			TargetValidators: 0,
-			GovParams: &GovParams{
-				MinimumStaking:     (*math.HexOrDecimal256)(big.NewInt(1e18)), // 1 WEMIX
-				MaximumStaking:     (*math.HexOrDecimal256)(new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 128), big.NewInt(1))),
-				UnbondingStaker:    604800,              // 7 days
-				UnbondingDelegator: 604800,              // 7 days
-				FeePrecision:       1000000000000000000, // 1 WEMIX
-				ChangeFeeDelay:     604800,              // 7 days
-				MinStakers:         1,
+		MontBlanc: &MontBlancConfig{
+			WBFT: &WBFTConfig{
+				EpochLength:              100,
+				BlockPeriodSeconds:       1,
+				RequestTimeoutSeconds:    1000,
+				ProposerPolicy:           0,
+				BlockReward:              (*math.HexOrDecimal256)(big.NewInt(1000000000000000000)),
+				MaxRequestTimeoutSeconds: &mrts,
+				BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
+					Name:      "Wemix Foundation",
+					Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
+					Numerator: 5000,
+				}}},
+				TargetValidators:            1,
+				StabilizingStakersThreshold: 1,
+			},
+			Init: &Init{
+				Validators:    []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
+				BLSPublicKeys: []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+				GovContracts: &GovContracts{
+					GovConfig: &GovContract{
+						Address: DefaultGovConfigAddress,
+						Version: DefaultGovVersion,
+						Params:  DefaultGovConfigParams,
+					},
+					GovStaking: &GovContract{
+						Address: DefaultGovStakingAddress,
+						Version: DefaultGovVersion,
+					},
+					GovRewardeeImp: &GovContract{
+						Address: DefaultGovRewardeeImpAddress,
+						Version: DefaultGovVersion,
+					},
+				},
 			},
 		},
 	}
@@ -638,16 +728,11 @@ type ChainConfig struct {
 	TerminalTotalDifficultyPassed bool `json:"terminalTotalDifficultyPassed,omitempty"`
 
 	// Various consensus engines
-	Ethash    *EthashConfig    `json:"ethash,omitempty"`
-	Clique    *CliqueConfig    `json:"clique,omitempty"`
-	Brioche   *BriocheConfig   `json:"brioche,omitempty"` // if this config is nil, brioche halving is not applied
-	MontBlanc *MontBlancConfig `json:"montBlanc,omitempty"`
+	Ethash  *EthashConfig  `json:"ethash,omitempty"`
+	Clique  *CliqueConfig  `json:"clique,omitempty"`
+	Brioche *BriocheConfig `json:"brioche,omitempty"` // if this config is nil, brioche halving is not applied
 
-	// ## Quorum QBFT START
-	QBFT             *QBFTConfig       `json:"qbft,omitempty"`             // Quorum
-	Transitions      []Transition      `json:"transitions,omitempty"`      // Quorum - transition config based on the block number
-	StateTransitions []StateTransition `json:"stateTransitions,omitempty"` // wbft - state transition config based on the block number
-	// ## Quorum QBFT END
+	MontBlanc *MontBlancConfig `json:"montBlanc,omitempty"`
 }
 
 // Brioche halving configuration
@@ -750,7 +835,7 @@ func (c *ChainConfig) Description() string {
 		} else {
 			banner += "Consensus: Beacon (proof-of-stake), merged from Clique (proof-of-authority)\n"
 		}
-	case c.QBFT != nil:
+	case c.MontBlancEnabled():
 		banner += "Consensus: WBFT (wemix-byzantine-fault-tolerance)\n"
 	default:
 		banner += "Consensus: WEMIX PoA\n"
@@ -795,39 +880,54 @@ func (c *ChainConfig) Description() string {
 	}
 	banner += fmt.Sprintf(" - MontBlanc:                   #%-8v\n", c.MontBlancBlock)
 	if c.MontBlanc != nil {
-		banner += fmt.Sprintf("   - NCPs:                      %v\n", c.MontBlanc.NCPs)
-	}
-	banner += " - QBFT\n"
-	if c.QBFT != nil {
-		banner += fmt.Sprintf("   - EpochLength:               %-8v\n", c.QBFT.EpochLength)
-		banner += fmt.Sprintf("   - BlockPeriodSeconds:        %-8v\n", c.QBFT.BlockPeriodSeconds)
-		banner += fmt.Sprintf("   - RequestTimeoutSeconds:     %-8v\n", c.QBFT.RequestTimeoutSeconds)
-		banner += fmt.Sprintf("   - ProposerPolicy:            %-8v\n", c.QBFT.ProposerPolicy)
-		if c.QBFT.BlockReward == nil {
-			banner += fmt.Sprintf("   - BlockReward:               %-8v\n", 0)
-		} else {
-			banner += fmt.Sprintf("   - BlockReward:               %-8v\n", ((*big.Int)(c.QBFT.BlockReward)).Int64())
-		}
-		if c.QBFT.BlockRewardBeneficiary == nil {
-			banner += fmt.Sprintf("   - BlockRewardBeneficiary:    %v\n", nil)
-		} else {
-			banner += fmt.Sprintf("   - BlockRewardBeneficiary.Denominator: %v\n", c.QBFT.BlockRewardBeneficiary.Denominator)
-			for i, b := range c.QBFT.BlockRewardBeneficiary.Beneficiaries {
-				banner += fmt.Sprintf("   - BlockRewardBeneficiary[%v]: %v\n", i, b)
+		if c.MontBlanc.WBFT != nil {
+			banner += "   - WBFT\n"
+			banner += fmt.Sprintf("     - EpochLength:               %-8v\n", c.MontBlanc.WBFT.EpochLength)
+			banner += fmt.Sprintf("     - BlockPeriodSeconds:        %-8v\n", c.MontBlanc.WBFT.BlockPeriodSeconds)
+			banner += fmt.Sprintf("     - RequestTimeoutSeconds:     %-8v\n", c.MontBlanc.WBFT.RequestTimeoutSeconds)
+			banner += fmt.Sprintf("     - ProposerPolicy:            %-8v\n", c.MontBlanc.WBFT.ProposerPolicy)
+			if c.MontBlanc.WBFT.BlockReward == nil {
+				banner += fmt.Sprintf("     - BlockReward:               %-8v\n", 0)
+			} else {
+				banner += fmt.Sprintf("     - BlockReward:               %-8v\n", ((*big.Int)(c.MontBlanc.WBFT.BlockReward)).Int64())
+			}
+			if c.MontBlanc.WBFT.BlockRewardBeneficiary == nil {
+				banner += fmt.Sprintf("     - BlockRewardBeneficiary:    %v\n", nil)
+			} else {
+				banner += fmt.Sprintf("     - BlockRewardBeneficiary.Denominator: %v\n", c.MontBlanc.WBFT.BlockRewardBeneficiary.Denominator)
+				for i, b := range c.MontBlanc.WBFT.BlockRewardBeneficiary.Beneficiaries {
+					banner += fmt.Sprintf("     - BlockRewardBeneficiary[%v]: %v\n", i, b)
+				}
+			}
+			if c.MontBlanc.WBFT.MaxRequestTimeoutSeconds == nil {
+				banner += fmt.Sprintf("     - MaxRequestTimeoutSeconds:  %-8v\n", 0)
+			} else {
+				banner += fmt.Sprintf("     - MaxRequestTimeoutSeconds:  %-8v\n", *c.MontBlanc.WBFT.MaxRequestTimeoutSeconds)
+			}
+			if c.MontBlanc.WBFT.Transitions != nil {
+				banner += "     - Transitions\n"
+				for i, t := range c.MontBlanc.WBFT.Transitions {
+					banner += fmt.Sprintf("       - Transitions[%v]: %v\n", i, t)
+				}
 			}
 		}
-		banner += fmt.Sprintf("   - Validators:                %v\n", c.QBFT.Validators)
-		banner += fmt.Sprintf("   - BLSPublicKeys:             %v\n", c.QBFT.BLSPublicKeys)
-		banner += fmt.Sprintf("   - TargetValidators:          %v\n", c.QBFT.TargetValidators)
-		if c.QBFT.MaxRequestTimeoutSeconds == nil {
-			banner += fmt.Sprintf("   - MaxRequestTimeoutSeconds:  %-8v\n", 0)
-		} else {
-			banner += fmt.Sprintf("   - MaxRequestTimeoutSeconds:  %-8v\n", *c.QBFT.MaxRequestTimeoutSeconds)
-		}
-		if c.QBFT.GovParams == nil {
-			banner += fmt.Sprintf("   - GovParams:                 %v\n", nil)
-		} else {
-			banner += fmt.Sprintf("   - GovParams:                 %+v\n", c.QBFT.GovParams)
+		if c.MontBlanc.Init != nil {
+			if c.MontBlanc.Init != nil {
+				banner += "   - Init\n"
+				banner += fmt.Sprintf("     - Validators:         %-8v\n", c.MontBlanc.Init.Validators)
+				banner += fmt.Sprintf("     - BLSPublicKeys:      %-8v\n", c.MontBlanc.Init.BLSPublicKeys)
+				banner += "     - GovContracts:\n"
+				banner += fmt.Sprintf("       - GovConfig:        %-8v\n", c.MontBlanc.Init.GovContracts.GovConfig)
+				banner += fmt.Sprintf("       - GovStaking:       %-8v\n", c.MontBlanc.Init.GovContracts.GovStaking)
+				banner += fmt.Sprintf("       - GovRewardeeImp:   %-8v\n", c.MontBlanc.Init.GovContracts.GovRewardeeImp)
+				banner += fmt.Sprintf("       - GovNCP:           %-8v\n", c.MontBlanc.Init.GovContracts.GovNCP)
+			}
+			if c.MontBlanc.Upgrades != nil {
+				banner += "   - Upgrades\n"
+				for i, u := range c.MontBlanc.Upgrades {
+					banner += fmt.Sprintf("     - Upgrades[%v]: %v\n", i, u)
+				}
+			}
 		}
 	}
 	banner += "\n"
@@ -926,10 +1026,6 @@ func (c *ChainConfig) IsBrioche(num *big.Int) bool {
 	return isBlockForked(c.BriocheBlock, num)
 }
 
-func (c *ChainConfig) IsMontBlanc(num *big.Int) bool {
-	return isBlockForked(c.MontBlancBlock, num)
-}
-
 // IsArrowGlacier returns whether num is either equal to the Arrow Glacier (EIP-4345) fork block or greater.
 func (c *ChainConfig) IsArrowGlacier(num *big.Int) bool {
 	return isBlockForked(c.ArrowGlacierBlock, num)
@@ -966,6 +1062,14 @@ func (c *ChainConfig) IsPrague(num *big.Int, time uint64) bool {
 // IsVerkle returns whether num is either equal to the Verkle fork time or greater.
 func (c *ChainConfig) IsVerkle(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.VerkleTime, time)
+}
+
+func (c *ChainConfig) IsMontBlanc(num *big.Int) bool {
+	return isBlockForked(c.MontBlancBlock, num)
+}
+
+func (c *ChainConfig) MontBlancEnabled() bool {
+	return c.MontBlancBlock != nil && c.MontBlanc != nil
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -1126,6 +1230,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkBlockIncompatible(c.BriocheBlock, newcfg.BriocheBlock, headNumber) {
 		return newBlockCompatError("Brioche fork block", c.BriocheBlock, newcfg.BriocheBlock)
+	}
+	if isForkBlockIncompatible(c.MontBlancBlock, newcfg.MontBlancBlock, headNumber) {
+		return newBlockCompatError("MontBlanc fork block", c.MontBlancBlock, newcfg.MontBlancBlock)
 	}
 	if isForkBlockIncompatible(c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock, headNumber) {
 		return newBlockCompatError("Merge netsplit fork block", c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock)
@@ -1331,7 +1438,6 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsPangyo:         c.IsPangyo(num),
 		IsApplepie:       c.IsApplepie(num),
 		IsBrioche:        c.IsBrioche(num),
-		IsMontBlanc:      c.IsMontBlanc(num),
 		IsMerge:          isMerge,
 		IsShanghai:       isMerge && c.IsShanghai(num, timestamp),
 		IsCancun:         isMerge && c.IsCancun(num, timestamp),

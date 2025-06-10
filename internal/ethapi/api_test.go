@@ -1836,6 +1836,7 @@ func genExtraData(validatorPrvKey *ecdsa.PrivateKey) []byte {
 			Stakers: []*types.Staker{
 				{Addr: crypto.PubkeyToAddress(validatorPrvKey.PublicKey), Diligence: types.DefaultDiligence},
 			},
+			Stabilizing:   true,
 			Validators:    []uint32{0},
 			BLSPublicKeys: [][]byte{blsKey.PublicKey().Marshal()},
 		},

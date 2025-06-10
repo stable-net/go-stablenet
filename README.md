@@ -50,21 +50,21 @@ Rules related to staking:
   - When unstaking, if the remaining staking amount falls below the minimum threshold and is not zero, the unstaking will fail.  
   - If the own staking amount reaches under minimum staking threshold by unstaking or slashing, it is removed from staker set.
   - If a staker is removed from staker set, its remaining own staking amounts are unstaked but its delegated amounts are remained as dangling delegated.
-  - Unstaked funds are released to the _staker operator address_ after the unbonding period (1 weeks).
+  - Unstaked funds can be claimed by the _staker operator address_ after the unbonding period (1 weeks).
 - Slashing
   - Stakers considered as malicious may be slashed, paying their some own staked amounts to WEMIX ecosystem.
   - Funds in the unbonding state can still be slashed.
 - Delegation
   - Anyone can delegate funds to the staker with no amount limit.
   - Delegated amounts are credited to the recipient staker's staking amount.
-  - Undelegated funds are released to the _delegator address_ after the unbonding period (72 hours).
+  - Undelegated funds can be claimed by the _delegator address_ after the unbonding period (72 hours).
   - The delegation rewards are not accumulating for the dangling delegated amounts.
   - Delegator can undelegate dangling delegated amount at any time and claim some accumulated rewards before being dangled. 
 
 ### Validator Selection
 In WBFT, the proposer of the last block in an epoch (referred to as the epoch block) selects the validator set for the next epoch and records it in the block. Validator selection rules:
 - Stabilization stage
-  - The stabilization stage is the period from the first epoch until just before the first epoch when the number of stakers reaches the minimum required.
+  - The stabilization stage is the period from the first epoch until just before the first epoch when the number of stakers reaches the minimum(`stabilizingStakersThreshold`) required.
   - If current epoch is in a stabilization stage and the number of stakers is below the minimum stakers in last block of an epoch, next epoch will be in a stabilization stage.
   - An epoch in a stabilization stage has the validator set which is same to the previous epoch.
   - The very first validator set is defined in genesis.json, and validators in the genesis block initially have a staking amount of zero.
@@ -157,69 +157,118 @@ The existing miner worker is designed to be fit to the ethash algorithm. When a 
 - The WBFT engine waits for the block period before notifying the worker(In the existing IBFT, the block period was waited for when sealing the block).
 - When new work starts, the worker begins the process of preparing the block.
 
+#### Mont Blanc hard fork
+WBFT is not only implemented to run a WBFT chain from genesis but is also designed and implemented to enable a hard fork from a legacy chain to the WBFT chain. This hard fork is named the `Mont Blanc` hard fork.
+You should define the Mont Blanc hard fork in genesis.json to run a WBFT chain. Two chain configs are added for Mont Blanc hard fork; `MontBlancBlock` and `montBlanc`.
+- `montBlancBlock`: Defines the block height at which the Mont Blanc hard fork occurs. You can set it to zero for the genesis block.
+- `montBlanc`: Defines the WBFT consensus configuration. It consists of three sections: `wBFT`, `init`, and `upgrades`.
+
+Setting `montBlancBlock` to 0 triggers WBFT-related initialization in the genesis block when executing the `geth init` command. Conversely, if `montBlancBlock` is set to 1 or greater, WBFT-related initialization occurs when the Mont Blanc block is created and finalized.
+The Mont Blanc hard fork protocols are as follows:
+- WBFT validator nodes just imports blocks from legacy chain miners before Mont Blanc hard fork.
+- WBFT validator nodes supposes that legacy miners would stop block creation when it is time to create the Mont Blanc block (i.e., they create blocks up to just before the Mont Blanc hard fork).
+- WBFT validator nodes recognize the Mont Blanc hard fork and can obtain the validator set from the WBFT config when it is their turn to create this block.
+- WBFT validator nodes can create blocks and proceed with consensus once they can obtain the validator set.
+- The Mont Blanc block is a special block. Validators that receive this block perform additional tasks to deploy and initialize the governance contracts.
+- The Mont Blanc block is the first epoch block of WBFT. Therefore, the first validator set is recorded.
+- The first epoch starts from the block after the Mont Blanc block, during which stakers start staking from zero.
+- If the number of stakers is equal to or greater than the minimum stakers during the first epoch, these stakers become validators from the next epoch.
+- If the number of stakers is less than the minimum stakers during the first epoch, the initial validator set is maintained.
+
 ### Modified Structures
 The existing QBFT Config was revised by removing unnecessary fields and adding required ones, resulting in the following structure.
+If you want to use the WBFT consensus, you should use the following chain config in genesis.json.
 ```
-"qbft": {
-      "epochLength": 200,
-      "blockPeriodSeconds": 1,
-      "requestTimeoutSeconds": 2,
-      "maxRequestTimeoutSeconds": 2,
-      "targetValidators": 1,
-      "blockReward": 1000000000000000000,
-      "blockRewardBeneficiary":  {
-         "denominator": 10000,
-         "beneficiaries": [
-           {
-             "name": "Maintenance",
-             "addr": "0xadd0000000000000000000000000000000000000",
-             "numerator": 2500,
-           },
-           {
-             "name": "EcoSystem",
-             "addr": "0xadd0000000000000000000000000000000000001",
-             "numerator": 2500
-           }
-         ]
+"montBlancBlock": 1000000,
+"montBlanc": {
+  "wBFT": {
+    "requestTimeoutSeconds": 2,
+    "blockPeriodSeconds": 1,
+    "proposerPolicy": 0,
+    "epochLength": 10,
+    "blockReward": "0xde0b6b3a7640000",
+    "targetValidators": 0,
+    "maxRequestTimeoutSeconds": null,
+    "stabilizingStakersThreshold": 1,
+    "useNCP": true
+  },
+  "init": {
+    "validators": [
+      "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697"
+    ],
+    "blsPublicKeys": [
+      "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
+    ],
+    "govContracts": {
+      "govConfig": {
+        "address": "0x0000000000000000000000000000000000001000",
+        "version": "v1",
+        "params": {
+          "changeFeeDelay": "604800",
+          "feePrecision": "10000",
+          "maximumStaking": "100000000000000000000000000",
+          "minimumStaking": "10000000000000000000000000",
+          "unbondingPeriodDelegator": "259200",
+          "unbondingPeriodStaker": "604800",
+          "govCouncil": "0x0000000000000000000000000000000000001003"
+        }
       },
-      "validators": ["0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697"],
-      "blsPublicKeys": ["0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"],
-      "govParams": {
-        "minimumStaking": 1000000000000000000000000,
-        "maximumStaking": 10000000000000000000000000,
-        "unbondingStaker": 604800,
-        "unbondingDelegator": 259200,
-        "feePrecision": 1000,
-        "rewardPrecision": 1000000000000000000000000000,
-        "changeFeeDelay": 604800,
-        "minStakers": 1
+      "govStaking": {
+        "address": "0x0000000000000000000000000000000000001001",
+        "version": "v1",
+        "params": null
+      },
+      "govRewardeeImp": {
+        "address": "0x0000000000000000000000000000000000001002",
+        "version": "v1",
+        "params": null
+      },
+      "govNCP": {
+        "address": "0x0000000000000000000000000000000000001003",
+        "version": "v1",
+        "params": {
+          "ncps": "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697"
+        }
       }
     }
+  },
+  "upgrades": null
+}
 ```
-
+- `montBlancBlock` defines the block height at which the mont blanc hard fork occurs. You can set it to zero for the genesis block.
+- `montBlanc` defines the WBFT consensus configuration. It consists of three sections: `wBFT`, `init`, and `upgrades`.
+- `wBFT` defines the WBFT consensus engine parameters:
 - `blockRewardBeneficiary` defines the address that will receive the block minting rewards consistently.
 - `targetValidators` should be less than or equals to `epochLength`.
 - `validators` defines initial validator set. order is matter.
 - `blsPublicKeys` defines initial validator's bls key signing BFT messages. order must be same to `validators`.
-- `govParams` defines the parameters of the GovConfig contract.
+- `stabilizingStakersThreshold` defines the minimum number of stakers to quit stabilization stage. It must be greater than or equals to 1.
+- `useNCP` defines whether to use NCP system or not. If it is true, the NCP contract address must be defined in `govNCP` field.
+- `init` defines the initial state of the WBFT chain. It includes the initial validator set, BLS public keys, and the GovContracts.
 ```
 type Staker struct {
     Addr      common.Address
-    BLSPubKey []byte
     Diligence uint64
 }
 type EpochInfo struct {
-    Stakers    []*Staker
-    Validators []uint32
+    Stakers       []*Staker
+    Validators    []uint32
+	BLSPublicKeys [][]byte
+	Stabilizing   bool 
+}
+type WBFTAggregatedSeal struct {
+	Sealers   SealerSet
+	Signature []byte
 }
 type WBFTExtra struct {
-	VanityData                  []byte
-	Round                       uint32
-	PreparedSeal                [][]byte
-	CommittedSeal               [][]byte
-	AggregatedPrevPreparedSeal  []byte
-	AggregatedPrevCommittedSeal []byte
-	Epoch                       EpochInfo
+	VanityData        []byte
+	PrevRound         uint32
+	PrevPreparedSeal  *WBFTAggregatedSeal
+	PrevCommittedSeal *WBFTAggregatedSeal
+	Round             uint32
+	PreparedSeal      *WBFTAggregatedSeal
+	CommittedSeal     *WBFTAggregatedSeal
+	EpochInfo         *EpochInfo
 }
 ```
 

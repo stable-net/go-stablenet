@@ -21,13 +21,18 @@
 package qbft
 
 import (
+	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
-
 	"github.com/naoina/toml"
 )
 
@@ -100,38 +105,28 @@ func (p *ProposerPolicy) Use(v ValidatorSortByFunc) {
 }
 
 type Config struct {
-	RequestTimeout           uint64                  `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
-	BlockPeriod              uint64                  `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
-	ProposerPolicy           *ProposerPolicy         `toml:",omitempty"` // The policy for proposer selection
-	Epoch                    uint64                  `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
-	AllowedFutureBlockTime   uint64                  `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
-	BlockReward              *math.HexOrDecimal256   `toml:",omitempty"` // Reward
-	BlockRewardBeneficiary   *params.BeneficiaryInfo `toml:",omitempty"`
-	Validators               []common.Address        `toml:",omitempty"`
-	BLSPublicKeys            [][]byte                `toml:",omitempty"`
-	TargetValidators         uint64                  `toml:",omitempty"`
-	MaxRequestTimeoutSeconds uint64                  `toml:",omitempty"`
-	GovParams                *params.GovParams       `toml:",omitempty"`
-	Transitions              []params.Transition
+	RequestTimeout              uint64                  `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
+	BlockPeriod                 uint64                  `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
+	ProposerPolicy              *ProposerPolicy         `toml:",omitempty"` // The policy for proposer selection
+	Epoch                       uint64                  `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+	AllowedFutureBlockTime      uint64                  `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
+	BlockReward                 *math.HexOrDecimal256   `toml:",omitempty"` // Reward
+	BlockRewardBeneficiary      *params.BeneficiaryInfo `toml:",omitempty"`
+	TargetValidators            uint64                  `toml:",omitempty"`
+	MaxRequestTimeoutSeconds    uint64                  `toml:",omitempty"`
+	StabilizingStakersThreshold uint64                  `toml:",omitempty"`
+	UseNCP                      bool                    `toml:",omitempty"` // Use NCP or not
+	Transitions                 []params.Transition
 }
 
-var value, _ = new(big.Int).SetString("340282366920938463463374607431768211455", 10)
-
 var DefaultConfig = &Config{
-	RequestTimeout:         1000,
-	BlockPeriod:            1,
-	ProposerPolicy:         NewRoundRobinProposerPolicy(),
-	Epoch:                  10,
-	AllowedFutureBlockTime: 0,
-	GovParams: &params.GovParams{
-		MinimumStaking:     (*math.HexOrDecimal256)(new(big.Int).Mul(big.NewInt(params.Ether), big.NewInt(500_000))),
-		MaximumStaking:     (*math.HexOrDecimal256)(value),
-		UnbondingStaker:    604800, // 7 days
-		UnbondingDelegator: 259200, // 3 days
-		FeePrecision:       10000,  // 0.01%
-		ChangeFeeDelay:     604800, // 7 days
-		MinStakers:         1,
-	},
+	RequestTimeout:              1000,
+	BlockPeriod:                 1,
+	ProposerPolicy:              NewRoundRobinProposerPolicy(),
+	Epoch:                       10,
+	AllowedFutureBlockTime:      0,
+	StabilizingStakersThreshold: 1,
+	UseNCP:                      false,
 }
 
 func (c Config) GetConfig(blockNumber *big.Int) Config {
@@ -160,9 +155,7 @@ func (c Config) GetConfig(blockNumber *big.Int) Config {
 		if transition.MaxRequestTimeoutSeconds != nil {
 			newConfig.MaxRequestTimeoutSeconds = *transition.MaxRequestTimeoutSeconds
 		}
-		if transition.GovParams != nil {
-			newConfig.GovParams = transition.GovParams
-		}
+		newConfig.UseNCP = transition.UseNCP
 	})
 
 	return newConfig
@@ -178,56 +171,68 @@ func (c *Config) getTransitionValue(num *big.Int, callback func(transition param
 
 // String implements the stringer interface, returning the consensus engine details.
 func (c *Config) String() string {
-	return "qbft"
+	return "wbft"
 }
 
-func GetFirstWbftBlockNumber(config *params.ChainConfig) *big.Int {
-	if config.MontBlancBlock == nil {
-		// wbft engine started from genesis
-		return common.Big0
-	} else {
-		// wbft engine started with montblanc hardfork
-		return config.MontBlancBlock
+func GetMontBlancTransition(chainConfig *params.ChainConfig, num *big.Int) (*params.StateTransition, error) {
+	if chainConfig == nil || chainConfig.MontBlancBlock == nil || num == nil {
+		return nil, errors.New("nil montBlanc config or nil block number")
 	}
-}
 
-func GetStateTransitions(chainConfig *params.ChainConfig, num *big.Int) []params.StateTransition {
-	if chainConfig != nil && num != nil {
-		transitions := make([]params.StateTransition, 0)
+	if num.Cmp(chainConfig.MontBlancBlock) == 0 {
+		return govwbft.GetMontBlancTransition(chainConfig.MontBlanc.Init.GovContracts)
+	}
 
-		if chainConfig.MontBlancBlock != nil && chainConfig.MontBlancBlock.Cmp(num) == 0 {
-			transitions = append(transitions, getMontBlancTransition(chainConfig))
+	for _, upgrade := range chainConfig.MontBlanc.Upgrades {
+		if num.Cmp(upgrade.Block) == 0 {
+			return govwbft.GetMontBlancTransition(upgrade.GovContracts)
+		} else if num.Cmp(upgrade.Block) < 0 {
+			break
 		}
-
-		if st := chainConfig.GetStateTransitions(num); len(st) > 0 {
-			transitions = append(transitions, st...)
-		}
-		return transitions
 	}
-	return nil
+	return nil, nil
 }
 
-func getMontBlancTransition(config *params.ChainConfig) params.StateTransition {
-	st := params.StateTransition{
-		Codes: []params.CodeParam{
-			{Address: govwbft.GovConfigAddress, Code: govwbft.GovConfigContract},
-			{Address: govwbft.GovStakingAddress, Code: govwbft.GovStakingContract},
-			{Address: govwbft.GovRewardeeImpAddress, Code: govwbft.GovRewardeeImpContract},
-		},
-		States: []params.StateParam{
-			{Address: govwbft.GovConfigAddress, Key: common.BigToHash(big.NewInt(0)), Value: common.BigToHash((*big.Int)(config.QBFT.GovParams.MinimumStaking))},
-			{Address: govwbft.GovConfigAddress, Key: common.BigToHash(big.NewInt(1)), Value: common.BigToHash((*big.Int)(config.QBFT.GovParams.MaximumStaking))},
-			{Address: govwbft.GovConfigAddress, Key: common.BigToHash(big.NewInt(2)), Value: common.BigToHash(new(big.Int).SetUint64(config.QBFT.GovParams.UnbondingStaker))},
-			{Address: govwbft.GovConfigAddress, Key: common.BigToHash(big.NewInt(3)), Value: common.BigToHash(new(big.Int).SetUint64(config.QBFT.GovParams.UnbondingDelegator))},
-			{Address: govwbft.GovConfigAddress, Key: common.BigToHash(big.NewInt(4)), Value: common.BigToHash(new(big.Int).SetUint64(config.QBFT.GovParams.FeePrecision))},
-			{Address: govwbft.GovConfigAddress, Key: common.BigToHash(big.NewInt(5)), Value: common.BigToHash(new(big.Int).SetUint64(config.QBFT.GovParams.ChangeFeeDelay))},
-			{Address: govwbft.GovConfigAddress, Key: common.BigToHash(big.NewInt(6)), Value: common.BigToHash(new(big.Int).SetUint64(config.QBFT.GovParams.MinStakers))},
-		},
+func CreateInitialExtraData(config *params.MontBlancConfig) ([]byte, error) {
+	epochInfo, err := CreateInitialEpochInfo(config)
+	if err != nil {
+		return nil, err
 	}
 
-	if config.MontBlanc != nil && len(config.MontBlanc.NCPs) > 0 {
-		st.Codes = append(st.Codes, params.CodeParam{Address: govwbft.GovNCPAddress, Code: govwbft.GovNCPContract})
-		st.States = append(st.States, govwbft.InitializeNCP(config.MontBlanc.NCPs)...)
+	extraData := &types.QBFTExtra{
+		EpochInfo: epochInfo,
 	}
-	return st
+
+	extraDataBytes, err := rlp.EncodeToBytes(extraData)
+	if err != nil {
+		return nil, err
+	}
+
+	return extraDataBytes, nil
+}
+
+func CreateInitialEpochInfo(config *params.MontBlancConfig) (*types.EpochInfo, error) {
+	var (
+		stakers       []common.Address
+		blsPublicKeys []string
+		epochInfo     = new(types.EpochInfo)
+	)
+	stakers = append(stakers, config.Init.Validators...)
+	blsPublicKeys = append(blsPublicKeys, config.Init.BLSPublicKeys...)
+	for i, addr := range stakers {
+		epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
+			Addr:      addr,
+			Diligence: types.DefaultDiligence,
+		})
+		epochInfo.Validators = append(epochInfo.Validators, uint32(i))
+		epochInfo.BLSPublicKeys = append(epochInfo.BLSPublicKeys, hexutil.MustDecode(blsPublicKeys[i]))
+		epochInfo.Stabilizing = true
+	}
+
+	log.Trace("initial epoch info", "validators", epochInfo.Validators)
+	for i, staker := range epochInfo.Stakers {
+		log.Trace(fmt.Sprintf("  - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
+	}
+
+	return epochInfo, nil
 }

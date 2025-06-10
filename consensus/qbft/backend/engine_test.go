@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/qbft"
@@ -187,38 +186,26 @@ func newBlockChainWithCustom(n int, customizeConfig func(config *qbft.Config)) (
 
 // this is a copy of ethconfig.SetConfigFromChainConfig; avoiding cyclic import
 func setConfigFromChainConfig(qbftCfg *qbft.Config, config *params.ChainConfig) {
-	if len(config.Transitions) > 0 {
-		qbftCfg.Transitions = config.Transitions
+	if len(config.MontBlanc.WBFT.Transitions) > 0 {
+		qbftCfg.Transitions = config.MontBlanc.WBFT.Transitions
 	}
-	if config.QBFT.BlockPeriodSeconds != 0 {
-		qbftCfg.BlockPeriod = config.QBFT.BlockPeriodSeconds
+	if config.MontBlanc.WBFT.BlockPeriodSeconds != 0 {
+		qbftCfg.BlockPeriod = config.MontBlanc.WBFT.BlockPeriodSeconds
 	}
-	if config.QBFT.RequestTimeoutSeconds != 0 {
-		qbftCfg.RequestTimeout = config.QBFT.RequestTimeoutSeconds * 1000
+	if config.MontBlanc.WBFT.RequestTimeoutSeconds != 0 {
+		qbftCfg.RequestTimeout = config.MontBlanc.WBFT.RequestTimeoutSeconds * 1000
 	}
-	if config.QBFT.EpochLength != 0 {
-		qbftCfg.Epoch = config.QBFT.EpochLength
+	if config.MontBlanc.WBFT.EpochLength != 0 {
+		qbftCfg.Epoch = config.MontBlanc.WBFT.EpochLength
 	}
+	qbftCfg.StabilizingStakersThreshold = config.MontBlanc.WBFT.StabilizingStakersThreshold
+	qbftCfg.UseNCP = config.MontBlanc.WBFT.UseNCP
 
-	qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.QBFT.ProposerPolicy))
-	qbftCfg.BlockReward = config.QBFT.BlockReward
+	qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.MontBlanc.WBFT.ProposerPolicy))
+	qbftCfg.BlockReward = config.MontBlanc.WBFT.BlockReward
 
-	if config.QBFT.MaxRequestTimeoutSeconds != nil && *config.QBFT.MaxRequestTimeoutSeconds > 0 {
-		qbftCfg.MaxRequestTimeoutSeconds = *config.QBFT.MaxRequestTimeoutSeconds
-	}
-	if config.QBFT.GovParams != nil {
-		qbftCfg.GovParams = config.QBFT.GovParams
-	} else {
-		value, _ := new(big.Int).SetString("340282366920938463463374607431768211455", 10)
-		qbftCfg.GovParams = &params.GovParams{
-			MinimumStaking:     (*math.HexOrDecimal256)(new(big.Int).Mul(big.NewInt(params.Ether), big.NewInt(500_000))),
-			MaximumStaking:     (*math.HexOrDecimal256)(value),
-			UnbondingStaker:    604800, // 7 days
-			UnbondingDelegator: 604800, // 7 days
-			FeePrecision:       1000,   //0.1%
-			ChangeFeeDelay:     604800, // 7 days
-			MinStakers:         5,
-		}
+	if config.MontBlanc.WBFT.MaxRequestTimeoutSeconds != nil && *config.MontBlanc.WBFT.MaxRequestTimeoutSeconds > 0 {
+		qbftCfg.MaxRequestTimeoutSeconds = *config.MontBlanc.WBFT.MaxRequestTimeoutSeconds
 	}
 }
 
