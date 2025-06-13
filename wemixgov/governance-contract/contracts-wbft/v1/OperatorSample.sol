@@ -16,7 +16,7 @@ contract OperatorSample is IMultiSigWallet, IFeeRecipient {
     bytes4 public constant GOV_CLAIM_SELECTOR = bytes4(keccak256("claim(address,bool)"));
     bytes4 public constant CLAIM_WITHOUT_RESTAKE_SELECTOR = bytes4(keccak256("claimWithoutRestake(address)"));
     bytes4 public constant WITHDRAW_SELECTOR = bytes4(keccak256("withdraw(uint256)"));
-    bytes4 public constant REGISTER_STAKER_SELECTOR = bytes4(keccak256("registerStaker(uint256,address,address,uint256,bytes)"));
+    bytes4 public constant REGISTER_STAKER_SELECTOR = bytes4(keccak256("registerStaker(uint256,address,address,uint256,bytes,bytes)"));
     bytes4 public constant STAKE_SELECTOR = bytes4(keccak256("stake(uint256)"));
 
     uint8 private __status;
@@ -215,17 +215,19 @@ contract OperatorSample is IMultiSigWallet, IFeeRecipient {
         address _staker,
         address _feeRecipient,
         uint256 _feeRate,
-        bytes calldata _blsPK
+        bytes calldata _blsPK,
+        bytes calldata _blsSig
     ) external onlyWalletOrSingleOwner nonReentrant {
         require(_amount <= unstakedAmount, "Operator : amount is greater than unstaked amount");
         unstakedAmount -= _amount;
         bytes memory data = abi.encodeWithSignature(
-            "registerStaker(uint256,address,address,uint256,bytes)",
+            "registerStaker(uint256,address,address,uint256,bytes,bytes)",
             _amount,
             _staker,
             _feeRecipient,
             _feeRate,
-            _blsPK
+            _blsPK,
+            _blsSig
         );
         (bool success, bytes memory returnData) = GOV_STAKING.call{ value: _amount }(data);
         if (!success) {

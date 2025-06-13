@@ -140,7 +140,11 @@ func (g *GovWBFT) RegisterStaker(t *testing.T, v *TestStaker[*EOA], amount *big.
 	if err != nil {
 		return nil, err
 	}
-	return g.stakingContractTx(t, "registerStaker", v.Operator, amount, amount, v.Staker.Address, v.FeeRecipient.Address, fee, blsPubKey.Marshal())
+	blsPoPSig, err := v.GetBLSPoPSignature()
+	if err != nil {
+		return nil, err
+	}
+	return g.stakingContractTx(t, "registerStaker", v.Operator, amount, amount, v.Staker.Address, v.FeeRecipient.Address, fee, blsPubKey.Marshal(), blsPoPSig.Marshal())
 }
 
 func (g *GovWBFT) Stake(t *testing.T, operator *EOA, amount *big.Int) (*types.Transaction, error) {
@@ -233,7 +237,11 @@ func (g *GovWBFT) SingleOwnerRegisterStaker(sender *bind.TransactOpts, v *TestSt
 	if err != nil {
 		return nil, err
 	}
-	return g.operatorContractTx("registerStaker", sender, amount, v.Staker.Address, v.FeeRecipient.Address, feeRate, blsPubkey.Marshal())
+	blsPoPSig, err := v.GetBLSPoPSignature()
+	if err != nil {
+		return nil, err
+	}
+	return g.operatorContractTx("registerStaker", sender, amount, v.Staker.Address, v.FeeRecipient.Address, feeRate, blsPubkey.Marshal(), blsPoPSig.Marshal())
 }
 
 func (g *GovWBFT) SingleOwnerStake(sender *bind.TransactOpts, amount *big.Int) (*types.Transaction, error) {
@@ -356,10 +364,26 @@ func (s *TestStaker[T]) GetBLSSecretKey() (bls.SecretKey, error) {
 	return blsSecretKey, nil
 }
 
+func (s *TestStaker[T]) BLSSign(msg []byte) (bls.Signature, error) {
+	sk, err := s.GetBLSSecretKey()
+	if err != nil {
+		return nil, err
+	}
+	return sk.Sign(msg), nil
+}
+
 func (s *TestStaker[T]) GetBLSPublicKey() (bls.PublicKey, error) {
 	blsSecretKey, err := s.GetBLSSecretKey()
 	if err != nil {
 		return nil, err
 	}
 	return blsSecretKey.PublicKey(), nil
+}
+
+func (s *TestStaker[T]) GetBLSPoPSignature() (bls.Signature, error) {
+	pk, err := s.GetBLSPublicKey()
+	if err != nil {
+		return nil, err
+	}
+	return s.BLSSign(pk.Marshal())
 }

@@ -194,4 +194,7 @@ var (
 var (
 	FixedDifficulty           int64 = 1 // 0 means no fixed difficulty
 	DefaultBriocheBlockReward       = big.NewInt(1e18)
+
+	BLSPoPPrecompileAddress        = common.BytesToAddress([]byte{0xb0, 0x00, 0x01}) // 0x0000000000000000000000000000000000B00001
+	BLSPoPPrecompileGas     uint64 = 45000                                           // set gas cost to ~15× ecrecover, based on benchmarked execution time.
 )

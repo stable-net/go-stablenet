@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // precompiledTest defines the input/output pairs for precompiled contract tests.
@@ -67,6 +68,8 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{0x0f, 0x10}): &bls12381Pairing{},
 	common.BytesToAddress([]byte{0x0f, 0x11}): &bls12381MapG1{},
 	common.BytesToAddress([]byte{0x0f, 0x12}): &bls12381MapG2{},
+
+	params.BLSPoPPrecompileAddress: &blsPoP{},
 }
 
 // EIP-152 test vectors
@@ -153,6 +156,7 @@ func benchmarkPrecompiled(addr string, test precompiledTest, bench *testing.B) {
 	if test.NoBenchmark {
 		return
 	}
+	fmt.Println(common.HexToAddress(addr))
 	p := allPrecompiles[common.HexToAddress(addr)]
 	in := common.Hex2Bytes(test.Input)
 	reqGas := p.RequiredGas(in)
@@ -395,3 +399,16 @@ func BenchmarkPrecompiledBLS12381G2MultiExpWorstCase(b *testing.B) {
 	}
 	benchmarkPrecompiled("0f", testcase, b)
 }
+
+// Benchmarks the sample inputs from the BLS PoP precompile.
+func BenchmarkPrecompiledBLSPoP(bench *testing.B) { //719853
+	t := precompiledTest{
+		Input:    "8e37465cac2b317dda8e3e39a6143e8ff69cfb0e19fc3e1d1e99bb85f270f7ab5c805a7696e8a42592b1e1854be99465a89e281a646a472f8196cbba8cddfaf8da3ea6eabdbcb71cfac5083e3b3d07ccd8ce30465e60af86285f2a8c41d19f3f01f5f1dd1f2ff36128e9a3599a9cb0f2c3b976673f8a86441bb4a95e52c6101eeb82a803b3b251555c429664004be419",
+		Expected: "0000000000000000000000000000000000000000000000000000000000000001",
+		Name:     "",
+	}
+	benchmarkPrecompiled("b00001", t, bench)
+}
+
+func TestPrecompiledBLSPoP(t *testing.T)     { testJson("blsPoP", "b00001", t) }
+func TestPrecompiledBLSPoPFail(t *testing.T) { testJsonFail("blsPoP", "b00001", t) }

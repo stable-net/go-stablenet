@@ -8,14 +8,15 @@ import (
 
 // staker state
 const (
-	SLOT_GOV_CONFIG_ADDRESS       = "0x0"
-	SLOT_GOV_REWARDEE_IMP_ADDRESS = "0x1"
-	SLOT_TOTAL_STAKING            = "0x2"
-	SLOT_STAKER_SET               = "0x3"
-	SLOT_STAKER_INFO              = "0x5"
-	SLOT_STAKER_BY_OPERATOR       = "0x6"
-	SLOT_USER_REWARD_INFO         = "0xb"
-	SLOT_DANGLING_DELEGATED       = "0xc"
+	SLOT_BLS_POP_PRECOMPILED_ADDRESS = "0x0"
+	SLOT_GOV_CONFIG_ADDRESS          = "0x1"
+	SLOT_GOV_REWARDEE_IMP_ADDRESS    = "0x2"
+	SLOT_TOTAL_STAKING               = "0x3"
+	SLOT_STAKER_SET                  = "0x4"
+	SLOT_STAKER_INFO                 = "0x6"
+	SLOT_STAKER_BY_OPERATOR          = "0x7"
+	SLOT_USER_REWARD_INFO            = "0xd"
+	SLOT_DANGLING_DELEGATED          = "0xe"
 )
 
 type Staker struct {

@@ -84,6 +84,10 @@ func GetMontBlancTransition(govContracts *params.GovContracts) (*params.StateTra
 		st.Codes = append(st.Codes, params.CodeParam{
 			Address: govContracts.GovStaking.Address, Code: GovContractCodes[CONTRACT_GOV_STAKING][govContracts.GovStaking.Version]})
 
+		// initialize precompiled contract address for BLS PoP verification
+		st.States = append(st.States, params.StateParam{
+			Address: govContracts.GovStaking.Address, Key: common.HexToHash(SLOT_BLS_POP_PRECOMPILED_ADDRESS), Value: common.BytesToHash(params.BLSPoPPrecompileAddress.Bytes())})
+
 		// initialize govConfig, govRewardeeImp addresses of GovStaking contract
 		if govContracts.GovConfig != nil {
 			st.States = append(st.States, params.StateParam{

@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/blake2b"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/bls12381"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
@@ -121,7 +122,22 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{18}): &bls12381MapG2{},
 }
 
+var PrecompiledContractsMontBlanc = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{1}):    &ecrecover{},
+	common.BytesToAddress([]byte{2}):    &sha256hash{},
+	common.BytesToAddress([]byte{3}):    &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):    &dataCopy{},
+	common.BytesToAddress([]byte{5}):    &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):    &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):    &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):    &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):    &blake2F{},
+	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
+	params.BLSPoPPrecompileAddress:      &blsPoP{},
+}
+
 var (
+	PrecompiledAddressesMontBlanc []common.Address
 	PrecompiledAddressesCancun    []common.Address
 	PrecompiledAddressesBerlin    []common.Address
 	PrecompiledAddressesIstanbul  []common.Address
@@ -145,11 +161,16 @@ func init() {
 	for k := range PrecompiledContractsCancun {
 		PrecompiledAddressesCancun = append(PrecompiledAddressesCancun, k)
 	}
+	for k := range PrecompiledContractsMontBlanc {
+		PrecompiledAddressesMontBlanc = append(PrecompiledAddressesMontBlanc, k)
+	}
 }
 
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {
+	case rules.IsMontBlanc:
+		return PrecompiledAddressesMontBlanc
 	case rules.IsCancun:
 		return PrecompiledAddressesCancun
 	case rules.IsBerlin:
@@ -1133,4 +1154,40 @@ func kZGToVersionedHash(kzg kzg4844.Commitment) common.Hash {
 	h[0] = blobCommitmentVersionKZG
 
 	return h
+}
+
+type blsPoP struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *blsPoP) RequiredGas(input []byte) uint64 {
+	return params.BLSPoPPrecompileGas
+}
+
+func (c *blsPoP) Run(input []byte) ([]byte, error) {
+	const pubkeyLen = 48
+	const sigLen = 96
+	const totalLen = pubkeyLen + sigLen
+
+	if len(input) != totalLen {
+		return nil, errors.New("invalid input length")
+	}
+
+	pubkey := input[:pubkeyLen]
+	signature := input[pubkeyLen:]
+
+	pk, err := bls.PublicKeyFromBytes(pubkey)
+	if err != nil {
+		return nil, errors.New("invalid BLS public key")
+	}
+
+	sig, err := bls.SignatureFromBytes(signature)
+	if err != nil {
+		return nil, errors.New("invalid BLS signature")
+	}
+
+	out := make([]byte, 32)
+	if sig.Verify(pk, pubkey) {
+		out[31] = 1
+	}
+	return out, nil
 }
