@@ -34,22 +34,26 @@ contract GovNCP is IGovCouncil {
         ProposalState state;
         uint256 startTime;
         uint256 endTime;
-        address proposer;
-        address targetNCP;
+        uint256 proposer;
+        address newNCP;
+        uint256 removalNCP;
         ProposalType proposalType;
-        address[] voters;
+        uint256[] voters;
         uint256 accepts;
         uint256 rejects;
-        mapping(address => Decision) decisions;
+        mapping(uint256 => Decision) decisions;
     }
 
     uint256 public constant VOTING_PERIOD = 1 weeks;
 
-    EnumerableSet.AddressSet private __ncpList; // staker operator addresses
+    EnumerableSet.AddressSet private __ncpList; // 0x0, 0x1; staker operator addresses
+
+    uint256 public lastNCPID; // 0x2
+    mapping(uint256 => address) public ncpIDToAddress; // 0x3; mapping from NCP ID to NCP address
+    mapping(address => uint256) public addressToNCPID; // 0x4; mapping from NCP address to NCP ID
 
     uint256 public currentProposalID;
     mapping(uint256 => Proposal) private __proposals;
-    mapping(address => bool) private __lockedNCPs;
 
     bool public emergencyMode;
 
@@ -60,6 +64,7 @@ contract GovNCP is IGovCouncil {
     //***********************************************************************
 
     event NewProposal(uint256 indexed id, uint256 proposalType, address ncp, address proposer, uint256 time, uint256 endtime);
+
     event Vote(uint256 indexed proposalID, address voter, bool accept);
     event ProposalFinalized(uint256 indexed proposalID, bool accepted);
     event ProposalCanceled(uint256 indexed proposalID);
@@ -84,6 +89,10 @@ contract GovNCP is IGovCouncil {
 
     function ncpList() external view returns (address[] memory) {
         return __ncpList.values();
+    }
+
+    function ncpCount() external view returns (uint256) {
+        return __ncpList.length();
     }
 
     function newProposalToAddNCP(address _newNCP) external onlyNCP {
@@ -113,10 +122,17 @@ contract GovNCP is IGovCouncil {
 
     function changeNCP(address _ncp) external onlyNCP {
         require(!__ncpList.contains(_ncp), "ncp already exists");
-        require(!__lockedNCPs[msg.sender], "belong in an on-going proposal");
 
+        if ((__proposals[currentProposalID].state != ProposalState.None) &&
+            (__proposals[currentProposalID].proposalType == ProposalType.NCPAdd) &&
+            (__proposals[currentProposalID].endTime >= block.timestamp)) {
+            require(__proposals[currentProposalID].newNCP != _ncp, "cannot change the ncp to an address that is proposed as the new ncp");
+        }
         __ncpList.remove(msg.sender);
         __ncpList.add(_ncp);
+        addressToNCPID[_ncp] = addressToNCPID[msg.sender];
+        ncpIDToAddress[addressToNCPID[msg.sender]] = _ncp;
+        addressToNCPID[msg.sender] = 0; // remove old ncp id
 
         emit NCPChanged(msg.sender, _ncp);
     }
@@ -124,7 +140,7 @@ contract GovNCP is IGovCouncil {
     function vote(uint256 _proposalID, bool _accept) external onlyNCP {
         Proposal storage _proposal = _getVotingProposal(_proposalID);
         require(block.timestamp <= _proposal.endTime, "already closed vote");
-        require(_proposal.decisions[msg.sender] == Decision.None, "already voted");
+        require(_proposal.decisions[addressToNCPID[msg.sender]] == Decision.None, "already voted");
 
         Decision _decision;
         if (_accept) {
@@ -134,8 +150,8 @@ contract GovNCP is IGovCouncil {
             _decision = Decision.Reject;
             _proposal.rejects++;
         }
-        _proposal.voters.push(msg.sender);
-        _proposal.decisions[msg.sender] = _decision;
+        _proposal.voters.push(addressToNCPID[msg.sender]);
+        _proposal.decisions[addressToNCPID[msg.sender]] = _decision;
 
         emit Vote(_proposalID, msg.sender, _accept);
         uint256 _threshold = __ncpList.length();
@@ -147,7 +163,7 @@ contract GovNCP is IGovCouncil {
     function cancelProposal(uint256 _proposalID) external onlyNCP {
         Proposal storage _proposal = _getVotingProposal(_proposalID);
         if (block.timestamp <= _proposal.endTime) {
-            require(_proposal.proposer == msg.sender, "non-proposer cannot cancel before timeout");
+            require(_proposal.proposer == addressToNCPID[msg.sender], "non-proposer cannot cancel before timeout");
             require(_proposal.voters.length == 0, "cannot cancel after vote");
         }
         _cancelProposal(_proposal);
@@ -163,15 +179,16 @@ contract GovNCP is IGovCouncil {
                 _proposal = __proposals[currentProposalID];
             }
         }
-        _proposal.proposer = msg.sender;
+        if (_proposalType == ProposalType.NCPAdd) {
+            _proposal.newNCP = _targetNCP;
+        } else if (_proposalType == ProposalType.NCPRemoval) {
+            _proposal.removalNCP = addressToNCPID[_targetNCP];
+        }
+        _proposal.proposer = addressToNCPID[msg.sender];
         _proposal.startTime = block.timestamp;
         _proposal.endTime = block.timestamp + VOTING_PERIOD;
-        _proposal.targetNCP = _targetNCP;
         _proposal.proposalType = _proposalType;
         _proposal.state = ProposalState.Voting;
-
-        __lockedNCPs[msg.sender] = true;
-        __lockedNCPs[_targetNCP] = true;
 
         emit NewProposal(currentProposalID, uint(_proposalType), _targetNCP, msg.sender, block.timestamp, _proposal.endTime);
     }
@@ -185,11 +202,17 @@ contract GovNCP is IGovCouncil {
     function _finalizeProposal(Proposal storage _proposal, bool _accepted) private {
         if (_accepted) {
             if (_proposal.proposalType == ProposalType.NCPAdd) {
-                __ncpList.add(_proposal.targetNCP);
-                emit NCPAdded(_proposal.targetNCP);
+                __ncpList.add(_proposal.newNCP);
+                lastNCPID++;
+                addressToNCPID[_proposal.newNCP] = lastNCPID;
+                ncpIDToAddress[lastNCPID] = _proposal.newNCP;
+                emit NCPAdded(_proposal.newNCP);
             } else if (_proposal.proposalType == ProposalType.NCPRemoval) {
-                __ncpList.remove(_proposal.targetNCP);
-                emit NCPRemoved(_proposal.targetNCP);
+                address _oldNCP = ncpIDToAddress[_proposal.removalNCP];
+                __ncpList.remove(_oldNCP);
+                ncpIDToAddress[_proposal.removalNCP] = address(0);
+                addressToNCPID[_oldNCP] = 0;
+                emit NCPRemoved(_oldNCP);
             } else if (_proposal.proposalType == ProposalType.EmergencyMode) {
                 emergencyMode = true;
             } else if (_proposal.proposalType == ProposalType.ReleaseEmergencyMode) {
@@ -199,9 +222,6 @@ contract GovNCP is IGovCouncil {
         } else {
             _proposal.state = ProposalState.Rejected;
         }
-
-        __lockedNCPs[_proposal.proposer] = false;
-        __lockedNCPs[_proposal.targetNCP] = false;
 
         emit ProposalFinalized(currentProposalID, _accepted);
 

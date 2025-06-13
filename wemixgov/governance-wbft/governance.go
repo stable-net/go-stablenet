@@ -121,12 +121,14 @@ func initializeNCP(govNCPAddress common.Address, ncps []common.Address) []params
 
 	currentIdx := uint64(0)
 	newLength := new(big.Int)
+	ncpID := new(big.Int)
 	for _, ncp := range ncps {
 		if _, ok := duplicated[ncp]; ok {
 			continue
 		}
 		newLength = new(big.Int).SetUint64(currentIdx + 1)
 
+		ncpID = new(big.Int).Add(ncpID, big.NewInt(1))
 		param = append(param,
 			// set index slot
 			params.StateParam{
@@ -140,16 +142,35 @@ func initializeNCP(govNCPAddress common.Address, ncps []common.Address) []params
 				Key:     CalculateDynamicSlot(valueSlot, new(big.Int).SetUint64(currentIdx)),
 				Value:   common.BytesToHash(ncp.Bytes()),
 			},
+
+			// set id to address mapping
+			params.StateParam{
+				Address: govNCPAddress,
+				Key:     CalculateMappingSlot(common.HexToHash(SLOT_NCP_ID_TO_ADDRESS), ncpID),
+				Value:   common.BytesToHash(ncp.Bytes()),
+			},
+			// set address to id mapping
+			params.StateParam{
+				Address: govNCPAddress,
+				Key:     CalculateMappingSlot(common.HexToHash(SLOT_NCP_ADDRESS_TO_ID), ncp),
+				Value:   common.BigToHash(ncpID),
+			},
 		)
 		duplicated[ncp] = struct{}{}
 		currentIdx++
 	}
 	if newLength.Sign() > 0 {
-		param = append(param, params.StateParam{
-			Address: govNCPAddress,
-			Key:     valueSlot,
-			Value:   common.BigToHash(newLength),
-		})
+		param = append(param,
+			params.StateParam{
+				Address: govNCPAddress,
+				Key:     valueSlot,
+				Value:   common.BigToHash(newLength),
+			},
+			params.StateParam{
+				Address: govNCPAddress,
+				Key:     common.HexToHash(SLOT_NCP_LAST_ID),
+				Value:   common.BigToHash(ncpID),
+			})
 	}
 	return param
 }

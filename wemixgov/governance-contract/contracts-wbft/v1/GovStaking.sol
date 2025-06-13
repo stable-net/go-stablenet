@@ -273,6 +273,7 @@ contract GovStaking {
     function transferOperatorShip(address _newOperator) external isRegistered(stakerByOperator[msg.sender])
         inspectWithCouncil(GovStaking.transferOperatorShip.selector, abi.encode(_newOperator)) {
         require(_newOperator != address(0), "zero address");
+        require(stakerByOperator[_newOperator] == address(0), "new operator is already registered as other operator");
         address _staker = stakerByOperator[msg.sender];
         require(_newOperator != _staker, "cannot transfer to self");
 

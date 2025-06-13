@@ -87,9 +87,9 @@ func (s *Suite) TestSnapGetAccountRange(t *utesting.T) {
 			root:         root,
 			startingHash: zero,
 			limitHash:    ffHash,
-			expAccounts:  67,
+			expAccounts:  68,
 			expFirst:     firstKey,
-			expLast:      common.HexToHash("0x5602444769b5fd1ddfca48e3c38f2ecad326fe2433f22b90f6566a38496bd426"),
+			expLast:      common.HexToHash("0x59312f89c13e9e24c1cb8b103aa39a9b2800348d97a92c2c9e2a78fa02b70025"),
 			desc:         "In this test, we request the entire state range, but limit the response to 4000 bytes.",
 		},
 		{
@@ -99,7 +99,7 @@ func (s *Suite) TestSnapGetAccountRange(t *utesting.T) {
 			limitHash:    ffHash,
 			expAccounts:  50,
 			expFirst:     firstKey,
-			expLast:      common.HexToHash("0x420a83d9891f19593cdda9b31bb3b450e960fa87042dd428a7fa5ee69db02c75"),
+			expLast:      common.HexToHash("0x4363d332a0d4df8582a84932729892387c623fe1ec42e2cfcbe85c183ed98e0e"),
 			desc:         "In this test, we request the entire state range, but limit the response to 3000 bytes.",
 		},
 		{
@@ -109,7 +109,7 @@ func (s *Suite) TestSnapGetAccountRange(t *utesting.T) {
 			limitHash:    ffHash,
 			expAccounts:  34,
 			expFirst:     firstKey,
-			expLast:      common.HexToHash("0x2d425481284fbb1874a2c55d81564f371543b3b8f7450e860bc5381ba47b465f"),
+			expLast:      common.HexToHash("0x2de4bdbddcfbb9c3e195dae6b45f9c38daff897e926764bf34887fb0db5c3284"),
 			desc:         "In this test, we request the entire state range, but limit the response to 2000 bytes.",
 		},
 		{
@@ -178,9 +178,9 @@ The server should return the first available account.`,
 			root:         root,
 			startingHash: firstKey,
 			limitHash:    ffHash,
-			expAccounts:  67,
+			expAccounts:  68,
 			expFirst:     firstKey,
-			expLast:      common.HexToHash("0x5602444769b5fd1ddfca48e3c38f2ecad326fe2433f22b90f6566a38496bd426"),
+			expLast:      common.HexToHash("0x59312f89c13e9e24c1cb8b103aa39a9b2800348d97a92c2c9e2a78fa02b70025"),
 			desc: `In this test, startingHash is exactly the first available account key.
 The server should return the first available account of the state as the first item.`,
 		},
@@ -191,7 +191,7 @@ The server should return the first available account of the state as the first i
 			limitHash:    ffHash,
 			expAccounts:  68,
 			expFirst:     secondKey,
-			expLast:      common.HexToHash("0x59312f89c13e9e24c1cb8b103aa39a9b2800348d97a92c2c9e2a78fa02b70025"),
+			expLast:      common.HexToHash("0x59a7c8818f1c16b298a054020dc7c3f403a970d1d1db33f9478b1c36e3a2e509"),
 			desc: `In this test, startingHash is after the first available key.
 The server should return the second account of the state as the first item.`,
 		},
@@ -661,7 +661,7 @@ The server should reject the request.`,
 				// It's a bit unfortunate these are hard-coded, but the result depends on
 				// a lot of aspects of the state trie and can't be guessed in a simple
 				// way. So you'll have to update this when the test chain is changed.
-				common.HexToHash("0x33b7dbfda7087ea60219f0b2699e4910fb68e19f271be37787423b7313a30520"),
+				common.HexToHash("0x09d0a5a624c6cea221c43c9bfc83787d3098ffb81b5554464526e7f7a1e0a826"),
 				common.HexToHash("0x2b8c08122de89dadd4ca2c72f2cbc5e109b792bd82787a343713e3b632a77556"),
 				empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty,
 				empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty, empty,
@@ -683,7 +683,7 @@ The server should reject the request.`,
 			expHashes: []common.Hash{
 				empty,
 				common.HexToHash("0x2b8c08122de89dadd4ca2c72f2cbc5e109b792bd82787a343713e3b632a77556"),
-				common.HexToHash("0x33b7dbfda7087ea60219f0b2699e4910fb68e19f271be37787423b7313a30520"),
+				common.HexToHash("0x09d0a5a624c6cea221c43c9bfc83787d3098ffb81b5554464526e7f7a1e0a826"),
 			},
 		},
 

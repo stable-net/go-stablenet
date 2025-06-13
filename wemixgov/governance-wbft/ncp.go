@@ -7,7 +7,10 @@ import (
 )
 
 const (
-	SLOT_NCP_LIST = "0x0" // ,0x1
+	SLOT_NCP_LIST          = "0x0" // ,0x1
+	SLOT_NCP_LAST_ID       = "0x2"
+	SLOT_NCP_ID_TO_ADDRESS = "0x3"
+	SLOT_NCP_ADDRESS_TO_ID = "0x4"
 )
 
 func NCPLength(govNCPAddress common.Address, state StateReader) uint64 {
