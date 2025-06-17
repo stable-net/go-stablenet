@@ -12,43 +12,26 @@ import (
 
 func init() {
 	// to avoid import cycle
-	params.CheckInitGovContractVersions = checkInitGovContractVersions
-	params.CheckUpgradeGovContractVersions = checkUpgradeGovContractVersions
+	params.CheckGovContractVersions = checkGovContractVersions
 }
 
-func checkInitGovContractVersions(govContracts *params.GovContracts) error {
+func checkGovContractVersions(govContracts *params.GovContracts) error {
 	if GovContractCodes[CONTRACT_GOV_CONFIG][govContracts.GovConfig.Version] == "" {
-		return fmt.Errorf("`montblanc.init.govContracts.govConfig`: unsupported version %s", govContracts.GovConfig.Version)
+		return fmt.Errorf("`govContracts.govConfig`: unsupported version %s", govContracts.GovConfig.Version)
 	}
 	if GovContractCodes[CONTRACT_GOV_STAKING][govContracts.GovStaking.Version] == "" {
-		return fmt.Errorf("`montblanc.init.govContracts.govStaking`: unsupported version %s", govContracts.GovStaking.Version)
+		return fmt.Errorf("`govContracts.govStaking`: unsupported version %s", govContracts.GovStaking.Version)
 	}
 	if GovContractCodes[CONTRACT_GOV_REWARDEE_IMP][govContracts.GovRewardeeImp.Version] == "" {
-		return fmt.Errorf("`montblanc.init.govContracts.govRewardeeImp`: unsupported version %s", govContracts.GovRewardeeImp.Version)
+		return fmt.Errorf("`.govContracts.govRewardeeImp`: unsupported version %s", govContracts.GovRewardeeImp.Version)
 	}
 	if govContracts.GovNCP != nil && GovContractCodes[CONTRACT_GOV_NCP][govContracts.GovNCP.Version] == "" {
-		return fmt.Errorf("`montblanc.init.govContracts.govNCP`: unsupported version %s", govContracts.GovNCP.Version)
+		return fmt.Errorf("`govContracts.govNCP`: unsupported version %s", govContracts.GovNCP.Version)
 	}
 	return nil
 }
 
-func checkUpgradeGovContractVersions(govContracts *params.GovContracts) error {
-	if govContracts.GovConfig != nil && GovContractCodes[CONTRACT_GOV_CONFIG][govContracts.GovConfig.Version] == "" {
-		return fmt.Errorf("`montblanc.upgrades.govContracts.govConfig`: unsupported version %s", govContracts.GovConfig.Version)
-	}
-	if govContracts.GovStaking != nil && GovContractCodes[CONTRACT_GOV_STAKING][govContracts.GovStaking.Version] == "" {
-		return fmt.Errorf("`montblanc.upgrades.govContracts.govStaking`: unsupported version %s", govContracts.GovStaking.Version)
-	}
-	if govContracts.GovRewardeeImp != nil && GovContractCodes[CONTRACT_GOV_REWARDEE_IMP][govContracts.GovRewardeeImp.Version] == "" {
-		return fmt.Errorf("`montblanc.upgrades.govContracts.govRewardeeImp`: unsupported version %s", govContracts.GovRewardeeImp.Version)
-	}
-	if govContracts.GovNCP != nil && GovContractCodes[CONTRACT_GOV_NCP][govContracts.GovNCP.Version] == "" {
-		return fmt.Errorf("`montblanc.upgrades.govContracts.govNCP`: unsupported version %s", govContracts.GovNCP.Version)
-	}
-	return nil
-}
-
-func GetMontBlancTransition(govContracts *params.GovContracts) (*params.StateTransition, error) {
+func GetGovContractsTransition(govContracts *params.GovContracts) (*params.StateTransition, error) {
 	st := &params.StateTransition{}
 
 	if govContracts.GovConfig != nil {

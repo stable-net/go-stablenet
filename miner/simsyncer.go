@@ -36,40 +36,25 @@ func (ss *simSyncer) Apply(chainConfig *params.ChainConfig, config *qbft.Config,
 	number := num.Uint64()
 	if ss.adjustedBlockPeriod[number] > 0 {
 		config.Transitions = append(config.Transitions, params.Transition{
-			Block:              num,
-			BlockPeriodSeconds: ss.adjustedBlockPeriod[number],
+			Block: num,
+			WBFTConfig: &params.WBFTConfig{
+				BlockPeriodSeconds: ss.adjustedBlockPeriod[number],
+			},
 		})
 	}
 	if upgradeContracts, ok := ss.upgradeContracts[number]; ok {
 		if chainConfig.MontBlancBlock.Cmp(num) == 0 {
-			if chainConfig.MontBlanc.Init.GovContracts == nil {
-				chainConfig.MontBlanc.Init.GovContracts = new(params.GovContracts)
+			if chainConfig.MontBlanc.GovContracts == nil {
+				chainConfig.MontBlanc.GovContracts = new(params.GovContracts)
 			}
-			combineGovContracts(chainConfig.MontBlanc.Init.GovContracts, upgradeContracts)
+			combineGovContracts(chainConfig.MontBlanc.GovContracts, upgradeContracts)
 		} else {
 			newUpgrade := params.Upgrade{
 				Block:        num,
 				GovContracts: upgradeContracts,
 			}
-			if chainConfig.MontBlanc.Upgrades == nil {
-				chainConfig.MontBlanc.Upgrades = make([]params.Upgrade, 0)
-				chainConfig.MontBlanc.Upgrades = append(chainConfig.MontBlanc.Upgrades, newUpgrade)
-			} else {
-				for i, upgrade := range chainConfig.MontBlanc.Upgrades {
-					if upgrade.Block.Cmp(num) == 0 {
-						combineGovContracts(upgrade.GovContracts, upgradeContracts)
-						return
-					} else if upgrade.Block.Cmp(num) > 0 {
-						chainConfig.MontBlanc.Upgrades = append(chainConfig.MontBlanc.Upgrades, newUpgrade)
-						for j := len(chainConfig.MontBlanc.Upgrades) - 1; j > i; j-- {
-							chainConfig.MontBlanc.Upgrades[j] = chainConfig.MontBlanc.Upgrades[j-1]
-						}
-						chainConfig.MontBlanc.Upgrades[i] = newUpgrade
-						return
-					}
-				}
-				chainConfig.MontBlanc.Upgrades = append(chainConfig.MontBlanc.Upgrades, newUpgrade)
-			}
+
+			config.GovContractUpgrades = append(config.GovContractUpgrades, newUpgrade)
 		}
 	}
 }

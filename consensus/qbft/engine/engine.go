@@ -513,9 +513,10 @@ func (e *Engine) GetStakers(config *params.ChainConfig, latestEpochInfo *types.E
 		stakers     []common.Address
 		stabilizing bool = latestEpochInfo.Stabilizing
 	)
-	govStakingAddress := config.MontBlanc.GetGovStakingAddress(num)
+	govContracts := e.cfg.GetGovContracts(num, config)
+	govStakingAddress := govContracts.GovStaking.Address
 	if e.cfg.GetConfig(num).UseNCP {
-		govNCPAddress := config.MontBlanc.GetGovNCPAddress(num)
+		govNCPAddress := govContracts.GovNCP.Address
 		stakers = govwbft.NCPStakers(govStakingAddress, govNCPAddress, state)
 	} else {
 		stakers = govwbft.Stakers(govStakingAddress, state)
@@ -757,7 +758,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 		newEpoch.Validators = latestEpochInfo.Validators
 		newEpoch.BLSPublicKeys = latestEpochInfo.BLSPublicKeys
 	} else {
-		govStakingAddress := config.MontBlanc.GetGovStakingAddress(header.Number)
+		govStakingAddress := e.cfg.GetGovContracts(header.Number, config).GovStaking.Address
 		candidates := make([]Candidate, 0, len(newStakers))
 		for _, s := range newEpoch.Stakers {
 			candidate := Candidate{
@@ -811,13 +812,13 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 		return err
 	}
 
-	if transition, err := qbft.GetMontBlancTransition(chain.Config(), header.Number); err != nil {
+	if st, err := qbft.GetGovContractsStateTransition(e.cfg, header.Number); err != nil {
 		return err
-	} else if transition != nil {
-		for _, c := range transition.Codes {
+	} else if st != nil {
+		for _, c := range st.Codes {
 			state.SetCode(c.Address, hexutil.MustDecode(c.Code))
 		}
-		for _, s := range transition.States {
+		for _, s := range st.States {
 			state.SetState(s.Address, s.Key, s.Value)
 		}
 	}
@@ -1007,10 +1008,15 @@ func makeRewardFunc(state *state.StateDB, blockReward *big.Int) func(*govwbft.St
 func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *state.StateDB, header *types.Header) error {
 	var blockReward *big.Int
 
+	// if brioche config exists, use it
+	// else, get block reward from qbft config
 	if chain.Config().IsBrioche(header.Number) {
 		blockReward = chain.Config().Brioche.GetBriocheBlockReward(params.DefaultBriocheBlockReward, header.Number)
 	} else {
-		blockReward = chain.Config().MontBlanc.WBFT.GetBlockReward(header.Number)
+		cfgBlockReward := e.cfg.GetConfig(header.Number).BlockReward
+		if cfgBlockReward != nil {
+			blockReward = new(big.Int).Set((*big.Int)(cfgBlockReward))
+		}
 	}
 
 	// Deduct rewards of beneficiaries.
@@ -1037,7 +1043,7 @@ func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *sta
 		blockReward.Sub(blockReward, bReward)
 	}
 
-	govStakingAddress := chain.Config().MontBlanc.GetGovStakingAddress(header.Number)
+	govStakingAddress := e.cfg.GetGovContracts(header.Number, chain.Config()).GovStaking.Address
 	getStakerInfo := func(addr common.Address) *govwbft.Staker {
 		// If the staker is removed from gov, use fallback staker info with zero staking.
 		if !govwbft.IsStaker(govStakingAddress, state, addr) {

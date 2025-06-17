@@ -21,9 +21,13 @@
 package qbft
 
 import (
+	"errors"
 	"math/big"
 	"reflect"
+	"sort"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/naoina/toml"
@@ -50,48 +54,332 @@ func TestProposerPolicy_MarshalTOML(t *testing.T) {
 	assert.Equal(t, output, b, "ProposerPolicy MarshalTOML mismatch")
 }
 
+// testChainConfigWrapper wraps ChainConfig to add fake hardForks for testing
+type chainConfigWrapper struct {
+	*params.ChainConfig
+	fakeHardForks []fakeHardFork
+}
+
+type fakeHardFork struct {
+	name              string
+	blockNum          *big.Int
+	WBFTConfig        *params.WBFTConfig
+	GovContractConfig *params.GovContracts
+}
+
+// newTestChainConfig creates a test chain config with fake hard forks
+func newTestChainConfig() *chainConfigWrapper {
+	return &chainConfigWrapper{
+		ChainConfig:   params.TestQBFTChainConfig,
+		fakeHardForks: make([]fakeHardFork, 0),
+	}
+}
+
+// addFakeHardFork adds a fake hard fork for testing
+func (cw *chainConfigWrapper) addFakeHardFork(name string, blockNum *big.Int, wbftConfig *params.WBFTConfig, govContractConfig *params.GovContracts) {
+	fh := fakeHardFork{
+		name:              name,
+		blockNum:          blockNum,
+		WBFTConfig:        wbftConfig,
+		GovContractConfig: govContractConfig,
+	}
+	cw.fakeHardForks = append(cw.fakeHardForks, fh)
+}
+
+// setConfigFromChainConfig is a test version of SetConfigFromChainConfig that works with fake hardForks
+func setConfigFromChainConfig(qbftCfg *Config, chainCfg *chainConfigWrapper) error {
+	config := chainCfg.MontBlanc.WBFT
+	if config.RequestTimeoutSeconds != 0 {
+		qbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
+	}
+	if config.BlockPeriodSeconds != 0 {
+		qbftCfg.BlockPeriod = config.BlockPeriodSeconds
+	}
+	if config.EpochLength != 0 {
+		qbftCfg.Epoch = config.EpochLength
+	}
+	qbftCfg.BlockReward = config.BlockReward
+	qbftCfg.BlockRewardBeneficiary = config.BlockRewardBeneficiary
+
+	if config.ProposerPolicy != nil {
+		qbftCfg.ProposerPolicy = NewProposerPolicy(ProposerPolicyId(*config.ProposerPolicy))
+	}
+	if config.TargetValidators != nil {
+		qbftCfg.TargetValidators = *config.TargetValidators
+	}
+	if config.MaxRequestTimeoutSeconds != nil {
+		qbftCfg.MaxRequestTimeoutSeconds = *config.MaxRequestTimeoutSeconds
+	}
+	if config.StabilizingStakersThreshold != nil {
+		qbftCfg.StabilizingStakersThreshold = *config.StabilizingStakersThreshold
+	}
+	if config.UseNCP != nil {
+		qbftCfg.UseNCP = *config.UseNCP
+	}
+
+	hfTransitionBlocks := make(map[*big.Int]bool)
+	for _, hf := range chainCfg.fakeHardForks {
+		transition := params.Transition{
+			Block:      hf.blockNum,
+			WBFTConfig: hf.WBFTConfig,
+		}
+		qbftCfg.Transitions = append(qbftCfg.Transitions, transition)
+		hfTransitionBlocks[hf.blockNum] = true
+	}
+
+	if chainCfg.Transitions != nil && len(chainCfg.Transitions) > 0 {
+		for _, t := range chainCfg.Transitions {
+			if hfTransitionBlocks[t.Block] {
+				return errors.New("hardfork transition block already exists")
+			}
+			qbftCfg.Transitions = append(qbftCfg.Transitions, t)
+		}
+	}
+
+	sort.Slice(qbftCfg.Transitions, func(i, j int) bool {
+		if qbftCfg.Transitions[i].Block == nil {
+			return false
+		}
+		if qbftCfg.Transitions[j].Block == nil {
+			return true
+		}
+		return qbftCfg.Transitions[i].Block.Cmp(qbftCfg.Transitions[j].Block) < 0
+	})
+
+	qbftCfg.GovContractUpgrades = append(qbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.MontBlancBlock, GovContracts: chainCfg.MontBlanc.GovContracts})
+	for _, hf := range chainCfg.fakeHardForks {
+		upgrade := params.Upgrade{
+			Block:        hf.blockNum,
+			GovContracts: hf.GovContractConfig,
+		}
+		qbftCfg.GovContractUpgrades = append(qbftCfg.GovContractUpgrades, upgrade)
+	}
+
+	return nil
+}
+
 func TestGetConfig(t *testing.T) {
-	if !reflect.DeepEqual(DefaultConfig.GetConfig(nil), *DefaultConfig) {
-		t.Errorf("error default config:\nexpected: %v\n", DefaultConfig)
-	}
+	// Create test chain config with fake hard forks
+	testConfig := newTestChainConfig()
+	qbftCfg := new(Config)
 
-	config := *DefaultConfig
-	config.Transitions = []params.Transition{{
-		Block:       big.NewInt(1),
-		EpochLength: 40000,
+	// Add fake hard forks
+	testConfig.addFakeHardFork("TestFork1", big.NewInt(10),
+		&params.WBFTConfig{
+			EpochLength: 200,
+		},
+		nil,
+	)
+
+	testConfig.addFakeHardFork("TestFork2", big.NewInt(20),
+		&params.WBFTConfig{
+			BlockPeriodSeconds: 3,
+		},
+		nil,
+	)
+
+	testConfig.addFakeHardFork("TestFork3", big.NewInt(30),
+		&params.WBFTConfig{
+			RequestTimeoutSeconds: 4000,
+		},
+		nil,
+	)
+
+	testConfig.Transitions = []params.Transition{{
+		Block:      big.NewInt(1),
+		WBFTConfig: &params.WBFTConfig{EpochLength: 40000},
 	}, {
-		Block:              big.NewInt(3),
-		BlockPeriodSeconds: 5,
+		Block:      big.NewInt(3),
+		WBFTConfig: &params.WBFTConfig{BlockPeriodSeconds: 100},
 	}, {
-		Block:                 big.NewInt(5),
-		RequestTimeoutSeconds: 15000,
+		Block:      big.NewInt(5),
+		WBFTConfig: &params.WBFTConfig{RequestTimeoutSeconds: 5000},
 	}}
-	config1 := *DefaultConfig
-	config1.Epoch = 40000
-	config1.BlockPeriod = 1 // default value
-	config3 := config1
-	config3.BlockPeriod = 5
-	config5 := config3
-	config5.RequestTimeout = 15000
 
-	type test struct {
-		blockNumber    int64
-		expectedConfig Config
+	setConfigFromChainConfig(qbftCfg, testConfig)
+
+	createExpectedConfig := func(baseConfig *Config, modifications func(*Config)) Config {
+		expected := *baseConfig
+		modifications(&expected)
+		return expected
 	}
-	tests := []test{
-		{1, config1},
-		{2, config1},
-		{3, config3},
-		{4, config3},
-		{5, config5},
-		{10, config5},
-		{100, config5},
+
+	tests := []struct {
+		name           string
+		blockNumber    uint64
+		expectedConfig Config
+	}{
+		{
+			name:           "Before any hard fork or transitions (block 0)",
+			blockNumber:    0,
+			expectedConfig: *qbftCfg,
+		},
+		{
+			name:        "After first transition (block 1)",
+			blockNumber: 1,
+			expectedConfig: createExpectedConfig(qbftCfg, func(cfg *Config) {
+				cfg.Epoch = 40000 // From Transition 1
+			}),
+		},
+		{
+			name:        "After second transition (block 3)",
+			blockNumber: 4,
+			expectedConfig: createExpectedConfig(qbftCfg, func(cfg *Config) {
+				cfg.Epoch = 40000     // From Transition 1
+				cfg.BlockPeriod = 100 // From Transition 2
+			}),
+		},
+		{
+			name:        "After second transition (block 5)",
+			blockNumber: 9,
+			expectedConfig: createExpectedConfig(qbftCfg, func(cfg *Config) {
+				cfg.Epoch = 40000                // From Transition 1
+				cfg.BlockPeriod = 100            // From Transition 2
+				cfg.RequestTimeout = 5000 * 1000 // From Transition 3
+			}),
+		},
+		{
+			name:        "After TestFork1 (block 15)",
+			blockNumber: 15,
+			expectedConfig: createExpectedConfig(qbftCfg, func(cfg *Config) {
+				cfg.Epoch = 200                  // From TestFork1
+				cfg.BlockPeriod = 100            // From Transition 2
+				cfg.RequestTimeout = 5000 * 1000 // From Transition 3
+			}),
+		},
+		{
+			name:        "After TestFork2 (block 25)",
+			blockNumber: 25,
+			expectedConfig: createExpectedConfig(qbftCfg, func(cfg *Config) {
+				cfg.Epoch = 200                  // From TestFork1
+				cfg.BlockPeriod = 3              // From TestFork2
+				cfg.RequestTimeout = 5000 * 1000 // From Transition 3
+			}),
+		},
+		{
+			name:        "After TestFork3 (block 35)",
+			blockNumber: 35,
+			expectedConfig: createExpectedConfig(qbftCfg, func(cfg *Config) {
+				cfg.Epoch = 200                  // From TestFork1
+				cfg.BlockPeriod = 3              // From TestFork2
+				cfg.RequestTimeout = 4000 * 1000 // From TestFork3
+			}),
+		},
 	}
 
 	for _, test := range tests {
-		c := test.expectedConfig.GetConfig(big.NewInt(test.blockNumber))
-		if !reflect.DeepEqual(c, test.expectedConfig) {
-			t.Errorf("error mismatch:\nexpected: %v\ngot: %v\n", test.expectedConfig, c)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			result := qbftCfg.GetConfig(big.NewInt(int64(test.blockNumber)))
+			if !reflect.DeepEqual(result, test.expectedConfig) {
+				t.Errorf("error in %s:\nexpected: %+v\ngot: %+v\n", test.name, test.expectedConfig, result)
+			}
+		})
+	}
+}
+
+// getGovContracts is test version of GetGovContracts that works with fake hardForks
+func getGovContracts(blockNumber *big.Int, qbftCfg *Config) params.GovContracts {
+	gc := params.GovContracts{}
+
+	if qbftCfg.GovContractUpgrades != nil && len(qbftCfg.GovContractUpgrades) > 0 {
+		qbftCfg.getGovContractsValue(blockNumber, func(upgrade params.Upgrade) {
+			if upgrade.GovStaking != nil {
+				gc.GovStaking = upgrade.GovStaking
+			}
+			if upgrade.GovConfig != nil {
+				gc.GovConfig = upgrade.GovConfig
+			}
+			if upgrade.GovRewardeeImp != nil {
+				gc.GovRewardeeImp = upgrade.GovRewardeeImp
+			}
+			if upgrade.GovNCP != nil {
+				gc.GovNCP = upgrade.GovNCP
+			}
+		})
+	}
+	return gc
+}
+
+func TestGetGovContracts(t *testing.T) {
+	// Create test chain config with fake hard forks
+	testConfig := newTestChainConfig()
+	qbftCfg := new(Config)
+
+	// Add fake hard forks
+	testConfig.addFakeHardFork("TestFork1", big.NewInt(10),
+		nil,
+		&params.GovContracts{
+			GovConfig: &params.GovContract{
+				Address: common.HexToAddress("0x2000"),
+				Version: "v2",
+				Params:  nil,
+			},
+		},
+	)
+	testConfig.addFakeHardFork("TestFork2", big.NewInt(20),
+		nil,
+		&params.GovContracts{
+			GovStaking: &params.GovContract{
+				Address: common.HexToAddress("0x2000"),
+				Version: "v2",
+				Params:  nil,
+			},
+		},
+	)
+
+	setConfigFromChainConfig(qbftCfg, testConfig)
+	baseContracts := testConfig.MontBlanc.GovContracts
+
+	createExpectedGovContracts := func(baseConfig *params.GovContracts, modifications func(config *params.GovContracts)) params.GovContracts {
+		expected := *baseConfig
+		modifications(&expected)
+		return expected
+	}
+	tests := []struct {
+		name           string
+		blockNumber    uint64
+		expectedConfig params.GovContracts
+	}{
+		{
+			name:           "Before any hard forks",
+			blockNumber:    0,
+			expectedConfig: *baseContracts,
+		},
+		{
+			name:        "After first transition (block 1)",
+			blockNumber: 11,
+			expectedConfig: createExpectedGovContracts(baseContracts, func(contracts *params.GovContracts) {
+				contracts.GovConfig = &params.GovContract{
+					Address: common.HexToAddress("0x2000"),
+					Version: "v2",
+					Params:  nil,
+				}
+			}),
+		},
+		{
+			name:        "After second transition (block 3)",
+			blockNumber: 20,
+			expectedConfig: createExpectedGovContracts(baseContracts, func(contracts *params.GovContracts) {
+				contracts.GovConfig = &params.GovContract{
+					Address: common.HexToAddress("0x2000"),
+					Version: "v2",
+					Params:  nil,
+				}
+				contracts.GovStaking = &params.GovContract{
+					Address: common.HexToAddress("0x2000"),
+					Version: "v2",
+					Params:  nil,
+				}
+			}),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := getGovContracts(big.NewInt(int64(test.blockNumber)), qbftCfg)
+			if !reflect.DeepEqual(result, test.expectedConfig) {
+				t.Errorf("error in %s:\nexpected: %+v\ngot: %+v\n", test.name, test.expectedConfig, result)
+			}
+		})
 	}
 }

@@ -252,12 +252,12 @@ func initGenesis(ctx *cli.Context) error {
 func checkAllocAddress(genesis *core.Genesis) error {
 	if genesis.Alloc != nil && genesis.Config.MontBlancEnabled() {
 		forbidden := []common.Address{
-			genesis.Config.MontBlanc.Init.GovContracts.GovConfig.Address,
-			genesis.Config.MontBlanc.Init.GovContracts.GovStaking.Address,
-			genesis.Config.MontBlanc.Init.GovContracts.GovRewardeeImp.Address,
+			genesis.Config.MontBlanc.GovContracts.GovConfig.Address,
+			genesis.Config.MontBlanc.GovContracts.GovStaking.Address,
+			genesis.Config.MontBlanc.GovContracts.GovRewardeeImp.Address,
 		}
-		if genesis.Config.MontBlanc.Init.GovContracts.GovNCP != nil {
-			forbidden = append(forbidden, genesis.Config.MontBlanc.Init.GovContracts.GovNCP.Address)
+		if genesis.Config.MontBlanc.GovContracts.GovNCP != nil {
+			forbidden = append(forbidden, genesis.Config.MontBlanc.GovContracts.GovNCP.Address)
 		}
 		for _, addr := range forbidden {
 			if _, exists := genesis.Alloc[addr]; exists {

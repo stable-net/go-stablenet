@@ -31,74 +31,25 @@ var (
 		"govCouncil":               common.HexToAddress("0x0").String(),
 	}
 )
+var CheckGovContractVersions func(govContracts *GovContracts) error
 
-var CheckInitGovContractVersions func(govContracts *GovContracts) error
-var CheckUpgradeGovContractVersions func(govContracts *GovContracts) error
-
-// ## MontBlanc CHAIN CONFIG START
-type MontBlancConfig struct {
-	WBFT     *WBFTConfig `json:"wBFT"`
-	Init     *Init       `json:"init"`
-	Upgrades []Upgrade   `json:"upgrades"`
+type MontBlancWbftConfig struct {
+	WBFT         *WBFTConfig   `json:"wBFT"`
+	Init         *WbftInit     `json:"init"`
+	GovContracts *GovContracts `json:"govContracts"`
 }
 
-func (c *MontBlancConfig) String() string {
-	return fmt.Sprintf("{WBFT: %v Init: %v Upgrades: %v}",
-		c.WBFT,
-		c.Init,
-		c.Upgrades,
-	)
+type WbftInit struct {
+	Validators    []common.Address `json:"validators"`    // initial WBFT validators, order is matter
+	BLSPublicKeys []string         `json:"blsPublicKeys"` // BLS public ket list of validators, order must be same as validators
 }
 
-func (c *MontBlancConfig) GetInitialBLSPublicKeys() [][]byte {
+func (c *MontBlancWbftConfig) GetInitialBLSPublicKeys() [][]byte {
 	blsPubKeys := make([][]byte, len(c.Init.BLSPublicKeys))
 	for i, pk := range c.Init.BLSPublicKeys {
 		blsPubKeys[i] = hexutil.MustDecode(pk)
 	}
 	return blsPubKeys
-}
-
-func (c *MontBlancConfig) GetGovConfigAddress(blockNum *big.Int) common.Address {
-	latestGovContracts := c.findLatestGovContracts(blockNum, func(contracts *GovContracts) bool {
-		return contracts.GovConfig != nil
-	})
-	return latestGovContracts.GovConfig.Address
-}
-
-func (c *MontBlancConfig) GetGovStakingAddress(blockNum *big.Int) common.Address {
-	latestGovContracts := c.findLatestGovContracts(blockNum, func(contracts *GovContracts) bool {
-		return contracts.GovStaking != nil
-	})
-	return latestGovContracts.GovStaking.Address
-}
-
-func (c *MontBlancConfig) GetGovRewardeeImpAddress(blockNum *big.Int) common.Address {
-	latestGovContracts := c.findLatestGovContracts(blockNum, func(contracts *GovContracts) bool {
-		return contracts.GovRewardeeImp != nil
-	})
-	return latestGovContracts.GovRewardeeImp.Address
-}
-
-func (c *MontBlancConfig) GetGovNCPAddress(blockNum *big.Int) common.Address {
-	latestGovContracts := c.findLatestGovContracts(blockNum, func(contracts *GovContracts) bool {
-		return contracts.GovNCP != nil
-	})
-	return latestGovContracts.GovNCP.Address
-}
-
-func (c *MontBlancConfig) findLatestGovContracts(blockNum *big.Int, hasTargetContract func(contracts *GovContracts) bool) *GovContracts {
-	latestGovContracts := c.Init.GovContracts
-	if c.Upgrades != nil {
-		for _, upgrade := range c.Upgrades {
-			if upgrade.Block.Cmp(blockNum) > 0 {
-				break
-			}
-			if hasTargetContract(upgrade.GovContracts) {
-				latestGovContracts = upgrade.GovContracts
-			}
-		}
-	}
-	return latestGovContracts
 }
 
 func (c *MontBlancConfig) CheckValidity() error {
@@ -120,55 +71,49 @@ func (c *MontBlancConfig) CheckValidity() error {
 			len(c.Init.Validators), len(c.Init.BLSPublicKeys),
 		)
 	}
-	if c.Init.GovContracts == nil {
-		return errors.New("`montblanc.init: missing `govContracts` section")
+	if c.GovContracts == nil {
+		return errors.New("`montblanc: missing `govContracts` section")
 	}
-	if c.Init.GovContracts.GovStaking == nil {
-		return errors.New("`montblanc.init.govContracts: missing `govStaking`")
+	if c.GovContracts.GovStaking == nil {
+		return errors.New("`montblanc.govContracts: missing `govStaking`")
 	}
-	if c.Init.GovContracts.GovConfig == nil {
-		return errors.New("`montblanc.init.govContracts: missing `govConfig`")
+	if c.GovContracts.GovConfig == nil {
+		return errors.New("`montblanc.govContracts: missing `govConfig`")
 	}
-	if c.Init.GovContracts.GovRewardeeImp == nil {
-		return errors.New("`montblanc.init.govContracts: missing `govRewardeeImp`")
+	if c.GovContracts.GovRewardeeImp == nil {
+		return errors.New("`montblanc.govContracts: missing `govRewardeeImp`")
 	}
-	if err := CheckInitGovContractVersions(c.Init.GovContracts); err != nil {
-		return fmt.Errorf("`montblanc.init.govContracts`: %v", err)
-	}
-
-	for _, upgrade := range c.Upgrades {
-		if upgrade.Block == nil {
-			return errors.New("`montblanc.upgrades`: missing `block`")
-		}
-		if upgrade.GovContracts == nil {
-			return errors.New("`montblanc.upgrades`: missing `govContracts`")
-		}
-		if err := CheckUpgradeGovContractVersions(upgrade.GovContracts); err != nil {
-			return fmt.Errorf("`montblanc.upgrades.govContracts`: %v", err)
-		}
+	if err := CheckGovContractVersions(c.GovContracts); err != nil {
+		return fmt.Errorf("`montblanc.govContracts`: %v", err)
 	}
 
-	if c.WBFT.StabilizingStakersThreshold == 0 {
+	if c.WBFT == nil {
+		return errors.New("`montblanc`: missing `wBFT` section")
+	}
+	if c.WBFT.RequestTimeoutSeconds == 0 {
+		return errors.New("`montblanc.wBFT`: `requestTimeoutSeconds` must be greater than 0")
+	}
+	if c.WBFT.BlockPeriodSeconds == 0 {
+		return errors.New("`montblanc.wBFT`: `blockPeriodSeconds` must be greater than 0")
+	}
+	if c.WBFT.EpochLength == 0 {
+		return errors.New("`montblanc.wBFT`: `epochLength` must be greater than 0")
+	}
+	if c.WBFT.StabilizingStakersThreshold == nil {
+		return errors.New("`montblanc.wBFT`: missing `stabilizingStakersThreshold`")
+	} else if *c.WBFT.StabilizingStakersThreshold == 0 {
 		return errors.New("`montblanc.wBFT`: `stabilizingStakersThreshold` must be greater than 0")
 	}
-
-	if c.WBFT.EpochLength < c.WBFT.TargetValidators {
+	if c.WBFT.TargetValidators == nil {
+		return errors.New("`montblanc.wBFT`: missing `targetValidators`")
+	} else if c.WBFT.EpochLength < *c.WBFT.TargetValidators {
 		return fmt.Errorf("`montblanc.wBFT`: `epochLength` (%d) must be greater than or equal to `targetValidators` (%d)",
-			c.WBFT.EpochLength, c.WBFT.TargetValidators)
+			c.WBFT.EpochLength, *c.WBFT.TargetValidators)
 	}
 
 	if err := checkSanityBeneficiaries(c.WBFT.BlockRewardBeneficiary); err != nil {
 		return fmt.Errorf("`montblanc.wBFT`: %v", err)
 	}
-
-	if c.WBFT.Transitions != nil {
-		for _, t := range c.WBFT.Transitions {
-			if err := checkSanityBeneficiaries(t.BlockRewardBeneficiary); err != nil {
-				return fmt.Errorf("`montblanc.wBFT.transitions`: %v", err)
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -245,8 +190,8 @@ func (gc *GovContract) String() string {
 }
 
 type Upgrade struct {
-	Block        *big.Int      `json:"block"`
-	GovContracts *GovContracts `json:"govContracts"`
+	Block         *big.Int `json:"block"`
+	*GovContracts `json:"govContracts"`
 }
 
 func (u *Upgrade) String() string {
@@ -259,16 +204,14 @@ func (u *Upgrade) String() string {
 type WBFTConfig struct {
 	RequestTimeoutSeconds       uint64                `json:"requestTimeoutSeconds"`            // Minimum request timeout for each QBFT round in milliseconds
 	BlockPeriodSeconds          uint64                `json:"blockPeriodSeconds"`               // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
-	ProposerPolicy              uint64                `json:"proposerPolicy"`                   // The policy for proposer selection
 	EpochLength                 uint64                `json:"epochLength"`                      // The duration during which a fixed validator set remains active
 	BlockReward                 *math.HexOrDecimal256 `json:"blockReward,omitempty"`            // Reward from start, works only on QBFT consensus protocol
 	BlockRewardBeneficiary      *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"` // Reward beneficiaries
-	TargetValidators            uint64                `json:"targetValidators"`                 // Target number of validators
+	ProposerPolicy              *uint64               `json:"proposerPolicy"`                   // The policy for proposer selection
+	TargetValidators            *uint64               `json:"targetValidators"`                 // Target number of validators
 	MaxRequestTimeoutSeconds    *uint64               `json:"maxRequestTimeoutSeconds"`         // The max round time
-	StabilizingStakersThreshold uint64                `json:"stabilizingStakersThreshold"`      // initial stabilizing stakers threshold, default is 1
-	UseNCP                      bool                  `json:"useNCP"`                           // Use NCP or not
-
-	Transitions []Transition `json:"transitions,omitempty"` // Transition config based on the block number
+	StabilizingStakersThreshold *uint64               `json:"stabilizingStakersThreshold"`      // initial stabilizing stakers threshold, default is 1
+	UseNCP                      *bool                 `json:"useNCP"`                           // Use NCP or not
 }
 
 type BeneficiaryInfo struct {
@@ -283,15 +226,8 @@ type Beneficiary struct {
 }
 
 type Transition struct {
-	Block                    *big.Int              `json:"block"`
-	RequestTimeoutSeconds    uint64                `json:"requestTimeoutSeconds,omitempty"`    // Minimum request timeout for each QBFT round in milliseconds
-	BlockPeriodSeconds       uint64                `json:"blockPeriodSeconds,omitempty"`       // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
-	EpochLength              uint64                `json:"epochLength,omitempty"`              // The duration during which a fixed validator set remains active
-	BlockReward              *math.HexOrDecimal256 `json:"blockReward,omitempty"`              // Reward from start, works only on QBFT consensus protocol
-	BlockRewardBeneficiary   *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"`   // Reward beneficiaries
-	TargetValidators         *uint64               `json:"targetValidators,omitempty"`         // Target number of validators
-	MaxRequestTimeoutSeconds *uint64               `json:"maxRequestTimeoutSeconds,omitempty"` // The max round time
-	UseNCP                   bool                  `json:"useNCP,omitempty"`                   // Use NCP or not
+	Block *big.Int `json:"block"`
+	*WBFTConfig
 }
 
 func (t *Transition) String() string {
@@ -308,16 +244,17 @@ func (t *Transition) String() string {
 }
 
 var DefaultMontBlancConfig = &MontBlancConfig{
-	WBFT: &WBFTConfig{
-		RequestTimeoutSeconds:       2,
-		BlockPeriodSeconds:          1,
-		ProposerPolicy:              0,
-		EpochLength:                 10,
-		BlockReward:                 (*math.HexOrDecimal256)(new(big.Int).Mul(big.NewInt(Ether), big.NewInt(1))),
-		StabilizingStakersThreshold: 1,
-		UseNCP:                      false,
-	},
-	Init: &Init{
+	MontBlancWbftConfig: &MontBlancWbftConfig{
+		WBFT: &WBFTConfig{
+			RequestTimeoutSeconds:       2,
+			BlockPeriodSeconds:          1,
+			ProposerPolicy:              newUint64(0),
+			EpochLength:                 10,
+			BlockReward:                 (*math.HexOrDecimal256)(new(big.Int).Mul(big.NewInt(Ether), big.NewInt(1))),
+			TargetValidators:            newUint64(1),
+			StabilizingStakersThreshold: newUint64(1),
+			UseNCP:                      newBool(false),
+		},
 		GovContracts: &GovContracts{
 			GovConfig: &GovContract{
 				Address: common.HexToAddress("0x1000"),
@@ -340,6 +277,7 @@ var DefaultMontBlancConfig = &MontBlancConfig{
 				Version: "v1",
 			},
 		},
+		Init: &WbftInit{},
 	},
 }
 
@@ -358,7 +296,7 @@ func (c *WBFTConfig) String() string {
 		maxRequestTimeoutSeconds = "<nil>"
 	}
 
-	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, BlockReward: %v, BlockRewardBeneficiaries: %+v, TargetValidators: %v, MaxRequestTimeoutSeconds: %v, StabilizingStakersThreshold: %v, UseNCP: %v, Transitions: %v}",
+	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, BlockReward: %v, BlockRewardBeneficiaries: %+v, TargetValidators: %v, MaxRequestTimeoutSeconds: %v, StabilizingStakersThreshold: %v, UseNCP: %v}",
 		c.EpochLength,
 		c.BlockPeriodSeconds,
 		c.RequestTimeoutSeconds,
@@ -369,33 +307,7 @@ func (c *WBFTConfig) String() string {
 		maxRequestTimeoutSeconds,
 		c.StabilizingStakersThreshold,
 		c.UseNCP,
-		c.Transitions,
 	)
-}
-
-// gets value at or after a transition
-func (c *WBFTConfig) GetTransitionValue(num *big.Int, callback func(transition Transition)) {
-	if c != nil && num != nil && c.Transitions != nil {
-		for i := 0; i < len(c.Transitions) && c.Transitions[i].Block.Cmp(num) <= 0; i++ {
-			callback(c.Transitions[i])
-		}
-	}
-}
-
-func (c *WBFTConfig) GetBlockReward(num *big.Int) *big.Int {
-	blockReward := big.NewInt(0)
-
-	if c != nil && c.BlockReward != nil {
-		blockReward = new(big.Int).Set((*big.Int)(c.BlockReward))
-	}
-
-	c.GetTransitionValue(num, func(transition Transition) {
-		if transition.BlockReward != nil {
-			blockReward = new(big.Int).Set((*big.Int)(transition.BlockReward))
-		}
-	})
-
-	return blockReward
 }
 
 type CodeParam struct {

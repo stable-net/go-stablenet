@@ -110,10 +110,10 @@ func init() {
 	wbftConfig.BlockPeriod = wbftChainConfig.MontBlanc.WBFT.BlockPeriodSeconds
 	wbftConfig.RequestTimeout = wbftChainConfig.MontBlanc.WBFT.RequestTimeoutSeconds * 1000
 	wbftConfig.Epoch = wbftChainConfig.MontBlanc.WBFT.EpochLength
-	wbftConfig.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(wbftChainConfig.MontBlanc.WBFT.ProposerPolicy))
+	wbftConfig.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(*wbftChainConfig.MontBlanc.WBFT.ProposerPolicy))
 	wbftConfig.BlockReward = wbftChainConfig.MontBlanc.WBFT.BlockReward
 	wbftConfig.BlockRewardBeneficiary = wbftChainConfig.MontBlanc.WBFT.BlockRewardBeneficiary
-	wbftConfig.TargetValidators = wbftChainConfig.MontBlanc.WBFT.TargetValidators
+	wbftConfig.TargetValidators = *wbftChainConfig.MontBlanc.WBFT.TargetValidators
 	wbftConfig.MaxRequestTimeoutSeconds = *wbftChainConfig.MontBlanc.WBFT.MaxRequestTimeoutSeconds
 
 	signer := types.LatestSigner(params.TestChainConfig)

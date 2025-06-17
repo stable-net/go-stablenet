@@ -319,9 +319,10 @@ func (c *Core) newRoundChangeTimer() {
 	}
 
 	// set timeout based on the round number
-	baseTimeout := time.Duration(c.config.GetConfig(c.current.Sequence()).RequestTimeout) * time.Millisecond
+	cfg := c.config.GetConfig(c.current.Sequence())
+	baseTimeout := time.Duration(cfg.RequestTimeout) * time.Millisecond
 	round := c.current.Round().Uint64()
-	maxRequestTimeout := time.Duration(c.config.GetConfig(c.current.Sequence()).MaxRequestTimeoutSeconds) * time.Second
+	maxRequestTimeout := time.Duration(cfg.MaxRequestTimeoutSeconds) * time.Second
 
 	// If the upper limit of the request timeout is capped by small maxRequestTimeout, round can be a quite large number,
 	// which leads to float64 overflow, making its value negative or zero forever after some point.

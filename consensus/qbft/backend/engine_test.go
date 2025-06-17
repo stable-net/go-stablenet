@@ -169,7 +169,7 @@ func newBlockChain(n int) (*core.BlockChain, *Backend, []otherNode) {
 	genesis, nodeKeys, _ := testutils.GenesisAndKeys(n)
 
 	config := new(qbft.Config)
-	setConfigFromChainConfig(config, genesis.Config)
+	qbft.SetConfigFromChainConfig(config, genesis.Config)
 
 	return newBlockchainFromConfig(genesis, nodeKeys, config)
 }
@@ -178,35 +178,10 @@ func newBlockChainWithCustom(n int, customizeConfig func(config *qbft.Config)) (
 	genesis, nodeKeys, _ := testutils.GenesisAndKeys(n)
 
 	config := new(qbft.Config)
-	setConfigFromChainConfig(config, genesis.Config)
+	qbft.SetConfigFromChainConfig(config, genesis.Config)
 	customizeConfig(config)
 
 	return newBlockchainFromConfig(genesis, nodeKeys, config)
-}
-
-// this is a copy of ethconfig.SetConfigFromChainConfig; avoiding cyclic import
-func setConfigFromChainConfig(qbftCfg *qbft.Config, config *params.ChainConfig) {
-	if len(config.MontBlanc.WBFT.Transitions) > 0 {
-		qbftCfg.Transitions = config.MontBlanc.WBFT.Transitions
-	}
-	if config.MontBlanc.WBFT.BlockPeriodSeconds != 0 {
-		qbftCfg.BlockPeriod = config.MontBlanc.WBFT.BlockPeriodSeconds
-	}
-	if config.MontBlanc.WBFT.RequestTimeoutSeconds != 0 {
-		qbftCfg.RequestTimeout = config.MontBlanc.WBFT.RequestTimeoutSeconds * 1000
-	}
-	if config.MontBlanc.WBFT.EpochLength != 0 {
-		qbftCfg.Epoch = config.MontBlanc.WBFT.EpochLength
-	}
-	qbftCfg.StabilizingStakersThreshold = config.MontBlanc.WBFT.StabilizingStakersThreshold
-	qbftCfg.UseNCP = config.MontBlanc.WBFT.UseNCP
-
-	qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.MontBlanc.WBFT.ProposerPolicy))
-	qbftCfg.BlockReward = config.MontBlanc.WBFT.BlockReward
-
-	if config.MontBlanc.WBFT.MaxRequestTimeoutSeconds != nil && *config.MontBlanc.WBFT.MaxRequestTimeoutSeconds > 0 {
-		qbftCfg.MaxRequestTimeoutSeconds = *config.MontBlanc.WBFT.MaxRequestTimeoutSeconds
-	}
 }
 
 // makeHeader create header executing no txs

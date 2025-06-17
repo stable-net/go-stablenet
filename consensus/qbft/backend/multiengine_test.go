@@ -53,7 +53,7 @@ func MakeMultiEngineTestEnv(n int) (env *testEnv) {
 	env.results = make(map[common.Address]chan *types.Block)
 
 	config := new(qbft.Config)
-	setConfigFromChainConfig(config, genesis.Config)
+	qbft.SetConfigFromChainConfig(config, genesis.Config)
 	config.BlockPeriod = 1
 	config.Epoch = 4
 	config.RequestTimeout = 2000

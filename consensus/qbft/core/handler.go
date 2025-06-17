@@ -245,7 +245,6 @@ func (c *Core) handleTimeoutMsg() {
 	logger.Warn("QBFT: TIMER CHANGED ROUND", "pr", c.current.preparedRound)
 
 	timeoutRoundMeter.Mark(1)
-
 	// Send Round Change
 	c.broadcastRoundChange(nextRound)
 }

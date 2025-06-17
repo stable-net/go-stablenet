@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/pathdb"
+	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 	"github.com/holiman/uint256"
 )
 
@@ -643,8 +644,9 @@ func TestGenesisBlock() *Genesis {
 	}
 }
 
+// InjectContracts sets WBFT GovContracts to genesis
 func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
-	transition, err := qbft.GetMontBlancTransition(config, common.Big0)
+	transition, err := govwbft.GetGovContractsTransition(config.MontBlanc.GovContracts)
 	if err != nil {
 		return err
 	}

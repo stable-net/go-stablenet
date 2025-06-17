@@ -21,7 +21,6 @@
 package qbft
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -117,6 +116,7 @@ type Config struct {
 	StabilizingStakersThreshold uint64                  `toml:",omitempty"`
 	UseNCP                      bool                    `toml:",omitempty"` // Use NCP or not
 	Transitions                 []params.Transition
+	GovContractUpgrades         []params.Upgrade
 }
 
 var DefaultConfig = &Config{
@@ -129,40 +129,82 @@ var DefaultConfig = &Config{
 	UseNCP:                      false,
 }
 
+func (c *Config) GetGovContracts(blockNumber *big.Int, chainConfig *params.ChainConfig) params.GovContracts {
+	gc := params.GovContracts{}
+
+	if c.GovContractUpgrades != nil && len(c.GovContractUpgrades) > 0 {
+		c.getGovContractsValue(blockNumber, func(upgrade params.Upgrade) {
+			if upgrade.GovStaking != nil {
+				gc.GovStaking = upgrade.GovStaking
+			}
+			if upgrade.GovConfig != nil {
+				gc.GovConfig = upgrade.GovConfig
+			}
+			if upgrade.GovRewardeeImp != nil {
+				gc.GovRewardeeImp = upgrade.GovRewardeeImp
+			}
+			if upgrade.GovNCP != nil {
+				gc.GovNCP = upgrade.GovNCP
+			}
+		})
+	} else {
+		// Normally unreachable since c.GovContractsUpgrades is set when qbft engine is created,
+		// but used in few tests where qbft.Config isn't properly initialized — fallback to Montblanc chain config.
+		gc = *chainConfig.MontBlanc.GovContracts
+	}
+	return gc
+}
+
+func (c *Config) getGovContractsValue(num *big.Int, callback func(govContracts params.Upgrade)) {
+	if c != nil && num != nil {
+		for i := 0; i < len(c.GovContractUpgrades) && c.GovContractUpgrades[i].Block.Cmp(num) <= 0; i++ {
+			callback(c.GovContractUpgrades[i])
+		}
+	}
+}
+
 func (c Config) GetConfig(blockNumber *big.Int) Config {
 	newConfig := c
-
-	c.getTransitionValue(blockNumber, func(transition params.Transition) {
-		if transition.RequestTimeoutSeconds != 0 {
-			// RequestTimeout is on milliseconds
-			newConfig.RequestTimeout = transition.RequestTimeoutSeconds * 1000
-		}
-		if transition.EpochLength != 0 {
-			newConfig.Epoch = transition.EpochLength
-		}
-		if transition.BlockPeriodSeconds != 0 {
-			newConfig.BlockPeriod = transition.BlockPeriodSeconds
-		}
-		if transition.BlockReward != nil {
-			newConfig.BlockReward = transition.BlockReward
-		}
-		if transition.BlockRewardBeneficiary != nil {
-			newConfig.BlockRewardBeneficiary = transition.BlockRewardBeneficiary
-		}
-		if transition.TargetValidators != nil {
-			newConfig.TargetValidators = *transition.TargetValidators
-		}
-		if transition.MaxRequestTimeoutSeconds != nil {
-			newConfig.MaxRequestTimeoutSeconds = *transition.MaxRequestTimeoutSeconds
-		}
-		newConfig.UseNCP = transition.UseNCP
-	})
-
+	if c.Transitions != nil {
+		c.getTransitionValue(blockNumber, func(transition params.Transition) {
+			if transition.RequestTimeoutSeconds != 0 {
+				// RequestTimeout is on milliseconds
+				newConfig.RequestTimeout = transition.RequestTimeoutSeconds * 1000
+			}
+			if transition.BlockPeriodSeconds != 0 {
+				newConfig.BlockPeriod = transition.BlockPeriodSeconds
+			}
+			if transition.EpochLength != 0 {
+				newConfig.Epoch = transition.EpochLength
+			}
+			if transition.BlockReward != nil {
+				newConfig.BlockReward = transition.BlockReward
+			}
+			if transition.BlockRewardBeneficiary != nil {
+				newConfig.BlockRewardBeneficiary = transition.BlockRewardBeneficiary
+			}
+			if transition.ProposerPolicy != nil {
+				newConfig.ProposerPolicy = NewProposerPolicy(ProposerPolicyId(*transition.ProposerPolicy))
+			}
+			if transition.TargetValidators != nil {
+				newConfig.TargetValidators = *transition.TargetValidators
+			}
+			if transition.MaxRequestTimeoutSeconds != nil {
+				newConfig.MaxRequestTimeoutSeconds = *transition.MaxRequestTimeoutSeconds
+			}
+			if transition.StabilizingStakersThreshold != nil {
+				newConfig.StabilizingStakersThreshold = *transition.StabilizingStakersThreshold
+			}
+			if transition.UseNCP != nil {
+				newConfig.UseNCP = *transition.UseNCP
+			}
+		})
+	}
 	return newConfig
 }
 
 func (c *Config) getTransitionValue(num *big.Int, callback func(transition params.Transition)) {
-	if c != nil && num != nil && c.Transitions != nil {
+	if c != nil && num != nil {
 		for i := 0; i < len(c.Transitions) && c.Transitions[i].Block.Cmp(num) <= 0; i++ {
 			callback(c.Transitions[i])
 		}
@@ -174,18 +216,11 @@ func (c *Config) String() string {
 	return "wbft"
 }
 
-func GetMontBlancTransition(chainConfig *params.ChainConfig, num *big.Int) (*params.StateTransition, error) {
-	if chainConfig == nil || chainConfig.MontBlancBlock == nil || num == nil {
-		return nil, errors.New("nil montBlanc config or nil block number")
-	}
-
-	if num.Cmp(chainConfig.MontBlancBlock) == 0 {
-		return govwbft.GetMontBlancTransition(chainConfig.MontBlanc.Init.GovContracts)
-	}
-
-	for _, upgrade := range chainConfig.MontBlanc.Upgrades {
+// GetGovContractsStateTransition is used when for gov contracts needs to be set in the middle of the chain processing
+func GetGovContractsStateTransition(qbftCfg *Config, num *big.Int) (*params.StateTransition, error) {
+	for _, upgrade := range qbftCfg.GovContractUpgrades {
 		if num.Cmp(upgrade.Block) == 0 {
-			return govwbft.GetMontBlancTransition(upgrade.GovContracts)
+			return govwbft.GetGovContractsTransition(upgrade.GovContracts)
 		} else if num.Cmp(upgrade.Block) < 0 {
 			break
 		}

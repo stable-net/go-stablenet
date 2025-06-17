@@ -24,6 +24,8 @@ package ethconfig
 import (
 	"crypto/ecdsa"
 	"errors"
+	"math/big"
+	"sort"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -201,7 +203,7 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 		if qbftCfg == nil {
 			qbftCfg = new(qbft.Config)
 		}
-		err := SetConfigFromChainConfig(qbftCfg, config.MontBlanc.WBFT)
+		err := SetConfigFromChainConfig(qbftCfg, config)
 
 		if err != nil {
 			return nil, err
@@ -224,31 +226,68 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 	return beacon.New(ethash.NewFaker()), nil
 }
 
-func SetConfigFromChainConfig(qbftCfg *qbft.Config, config *params.WBFTConfig) error {
-	if len(config.Transitions) > 0 {
-		qbftCfg.Transitions = config.Transitions
+func SetConfigFromChainConfig(qbftCfg *qbft.Config, chainCfg *params.ChainConfig) error {
+	config := chainCfg.MontBlanc.WBFT
+	if config.RequestTimeoutSeconds != 0 {
+		qbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
 	}
 	if config.BlockPeriodSeconds != 0 {
 		qbftCfg.BlockPeriod = config.BlockPeriodSeconds
 	}
-	if config.RequestTimeoutSeconds != 0 {
-		qbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
-	}
 	if config.EpochLength != 0 {
 		qbftCfg.Epoch = config.EpochLength
 	}
-
-	qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(config.ProposerPolicy))
 	qbftCfg.BlockReward = config.BlockReward
 	qbftCfg.BlockRewardBeneficiary = config.BlockRewardBeneficiary
-	qbftCfg.TargetValidators = config.TargetValidators
 
-	if config.MaxRequestTimeoutSeconds != nil && *config.MaxRequestTimeoutSeconds > 0 {
+	if config.ProposerPolicy != nil {
+		qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(*config.ProposerPolicy))
+	}
+	if config.TargetValidators != nil {
+		qbftCfg.TargetValidators = *config.TargetValidators
+	}
+	if config.MaxRequestTimeoutSeconds != nil {
 		qbftCfg.MaxRequestTimeoutSeconds = *config.MaxRequestTimeoutSeconds
 	}
-	qbftCfg.StabilizingStakersThreshold = config.StabilizingStakersThreshold
-	qbftCfg.UseNCP = config.UseNCP
+	if config.StabilizingStakersThreshold != nil {
+		qbftCfg.StabilizingStakersThreshold = *config.StabilizingStakersThreshold
+	}
+	if config.UseNCP != nil {
+		qbftCfg.UseNCP = *config.UseNCP
+	}
 
+	hfTransitionBlocks := make(map[*big.Int]bool)
+
+	//add hardforks that includes wbft config after montblanc here like :
+	// transition := params.Transition{
+	// 	Block:      chainCfg.DalgonaBlock,
+	// 	WBFTConfig: chainCfg.Dalgona.WBFT,
+	// }
+	// qbftCfg.Transitions = append(qbftCfg.Transitions, transition)
+	// hfTransitionBlocks[chainCfg.DalgonaBlock] = true
+
+	if chainCfg.Transitions != nil && len(chainCfg.Transitions) > 0 {
+		for _, t := range chainCfg.Transitions {
+			if hfTransitionBlocks[t.Block] {
+				return errors.New("hardfork transition block already exists")
+			}
+			qbftCfg.Transitions = append(qbftCfg.Transitions, t)
+		}
+	}
+
+	sort.Slice(qbftCfg.Transitions, func(i, j int) bool {
+		if qbftCfg.Transitions[i].Block == nil {
+			return false
+		}
+		if qbftCfg.Transitions[j].Block == nil {
+			return true
+		}
+		return qbftCfg.Transitions[i].Block.Cmp(qbftCfg.Transitions[j].Block) < 0
+	})
+
+	qbftCfg.GovContractUpgrades = append(qbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.MontBlancBlock, GovContracts: chainCfg.MontBlanc.GovContracts})
+	// add hardforks that includes govContracts after montblanc here like :
+	// qbftCfg.GovContractUpgrades = append(qbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, GovContracts: chainCfg.Dalgona.GovContracts})
 	return nil
 }
 

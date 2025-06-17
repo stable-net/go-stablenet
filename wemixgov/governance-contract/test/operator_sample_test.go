@@ -42,8 +42,8 @@ func TestOperatorContractMultiSig(t *testing.T) {
 		delegator1.Address: {Balance: new(big.Int).Add(MAX_UINT_128, minStaking)},
 	})
 	require.NoError(t, err)
-	setWbftGovConfig(g)
 	defer g.backend.Close()
+	setWbftGovConfig(g)
 
 	stateDB := &TestStateDB{
 		getState: func(addr common.Address, hash common.Hash) (result common.Hash) {
