@@ -81,6 +81,7 @@ func (as *QBFTAggregatedSeal) String() string {
 // QBFTExtra represents header extradata for qbft protocol
 type QBFTExtra struct {
 	VanityData        []byte
+	RandaoReveal      []byte // bls signature of the block number
 	PrevRound         uint32
 	PrevPreparedSeal  *QBFTAggregatedSeal
 	PrevCommittedSeal *QBFTAggregatedSeal // committedSeal of previous local block
@@ -106,6 +107,7 @@ type EpochInfo struct {
 func (qst *QBFTExtra) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{
 		qst.VanityData,
+		qst.RandaoReveal,
 		qst.PrevRound,
 		qst.PrevPreparedSeal,
 		qst.PrevCommittedSeal,
@@ -120,6 +122,7 @@ func (qst *QBFTExtra) EncodeRLP(w io.Writer) error {
 func (qst *QBFTExtra) DecodeRLP(s *rlp.Stream) error {
 	var qbftExtra struct {
 		VanityData        []byte
+		RandaoReveal      []byte
 		PrevRound         uint32
 		PrevPreparedSeal  *QBFTAggregatedSeal `rlp:"nil"`
 		PrevCommittedSeal *QBFTAggregatedSeal `rlp:"nil"`
@@ -132,8 +135,8 @@ func (qst *QBFTExtra) DecodeRLP(s *rlp.Stream) error {
 		return err
 	}
 
-	qst.VanityData, qst.PrevRound, qst.PrevPreparedSeal, qst.PrevCommittedSeal, qst.Round, qst.PreparedSeal, qst.CommittedSeal, qst.EpochInfo =
-		qbftExtra.VanityData, qbftExtra.PrevRound, qbftExtra.PrevPreparedSeal, qbftExtra.PrevCommittedSeal, qbftExtra.Round, qbftExtra.PreparedSeal, qbftExtra.CommittedSeal, qbftExtra.EpochInfo
+	qst.VanityData, qst.RandaoReveal, qst.PrevRound, qst.PrevPreparedSeal, qst.PrevCommittedSeal, qst.Round, qst.PreparedSeal, qst.CommittedSeal, qst.EpochInfo =
+		qbftExtra.VanityData, qbftExtra.RandaoReveal, qbftExtra.PrevRound, qbftExtra.PrevPreparedSeal, qbftExtra.PrevCommittedSeal, qbftExtra.Round, qbftExtra.PreparedSeal, qbftExtra.CommittedSeal, qbftExtra.EpochInfo
 
 	return nil
 }

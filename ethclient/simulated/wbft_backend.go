@@ -63,8 +63,8 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 
 	ethConf.Genesis.Config.MontBlanc.Init.Validators = []common.Address{validator}
 	ethConf.Genesis.Config.MontBlanc.Init.BLSPublicKeys = []string{hexutil.Encode(blsPubKey)}
-	ethConf.Istanbul.AllowedFutureBlockTime = 3153600000           // disable time verification of a block ( == 100 years )
-	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey) // simulated chain block
+	ethConf.Genesis.Config.MontBlanc.WBFT.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
+	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey)            // simulated chain block
 	ethConf.SyncMode = downloader.FullSync
 	ethConf.Miner.GasPrice = big.NewInt(1)
 	ethConf.Miner.SimulatedEnabled = true

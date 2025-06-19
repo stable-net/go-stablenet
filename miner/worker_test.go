@@ -460,6 +460,9 @@ func testGetSealingWork(t *testing.T, chainConfig *params.ChainConfig, engine co
 			if block.Coinbase() != coinbase {
 				t.Errorf("Unexpected coinbase got %x want %x", block.Coinbase(), coinbase)
 			}
+			if block.MixDigest() != random {
+				t.Error("Unexpected mix digest")
+			}
 		} else if isClique {
 			if block.Coinbase() != (common.Address{}) {
 				t.Error("Unexpected coinbase")
@@ -467,11 +470,6 @@ func testGetSealingWork(t *testing.T, chainConfig *params.ChainConfig, engine co
 		} else {
 			if block.Coinbase() != testBankAddress {
 				t.Error("Unexpected coinbase")
-			}
-		}
-		if !isClique {
-			if block.MixDigest() != random {
-				t.Error("Unexpected mix digest")
 			}
 		}
 		if block.Nonce() != 0 {

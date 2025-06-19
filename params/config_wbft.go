@@ -33,18 +33,25 @@ var (
 )
 var CheckGovContractVersions func(govContracts *GovContracts) error
 
-type MontBlancWbftConfig struct {
-	WBFT         *WBFTConfig   `json:"wBFT"`
-	Init         *WbftInit     `json:"init"`
-	GovContracts *GovContracts `json:"govContracts"`
-}
-
 type WbftInit struct {
 	Validators    []common.Address `json:"validators"`    // initial WBFT validators, order is matter
 	BLSPublicKeys []string         `json:"blsPublicKeys"` // BLS public ket list of validators, order must be same as validators
 }
 
-func (c *MontBlancWbftConfig) GetInitialBLSPublicKeys() [][]byte {
+type MontBlancConfig struct {
+	WBFT         *WBFTConfig   `json:"wBFT"`
+	Init         *WbftInit     `json:"init"`
+	GovContracts *GovContracts `json:"govContracts"`
+}
+
+func (c *MontBlancConfig) String() string {
+	return fmt.Sprintf("{WBFT: %v Init: %v GovContracts: %v}",
+		c.WBFT,
+		c.Init,
+		c.GovContracts)
+}
+
+func (c *MontBlancConfig) GetInitialBLSPublicKeys() [][]byte {
 	blsPubKeys := make([][]byte, len(c.Init.BLSPublicKeys))
 	for i, pk := range c.Init.BLSPublicKeys {
 		blsPubKeys[i] = hexutil.MustDecode(pk)
@@ -206,6 +213,7 @@ type WBFTConfig struct {
 	BlockPeriodSeconds          uint64                `json:"blockPeriodSeconds"`               // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
 	EpochLength                 uint64                `json:"epochLength"`                      // The duration during which a fixed validator set remains active
 	BlockReward                 *math.HexOrDecimal256 `json:"blockReward,omitempty"`            // Reward from start, works only on QBFT consensus protocol
+	AllowedFutureBlockTime      uint64                `json:"allowedFutureBlockTime,omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
 	BlockRewardBeneficiary      *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"` // Reward beneficiaries
 	ProposerPolicy              *uint64               `json:"proposerPolicy"`                   // The policy for proposer selection
 	TargetValidators            *uint64               `json:"targetValidators"`                 // Target number of validators
@@ -244,41 +252,39 @@ func (t *Transition) String() string {
 }
 
 var DefaultMontBlancConfig = &MontBlancConfig{
-	MontBlancWbftConfig: &MontBlancWbftConfig{
-		WBFT: &WBFTConfig{
-			RequestTimeoutSeconds:       2,
-			BlockPeriodSeconds:          1,
-			ProposerPolicy:              newUint64(0),
-			EpochLength:                 10,
-			BlockReward:                 (*math.HexOrDecimal256)(new(big.Int).Mul(big.NewInt(Ether), big.NewInt(1))),
-			TargetValidators:            newUint64(1),
-			StabilizingStakersThreshold: newUint64(1),
-			UseNCP:                      newBool(false),
-		},
-		GovContracts: &GovContracts{
-			GovConfig: &GovContract{
-				Address: common.HexToAddress("0x1000"),
-				Version: "v1",
-				Params: map[string]string{
-					"minimumStaking":           "10000000000000000000000000",
-					"maximumStaking":           "100000000000000000000000000",
-					"unbondingPeriodStaker":    "604800", // 7 days
-					"unbondingPeriodDelegator": "259200", // 3 days
-					"feePrecision":             "10000",  // 0.01%
-					"changeFeeDelay":           "604800", // 7 days
-				},
-			},
-			GovStaking: &GovContract{
-				Address: common.HexToAddress("0x1001"),
-				Version: "v1",
-			},
-			GovRewardeeImp: &GovContract{
-				Address: common.HexToAddress("0x1002"),
-				Version: "v1",
-			},
-		},
-		Init: &WbftInit{},
+	WBFT: &WBFTConfig{
+		RequestTimeoutSeconds:       2,
+		BlockPeriodSeconds:          1,
+		ProposerPolicy:              newUint64(0),
+		EpochLength:                 10,
+		BlockReward:                 (*math.HexOrDecimal256)(new(big.Int).Mul(big.NewInt(Ether), big.NewInt(1))),
+		TargetValidators:            newUint64(1),
+		StabilizingStakersThreshold: newUint64(1),
+		UseNCP:                      newBool(false),
 	},
+	GovContracts: &GovContracts{
+		GovConfig: &GovContract{
+			Address: common.HexToAddress("0x1000"),
+			Version: "v1",
+			Params: map[string]string{
+				"minimumStaking":           "10000000000000000000000000",
+				"maximumStaking":           "100000000000000000000000000",
+				"unbondingPeriodStaker":    "604800", // 7 days
+				"unbondingPeriodDelegator": "259200", // 3 days
+				"feePrecision":             "10000",  // 0.01%
+				"changeFeeDelay":           "604800", // 7 days
+			},
+		},
+		GovStaking: &GovContract{
+			Address: common.HexToAddress("0x1001"),
+			Version: "v1",
+		},
+		GovRewardeeImp: &GovContract{
+			Address: common.HexToAddress("0x1002"),
+			Version: "v1",
+		},
+	},
+	Init: &WbftInit{},
 }
 
 func (c *WBFTConfig) String() string {

@@ -366,8 +366,30 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		// validators are stored in genesis block
 		qbftengine.ApplyHeaderQBFTExtra(
 			header,
+			sb.Engine().WriteRandao(sb.chain.Config(), header),
 			qbftengine.WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal))
 		return nil
+
+	case "SetMixDigest":
+		if len(args) != 2 {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		parent, ok := args[0].(*types.Header)
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		header, ok := args[1].(*types.Header)
+		if !ok {
+			return qbftcommon.ErrInvalidSpecificCall
+		}
+		extra, err := types.ExtractQBFTExtra(header)
+		if err != nil {
+			return err
+		}
+
+		header.MixDigest = qbftengine.CalculateRandaoMix(parent.MixDigest, extra.RandaoReveal)
+		return nil
+
 	case "NewChainHead":
 		return sb.NewChainHead()
 
@@ -378,6 +400,7 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		}
 		header.Coinbase = sb.Engine().Address()
 		return nil
+
 	default:
 		return qbftcommon.ErrInvalidSpecificCall
 	}

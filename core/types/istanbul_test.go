@@ -57,9 +57,10 @@ func TestExtractToQBFTExtra(t *testing.T) {
 	}{
 		{
 			// normal case
-			hexutil.MustDecode("0xf87e8080c0c080c0c0f875f868d99444add0ec310f115a0e603b2d7db9f067778eaf8a831cfde0d994294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212831cfde0d9946beaaed781d2d2ab6350f5c4566a2c6eaac407a6831cfde0d9948be76812f765c24641ec63dc2852b378aba2b440831cfde0c480010203c48080808001"),
+			hexutil.MustDecode("0xf87f808080c0c080c0c0f875f868d99444add0ec310f115a0e603b2d7db9f067778eaf8a831cfde0d994294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212831cfde0d9946beaaed781d2d2ab6350f5c4566a2c6eaac407a6831cfde0d9948be76812f765c24641ec63dc2852b378aba2b440831cfde0c480010203c48080808001"),
 			&QBFTExtra{
-				VanityData: []byte{},
+				VanityData:   []byte{},
+				RandaoReveal: []byte{},
 				EpochInfo: &EpochInfo{
 					Stakers: []*Staker{
 						{Addr: common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")), Diligence: DefaultDiligence},
@@ -82,6 +83,9 @@ func TestExtractToQBFTExtra(t *testing.T) {
 		},
 	}
 	for _, test := range testCases {
+		// use this code to generate extra
+		//x, _ := rlp.EncodeToBytes(test.expectedResult)
+		//fmt.Printf("expected: %s\n", hexutil.Encode(x))
 		h := &Header{Extra: test.istRawData}
 		istanbulExtra, err := ExtractQBFTExtra(h)
 		if err != test.expectedErr {

@@ -3,7 +3,7 @@
 WBFT(WEMIX Byzantine Fault Tolerant) is a consensus algorithm that emphasizes decentralization, adapting Istanbul BFT(https://github.com/ethereum/EIPs/issues/650) and QBFT(https://github.com/Consensys/qbft-formal-spec-and-verification) for use in public blockchains. The following improvements have been implemented:
 
 - Adoption of DPoS(Delegated Proof of Stake): Allows anyone to participate as a validator through staking.
-- Validator selection: Chosen via VRF based on staking amount and validation diligence.
+- Validator selection: Chosen via randao(randomness dao) based on staking amount and validation diligence.
 - Reward system and diligence metrics.
 - Concept of epoch: Defines a unit where the validator set changes.
 - Inclusion of consensus proof in the agreement process.
@@ -70,10 +70,16 @@ In WBFT, the proposer of the last block in an epoch (referred to as the epoch bl
   - The very first validator set is defined in genesis.json, and validators in the genesis block initially have a staking amount of zero.
 - After stabilization stage, validator selection follows below rules
   - `minimum stakers <= number of stakers <= target validators`: every stakers become validators.
-  - `number of stakers > target validators`: validators are selected using VRF, considering staking amount and diligence.
+  - `number of stakers > target validators`: validators are selected using randao, considering staking amount and diligence.
   - `number of stakers < minimum stakers`: all remaining stakers become validators, which should not occur in a public network after stabilization stage for the sake of network security.
 
-Validators are selected to act as proposers in a round-robin manner.
+Validators are selected to act as proposers in a round-robin manner and the order is shuffled at every epoch.
+
+### Randao system
+WBFT uses a randao system to select validators and to order them based on their staking amount and diligence. The randao system is designed to be secure against manipulation by validators, ensuring that the selection process is fair and transparent.
+WBFT blocks include a `RandaoReveal` fields in the extra data and use a legacy field `MixDigest` of the header as the randao mix, which is used to generate a random value for validator selection and shuffled ordering.
+- `MixDigest`: a xor value of the previous block header's `MixDigest` and the current block's `RandaoReveal`
+- `RandaoReveal`: is a ECDSA signature of the proposer on some data(chainId, hard fork version, block height) using big-endian encoding.
 
 ### Reward System and Diligence Metrics
 WBFT rewards consist of two types:
@@ -157,7 +163,7 @@ The existing miner worker is designed to be fit to the ethash algorithm. When a 
 - The WBFT engine waits for the block period before notifying the worker(In the existing IBFT, the block period was waited for when sealing the block).
 - When new work starts, the worker begins the process of preparing the block.
 
-#### Mont Blanc hard fork
+### Mont Blanc hard fork
 WBFT is not only implemented to run a WBFT chain from genesis but is also designed and implemented to enable a hard fork from a legacy chain to the WBFT chain. This hard fork is named the `Mont Blanc` hard fork.
 You should define the Mont Blanc hard fork in genesis.json to run a WBFT chain. Two chain configs are added for Mont Blanc hard fork; `MontBlancBlock` and `montBlanc`.
 - `montBlancBlock`: Defines the block height at which the Mont Blanc hard fork occurs. You can set it to zero for the genesis block.
@@ -174,6 +180,16 @@ The Mont Blanc hard fork protocols are as follows:
 - The first epoch starts from the block after the Mont Blanc block, during which stakers start staking from zero.
 - If the number of stakers is equal to or greater than the minimum stakers during the first epoch, these stakers become validators from the next epoch.
 - If the number of stakers is less than the minimum stakers during the first epoch, the initial validator set is maintained.
+
+#### Compatibility with Ethereum hard forks
+- Mont Blanc hard fork includes all feature of the `London` hard fork and priors.
+- Mont Blanc hard fork includes new evm instructions of the `Shanghai` and `Cancun` hard forks.
+  - EIP-3855 (PUSH0 opcode)
+  - EIP-3860 (Limit and meter initcode)
+  - EIP-1153 (Transient Storage)
+  - EIP-5656 (MCOPY opcode)
+  - EIP-6780 SELFDESTRUCT only in same transaction
+  - EIP-4339 (PREVRANDAO opcode)
 
 ### Modified Structures
 The existing QBFT Config was revised by removing unnecessary fields and adding required ones, resulting in the following structure.
@@ -319,7 +335,7 @@ The process of obtaining the validator set at any block height is as follows (re
 
 #### Not implemented in WEMIX 3.5
 - Slashing: The NCP system is used to ensure the safety of the chain during the transition period, and the slashing mechanism is not necessary.
-- VRF for validator selection: All NCPs are validators, so the VRF is not used for validator selection.
+- validator random selection based on staking amount and diligence.
 
 ## Building the source
 

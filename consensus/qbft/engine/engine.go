@@ -7,9 +7,11 @@ package qbftengine
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -24,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/qbft/validator"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -41,6 +44,7 @@ var (
 )
 
 type SignerFn func(data []byte) ([]byte, error)
+type CheckSignatureFn func(data []byte, address common.Address, sig []byte) error
 
 type Candidate struct {
 	Addr      common.Address
@@ -50,16 +54,18 @@ type Candidate struct {
 
 type Engine struct {
 	cfg        *qbft.Config
-	signer     common.Address // Ethereum address of the signing key
-	sign       SignerFn       // Signer function to authorize hashes with
+	signer     common.Address   // Ethereum address of the signing key
+	sign       SignerFn         // Signer function to authorize hashes with
+	checkSig   CheckSignatureFn // Check signature function to verify signatures
 	epochCache *lru.Cache[uint64, *types.EpochInfo]
 }
 
-func NewEngine(cfg *qbft.Config, signer common.Address, sign SignerFn) *Engine {
+func NewEngine(cfg *qbft.Config, signer common.Address, sign SignerFn, checkSig CheckSignatureFn) *Engine {
 	return &Engine{
 		cfg:        cfg,
 		signer:     signer,
 		sign:       sign,
+		checkSig:   checkSig,
 		epochCache: lru.NewCache[uint64, *types.EpochInfo](inmemoryCache),
 	}
 }
@@ -73,12 +79,13 @@ func (e *Engine) Author(header *types.Header) (common.Address, error) {
 }
 
 func (e *Engine) CommitHeader(header *types.Header, preparedSeals, committedSeals []qbft.SealData, round *big.Int) error {
-	return ApplyHeaderQBFTExtra(
+	_, err := ApplyHeaderQBFTExtra(
 		header,
 		writePreparedSeals(preparedSeals),
 		writeCommittedSeals(committedSeals),
 		writeRoundNumber(round),
 	)
+	return err
 }
 
 // writePreparedSeals writes the extra-data field of a block header with given prepared seals.
@@ -188,15 +195,6 @@ func (e *Engine) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 		return consensus.ErrFutureBlock
 	}
 
-	if _, err := types.ExtractQBFTExtra(header); err != nil {
-		return qbftcommon.ErrInvalidExtraDataFormat
-	}
-
-	// Ensure that the mix digest is zero as we don't have fork protection currently
-	//if header.MixDigest != types.IstanbulDigest {
-	//	return qbftcommon.ErrInvalidMixDigest
-	//}
-
 	// Ensure that the block doesn't contain any uncles which are meaningless in Istanbul
 	if header.UncleHash != nilUncleHash {
 		return qbftcommon.ErrInvalidUncleHash
@@ -286,11 +284,25 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		return err
 	}
 
+	// extract the extra data from the header
+	currentExtra, err := types.ExtractQBFTExtra(header)
+	if err != nil {
+		return qbftcommon.ErrInvalidExtraDataFormat
+	}
+
 	// Verify seals
 	if checkSeal {
-		if err := e.verifySeals(header, validators); err != nil {
+		if err := e.verifySeals(header, validators, currentExtra); err != nil {
 			return err
 		}
+	}
+
+	if err := e.checkSig(makeRandaoData(chain.Config(), header.Number), header.Coinbase, currentExtra.RandaoReveal); err != nil {
+		return fmt.Errorf("failed to verify randao reveal signature: %w", err)
+	}
+	calculatedRandaoMix := CalculateRandaoMix(parent.MixDigest, currentExtra.RandaoReveal)
+	if calculatedRandaoMix != header.MixDigest {
+		return fmt.Errorf("invalid randao mix: have %x, want %x", header.MixDigest, calculatedRandaoMix)
 	}
 
 	// prev seals validation for monblanc block or first block after genesis is skipped because it's empty
@@ -298,7 +310,7 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		// if montBlanc == 0: montBlanc+1(== 1) has no prev seals;
 		// if montBlanc > 0: montBlanc+1 has prev seals;
 		// Verify prevPreparedSeals and prevCommittedSeals
-		if err := e.verifyPrevSeals(header, parent, prevValidators); err != nil {
+		if err := e.verifyPrevSeals(header, parent, prevValidators, currentExtra); err != nil {
 			return err
 		}
 	}
@@ -328,15 +340,10 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 }
 
 // verifyPrevSeals checks whether every prevPreparedSeals and prevCommittedSeals are signed by one of the parent's validators
-func (e *Engine) verifyPrevSeals(header *types.Header, parent *types.Header, prevValidators qbft.ValidatorSet) error {
+func (e *Engine) verifyPrevSeals(header *types.Header, parent *types.Header, prevValidators qbft.ValidatorSet, extra *types.QBFTExtra) error {
 	if parent.Number.Sign() == 0 {
 		// We don't need to verify prepared seals in the genesis block
 		return nil
-	}
-
-	extra, err := types.ExtractQBFTExtra(header)
-	if err != nil {
-		return err
 	}
 
 	prevPreparedSeal := extra.PrevPreparedSeal
@@ -363,17 +370,12 @@ func (e *Engine) verifyPrevSeals(header *types.Header, parent *types.Header, pre
 }
 
 // verifySeals checks whether every prepared seals and committed seals are signed by one of validators
-func (e *Engine) verifySeals(header *types.Header, validators qbft.ValidatorSet) error {
+func (e *Engine) verifySeals(header *types.Header, validators qbft.ValidatorSet, extra *types.QBFTExtra) error {
 	number := header.Number.Uint64()
 
 	if number == 0 {
 		// We don't need to verify committed seals in the genesis block
 		return nil
-	}
-
-	extra, err := types.ExtractQBFTExtra(header)
-	if err != nil {
-		return err
 	}
 
 	preparedSeal := extra.PreparedSeal
@@ -456,37 +458,80 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 		header.Time = uint64(time.Now().Unix())
 	}
 
+	var madeExtra *types.QBFTExtra
+	var err error
 	if mustHavePrevSeals(header, chain.Config()) {
 		lastCanonicalHeader := chain.GetHeaderByNumber(header.Number.Uint64() - 1)
 		if lastCanonicalHeader.Number.Sign() == 0 {
-			return ApplyHeaderQBFTExtra(header)
-		}
-		extra, err := types.ExtractQBFTExtra(lastCanonicalHeader)
-		if err != nil {
-			return err
-		}
-		if extra.PreparedSeal == nil {
-			return qbftcommon.ErrEmptyPreparedSeals
-		}
+			madeExtra, err = ApplyHeaderQBFTExtra(header, e.WriteRandao(chain.Config(), header))
+		} else {
+			extra, err2 := types.ExtractQBFTExtra(lastCanonicalHeader)
+			if err2 != nil {
+				return err2
+			}
+			if extra.PreparedSeal == nil {
+				return qbftcommon.ErrEmptyPreparedSeals
+			}
 
-		if extra.CommittedSeal == nil {
-			return qbftcommon.ErrEmptyCommittedSeals
+			if extra.CommittedSeal == nil {
+				return qbftcommon.ErrEmptyCommittedSeals
+			}
+
+			// make final prevSeals by merging existing seals and extra seals
+			prevPreparedSeal := mergeSeals(extra.PreparedSeal, extraPreparedSeal)
+			prevCommittedSeal := mergeSeals(extra.CommittedSeal, extraCommittedSeal)
+
+			// add validators in snapshot to extraData's validators section and lastBlock committers to extraData's prevCommittedSeal section
+			madeExtra, err = ApplyHeaderQBFTExtra(
+				header,
+				e.WriteRandao(chain.Config(), header),
+				WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
+			)
 		}
-
-		// make final prevSeals by merging existing seals and extra seals
-		prevPreparedSeal := mergeSeals(extra.PreparedSeal, extraPreparedSeal)
-		prevCommittedSeal := mergeSeals(extra.CommittedSeal, extraCommittedSeal)
-
-		// add validators in snapshot to extraData's validators section and lastBlock committers to extraData's prevCommittedSeal section
-		return ApplyHeaderQBFTExtra(
-			header,
-			WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
-		)
 	} else {
 		// monblac hardFork block has empty prev seal
 		// next block of genesis montblanc block has empty prev seal
-		return ApplyHeaderQBFTExtra(header)
+		madeExtra, err = ApplyHeaderQBFTExtra(header, e.WriteRandao(chain.Config(), header))
 	}
+	if err != nil {
+		return fmt.Errorf("failed to write wbft extra: %w", err)
+	}
+	header.MixDigest = CalculateRandaoMix(parent.MixDigest, madeExtra.RandaoReveal)
+	return nil
+}
+
+func (e *Engine) WriteRandao(config *params.ChainConfig, header *types.Header) ApplyQBFTExtra {
+	return func(qbftExtra *types.QBFTExtra) error {
+		randaoReveal, err2 := e.sign(makeRandaoData(config, header.Number))
+		if err2 != nil {
+			return fmt.Errorf("failed to sign randao reveal: %w", err2)
+		}
+
+		qbftExtra.RandaoReveal = randaoReveal
+		return nil
+	}
+}
+
+func makeRandaoData(config *params.ChainConfig, number *big.Int) []byte {
+	var data []byte
+	chainId := config.ChainID
+	randaoVersion := new(big.Int)
+	if config.IsMontBlanc(number) {
+		randaoVersion.SetUint64(1) // montBlanc randao version is 1
+	}
+	data = append(data, chainId.Bytes()...)
+	data = append(data, randaoVersion.Bytes()...)
+	data = append(data, number.Bytes()...)
+
+	return crypto.Keccak256(data)
+}
+
+func CalculateRandaoMix(prevRandaoMix common.Hash, randaoReveal []byte) common.Hash {
+	// Calculate the new RandaoMix by XORing the previous RandaoMix with the new RandaoReveal
+	bigA := new(big.Int).SetBytes(prevRandaoMix.Bytes())
+	bigB := new(big.Int).SetBytes(crypto.Keccak256Hash(randaoReveal).Bytes())
+	resultBigInt := new(big.Int).Xor(bigA, bigB)
+	return common.BigToHash(resultBigInt)
 }
 
 func WritePrevSeals(prevRound uint32, prevPreparedSeal, prevCommittedSeal *types.QBFTAggregatedSeal) ApplyQBFTExtra {
@@ -768,7 +813,11 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 			}
 			candidates = append(candidates, candidate)
 		}
-		newEpoch.Validators = e.decideValidators(header, candidates, e.cfg.GetConfig(header.Number).TargetValidators)
+		newEpoch.Validators, err = e.decideValidators(header, candidates, e.cfg.GetConfig(header.Number).TargetValidators)
+		if err != nil {
+			log.Error("Failed to decide validators", "err", err)
+			return nil, err
+		}
 		newEpoch.BLSPublicKeys = make([][]byte, len(newEpoch.Validators))
 		for i, addr := range newEpoch.GetValidators() {
 			pk := govwbft.GetBLSPublicKey(govStakingAddress, state, addr)
@@ -965,6 +1014,7 @@ func getExtra(header *types.Header) (*types.QBFTExtra, error) {
 		vanity := append(header.Extra, bytes.Repeat([]byte{0x00}, types.IstanbulExtraVanity-len(header.Extra))...)
 		return &types.QBFTExtra{
 			VanityData:        vanity,
+			RandaoReveal:      []byte{},
 			PrevRound:         0,
 			PrevPreparedSeal:  nil,
 			PrevCommittedSeal: nil,
@@ -1119,7 +1169,8 @@ func writeEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Head
 		return err
 	}
 
-	return ApplyHeaderQBFTExtra(header, WriteEpochInfo(newEpoch))
+	_, err = ApplyHeaderQBFTExtra(header, WriteEpochInfo(newEpoch))
+	return err
 }
 
 // verifyEpoch is a handler that performs default actions when the block is an EpochBlock,
@@ -1176,21 +1227,56 @@ func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Hea
 }
 
 // 1. WEMIX 3.5
-// Use staker list as it is.
+// - sort by (staking amount, diligence) descending
+// - cut off the list at targetValidators
+// - shuffle the list randomly
 //
 // 2. WEMIX 4.0 (not implemented yet)
-// If number of stakers <= targetValidators, use staker list as it is.
-// If number of stakers > targetValidators, random selection from the list in VRF manner
-// depending on their staking amounts and diligence score.
-func (e *Engine) decideValidators(header *types.Header, newStakers []Candidate, targetValidators uint64) []uint32 {
-	validators := make([]uint32, len(newStakers))
+// - randomSelect(staking amount, diligence) until targetValidators
+// - shuffle the list randomly
+func (e *Engine) decideValidators(header *types.Header, newStakers []Candidate, targetValidators uint64) ([]uint32, error) {
+	indices := sortCandidates(newStakers)
+	if uint64(len(indices)) > targetValidators {
+		// If the number of candidates is greater than targetValidators,
+		// we cut off the list at targetValidators.
+		indices = indices[:targetValidators]
+	}
+	validators := make([]uint32, len(indices))
+	for i, idx := range indices {
+		// Convert the index to uint32 and store it in the validators slice.
+		shuffledIdx, err := computeShuffledIndex(uint64(idx), uint64(len(validators)), [32]byte(header.MixDigest), true)
+		if err != nil {
+			log.Error("Failed to compute shuffled index", "index", idx, "err", err)
+			return nil, err
+		}
+		validators[i] = uint32(shuffledIdx)
+	}
+	return validators, nil
+}
 
-	l := make([]uint32, len(validators))
-	for i := 0; i < len(l); i++ {
-		l[i] = uint32(i)
+func sortCandidates(candidates []Candidate) []int {
+	indices := make([]int, len(candidates))
+	for i := range indices {
+		indices[i] = i
 	}
 
-	return l
+	sort.Slice(indices, func(i, j int) bool {
+		originalIndexI := indices[i]
+		originalIndexJ := indices[j]
+
+		candidateI := candidates[originalIndexI]
+		candidateJ := candidates[originalIndexJ]
+
+		powerComparison := candidateI.Power.Cmp(candidateJ.Power)
+
+		if powerComparison != 0 {
+			return powerComparison > 0
+		}
+
+		return candidateI.Diligence > candidateJ.Diligence
+	})
+
+	return indices
 }
 
 func getSignerAddress(epochInfo *types.EpochInfo, signedSeal *types.QBFTAggregatedSeal) ([]common.Address, error) {
@@ -1324,4 +1410,78 @@ func (e *Engine) extractEpochInfo(epochHeader *types.Header) (*big.Int, *types.E
 	e.epochCache.Add(epochHeader.Number.Uint64(), epochExtra.EpochInfo)
 
 	return epochHeader.Number, epochExtra.EpochInfo, nil
+}
+
+const seedSize = int8(32)
+const roundSize = int8(1)
+const positionWindowSize = int8(4)
+const pivotViewSize = seedSize + roundSize
+const totalSize = seedSize + roundSize + positionWindowSize
+const shuffleRoundCount = uint8(33)
+
+func fromBytes8(x []byte) uint64 {
+	if len(x) < 8 {
+		return 0
+	}
+	return binary.LittleEndian.Uint64(x)
+}
+
+// computeShuffledIndex is from prysm's computeShuffledIndex function.
+// this function follows ethereum beacon chain's shuffling algorithm.
+func computeShuffledIndex(index uint64, indexCount uint64, seed [32]byte, shuffle bool) (uint64, error) {
+	if index >= indexCount {
+		return 0, fmt.Errorf("input index %d out of bounds: %d", index, indexCount)
+	}
+	rounds := shuffleRoundCount
+	round := uint8(0)
+	if !shuffle {
+		// Starting last round and iterating through the rounds in reverse, un-swaps everything,
+		// effectively un-shuffling the list.
+		round = rounds - 1
+	}
+	buf := make([]byte, totalSize)
+	posBuffer := make([]byte, 8)
+	hashfunc := crypto.Keccak256Hash
+
+	// Seed is always the first 32 bytes of the hash input, we never have to change this part of the buffer.
+	copy(buf[:32], seed[:])
+	for {
+		buf[seedSize] = round
+		h := hashfunc(buf[:pivotViewSize])
+		hash8 := h[:8]
+		hash8Int := fromBytes8(hash8)
+		pivot := hash8Int % indexCount
+		flip := (pivot + indexCount - index) % indexCount
+		// Consider every pair only once by picking the highest pair index to retrieve randomness.
+		position := index
+		if flip > position {
+			position = flip
+		}
+		// Add position except its last byte to []buf for randomness,
+		// it will be used later to select a bit from the resulting hash.
+		binary.LittleEndian.PutUint64(posBuffer[:8], position>>8)
+		copy(buf[pivotViewSize:], posBuffer[:4])
+		source := hashfunc(buf)
+		// Effectively keep the first 5 bits of the byte value of the position,
+		// and use it to retrieve one of the 32 (= 2^5) bytes of the hash.
+		byteV := source[(position&0xff)>>3]
+		// Using the last 3 bits of the position-byte, determine which bit to get from the hash-byte (note: 8 bits = 2^3)
+		bitV := (byteV >> (position & 0x7)) & 0x1
+		// index = flip if bit else index
+		if bitV == 1 {
+			index = flip
+		}
+		if shuffle {
+			round++
+			if round == rounds {
+				break
+			}
+		} else {
+			if round == 0 {
+				break
+			}
+			round--
+		}
+	}
+	return index, nil
 }

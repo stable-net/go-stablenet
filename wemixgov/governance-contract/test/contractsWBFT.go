@@ -183,14 +183,6 @@ func (g *GovWBFT) ExecuteChangingFee(t *testing.T, sender *EOA, staker common.Ad
 	return g.stakingContractTx(t, "executeChangingFee", sender, nil, staker)
 }
 
-func (g *GovWBFT) RequestChangeFee(t *testing.T, sender *EOA, newFeeRate *big.Int) (*types.Transaction, error) {
-	return g.stakingContractTx(t, "requestChangeFee", sender, nil, newFeeRate)
-}
-
-func (g *GovWBFT) ExecuteChangeFee(t *testing.T, sender *EOA, staker common.Address) (*types.Transaction, error) {
-	return g.stakingContractTx(t, "executeChangeFee", sender, nil, staker)
-}
-
 func (g *GovWBFT) stakingContractTx(t *testing.T, method string, sender *EOA, value *big.Int, params ...interface{}) (*types.Transaction, error) {
 	return g.stakingContract.Transact(NewTxOptsWithValue(t, sender, value), method, params...)
 }

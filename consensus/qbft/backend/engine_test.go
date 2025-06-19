@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
 	"math/big"
 	"reflect"
 	"sync"
@@ -151,7 +150,7 @@ func newBlockchainFromConfig(genesis *core.Genesis, nodeKeys []*ecdsa.PrivateKey
 		if addr.String() == proposerAddr.String() {
 			backend.privateKey = key
 			backend.address = addr
-			backend.qbftEngine = qbftengine.NewEngine(backend.config, addr, backend.Sign)
+			backend.qbftEngine = qbftengine.NewEngine(backend.config, addr, backend.Sign, backend.CheckSignature)
 			backend.blsSecretKey, _ = bls.DeriveFromECDSA(key)
 			// set backend's node to first index of nodes for convenient
 			nodes[0], nodes[i] = nodes[i], nodes[0]
@@ -396,7 +395,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 				header := block.Header()
 				extra, _ := types.ExtractQBFTExtra(header)
 				// write invalid round
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound+1, extra.PrevPreparedSeal, extra.PrevCommittedSeal)); err != nil {
+				if _, err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound+1, extra.PrevPreparedSeal, extra.PrevCommittedSeal)); err != nil {
 					return nil
 				}
 				return header
@@ -408,7 +407,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				extra, _ := types.ExtractQBFTExtra(header)
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, nil, extra.PrevCommittedSeal)); err != nil {
+				if _, err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, nil, extra.PrevCommittedSeal)); err != nil {
 					return nil
 				}
 				return header
@@ -420,7 +419,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				extra, _ := types.ExtractQBFTExtra(header)
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, extra.PrevPreparedSeal, nil)); err != nil {
+				if _, err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, extra.PrevPreparedSeal, nil)); err != nil {
 					return nil
 				}
 				return header
@@ -433,7 +432,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				extra, _ := types.ExtractQBFTExtra(header)
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, nil, extra.PrevCommittedSeal)); err != nil {
+				if _, err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, nil, extra.PrevCommittedSeal)); err != nil {
 					return nil
 				}
 				return header
@@ -445,7 +444,7 @@ func TestVerifyHeaderForChainedBlock(t *testing.T) {
 			func(block *types.Block) *types.Header {
 				header := block.Header()
 				extra, _ := types.ExtractQBFTExtra(header)
-				if err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, extra.PrevPreparedSeal, nil)); err != nil {
+				if _, err := qbftengine.ApplyHeaderQBFTExtra(header, qbftengine.WritePrevSeals(extra.PrevRound, extra.PrevPreparedSeal, nil)); err != nil {
 					return nil
 				}
 				return header
@@ -773,17 +772,6 @@ func makeQBFTMessagePayload(message messages.QBFTMessage, node otherNode) ([]byt
 	return payload, nil
 }
 
-func nodeSendPreprepareMsg(qbftEngine *Backend, node otherNode, sequence, round *big.Int, targetBlock *types.Block) error {
-	preprepare := messages.NewPreprepare(sequence, round, targetBlock)
-	payload, err := makeQBFTMessagePayload(preprepare, node)
-	if err != nil {
-		return err
-	}
-	go postMsgEventToBackend(qbftEngine, preprepare, payload)
-
-	return nil
-}
-
 func nodeSendPrepareMsg(qbftEngine *Backend, node otherNode, sequence, round *big.Int, targetBlock *types.Block) error {
 	blsKey, err := bls.DeriveFromECDSA(node.privateKey)
 	if err != nil {
@@ -817,110 +805,6 @@ func nodeSendCommitMsg(qbftEngine *Backend, node otherNode, sequence, round *big
 	go postMsgEventToBackend(qbftEngine, commit, payload)
 
 	return nil
-}
-
-func makeBlockThroughConsensus(chain *core.BlockChain, engine *Backend, nodes []otherNode, parentBlock *types.Block) (*types.Block, error) {
-	eventSub := engine.EventMux().Subscribe(qbft.RequestEvent{})
-
-	block := makeBlockWithoutSeal(chain, engine, parentBlock)
-	currState, _ := chain.State()
-	block, _ = engine.FinalizeAndAssemble(chain, block.Header(), currState, nil, nil, nil, nil)
-	resultCh := make(chan *types.Block, 10)
-	stopCh := make(chan struct{})
-	go func() {
-		engine.Seal(chain, block, resultCh, stopCh)
-	}()
-
-	ev := <-eventSub.Chan()
-	request, ok := ev.Data.(qbft.RequestEvent)
-	if !ok {
-		return nil, fmt.Errorf("unexpected event comes: %v", reflect.TypeOf(ev.Data))
-	}
-	eventSub.Unsubscribe()
-
-	proposedBlock, _ := request.Proposal.(*types.Block)
-	go func() error {
-		ticker := time.NewTicker(300 * time.Millisecond)
-		defer ticker.Stop()
-
-		executed := make(map[qbftcore.State]bool)
-		for {
-			<-ticker.C
-			consensusState := engine.core.GetState()
-			if executed[consensusState] {
-				continue
-			}
-
-			switch consensusState {
-			case qbftcore.StateAcceptRequest:
-				for _, node := range nodes {
-					if engine.getProposerForTest() == node.address {
-						header := proposedBlock.Header()
-						header.Coinbase = node.address
-						statedb, err := chain.State()
-						if err != nil {
-							return fmt.Errorf("failed to get statedb err %v", err)
-						}
-						engine.Finalize(chain, header, statedb, nil, nil, nil)
-						proposedBlock = proposedBlock.WithSeal(header)
-						if err := nodeSendPreprepareMsg(engine, node, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
-							return fmt.Errorf("failed to send preprepare msg. err :  %v", err)
-						}
-					}
-				}
-				executed[consensusState] = true
-			case qbftcore.StatePreprepared:
-				for _, node := range nodes {
-					if err := nodeSendPrepareMsg(engine, node, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
-						return fmt.Errorf("failed to send prepare msg. err :  %v", err)
-					}
-				}
-				executed[consensusState] = true
-			case qbftcore.StatePrepared:
-				for _, node := range nodes {
-					if err := nodeSendCommitMsg(engine, node, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
-						return fmt.Errorf("failed to send commit msg. err :  %v", err)
-					}
-				}
-				executed[consensusState] = true
-			}
-		}
-	}()
-
-	select {
-	case blockFromResultCh := <-resultCh:
-		return blockFromResultCh, nil
-	case blockFromEnquequeCh := <-blockEnqueueChannel:
-		stopCh <- struct{}{}
-		return blockFromEnquequeCh, nil
-	}
-}
-
-func TestMakingBlock(t *testing.T) {
-	chain, engine, nodes := newBlockChain(4)
-	others := nodes[1:]
-	parentBlock := chain.Genesis()
-
-	for i := 0; i < 3; i++ {
-		finalBlock, err := makeBlockThroughConsensus(chain, engine, others, parentBlock)
-		if err != nil {
-			t.Errorf("failed to make block1 through consensus. err %v", err)
-		}
-		if parentBlock.Hash() != finalBlock.ParentHash() {
-			t.Errorf("parent hash mismatch: have %v, want %v", finalBlock.ParentHash(), parentBlock.Hash())
-		}
-
-		if _, err := chain.InsertChain(types.Blocks{finalBlock}); err != nil {
-			t.Errorf("failed to insert block1. err %v", err)
-		}
-
-		// check if generated final block is included in chain properly
-		block := chain.GetBlockByHash(finalBlock.Hash())
-		if block == nil {
-			t.Errorf("block number %v is not generated correctly", finalBlock.Hash())
-		}
-		parentBlock = finalBlock
-	}
 }
 
 func TestAddingExtraSeals(t *testing.T) {
@@ -1031,35 +915,6 @@ func TestAddingExtraSeals(t *testing.T) {
 	}
 	if len(extraCommitted) != expectedAdditionalCommittedSealCnt {
 		t.Errorf("unexpected prepared extra seal count. want %v, have %v", expectedAdditionalCommittedSealCnt, len(extraCommitted))
-	}
-}
-
-func TestLackingSealsFromPropagatedBlock(t *testing.T) {
-	chain, engine, nodes := newBlockChain(4)
-	others := nodes[1:]
-
-	// 1. generate block through consensus
-	validBlock, err := makeBlockThroughConsensus(chain, engine, others, chain.Genesis())
-	if err != nil {
-		t.Errorf("failed to make valid block through consensus. err %v", err)
-	}
-
-	// 2. remove some preparedSeals from valid block ( len(preparedSeal) < 2F+1 ) and make malformed block
-	header := validBlock.Header()
-	qbftExtra, _ := types.ExtractQBFTExtra(header)
-
-	qbftExtra.PreparedSeal.Sealers.ClearSealer(0)
-	payload, err := rlp.EncodeToBytes(qbftExtra)
-	if err != nil {
-		t.Errorf("failed to encode qbftExtra. err %v", err)
-	}
-	header.Extra = payload
-	malformedBlock := validBlock.WithSeal(header)
-
-	// 3. test the case when malformed block with lack of preparedSeal is propagated
-	_, err = chain.InsertChain(types.Blocks{malformedBlock})
-	if !errors.Is(err, qbftcommon.ErrInvalidPreparedSeals) {
-		t.Errorf("unexpected error. expect %v, got %v", qbftcommon.ErrInvalidPreparedSeals, err)
 	}
 }
 

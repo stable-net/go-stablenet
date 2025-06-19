@@ -479,6 +479,11 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 		panic("invalid call of InheritExtra")
 	}
 
+	err = engine.CallEngineSpecific("SetMixDigest", parent.Header(), header)
+	if err != nil {
+		panic("invalid call of SetMixDigest")
+	}
+
 	return header
 }
 

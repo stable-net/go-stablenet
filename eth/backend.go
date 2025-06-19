@@ -154,7 +154,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		return nil, err
 	}
 	var engine consensus.Engine
-	engine, err = ethconfig.CreateConsensusEngine(stack.GovBackend(), chainConfig, &config.Istanbul, stack.Config().NodeKey(), chainDb)
+	engine, err = ethconfig.CreateConsensusEngine(stack.GovBackend(), chainConfig, stack.Config().NodeKey(), chainDb)
 	if err != nil {
 		return nil, err
 	}

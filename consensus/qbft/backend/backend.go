@@ -83,7 +83,7 @@ func New(config *qbft.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) *
 		knownMessages:    knownMessages,
 	}
 
-	sb.qbftEngine = qbftengine.NewEngine(sb.config, sb.address, sb.Sign)
+	sb.qbftEngine = qbftengine.NewEngine(sb.config, sb.address, sb.Sign, sb.CheckSignature)
 	return sb
 }
 
@@ -324,12 +324,6 @@ func (sb *Backend) Validators(proposal qbft.Proposal) qbft.ValidatorSet {
 		return validator.NewSet(nil, nil, sb.config.ProposerPolicy)
 	}
 	return valSet
-}
-
-func (sb *Backend) getProposerForTest() common.Address {
-	// used only for testing
-	// if you want actual using, you should lock coreMu for it
-	return sb.core.GetProposer()
 }
 
 func (sb *Backend) LastProposal() (qbft.Proposal, common.Address) {

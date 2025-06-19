@@ -451,7 +451,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	var (
 		msg              = st.msg
 		sender           = vm.AccountRef(msg.From)
-		rules            = st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber, st.evm.Context.Random != nil, st.evm.Context.Time)
+		rules            = st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber, (st.evm.Context.Difficulty == nil || st.evm.Context.Difficulty.Cmp(common.Big0) == 0) && st.evm.Context.Random != nil, st.evm.Context.Time)
 		contractCreation = msg.To == nil
 	)
 

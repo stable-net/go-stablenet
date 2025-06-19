@@ -153,9 +153,6 @@ type Config struct {
 	// Mining options
 	Miner miner.Config
 
-	// Istanbul options
-	Istanbul qbft.Config // ## Quorum QBFT
-
 	// Transaction pool options
 	TxPool   legacypool.Config
 	BlobPool blobpool.Config
@@ -189,7 +186,7 @@ type Config struct {
 // CreateConsensusEngine creates a consensus engine for the given chain config.
 // Clique is allowed for now to live standalone, but ethash is forbidden and can
 // only exist on already merged networks.
-func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfig, qbftCfg *qbft.Config, privKey *ecdsa.PrivateKey, db ethdb.Database) (consensus.Engine, error) {
+func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfig, privKey *ecdsa.PrivateKey, db ethdb.Database) (consensus.Engine, error) {
 	// If proof-of-authority is requested, set it up
 	if config.Clique != nil {
 		if config.TerminalTotalDifficulty == nil {
@@ -200,9 +197,7 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 	}
 
 	if config.MontBlancEnabled() {
-		if qbftCfg == nil {
-			qbftCfg = new(qbft.Config)
-		}
+		qbftCfg := new(qbft.Config)
 		err := SetConfigFromChainConfig(qbftCfg, config)
 
 		if err != nil {
@@ -236,6 +231,9 @@ func SetConfigFromChainConfig(qbftCfg *qbft.Config, chainCfg *params.ChainConfig
 	}
 	if config.EpochLength != 0 {
 		qbftCfg.Epoch = config.EpochLength
+	}
+	if config.AllowedFutureBlockTime != 0 {
+		qbftCfg.AllowedFutureBlockTime = config.AllowedFutureBlockTime
 	}
 	qbftCfg.BlockReward = config.BlockReward
 	qbftCfg.BlockRewardBeneficiary = config.BlockRewardBeneficiary

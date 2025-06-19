@@ -21,16 +21,16 @@ func Combine(applies ...ApplyQBFTExtra) ApplyQBFTExtra {
 	}
 }
 
-func ApplyHeaderQBFTExtra(header *types.Header, applies ...ApplyQBFTExtra) error {
+func ApplyHeaderQBFTExtra(header *types.Header, applies ...ApplyQBFTExtra) (*types.QBFTExtra, error) {
 	extra, err := getExtra(header)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = Combine(applies...)(extra)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return setExtra(header, extra)
+	return extra, setExtra(header, extra)
 }
