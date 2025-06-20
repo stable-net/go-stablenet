@@ -15,8 +15,6 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 //
-// The "## Quorum QBFT" mark is code referenced from quorum/eth/handler.go (2024.07.25).
-// Modified and improved for the wemix development.
 
 package eth
 
@@ -58,10 +56,10 @@ const (
 	// by the peer.
 	txMaxBroadcastSize = 4096
 
-	protocolMaxMsgSize = 10 * 1024 * 1024 // Maximum cap on the size of a protocol message // ## Quorum QBFT
+	protocolMaxMsgSize = 10 * 1024 * 1024 // Maximum cap on the size of a protocol message
 )
 
-var errMsgTooLarge = errors.New("message too long") // ## Quorum QBFT
+var errMsgTooLarge = errors.New("message too long")
 
 var syncChallengeTimeout = 15 * time.Second // Time allowance for a node to reply to the sync progress challenge
 
@@ -103,7 +101,7 @@ type handlerConfig struct {
 	BloomCache     uint64                 // Megabytes to alloc for snap sync bloom
 	EventMux       *event.TypeMux         // Legacy event mux, deprecate for `feed`
 	RequiredBlocks map[uint64]common.Hash // Hard coded map of required block hashes for sync challenges
-	Engine         consensus.Engine       // ## Quorum QBFT
+	Engine         consensus.Engine
 }
 
 type handler struct {
@@ -142,7 +140,7 @@ type handler struct {
 	handlerStartCh chan struct{}
 	handlerDoneCh  chan struct{}
 
-	engine consensus.Engine // ## Quorum QBFT
+	engine consensus.Engine
 }
 
 // newHandler returns a handler for all Ethereum chain management protocol.
@@ -164,12 +162,11 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		quitSync:       make(chan struct{}),
 		handlerDoneCh:  make(chan struct{}),
 		handlerStartCh: make(chan struct{}),
-		engine:         config.Engine, // ## Quorum QBFT
+		engine:         config.Engine,
 		forceSyncCycle: config.ForceSyncCycle,
 		tdSyncInterval: config.TdSyncInterval,
 	}
 
-	// ## Quorum QBFT START
 	var handler consensus.Handler
 	if handler, _ = h.engine.(consensus.Handler); handler == nil {
 		if beacon, ok := h.engine.(*beacon.Beacon); ok {
@@ -179,7 +176,6 @@ func newHandler(config *handlerConfig) (*handler, error) {
 	if handler != nil {
 		handler.SetBroadcaster(h)
 	}
-	// ## Quorum QBFT END
 
 	if config.Sync == downloader.FullSync {
 		// The database seems empty as the current block is the genesis. Yet the snap
@@ -390,10 +386,8 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	if err := peer.Handshake(h.networkID, td, hash, genesis.Hash(), forkID, h.forkFilter); err != nil {
 		peer.Log().Debug("Ethereum handshake failed", "err", err)
 
-		// ## Quorum QBFT START
 		// When the Handshake() returns an error, the Run method corresponding to `eth` protocol returns with the error, causing the peer to drop, signal subprotocol as well to exit the `Run` method
 		peer.EthPeerDisconnected <- struct{}{}
-		// ## Quorum QBFT END
 		return err
 	}
 	reject := false // reserved peer slots
@@ -418,10 +412,8 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	// Register the peer locally
 	if err := h.peers.registerPeer(peer, snap); err != nil {
 		peer.Log().Error("Ethereum peer registration failed", "err", err)
-		// ## Quorum QBFT START
 		// When the Register() returns an error, the Run method corresponding to `eth` protocol returns with the error, causing the peer to drop, signal subprotocol as well to exit the `Run` method
 		peer.EthPeerDisconnected <- struct{}{}
-		// ## Quorum QBFT END
 		return err
 	}
 	defer h.unregisterPeer(peer.ID())
@@ -494,10 +486,8 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 		}(number, hash, req)
 	}
 
-	// ## Quorum QBFT START
 	// Quorum notify other subprotocols that the eth peer is ready, and has been added to the peerset.
 	p.EthPeerRegistered <- struct{}{}
-	// ## Quorum QBFT END
 
 	// Handle incoming messages until the connection is torn down
 	return handler(peer)

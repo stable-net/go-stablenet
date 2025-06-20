@@ -95,8 +95,8 @@ func NewGovWBFT(t *testing.T, ncpList []common.Address, alloc types.GenesisAlloc
 	g := &GovWBFT{
 		owner: owner,
 		backend: simulated.NewWbftBackend(alloc, func(nodeConf *node.Config, ethConf *ethconfig.Config) {
-			ethConf.Genesis.Config.MontBlanc.WBFT.UseNCP = &useNCP
-			defaultBlockPeriod = time.Duration(ethConf.Genesis.Config.MontBlanc.WBFT.BlockPeriodSeconds) * time.Second
+			ethConf.Genesis.Config.Croissant.WBFT.UseNCP = &useNCP
+			defaultBlockPeriod = time.Duration(ethConf.Genesis.Config.Croissant.WBFT.BlockPeriodSeconds) * time.Second
 		}),
 	}
 	if len(ncpList) > 0 {

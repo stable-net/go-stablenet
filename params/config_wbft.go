@@ -38,20 +38,20 @@ type WbftInit struct {
 	BLSPublicKeys []string         `json:"blsPublicKeys"` // BLS public ket list of validators, order must be same as validators
 }
 
-type MontBlancConfig struct {
+type CroissantConfig struct {
 	WBFT         *WBFTConfig   `json:"wBFT"`
 	Init         *WbftInit     `json:"init"`
 	GovContracts *GovContracts `json:"govContracts"`
 }
 
-func (c *MontBlancConfig) String() string {
+func (c *CroissantConfig) String() string {
 	return fmt.Sprintf("{WBFT: %v Init: %v GovContracts: %v}",
 		c.WBFT,
 		c.Init,
 		c.GovContracts)
 }
 
-func (c *MontBlancConfig) GetInitialBLSPublicKeys() [][]byte {
+func (c *CroissantConfig) GetInitialBLSPublicKeys() [][]byte {
 	blsPubKeys := make([][]byte, len(c.Init.BLSPublicKeys))
 	for i, pk := range c.Init.BLSPublicKeys {
 		blsPubKeys[i] = hexutil.MustDecode(pk)
@@ -59,67 +59,67 @@ func (c *MontBlancConfig) GetInitialBLSPublicKeys() [][]byte {
 	return blsPubKeys
 }
 
-func (c *MontBlancConfig) CheckValidity() error {
+func (c *CroissantConfig) CheckValidity() error {
 	if c == nil {
-		return errors.New("`montblanc`: missing `montBlanc` section")
+		return errors.New("`croissant`: missing `croissant` section")
 	}
 	if c.Init == nil {
-		return errors.New("`montblanc`: missing `init` section")
+		return errors.New("`croissant`: missing `init` section")
 	}
 	if c.Init.BLSPublicKeys == nil || len(c.Init.BLSPublicKeys) == 0 {
-		return errors.New("`montblanc.init`: missing `blsPublicKeys` field")
+		return errors.New("`croissant.init`: missing `blsPublicKeys` field")
 	}
 	if c.Init.Validators == nil || len(c.Init.Validators) == 0 {
-		return errors.New("`montblanc.init`: missing `validators`")
+		return errors.New("`croissant.init`: missing `validators`")
 	}
 	if len(c.Init.Validators) != len(c.Init.BLSPublicKeys) {
 		return fmt.Errorf(
-			"`montblanc.init`: mismatched lengths: %d validators vs %d blsPublicKeys",
+			"`croissant.init`: mismatched lengths: %d validators vs %d blsPublicKeys",
 			len(c.Init.Validators), len(c.Init.BLSPublicKeys),
 		)
 	}
 	if c.GovContracts == nil {
-		return errors.New("`montblanc: missing `govContracts` section")
+		return errors.New("`croissant: missing `govContracts` section")
 	}
 	if c.GovContracts.GovStaking == nil {
-		return errors.New("`montblanc.govContracts: missing `govStaking`")
+		return errors.New("`croissant.govContracts: missing `govStaking`")
 	}
 	if c.GovContracts.GovConfig == nil {
-		return errors.New("`montblanc.govContracts: missing `govConfig`")
+		return errors.New("`croissant.govContracts: missing `govConfig`")
 	}
 	if c.GovContracts.GovRewardeeImp == nil {
-		return errors.New("`montblanc.govContracts: missing `govRewardeeImp`")
+		return errors.New("`croissant.govContracts: missing `govRewardeeImp`")
 	}
 	if err := CheckGovContractVersions(c.GovContracts); err != nil {
-		return fmt.Errorf("`montblanc.govContracts`: %v", err)
+		return fmt.Errorf("`croissant.govContracts`: %v", err)
 	}
 
 	if c.WBFT == nil {
-		return errors.New("`montblanc`: missing `wBFT` section")
+		return errors.New("`croissant`: missing `wBFT` section")
 	}
 	if c.WBFT.RequestTimeoutSeconds == 0 {
-		return errors.New("`montblanc.wBFT`: `requestTimeoutSeconds` must be greater than 0")
+		return errors.New("`croissant.wBFT`: `requestTimeoutSeconds` must be greater than 0")
 	}
 	if c.WBFT.BlockPeriodSeconds == 0 {
-		return errors.New("`montblanc.wBFT`: `blockPeriodSeconds` must be greater than 0")
+		return errors.New("`croissant.wBFT`: `blockPeriodSeconds` must be greater than 0")
 	}
 	if c.WBFT.EpochLength == 0 {
-		return errors.New("`montblanc.wBFT`: `epochLength` must be greater than 0")
+		return errors.New("`croissant.wBFT`: `epochLength` must be greater than 0")
 	}
 	if c.WBFT.StabilizingStakersThreshold == nil {
-		return errors.New("`montblanc.wBFT`: missing `stabilizingStakersThreshold`")
+		return errors.New("`croissant.wBFT`: missing `stabilizingStakersThreshold`")
 	} else if *c.WBFT.StabilizingStakersThreshold == 0 {
-		return errors.New("`montblanc.wBFT`: `stabilizingStakersThreshold` must be greater than 0")
+		return errors.New("`croissant.wBFT`: `stabilizingStakersThreshold` must be greater than 0")
 	}
 	if c.WBFT.TargetValidators == nil {
-		return errors.New("`montblanc.wBFT`: missing `targetValidators`")
+		return errors.New("`croissant.wBFT`: missing `targetValidators`")
 	} else if c.WBFT.EpochLength < *c.WBFT.TargetValidators {
-		return fmt.Errorf("`montblanc.wBFT`: `epochLength` (%d) must be greater than or equal to `targetValidators` (%d)",
+		return fmt.Errorf("`croissant.wBFT`: `epochLength` (%d) must be greater than or equal to `targetValidators` (%d)",
 			c.WBFT.EpochLength, *c.WBFT.TargetValidators)
 	}
 
 	if err := checkSanityBeneficiaries(c.WBFT.BlockRewardBeneficiary); err != nil {
-		return fmt.Errorf("`montblanc.wBFT`: %v", err)
+		return fmt.Errorf("`croissant.wBFT`: %v", err)
 	}
 	return nil
 }
@@ -209,10 +209,10 @@ func (u *Upgrade) String() string {
 }
 
 type WBFTConfig struct {
-	RequestTimeoutSeconds       uint64                `json:"requestTimeoutSeconds"`            // Minimum request timeout for each QBFT round in milliseconds
-	BlockPeriodSeconds          uint64                `json:"blockPeriodSeconds"`               // Minimum time between two consecutive QBFT blocks’ timestamps in seconds
+	RequestTimeoutSeconds       uint64                `json:"requestTimeoutSeconds"`            // Minimum request timeout for each WBFT round in milliseconds
+	BlockPeriodSeconds          uint64                `json:"blockPeriodSeconds"`               // Minimum time between two consecutive WBFT blocks’ timestamps in seconds
 	EpochLength                 uint64                `json:"epochLength"`                      // The duration during which a fixed validator set remains active
-	BlockReward                 *math.HexOrDecimal256 `json:"blockReward,omitempty"`            // Reward from start, works only on QBFT consensus protocol
+	BlockReward                 *math.HexOrDecimal256 `json:"blockReward,omitempty"`            // Reward from start, works only on WBFT consensus protocol
 	AllowedFutureBlockTime      uint64                `json:"allowedFutureBlockTime,omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
 	BlockRewardBeneficiary      *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"` // Reward beneficiaries
 	ProposerPolicy              *uint64               `json:"proposerPolicy"`                   // The policy for proposer selection
@@ -251,7 +251,7 @@ func (t *Transition) String() string {
 	)
 }
 
-var DefaultMontBlancConfig = &MontBlancConfig{
+var DefaultCroissantConfig = &CroissantConfig{
 	WBFT: &WBFTConfig{
 		RequestTimeoutSeconds:       2,
 		BlockPeriodSeconds:          1,
@@ -345,4 +345,4 @@ func (st *StateTransition) String() string {
 	return fmt.Sprintf("{Block: %v Codes: %v States: %v}", st.Block, st.Codes, st.States)
 }
 
-// ## MontBlanc CHAIN CONFIG END
+// ## Croissant CHAIN CONFIG END

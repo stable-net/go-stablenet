@@ -13,16 +13,16 @@ import (
 
 var (
 	srcDataDir = flag.String("src", "", "datadir for go-wemix")
-	dstDataDir = flag.String("dst", "", "datadir for go-wemix-qbft")
+	dstDataDir = flag.String("dst", "", "datadir for go-wemix-wbft")
 	batchSize  = flag.Uint("batch", 50*1024*1024, "Key-value size (Byte) to batch for chaindata")
 )
 
 func init() {
 	flag.Usage = func() {
-		fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "-src <datadir (go-wemix)> -dst <datadir (go-wemix-qbft)> [-batch <batch_size>]")
+		fmt.Fprintln(os.Stderr, "Usage:", os.Args[0], "-src <datadir (go-wemix)> -dst <datadir (go-wemix-wbft)> [-batch <batch_size>]")
 		flag.PrintDefaults()
 		fmt.Fprintln(os.Stderr, `
-Migrate chaindata for go-wemix to chaindata for go-wemix-qbft.`)
+Migrate chaindata for go-wemix to chaindata for go-wemix-wbft.`)
 	}
 }
 
@@ -58,7 +58,7 @@ func migrateChaindata() {
 	}
 	defer db.Close()
 
-	// Open go-wemix-qbft chaindata
+	// Open go-wemix-wbft chaindata
 	newDb, err := rawdb.Open(rawdb.OpenOptions{
 		Type:      "pebble",
 		Directory: dstChaindataDir,

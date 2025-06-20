@@ -18,7 +18,7 @@ jobs:
         with:
           go-version: 1.21.4
 
-      - name: Build Go-WEMIX-QBFT
+      - name: Build Go-WEMIX-WBFT
         run: make geth
 
   lint_test:

@@ -30,14 +30,13 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// ## Quorum QBFT START
 var (
 	IstanbulExtraVanity = 32 // Fixed number of extra-data bytes reserved for validator vanity
 	IstanbulExtraSeal   = 96 // Fixed number of extra-data bytes reserved for validator seal (BLS_SIGNATURE_LENGTH)
 
-	// QBFTDefaultDifficulty is used to identify whether the block is from QBFT consensus engine.
+	// WBFTDefaultDifficulty is used to identify whether the block is from WBFT consensus engine.
 	// we use this value on behalf of the role IstanbulDigest
-	QBFTDefaultDifficulty = big.NewInt(1) // ## Wemix
+	WBFTDefaultDifficulty = big.NewInt(1) // ## Wemix
 
 	// Diligence is used to choose validators for next epoch
 	// Diligence has maximum value of 2 * DiligenceDenominator.
@@ -47,22 +46,22 @@ var (
 	DefaultDiligence = 2 * DiligenceDenominator * 95 / 100
 
 	// ErrInvalidIstanbulHeaderExtra is returned if the length of extra-data is less than 32 bytes
-	ErrInvalidIstanbulHeaderExtra = errors.New("invalid qbft header extra-data")
+	ErrInvalidIstanbulHeaderExtra = errors.New("invalid wbft header extra-data")
 )
 
-type QBFTAggregatedSeal struct {
+type WBFTAggregatedSeal struct {
 	Sealers   SealerSet
 	Signature []byte
 }
 
-func (as *QBFTAggregatedSeal) EncodeRLP(w io.Writer) error {
+func (as *WBFTAggregatedSeal) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{
 		as.Sealers,
 		as.Signature,
 	})
 }
 
-func (as *QBFTAggregatedSeal) DecodeRLP(s *rlp.Stream) error {
+func (as *WBFTAggregatedSeal) DecodeRLP(s *rlp.Stream) error {
 	var aggregatedSeal struct {
 		Sealers   SealerSet
 		Signature []byte
@@ -74,20 +73,20 @@ func (as *QBFTAggregatedSeal) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-func (as *QBFTAggregatedSeal) String() string {
+func (as *WBFTAggregatedSeal) String() string {
 	return fmt.Sprintf("{sealers: %v, signature: %x}", as.Sealers, as.Signature)
 }
 
-// QBFTExtra represents header extradata for qbft protocol
-type QBFTExtra struct {
+// WBFTExtra represents header extradata for wbft protocol
+type WBFTExtra struct {
 	VanityData        []byte
 	RandaoReveal      []byte // bls signature of the block number
 	PrevRound         uint32
-	PrevPreparedSeal  *QBFTAggregatedSeal
-	PrevCommittedSeal *QBFTAggregatedSeal // committedSeal of previous local block
+	PrevPreparedSeal  *WBFTAggregatedSeal
+	PrevCommittedSeal *WBFTAggregatedSeal // committedSeal of previous local block
 	Round             uint32
-	PreparedSeal      *QBFTAggregatedSeal
-	CommittedSeal     *QBFTAggregatedSeal
+	PreparedSeal      *WBFTAggregatedSeal
+	CommittedSeal     *WBFTAggregatedSeal
 	EpochInfo         *EpochInfo // epoch info is filled only for last block of epoch
 }
 
@@ -104,7 +103,7 @@ type EpochInfo struct {
 }
 
 // EncodeRLP serializes qist into the Ethereum RLP format.
-func (qst *QBFTExtra) EncodeRLP(w io.Writer) error {
+func (qst *WBFTExtra) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{
 		qst.VanityData,
 		qst.RandaoReveal,
@@ -118,25 +117,25 @@ func (qst *QBFTExtra) EncodeRLP(w io.Writer) error {
 	})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the QBFTExtra fields from a RLP stream.
-func (qst *QBFTExtra) DecodeRLP(s *rlp.Stream) error {
-	var qbftExtra struct {
+// DecodeRLP implements rlp.Decoder, and load the WBFTExtra fields from a RLP stream.
+func (qst *WBFTExtra) DecodeRLP(s *rlp.Stream) error {
+	var wbftExtra struct {
 		VanityData        []byte
 		RandaoReveal      []byte
 		PrevRound         uint32
-		PrevPreparedSeal  *QBFTAggregatedSeal `rlp:"nil"`
-		PrevCommittedSeal *QBFTAggregatedSeal `rlp:"nil"`
+		PrevPreparedSeal  *WBFTAggregatedSeal `rlp:"nil"`
+		PrevCommittedSeal *WBFTAggregatedSeal `rlp:"nil"`
 		Round             uint32
-		PreparedSeal      *QBFTAggregatedSeal `rlp:"nil"`
-		CommittedSeal     *QBFTAggregatedSeal `rlp:"nil"`
+		PreparedSeal      *WBFTAggregatedSeal `rlp:"nil"`
+		CommittedSeal     *WBFTAggregatedSeal `rlp:"nil"`
 		EpochInfo         *EpochInfo          `rlp:"nil"`
 	}
-	if err := s.Decode(&qbftExtra); err != nil {
+	if err := s.Decode(&wbftExtra); err != nil {
 		return err
 	}
 
 	qst.VanityData, qst.RandaoReveal, qst.PrevRound, qst.PrevPreparedSeal, qst.PrevCommittedSeal, qst.Round, qst.PreparedSeal, qst.CommittedSeal, qst.EpochInfo =
-		qbftExtra.VanityData, qbftExtra.RandaoReveal, qbftExtra.PrevRound, qbftExtra.PrevPreparedSeal, qbftExtra.PrevCommittedSeal, qbftExtra.Round, qbftExtra.PreparedSeal, qbftExtra.CommittedSeal, qbftExtra.EpochInfo
+		wbftExtra.VanityData, wbftExtra.RandaoReveal, wbftExtra.PrevRound, wbftExtra.PrevPreparedSeal, wbftExtra.PrevCommittedSeal, wbftExtra.Round, wbftExtra.PreparedSeal, wbftExtra.CommittedSeal, wbftExtra.EpochInfo
 
 	return nil
 }
@@ -240,39 +239,39 @@ func (stkr *Staker) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-// ExtractQBFTExtra extracts all values of the QBFTExtra from the header. It returns an
+// ExtractWBFTExtra extracts all values of the WBFTExtra from the header. It returns an
 // error if the length of the given extra-data is less than 32 bytes or the extra-data can not
 // be decoded.
-func ExtractQBFTExtra(h *Header) (*QBFTExtra, error) {
-	qbftExtra := new(QBFTExtra)
-	err := rlp.DecodeBytes(h.Extra[:], qbftExtra)
+func ExtractWBFTExtra(h *Header) (*WBFTExtra, error) {
+	wbftExtra := new(WBFTExtra)
+	err := rlp.DecodeBytes(h.Extra[:], wbftExtra)
 	if err != nil {
 		return nil, err
 	}
-	return qbftExtra, nil
+	return wbftExtra, nil
 }
 
-// QBFTFilteredHeader returns a filtered header which some information (like committed seals, round)
+// WBFTFilteredHeader returns a filtered header which some information (like committed seals, round)
 // are clean to fulfill the Istanbul hash rules. It returns nil if the extra-data cannot be
 // decoded/encoded by rlp.
-func QBFTFilteredHeader(h *Header) *Header {
-	return QBFTFilteredHeaderWithRound(h, 0)
+func WBFTFilteredHeader(h *Header) *Header {
+	return WBFTFilteredHeaderWithRound(h, 0)
 }
 
-// QBFTFilteredHeaderWithRound returns the copy of the header with round number set to the given round number
+// WBFTFilteredHeaderWithRound returns the copy of the header with round number set to the given round number
 // and commit seal set to its null value
-func QBFTFilteredHeaderWithRound(h *Header, round uint32) *Header {
+func WBFTFilteredHeaderWithRound(h *Header, round uint32) *Header {
 	newHeader := CopyHeader(h)
-	qbftExtra, err := ExtractQBFTExtra(newHeader)
+	wbftExtra, err := ExtractWBFTExtra(newHeader)
 	if err != nil {
 		return nil
 	}
 
-	qbftExtra.PreparedSeal = nil
-	qbftExtra.CommittedSeal = nil
-	qbftExtra.Round = round
+	wbftExtra.PreparedSeal = nil
+	wbftExtra.CommittedSeal = nil
+	wbftExtra.Round = round
 
-	payload, err := rlp.EncodeToBytes(&qbftExtra)
+	payload, err := rlp.EncodeToBytes(&wbftExtra)
 	if err != nil {
 		return nil
 	}
@@ -318,5 +317,3 @@ func (s SealerSet) GetSealers() []uint32 {
 	}
 	return sealers
 }
-
-// ## Quorum QBFT END

@@ -279,8 +279,8 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		return nil, genesisErr
 	}
 
-	if chainConfig.MontBlancEnabled() {
-		if err := chainConfig.MontBlanc.CheckValidity(); err != nil {
+	if chainConfig.CroissantEnabled() {
+		if err := chainConfig.Croissant.CheckValidity(); err != nil {
 			return nil, fmt.Errorf("Invalid genesis config: %v", err)
 		}
 	}

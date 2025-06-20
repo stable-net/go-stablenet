@@ -15,8 +15,6 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 //
-// The "## Quorum QBFT" mark is code referenced from quorum/eth/backend.go (2024.07.25).
-// Modified and improved for the wemix development.
 
 // Package eth implements the Ethereum protocol.
 package eth
@@ -163,13 +161,11 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		networkID = chainConfig.ChainID.Uint64()
 	}
 
-	// ## Quorum QBFT START
 	etherbase := config.Miner.Etherbase
-	if chainConfig.MontBlancEnabled() {
+	if chainConfig.CroissantEnabled() {
 		// force to set the istanbul etherbase to node key address
 		etherbase = crypto.PubkeyToAddress(stack.Config().NodeKey().PublicKey)
 	}
-	// ## Quorum QBFT END
 
 	eth := &Ethereum{
 		config:            config,
@@ -262,18 +258,16 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		BloomCache:     uint64(cacheLimit),
 		EventMux:       eth.eventMux,
 		RequiredBlocks: config.RequiredBlocks,
-		Engine:         eth.engine, // ## Quorum QBFT
+		Engine:         eth.engine,
 	}); err != nil {
 		return nil, err
 	}
 
 	eth.miner = miner.New(eth, &config.Miner, eth.blockchain.Config(), eth.EventMux(), eth.engine, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
-	// ## Quorum QBFT START
-	if chainConfig.MontBlancEnabled() {
+	if chainConfig.CroissantEnabled() {
 		eth.miner.SetEtherbase(eth.etherbase)
 	}
-	// ## Quorum QBFT END
 
 	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, eth, nil}
 	if eth.APIBackend.allowUnprotectedTxs {
@@ -532,13 +526,11 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 		protos = append(protos, snap.MakeProtocols((*snapHandler)(s.handler), s.snapDialCandidates)...)
 	}
 
-	// ## Quorum QBFT START
 	// add additional quorum consensus protocol if set and if not set to "eth", e.g. istanbul
 	if quorumConsensusProtocolName != "" && quorumConsensusProtocolName != eth.ProtocolName {
 		quorumProtos := s.quorumConsensusProtocols((*ethHandler)(s.handler), s.networkID, s.ethDialCandidates)
 		protos = append(protos, quorumProtos...)
 	}
-	// ## Quorum QBFT END
 	return protos
 }
 

@@ -220,9 +220,9 @@ func initGenesis(ctx *cli.Context) error {
 		overrides.OverrideVerkle = &v
 	}
 
-	// Check sanity for QBFT.
-	if genesis.Config.MontBlancEnabled() {
-		if err := genesis.Config.MontBlanc.CheckValidity(); err != nil {
+	// Check sanity for WBFT.
+	if genesis.Config.CroissantEnabled() {
+		if err := genesis.Config.Croissant.CheckValidity(); err != nil {
 			utils.Fatalf("Invalid genesis config: %v", err)
 		}
 		if err := checkAllocAddress(genesis); err != nil {
@@ -250,14 +250,14 @@ func initGenesis(ctx *cli.Context) error {
 }
 
 func checkAllocAddress(genesis *core.Genesis) error {
-	if genesis.Alloc != nil && genesis.Config.MontBlancEnabled() {
+	if genesis.Alloc != nil && genesis.Config.CroissantEnabled() {
 		forbidden := []common.Address{
-			genesis.Config.MontBlanc.GovContracts.GovConfig.Address,
-			genesis.Config.MontBlanc.GovContracts.GovStaking.Address,
-			genesis.Config.MontBlanc.GovContracts.GovRewardeeImp.Address,
+			genesis.Config.Croissant.GovContracts.GovConfig.Address,
+			genesis.Config.Croissant.GovContracts.GovStaking.Address,
+			genesis.Config.Croissant.GovContracts.GovRewardeeImp.Address,
 		}
-		if genesis.Config.MontBlanc.GovContracts.GovNCP != nil {
-			forbidden = append(forbidden, genesis.Config.MontBlanc.GovContracts.GovNCP.Address)
+		if genesis.Config.Croissant.GovContracts.GovNCP != nil {
+			forbidden = append(forbidden, genesis.Config.Croissant.GovContracts.GovNCP.Address)
 		}
 		for _, addr := range forbidden {
 			if _, exists := genesis.Alloc[addr]; exists {

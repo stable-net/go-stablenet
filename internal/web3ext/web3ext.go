@@ -15,8 +15,6 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 //
-// The "## Quorum QBFT" mark is code referenced from quorum/internal/web3ext/web3ext.go (2024.07.25).
-// Modified and improved for the wemix development
 
 // Package web3ext contains geth specific web3.js extensions.
 package web3ext
@@ -36,7 +34,7 @@ var Modules = map[string]string{
 	"vflux":    VfluxJs,
 	"dev":      DevJs,
 	"wemix":    WemixJs,
-	"istanbul": Istanbul_JS, // ## Quorum QBFT
+	"istanbul": Istanbul_JS,
 }
 
 const CliqueJs = `
@@ -957,7 +955,6 @@ web3._extend({
 });
 `
 
-// ## Quorum QBFT START
 const Istanbul_JS = `
 web3._extend({
 	property: 'istanbul',
@@ -1041,5 +1038,3 @@ web3._extend({
 	]
 });
 `
-
-// ## Quorum QBFT END

@@ -1,7 +1,5 @@
 // Modification Copyright 2024 The Wemix Authors
 //
-// This file is derived from quorum/eth/quorum_protocol.go (2024.07.25).
-// Modified and improved for the wemix development.
 
 package eth
 
@@ -13,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-// ## Quorum QBFT START
 // Quorum: quorum_protocol enables the eth service to return two different protocols, one for the eth mainnet "eth" service,
 //         and one for the quorum specific consensus algo, obtained from engine.consensus
 //         2021 Jan in the future consensus (istanbul) may run from its own service and use a single subprotocol there,
@@ -56,5 +53,3 @@ func (s *Ethereum) quorumConsensusProtocols(backend eth.Backend, network uint64,
 	}
 	return protos
 }
-
-// ## Quorum QBFT END

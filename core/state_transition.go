@@ -508,7 +508,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// WEMIX
 	// In Wemix 3.0, effective tip is added to feeCollector (default: maintenance)
 	// In WBFT chain, effective tip is added to coinbase same as Ethereum.
-	if st.evm.ChainConfig().MontBlancBlock == nil || st.evm.ChainConfig().IsMontBlanc(st.evm.Context.BlockNumber) {
+	if st.evm.ChainConfig().CroissantBlock == nil || st.evm.ChainConfig().IsCroissant(st.evm.Context.BlockNumber) {
 		effectiveTip := msg.GasPrice
 		if rules.IsLondon {
 			effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))

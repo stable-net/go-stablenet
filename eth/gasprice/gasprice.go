@@ -151,7 +151,7 @@ func NewOracle(backend OracleBackend, params Config) *Oracle {
 func (oracle *Oracle) SuggestTipCap(ctx context.Context) (*big.Int, error) {
 	head, _ := oracle.backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
 
-	if oracle.backend.ChainConfig().MontBlancBlock != nil && !oracle.backend.ChainConfig().IsMontBlanc(head.Number) {
+	if oracle.backend.ChainConfig().CroissantBlock != nil && !oracle.backend.ChainConfig().IsCroissant(head.Number) {
 		return wpoa.SuggestGasPrice(), nil
 	}
 	headHash := head.Hash()

@@ -33,15 +33,15 @@ Setup environment variables for preparing migration tool `db_migrator`.
 
 ```shell
 export GWEMIX_REPO=<path-to-go-wemix-repo>
-export GWEMIX_QBFT_REPO=<path-to-go-wemix-qbft-repo>
+export GWEMIX_WBFT_REPO=<path-to-go-wemix-wbft-repo>
 
 export GWEMIX_DATADIR=<path-to-gwemix-datadir>
-export GWEMIX_QBFT_DATADIR=<path-to-geth-datadir> # Create new directory
+export GWEMIX_WBFT_DATADIR=<path-to-geth-datadir> # Create new directory
 ```
 
 ### Getting migration tool from releases (**recommended**)
 
-Get `db_migrator` from releases and locate it to `$GWEMIX_QBFT_REPO`.
+Get `db_migrator` from releases and locate it to `$GWEMIX_WBFT_REPO`.
 
 ### Building migration tool from the source
 
@@ -57,7 +57,7 @@ Build `db_migrator`.
 ```shell
 sudo apt install -y libjemalloc-dev liblz4-dev libsnappy-dev libzstd-dev libudev-dev zlib1g-dev
 
-cd $GWEMIX_QBFT_REPO
+cd $GWEMIX_WBFT_REPO
 CGO_CFLAGS="-I$GWEMIX_REPO/rocksdb/include" CGO_LDFLAGS="-L$GWEMIX_REPO/rocksdb -lm -lstdc++ -lpthread -lrt -ldl -lsnappy -llz4 -lzstd -ljemalloc" go build -tags db_migrator ./cmd/db_migrator
 ```
 
@@ -78,42 +78,42 @@ gwemix db metadata --datadir $GWEMIX_DATADIR --syncmode snap
 Copy datadir containing node info, keystores, and chaindata to setup datadir for `geth`.
 
 ```shell
-cp -a $GWEMIX_DATADIR $GWEMIX_QBFT_DATADIR
+cp -a $GWEMIX_DATADIR $GWEMIX_WBFT_DATADIR
 ```
 
 Keep ancient chaindata then remove all the rest chaindata.
 
 ```shell
-mv $GWEMIX_QBFT_DATADIR/geth/chaindata/ancient $GWEMIX_QBFT_DATADIR/geth
-rm -r $GWEMIX_QBFT_DATADIR/geth/chaindata
+mv $GWEMIX_WBFT_DATADIR/geth/chaindata/ancient $GWEMIX_WBFT_DATADIR/geth
+rm -r $GWEMIX_WBFT_DATADIR/geth/chaindata
 ```
 
 Migrate chaindata by using `db_migrator`.
 
 ```shell
-$GWEMIX_QBFT_REPO/db_migrator -src $GWEMIX_DATADIR -dst $GWEMIX_QBFT_DATADIR
+$GWEMIX_WBFT_REPO/db_migrator -src $GWEMIX_DATADIR -dst $GWEMIX_WBFT_DATADIR
 ```
 
 Restore ancient chaindata.
 
 ```shell
-mv $GWEMIX_QBFT_DATADIR/geth/ancient $GWEMIX_QBFT_DATADIR/geth/chaindata
+mv $GWEMIX_WBFT_DATADIR/geth/ancient $GWEMIX_WBFT_DATADIR/geth/chaindata
 ```
 
 Check migrated chaindata if it is same info for `$GWEMIX_DATADIR`.
 
 ```shell
-geth db inspect --datadir $GWEMIX_QBFT_DATADIR --syncmode snap
-geth db metadata --datadir $GWEMIX_QBFT_DATADIR --syncmode snap
+geth db inspect --datadir $GWEMIX_WBFT_DATADIR --syncmode snap
+geth db metadata --datadir $GWEMIX_WBFT_DATADIR --syncmode snap
 ```
 
 Migration has done.
 
-Run `geth` with `--datadir $GWEMIX_QBFT_DATADIR` option added.
+Run `geth` with `--datadir $GWEMIX_WBFT_DATADIR` option added.
 The default value for `--db.engine` is `pebble` so it can be omitted.
 
 ```shell
 geth \
-  --datadir $GWEMIX_QBFT_DATADIR \
+  --datadir $GWEMIX_WBFT_DATADIR \
   ...
 ```

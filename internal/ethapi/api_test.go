@@ -39,8 +39,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/consensus/qbft"
-	qbftbackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
+	"github.com/ethereum/go-ethereum/consensus/wbft"
+	wbftBackend "github.com/ethereum/go-ethereum/consensus/wbft/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -648,10 +648,10 @@ func TestEstimateGas(t *testing.T) {
 		signer         = types.HomesteadSigner{}
 		randomAccounts = newAccounts(2)
 
-		config = qbft.DefaultConfig
+		config = wbft.DefaultConfig
 		memDB  = rawdb.NewMemoryDatabase()
 	)
-	api := NewBlockChainAPI(newTestBackend(t, genBlocks, genesis, qbftbackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
+	api := NewBlockChainAPI(newTestBackend(t, genBlocks, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
@@ -811,10 +811,10 @@ func TestCall(t *testing.T) {
 		}
 		genBlocks = 10
 		signer    = types.HomesteadSigner{}
-		config    = qbft.DefaultConfig
+		config    = wbft.DefaultConfig
 		memDB     = rawdb.NewMemoryDatabase()
 	)
-	api := NewBlockChainAPI(newTestBackend(t, genBlocks, genesis, qbftbackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
+	api := NewBlockChainAPI(newTestBackend(t, genBlocks, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
@@ -1008,10 +1008,10 @@ func TestSignTransaction(t *testing.T) {
 			ExtraData:  genExtraData(nodeKey),
 		}
 
-		config = qbft.DefaultConfig
+		config = wbft.DefaultConfig
 		memDB  = rawdb.NewMemoryDatabase()
 	)
-	b := newTestBackend(t, 1, genesis, qbftbackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {})
+	b := newTestBackend(t, 1, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {})
 	api := NewTransactionAPI(b, nil)
 	res, err := api.FillTransaction(context.Background(), TransactionArgs{
 		From:  &b.acc.Address,
@@ -1604,10 +1604,10 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 		}
 		pending = types.NewBlockWithWithdrawals(&types.Header{Number: big.NewInt(11), Time: 42}, []*types.Transaction{tx}, nil, nil, []*types.Withdrawal{withdrawal}, blocktest.NewHasher())
 
-		config = qbft.DefaultConfig
+		config = wbft.DefaultConfig
 		memDB  = rawdb.NewMemoryDatabase()
 	)
-	backend := newTestBackend(t, genBlocks, genesis, qbftbackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
+	backend := newTestBackend(t, genBlocks, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
@@ -1830,8 +1830,8 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 
 func genExtraData(validatorPrvKey *ecdsa.PrivateKey) []byte {
 	blsKey, _ := bls.DeriveFromECDSA(validatorPrvKey)
-	sampleExtra := &types.QBFTExtra{
-		VanityData: []byte("WEMIX MontBlanc chain block"),
+	sampleExtra := &types.WBFTExtra{
+		VanityData: []byte("WEMIX Croissant chain block"),
 		EpochInfo: &types.EpochInfo{
 			Stakers: []*types.Staker{
 				{Addr: crypto.PubkeyToAddress(validatorPrvKey.PublicKey), Diligence: types.DefaultDiligence},
@@ -1840,8 +1840,8 @@ func genExtraData(validatorPrvKey *ecdsa.PrivateKey) []byte {
 			Validators:    []uint32{0},
 			BLSPublicKeys: [][]byte{blsKey.PublicKey().Marshal()},
 		},
-		PreparedSeal:  &types.QBFTAggregatedSeal{},
-		CommittedSeal: &types.QBFTAggregatedSeal{},
+		PreparedSeal:  &types.WBFTAggregatedSeal{},
+		CommittedSeal: &types.WBFTAggregatedSeal{},
 		Round:         0,
 	}
 	b, _ := rlp.EncodeToBytes(sampleExtra)
@@ -1882,10 +1882,10 @@ func setupReceiptBackend(t *testing.T, genBlocks int) (*testBackend, []common.Ha
 		signer   = types.LatestSignerForChainID(params.AllCliqueProtocolChanges.ChainID)
 		txHashes = make([]common.Hash, genBlocks)
 
-		config = qbft.DefaultConfig
+		config = wbft.DefaultConfig
 		memDB  = rawdb.NewMemoryDatabase()
 	)
-	backend := newTestBackend(t, genBlocks, genesis, qbftbackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
+	backend := newTestBackend(t, genBlocks, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {
 		var (
 			tx  *types.Transaction
 			err error

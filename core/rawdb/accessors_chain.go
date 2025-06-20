@@ -15,8 +15,6 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 //
-// The "## Quorum QBFT" mark is code referenced from quorum/core/rawdb/accessors_chain_quorum.go (2024.07.25).
-// Modified and improved for the wemix development.
 
 package rawdb
 
@@ -977,10 +975,7 @@ func ReadHeadBlock(db ethdb.Reader) *types.Block {
 	return ReadBlock(db, headBlockHash, *headBlockNumber)
 }
 
-// ## Quorum QBFT START
 // HasBadBlock returns whether the block with the hash is a bad block. dep: Istanbul
 func HasBadBlock(db ethdb.Reader, hash common.Hash) bool {
 	return ReadBadBlock(db, hash) != nil
 }
-
-// ## Quorum QBFT END

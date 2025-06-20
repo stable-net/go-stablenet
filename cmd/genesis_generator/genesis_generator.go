@@ -137,7 +137,7 @@ func (g *genesisGenerator) makeGenesis() {
 }
 
 func (g *genesisGenerator) wbftChainConfig() {
-	g.Genesis.Difficulty = types.QBFTDefaultDifficulty
+	g.Genesis.Difficulty = types.WBFTDefaultDifficulty
 	fmt.Println()
 	fmt.Println("Which accounts are allowed to seal? (mandatory at least one)")
 
@@ -154,12 +154,12 @@ func (g *genesisGenerator) wbftChainConfig() {
 		}
 	}
 
-	g.Genesis.Config.MontBlancBlock = new(big.Int).SetUint64(0)
-	g.Genesis.Config.MontBlanc = params.DefaultMontBlancConfig
+	g.Genesis.Config.CroissantBlock = new(big.Int).SetUint64(0)
+	g.Genesis.Config.Croissant = params.DefaultCroissantConfig
 
 	for i, val := range validators {
-		g.Genesis.Config.MontBlanc.Init.Validators = append(g.Genesis.Config.MontBlanc.Init.Validators, val)
-		g.Genesis.Config.MontBlanc.Init.BLSPublicKeys = append(g.Genesis.Config.MontBlanc.Init.BLSPublicKeys, blsPublicKeys[i])
+		g.Genesis.Config.Croissant.Init.Validators = append(g.Genesis.Config.Croissant.Init.Validators, val)
+		g.Genesis.Config.Croissant.Init.BLSPublicKeys = append(g.Genesis.Config.Croissant.Init.BLSPublicKeys, blsPublicKeys[i])
 	}
 
 	// you can add config file for static nodes if you want

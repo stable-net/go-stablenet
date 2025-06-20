@@ -17,7 +17,7 @@
     "pangyoBlock": 0,
     "applepieBlock": 0,
     "briocheBlock": 0,
-    "montBlancBlock": 0,
+    "croissantBlock": 0,
     "ethash": {},
     "brioche": {
       "blockReward": 1000000000000000000,
@@ -27,7 +27,7 @@
       "halvingTimes": 8,
       "halvingRate": 50
     },
-    "montBlanc": {
+    "croissant": {
       "wBFT": {
         "requestTimeoutSeconds": 2,
         "blockPeriodSeconds": 1,
@@ -41,10 +41,10 @@
       },
       "init": {
         "validators": [
-          "0x62a730ca988232a760fe8ad5c21baf4913f73522"
+          "0x6fec08ee139a731fb9eaea26048fd7c86f4bed4c"
         ],
         "blsPublicKeys": [
-          "0x8ef46b0001a8572330a62109d48ebd3b209b0bc6941f12db5ea91bff28e8a686251ed59d4f7654f5e44e95072b54b502"
+          "0x8de809ed3a81f991f2cb092a4e8e1ee5bcb537e415051a5346fc40803493dd3b3fb0097c63da7f1dcd1f194abe63b3ca"
         ]
       },
       "govContracts": {
@@ -76,7 +76,7 @@
   },
   "nonce": "0x0",
   "timestamp": "0x0",
-  "extraData": "0xf85a808080c0c080c0c0f850dad99462a730ca988232a760fe8ad5c21baf4913f73522831cfde0c180f1b08ef46b0001a8572330a62109d48ebd3b209b0bc6941f12db5ea91bff28e8a686251ed59d4f7654f5e44e95072b54b50201",
+  "extraData": "0xf85a808080c0c080c0c0f850dad9946fec08ee139a731fb9eaea26048fd7c86f4bed4c831cfde0c180f1b08de809ed3a81f991f2cb092a4e8e1ee5bcb537e415051a5346fc40803493dd3b3fb0097c63da7f1dcd1f194abe63b3ca01",
   "gasLimit": "0x23f3e20",
   "difficulty": "0x1",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -144,10 +144,10 @@
     "5f552da00dfb4d3749d9e62dcee3c918855a86a0": {
       "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
-    "62a730ca988232a760fe8ad5c21baf4913f73522": {
+    "654aa64f5fbefb84c270ec74211b81ca8c44a72e": {
       "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
-    "654aa64f5fbefb84c270ec74211b81ca8c44a72e": {
+    "6fec08ee139a731fb9eaea26048fd7c86f4bed4c": {
       "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
     "717f8aa2b982bee0e29f573d31df288663e1ce16": {

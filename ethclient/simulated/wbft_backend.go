@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
-	qbftbackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
+	wbftBackend "github.com/ethereum/go-ethereum/consensus/wbft/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -51,7 +51,7 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 
 	ethConf := ethconfig.Defaults
 	ethConf.Genesis = &core.Genesis{
-		Config:     params.TestQBFTChainConfig,
+		Config:     params.TestWBFTChainConfig,
 		GasLimit:   ethconfig.Defaults.Miner.GasCeil,
 		Alloc:      alloc,
 		Difficulty: new(big.Int).SetUint64(1),
@@ -61,9 +61,9 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 	blsKey, _ := bls.DeriveFromECDSA(nodeConf.P2P.PrivateKey)
 	blsPubKey := blsKey.PublicKey().Marshal()
 
-	ethConf.Genesis.Config.MontBlanc.Init.Validators = []common.Address{validator}
-	ethConf.Genesis.Config.MontBlanc.Init.BLSPublicKeys = []string{hexutil.Encode(blsPubKey)}
-	ethConf.Genesis.Config.MontBlanc.WBFT.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
+	ethConf.Genesis.Config.Croissant.Init.Validators = []common.Address{validator}
+	ethConf.Genesis.Config.Croissant.Init.BLSPublicKeys = []string{hexutil.Encode(blsPubKey)}
+	ethConf.Genesis.Config.Croissant.WBFT.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
 	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey)            // simulated chain block
 	ethConf.SyncMode = downloader.FullSync
 	ethConf.Miner.GasPrice = big.NewInt(1)
@@ -90,8 +90,8 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 }
 
 func genExtraData(validator common.Address, blsPubKey []byte) []byte {
-	sampleExtra := &types.QBFTExtra{
-		VanityData: []byte("WEMIX MontBlanc chain block"),
+	sampleExtra := &types.WBFTExtra{
+		VanityData: []byte("WEMIX Croissant chain block"),
 		EpochInfo: &types.EpochInfo{
 			Stakers: []*types.Staker{
 				{Addr: validator, Diligence: types.DefaultDiligence},
@@ -109,7 +109,7 @@ func genExtraData(validator common.Address, blsPubKey []byte) []byte {
 // newWithNode sets up a simulated backend on an existing node. The provided node
 // must not be started and will be started by this method.
 func newWbftWithNode(stack *node.Node, conf *eth.Config) (*WbftBackend, error) {
-	if err := conf.Genesis.Config.MontBlanc.CheckValidity(); err != nil {
+	if err := conf.Genesis.Config.Croissant.CheckValidity(); err != nil {
 		return nil, err
 	}
 	backend, err := eth.New(stack, conf)
@@ -126,14 +126,14 @@ func newWbftWithNode(stack *node.Node, conf *eth.Config) (*WbftBackend, error) {
 	if err := stack.Start(); err != nil {
 		return nil, err
 	}
-	// Start Miner & QBFT Engine
+	// Start Miner & WBFT Engine
 	backend.StartMining()
-	qbftEngine := backend.Engine().(*qbftbackend.Backend)
-	backend.Miner().InjectSimApplierTo(qbftEngine)
-	if !qbftEngine.IsRunning() {
+	wbftEngine := backend.Engine().(*wbftBackend.Backend)
+	backend.Miner().InjectSimApplierTo(wbftEngine)
+	if !wbftEngine.IsRunning() {
 		ticker := time.NewTicker(0.1e9) // 0.1s
 		for range ticker.C {
-			if qbftEngine.IsRunning() {
+			if wbftEngine.IsRunning() {
 				ticker.Stop()
 				break
 			}
@@ -153,8 +153,8 @@ func (n *WbftBackend) Close() error {
 		n.client.Close()
 		n.client = WbftClient{}
 	}
-	if qbftEngine, ok := n.Engine().(*qbftbackend.Backend); ok {
-		if err := qbftEngine.Stop(); err != nil {
+	if wbftEngine, ok := n.Engine().(*wbftBackend.Backend); ok {
+		if err := wbftEngine.Stop(); err != nil {
 			return err
 		}
 	}

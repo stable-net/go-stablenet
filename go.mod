@@ -147,5 +147,5 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-// go-wemix-qbft
+// go-wemix-wbft
 require github.com/linxGnu/grocksdb v1.6.46

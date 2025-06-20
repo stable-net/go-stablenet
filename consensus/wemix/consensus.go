@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/qbft"
-	qbftBackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
+	"github.com/ethereum/go-ethereum/consensus/wbft"
+	wbftBackend "github.com/ethereum/go-ethereum/consensus/wbft/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -20,23 +20,23 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type MontBlancConsensus struct {
+type CroissantConsensus struct {
 	legacy consensus.Engine
-	wbft   *qbftBackend.Backend
+	wbft   *wbftBackend.Backend
 	stopCh chan struct{}
 }
 
-func NewMontBlancEngine(legacyEngine consensus.Engine, config *qbft.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) consensus.Engine {
-	wbft := qbftBackend.New(config, privateKey, db)
+func NewCroissantEngine(legacyEngine consensus.Engine, config *wbft.Config, privateKey *ecdsa.PrivateKey, db ethdb.Database) consensus.Engine {
+	wbft := wbftBackend.New(config, privateKey, db)
 
-	result := &MontBlancConsensus{
+	result := &CroissantConsensus{
 		legacy: legacyEngine,
 		wbft:   wbft,
 	}
 	return result
 }
 
-func (we *MontBlancConsensus) Start(
+func (we *CroissantConsensus) Start(
 	config *params.ChainConfig,
 	chain consensus.ChainHeaderReader,
 	currentBlock func() *types.Block,
@@ -46,27 +46,27 @@ func (we *MontBlancConsensus) Start(
 	we.wbft.Start(chain, currentBlock, rawdb.HasBadBlock, notifyNewRound)
 }
 
-func (we *MontBlancConsensus) Stop() {
+func (we *CroissantConsensus) Stop() {
 	we.wbft.Stop()
 	close(we.stopCh)
 }
 
-func (we *MontBlancConsensus) Author(header *types.Header) (common.Address, error) {
+func (we *CroissantConsensus) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
 }
 
-func (we *MontBlancConsensus) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header) error {
-	// The fact that this engine is used implies that the MontBlanc hard fork is configured. (MontBlanc is not nil)
-	if chain.Config().IsMontBlanc(header.Number) {
+func (we *CroissantConsensus) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header) error {
+	// The fact that this engine is used implies that the Croissant hard fork is configured. (Croissant is not nil)
+	if chain.Config().IsCroissant(header.Number) {
 		return we.wbft.VerifyHeader(chain, header)
 	}
 	return we.legacy.VerifyHeader(chain, header)
 }
 
-func (we *MontBlancConsensus) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header) (chan<- struct{}, <-chan error) {
-	if chain.Config().IsMontBlanc(headers[0].Number) {
+func (we *CroissantConsensus) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header) (chan<- struct{}, <-chan error) {
+	if chain.Config().IsCroissant(headers[0].Number) {
 		return we.wbft.VerifyHeaders(chain, headers)
-	} else if !chain.Config().IsMontBlanc(headers[len(headers)-1].Number) {
+	} else if !chain.Config().IsCroissant(headers[len(headers)-1].Number) {
 		return we.legacy.VerifyHeaders(chain, headers)
 	}
 
@@ -96,64 +96,64 @@ func (we *MontBlancConsensus) VerifyHeaders(chain consensus.ChainHeaderReader, h
 	return abort, results
 }
 
-func (we *MontBlancConsensus) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
-	if chain.Config().IsMontBlanc(block.Number()) {
+func (we *CroissantConsensus) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
+	if chain.Config().IsCroissant(block.Number()) {
 		return we.wbft.VerifyUncles(chain, block)
 	}
 	return we.legacy.VerifyUncles(chain, block)
 }
 
-func (we *MontBlancConsensus) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	if chain.Config().IsMontBlanc(header.Number) {
+func (we *CroissantConsensus) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
+	if chain.Config().IsCroissant(header.Number) {
 		return we.wbft.Prepare(chain, header)
 	}
 	return we.legacy.Prepare(chain, header)
 }
 
-func (we *MontBlancConsensus) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
+func (we *CroissantConsensus) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, withdrawals []*types.Withdrawal) error {
-	if chain.Config().IsMontBlanc(header.Number) {
+	if chain.Config().IsCroissant(header.Number) {
 		return we.wbft.Finalize(chain, header, state, txs, uncles, withdrawals)
 	} else {
 		return we.legacy.Finalize(chain, header, state, txs, uncles, withdrawals)
 	}
 }
 
-func (we *MontBlancConsensus) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
+func (we *CroissantConsensus) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt, withdrawals []*types.Withdrawal) (*types.Block, error) {
-	if chain.Config().IsMontBlanc(header.Number) {
+	if chain.Config().IsCroissant(header.Number) {
 		return we.wbft.FinalizeAndAssemble(chain, header, state, txs, uncles, receipts, withdrawals)
 	}
 	return we.legacy.FinalizeAndAssemble(chain, header, state, txs, uncles, receipts, withdrawals)
 }
 
-func (we *MontBlancConsensus) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	if chain.Config().IsMontBlanc(block.Number()) {
+func (we *CroissantConsensus) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+	if chain.Config().IsCroissant(block.Number()) {
 		return we.wbft.Seal(chain, block, results, stop)
 	}
 	return we.legacy.Seal(chain, block, results, stop)
 }
 
-func (we *MontBlancConsensus) SealHash(header *types.Header) common.Hash {
+func (we *CroissantConsensus) SealHash(header *types.Header) common.Hash {
 	// Wpoa does not support SealHash, so we suppose this block to be a wbft block
 	return we.wbft.SealHash(header)
 }
 
-func (we *MontBlancConsensus) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
+func (we *CroissantConsensus) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 	num := new(big.Int).Set(parent.Number)
 	num = num.Add(num, big.NewInt(1))
-	if chain.Config().IsMontBlanc(num) {
+	if chain.Config().IsCroissant(num) {
 		return we.wbft.CalcDifficulty(chain, time, parent)
 	}
 	return we.legacy.CalcDifficulty(chain, time, parent)
 }
 
-func (we *MontBlancConsensus) APIs(chain consensus.ChainHeaderReader) []rpc.API {
+func (we *CroissantConsensus) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 	// legacy has no consensus API
 	return we.wbft.APIs(chain)
 }
 
-func (we *MontBlancConsensus) Close() error {
+func (we *CroissantConsensus) Close() error {
 	err := we.legacy.Close()
 	if err != nil {
 		return err
@@ -162,18 +162,18 @@ func (we *MontBlancConsensus) Close() error {
 }
 
 // CallEngineSpecific implements consensus.Engine
-func (we *MontBlancConsensus) CallEngineSpecific(method string, args ...interface{}) interface{} {
+func (we *CroissantConsensus) CallEngineSpecific(method string, args ...interface{}) interface{} {
 	return we.wbft.CallEngineSpecific(method, args)
 }
 
-func (we *MontBlancConsensus) NewChainHead() error {
+func (we *CroissantConsensus) NewChainHead() error {
 	return we.wbft.NewChainHead()
 }
 
-func (we *MontBlancConsensus) HandleMsg(address common.Address, data p2p.Msg) (bool, error) {
+func (we *CroissantConsensus) HandleMsg(address common.Address, data p2p.Msg) (bool, error) {
 	return we.wbft.HandleMsg(address, data)
 }
 
-func (we *MontBlancConsensus) SetBroadcaster(broadcaster consensus.Broadcaster) {
+func (we *CroissantConsensus) SetBroadcaster(broadcaster consensus.Broadcaster) {
 	we.wbft.SetBroadcaster(broadcaster)
 }

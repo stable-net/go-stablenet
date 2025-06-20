@@ -15,8 +15,6 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 //
-// This file is derived from quorum/eth/handler.go (2024.07.25).
-// Modified and improved for the wemix development
 
 package eth
 
@@ -27,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
-	"github.com/ethereum/go-ethereum/consensus/qbft"
+	"github.com/ethereum/go-ethereum/consensus/wbft"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
@@ -37,7 +35,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 )
 
-// ## Quorum QBFT START
 func (h *handler) Enqueue(id string, block *types.Block) {
 	h.blockFetcher.Enqueue(id, block)
 }
@@ -120,7 +117,7 @@ func (h *handler) handleConsensusLoop(p *eth.Peer, protoRW p2p.MsgReadWriter) er
 	for {
 		if err := h.handleConsensus(p, protoRW); err != nil {
 			// allow the P2P connection to remain active during sync (when the engine is stopped)
-			if errors.Is(err, qbft.ErrStoppedEngine) && h.downloader.Synchronising() {
+			if errors.Is(err, wbft.ErrStoppedEngine) && h.downloader.Synchronising() {
 				// should this be warn or debug
 				p.Log().Debug("Ignoring `stopped engine` consensus error due to active sync.")
 				continue
@@ -171,5 +168,3 @@ func (h *handler) handleConsensusMsg(p *eth.Peer, msg p2p.Msg) (bool, error) {
 	}
 	return false, nil
 }
-
-// ## Quorum QBFT END

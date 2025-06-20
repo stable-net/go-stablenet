@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
-	qbftBackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
+	wbftBackend "github.com/ethereum/go-ethereum/consensus/wbft/backend"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -275,7 +275,7 @@ func (miner *Miner) CommitSimulatedWithState(upgradeContracts *params.GovContrac
 	return miner.worker.simSyncer.commitWithState(upgradeContracts, num)
 }
 
-func (miner *Miner) InjectSimApplierTo(engine *qbftBackend.Backend) {
+func (miner *Miner) InjectSimApplierTo(engine *wbftBackend.Backend) {
 	if !miner.worker.config.SimulatedEnabled {
 		panic("only simulated")
 	}

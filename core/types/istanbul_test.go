@@ -29,14 +29,13 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// ## Quorum QBFT START
 func TestHeaderHash(t *testing.T) {
 	// 0x06f58ebb96f233516c4a0eeedad007e8b8e0965b24c88d7407eb08a6ee7bc4ff
 	expectedExtra := common.FromHex("0x0000000000000000000000000000000000000000000000000000000000000000f89af8549444add0ec310f115a0e603b2d7db9f067778eaf8a94294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212946beaaed781d2d2ab6350f5c4566a2c6eaac407a6948be76812f765c24641ec63dc2852b378aba2b440b8410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0")
 	expectedHash := common.HexToHash("0x06f58ebb96f233516c4a0eeedad007e8b8e0965b24c88d7407eb08a6ee7bc4ff")
 
 	// for istanbul consensus
-	header := &Header{Difficulty: QBFTDefaultDifficulty, Extra: expectedExtra}
+	header := &Header{Difficulty: WBFTDefaultDifficulty, Extra: expectedExtra}
 	if !reflect.DeepEqual(header.Hash(), expectedHash) {
 		t.Errorf("expected: %v, but got: %v", expectedHash.Hex(), header.Hash().Hex())
 	}
@@ -49,16 +48,16 @@ func TestHeaderHash(t *testing.T) {
 	}
 }
 
-func TestExtractToQBFTExtra(t *testing.T) {
+func TestExtractToWBFTExtra(t *testing.T) {
 	testCases := []struct {
 		istRawData     []byte
-		expectedResult *QBFTExtra
+		expectedResult *WBFTExtra
 		expectedErr    error
 	}{
 		{
 			// normal case
 			hexutil.MustDecode("0xf87f808080c0c080c0c0f875f868d99444add0ec310f115a0e603b2d7db9f067778eaf8a831cfde0d994294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212831cfde0d9946beaaed781d2d2ab6350f5c4566a2c6eaac407a6831cfde0d9948be76812f765c24641ec63dc2852b378aba2b440831cfde0c480010203c48080808001"),
-			&QBFTExtra{
+			&WBFTExtra{
 				VanityData:   []byte{},
 				RandaoReveal: []byte{},
 				EpochInfo: &EpochInfo{
@@ -87,7 +86,7 @@ func TestExtractToQBFTExtra(t *testing.T) {
 		//x, _ := rlp.EncodeToBytes(test.expectedResult)
 		//fmt.Printf("expected: %s\n", hexutil.Encode(x))
 		h := &Header{Extra: test.istRawData}
-		istanbulExtra, err := ExtractQBFTExtra(h)
+		istanbulExtra, err := ExtractWBFTExtra(h)
 		if err != test.expectedErr {
 			t.Errorf("expected: %v, but got: %v", test.expectedErr, err)
 		}
@@ -98,8 +97,8 @@ func TestExtractToQBFTExtra(t *testing.T) {
 }
 
 func TestGenerateExtra(t *testing.T) {
-	sampleExtra := &QBFTExtra{
-		VanityData: []byte("WEMIX MontBlanc chain block"),
+	sampleExtra := &WBFTExtra{
+		VanityData: []byte("WEMIX Croissant chain block"),
 		EpochInfo: &EpochInfo{
 			Stakers: []*Staker{
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697")), Diligence: DefaultDiligence},
@@ -117,5 +116,3 @@ func TestGenerateExtra(t *testing.T) {
 	b, _ := rlp.EncodeToBytes(sampleExtra)
 	t.Logf("extra bytes: %v\n", hexutil.Encode(b))
 }
-
-// ## Quorum QBFT END

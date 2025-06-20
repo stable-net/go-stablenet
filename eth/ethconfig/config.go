@@ -15,8 +15,6 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 //
-// The "## Quorum QBFT" mark is code referenced from quorum/eth/ethconfig/config.go (2024.07.25).
-// Modified and improved for the wemix development.
 
 // Package ethconfig contains the configuration of the ETH and LES protocols.
 package ethconfig
@@ -33,8 +31,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/consensus/qbft"
-	qbftBackend "github.com/ethereum/go-ethereum/consensus/qbft/backend"
+	"github.com/ethereum/go-ethereum/consensus/wbft"
+	wbftBackend "github.com/ethereum/go-ethereum/consensus/wbft/backend"
 	"github.com/ethereum/go-ethereum/consensus/wemix"
 	"github.com/ethereum/go-ethereum/consensus/wpoa"
 	"github.com/ethereum/go-ethereum/core"
@@ -60,13 +58,11 @@ var FullNodeGPO = gasprice.Config{
 
 // Defaults contains default settings for use on the Ethereum main net.
 var Defaults = Config{
-	// ## Quorum QBFT START
 	//SyncMode: downloader.SnapSync,
-	// Quorum - make full sync the default sync mode in quorum (as opposed to upstream geth)
+	// make full sync the default sync mode in wbft (as opposed to upstream geth)
 	SyncMode:       downloader.FullSync,
 	ForceSyncCycle: common.Duration(10 * time.Second), // Time interval to force syncs, even if few peers are available
 	TdSyncInterval: common.Duration(10 * time.Second), // Time interval to verify TD changes and detect sync stalling
-	// ## Quorum QBFT END
 
 	NetworkId:          0, // enable auto configuration of networkID == chainID
 	TxLookupLimit:      2350000,
@@ -196,20 +192,19 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 		return beacon.New(clique.New(config.Clique, db)), nil
 	}
 
-	if config.MontBlancEnabled() {
-		qbftCfg := new(qbft.Config)
-		err := SetConfigFromChainConfig(qbftCfg, config)
+	if config.CroissantEnabled() {
+		wbftCfg := new(wbft.Config)
+		err := SetConfigFromChainConfig(wbftCfg, config)
 
 		if err != nil {
 			return nil, err
 		}
 
-		if config.MontBlancBlock.Cmp(common.Big1) >= 0 {
-			return wemix.NewMontBlancEngine(wpoa.NewWemixPoAEngine(govCli), qbftCfg, privKey, db), nil
+		if config.CroissantBlock.Cmp(common.Big1) >= 0 {
+			return wemix.NewCroissantEngine(wpoa.NewWemixPoAEngine(govCli), wbftCfg, privKey, db), nil
 		}
-		return qbftBackend.New(qbftCfg, privKey, db), nil
+		return wbftBackend.New(wbftCfg, privKey, db), nil
 	}
-	// ## Quorum QBFT END
 
 	// If defaulting to proof-of-work, enforce an already merged network since
 	// we cannot run PoW algorithms anymore, so we cannot even follow a chain
@@ -221,47 +216,47 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 	return beacon.New(ethash.NewFaker()), nil
 }
 
-func SetConfigFromChainConfig(qbftCfg *qbft.Config, chainCfg *params.ChainConfig) error {
-	config := chainCfg.MontBlanc.WBFT
+func SetConfigFromChainConfig(wbftCfg *wbft.Config, chainCfg *params.ChainConfig) error {
+	config := chainCfg.Croissant.WBFT
 	if config.RequestTimeoutSeconds != 0 {
-		qbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
+		wbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
 	}
 	if config.BlockPeriodSeconds != 0 {
-		qbftCfg.BlockPeriod = config.BlockPeriodSeconds
+		wbftCfg.BlockPeriod = config.BlockPeriodSeconds
 	}
 	if config.EpochLength != 0 {
-		qbftCfg.Epoch = config.EpochLength
+		wbftCfg.Epoch = config.EpochLength
 	}
 	if config.AllowedFutureBlockTime != 0 {
-		qbftCfg.AllowedFutureBlockTime = config.AllowedFutureBlockTime
+		wbftCfg.AllowedFutureBlockTime = config.AllowedFutureBlockTime
 	}
-	qbftCfg.BlockReward = config.BlockReward
-	qbftCfg.BlockRewardBeneficiary = config.BlockRewardBeneficiary
+	wbftCfg.BlockReward = config.BlockReward
+	wbftCfg.BlockRewardBeneficiary = config.BlockRewardBeneficiary
 
 	if config.ProposerPolicy != nil {
-		qbftCfg.ProposerPolicy = qbft.NewProposerPolicy(qbft.ProposerPolicyId(*config.ProposerPolicy))
+		wbftCfg.ProposerPolicy = wbft.NewProposerPolicy(wbft.ProposerPolicyId(*config.ProposerPolicy))
 	}
 	if config.TargetValidators != nil {
-		qbftCfg.TargetValidators = *config.TargetValidators
+		wbftCfg.TargetValidators = *config.TargetValidators
 	}
 	if config.MaxRequestTimeoutSeconds != nil {
-		qbftCfg.MaxRequestTimeoutSeconds = *config.MaxRequestTimeoutSeconds
+		wbftCfg.MaxRequestTimeoutSeconds = *config.MaxRequestTimeoutSeconds
 	}
 	if config.StabilizingStakersThreshold != nil {
-		qbftCfg.StabilizingStakersThreshold = *config.StabilizingStakersThreshold
+		wbftCfg.StabilizingStakersThreshold = *config.StabilizingStakersThreshold
 	}
 	if config.UseNCP != nil {
-		qbftCfg.UseNCP = *config.UseNCP
+		wbftCfg.UseNCP = *config.UseNCP
 	}
 
 	hfTransitionBlocks := make(map[*big.Int]bool)
 
-	//add hardforks that includes wbft config after montblanc here like :
+	//add hardforks that includes wbft config after croissant here like :
 	// transition := params.Transition{
 	// 	Block:      chainCfg.DalgonaBlock,
 	// 	WBFTConfig: chainCfg.Dalgona.WBFT,
 	// }
-	// qbftCfg.Transitions = append(qbftCfg.Transitions, transition)
+	// wbftCfg.Transitions = append(wbftCfg.Transitions, transition)
 	// hfTransitionBlocks[chainCfg.DalgonaBlock] = true
 
 	if chainCfg.Transitions != nil && len(chainCfg.Transitions) > 0 {
@@ -269,23 +264,23 @@ func SetConfigFromChainConfig(qbftCfg *qbft.Config, chainCfg *params.ChainConfig
 			if hfTransitionBlocks[t.Block] {
 				return errors.New("hardfork transition block already exists")
 			}
-			qbftCfg.Transitions = append(qbftCfg.Transitions, t)
+			wbftCfg.Transitions = append(wbftCfg.Transitions, t)
 		}
 	}
 
-	sort.Slice(qbftCfg.Transitions, func(i, j int) bool {
-		if qbftCfg.Transitions[i].Block == nil {
+	sort.Slice(wbftCfg.Transitions, func(i, j int) bool {
+		if wbftCfg.Transitions[i].Block == nil {
 			return false
 		}
-		if qbftCfg.Transitions[j].Block == nil {
+		if wbftCfg.Transitions[j].Block == nil {
 			return true
 		}
-		return qbftCfg.Transitions[i].Block.Cmp(qbftCfg.Transitions[j].Block) < 0
+		return wbftCfg.Transitions[i].Block.Cmp(wbftCfg.Transitions[j].Block) < 0
 	})
 
-	qbftCfg.GovContractUpgrades = append(qbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.MontBlancBlock, GovContracts: chainCfg.MontBlanc.GovContracts})
-	// add hardforks that includes govContracts after montblanc here like :
-	// qbftCfg.GovContractUpgrades = append(qbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, GovContracts: chainCfg.Dalgona.GovContracts})
+	wbftCfg.GovContractUpgrades = append(wbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.CroissantBlock, GovContracts: chainCfg.Croissant.GovContracts})
+	// add hardforks that includes govContracts after croissant here like :
+	// wbftCfg.GovContractUpgrades = append(wbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, GovContracts: chainCfg.Dalgona.GovContracts})
 	return nil
 }
 

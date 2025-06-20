@@ -15,9 +15,6 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 //
-// The "## Quorum QBFT" mark is code referenced from
-// quorum/consensus/consensus.go and quorum/consensus/protocol.go (2024.07.25).
-// Modified and improved for the wemix development.
 
 // Package consensus implements different Ethereum consensus engines.
 package consensus
@@ -141,7 +138,6 @@ type PoW interface {
 	Hashrate() float64
 }
 
-// ## Quorum QBFT START
 // Handler should be implemented is the consensus needs to handle and send peer's message
 type Handler interface {
 	// NewChainHead handles a new head block comes
@@ -164,8 +160,6 @@ type Broadcaster interface {
 
 // Peer defines the interface to communicate with peer
 type Peer interface {
-	// SendQBFTConsensus is used to send consensus subprotocol messages from an "eth" peer without encoding the payload
-	SendQBFTConsensus(msgcode uint64, payload []byte) error
+	// SendWBFTConsensus is used to send consensus subprotocol messages from an "eth" peer without encoding the payload
+	SendWBFTConsensus(msgcode uint64, payload []byte) error
 }
-
-// ## Quorum QBFT END
