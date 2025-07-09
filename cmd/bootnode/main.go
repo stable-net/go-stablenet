@@ -108,7 +108,9 @@ func main() {
 		publicKey, _ := nodeKey.Public().(*ecdsa.PublicKey)
 		fmt.Printf("address: 0x%x\n", crypto.PubkeyToAddress(*publicKey))
 		blsKey, _ := bls.DeriveFromECDSA(nodeKey)
-		fmt.Printf("derived bls public key: %s\n", hexutil.Encode(blsKey.PublicKey().Marshal()))
+		pubKey := blsKey.PublicKey().Marshal()
+		fmt.Printf("derived bls public key: %s\n", hexutil.Encode(pubKey))
+		fmt.Printf("bls PoP (Proof of Possession): %s\n", hexutil.Encode(blsKey.Sign(pubKey).Marshal()))
 		os.Exit(0)
 	}
 

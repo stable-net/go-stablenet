@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.14;
+pragma solidity ^0.8.14;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IGovCouncil} from "./IGovCouncil.sol";
+import { IGovCouncil } from "./IGovCouncil.sol";
 
 contract GovNCP is IGovCouncil {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -41,7 +41,6 @@ contract GovNCP is IGovCouncil {
         uint256[] voters;
         uint256 accepts;
         uint256 rejects;
-        mapping(uint256 => Decision) decisions;
     }
 
     uint256 public constant VOTING_PERIOD = 1 weeks;
@@ -53,7 +52,8 @@ contract GovNCP is IGovCouncil {
     mapping(address => uint256) public addressToNCPID; // 0x4; mapping from NCP address to NCP ID
 
     uint256 public currentProposalID;
-    mapping(uint256 => Proposal) private __proposals;
+    mapping(uint256 => Proposal) public proposals;
+    mapping(uint256 => mapping(uint256 => Decision)) public decisions;
 
     bool public emergencyMode;
 
@@ -123,10 +123,12 @@ contract GovNCP is IGovCouncil {
     function changeNCP(address _ncp) external onlyNCP {
         require(!__ncpList.contains(_ncp), "ncp already exists");
 
-        if ((__proposals[currentProposalID].state != ProposalState.None) &&
-            (__proposals[currentProposalID].proposalType == ProposalType.NCPAdd) &&
-            (__proposals[currentProposalID].endTime >= block.timestamp)) {
-            require(__proposals[currentProposalID].newNCP != _ncp, "cannot change the ncp to an address that is proposed as the new ncp");
+        if (
+            (proposals[currentProposalID].state != ProposalState.None) &&
+            (proposals[currentProposalID].proposalType == ProposalType.NCPAdd) &&
+            (proposals[currentProposalID].endTime >= block.timestamp)
+        ) {
+            require(proposals[currentProposalID].newNCP != _ncp, "cannot change the ncp to an address that is proposed as the new ncp");
         }
         __ncpList.remove(msg.sender);
         __ncpList.add(_ncp);
@@ -140,7 +142,7 @@ contract GovNCP is IGovCouncil {
     function vote(uint256 _proposalID, bool _accept) external onlyNCP {
         Proposal storage _proposal = _getVotingProposal(_proposalID);
         require(block.timestamp <= _proposal.endTime, "already closed vote");
-        require(_proposal.decisions[addressToNCPID[msg.sender]] == Decision.None, "already voted");
+        require(decisions[_proposalID][addressToNCPID[msg.sender]] == Decision.None, "already voted");
 
         Decision _decision;
         if (_accept) {
@@ -151,7 +153,7 @@ contract GovNCP is IGovCouncil {
             _proposal.rejects++;
         }
         _proposal.voters.push(addressToNCPID[msg.sender]);
-        _proposal.decisions[addressToNCPID[msg.sender]] = _decision;
+        decisions[_proposalID][addressToNCPID[msg.sender]] = _decision;
 
         emit Vote(_proposalID, msg.sender, _accept);
         uint256 _threshold = __ncpList.length();
@@ -170,13 +172,13 @@ contract GovNCP is IGovCouncil {
     }
 
     function _newProposal(address _targetNCP, ProposalType _proposalType) private {
-        Proposal storage _proposal = __proposals[currentProposalID];
+        Proposal storage _proposal = proposals[currentProposalID];
         if (_proposal.state != ProposalState.None) {
             if (_proposal.endTime >= block.timestamp) {
                 revert("previous vote is in progress");
             } else {
                 _cancelProposal(_proposal);
-                _proposal = __proposals[currentProposalID];
+                _proposal = proposals[currentProposalID];
             }
         }
         if (_proposalType == ProposalType.NCPAdd) {
@@ -195,7 +197,7 @@ contract GovNCP is IGovCouncil {
 
     function _getVotingProposal(uint256 _proposalID) private view returns (Proposal storage _proposal) {
         require(_proposalID == currentProposalID, "invalid proposal id");
-        _proposal = __proposals[_proposalID];
+        _proposal = proposals[_proposalID];
         require(_proposal.state == ProposalState.Voting, "not in voting");
     }
 
