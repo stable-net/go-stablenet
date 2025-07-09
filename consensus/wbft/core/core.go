@@ -261,6 +261,14 @@ func (c *Core) startNewRound(round *big.Int) {
 // updateRoundState updates round state by checking if locking block is necessary
 func (c *Core) updateRoundState(nextValSet wbft.ValidatorSet, view *wbft.View, roundChange bool) {
 	if roundChange && c.current != nil {
+		if c.current.preparedBlock != nil && c.backend.HasBadProposal(c.current.preparedBlock.Hash()) {
+			c.currentLogger(false, nil).Warn("[QBFT] Discarding prepared block due to bad proposal", "hash", c.current.preparedBlock.Hash())
+			// clear prepared round and block if we have a bad proposal
+			c.current.preparedRound = nil
+			c.current.preparedBlock = nil
+			// clear prepare and commit seals for the current sequence
+			c.ClearExtraSeals(new(big.Int).Add(c.current.sequence, common.Big1))
+		}
 		c.current = newRoundState(view, nextValSet, c.current.Preprepare, c.current.preparedRound, c.current.preparedBlock, c.current.pendingRequest, c.backend.HasBadProposal)
 	} else {
 		if c.current != nil {
