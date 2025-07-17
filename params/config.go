@@ -389,15 +389,15 @@ var (
 				MaxRequestTimeoutSeconds: &mrts,
 				BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
 					Name:      "Wemix Foundation",
-					Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
+					Addr:      common.HexToAddress("0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a"),
 					Numerator: 5000,
 				}}},
 				TargetValidators:            newUint64(1),
 				StabilizingStakersThreshold: newUint64(1),
 			},
 			Init: &WbftInit{
-				Validators:    []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
-				BLSPublicKeys: []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+				Validators:    []common.Address{common.HexToAddress("0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a")},
+				BLSPublicKeys: []string{"0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6"},
 			},
 			GovContracts: &GovContracts{
 				GovConfig: &GovContract{
@@ -578,7 +578,7 @@ var (
 				MaxRequestTimeoutSeconds: &mrts,
 				BlockRewardBeneficiary: &BeneficiaryInfo{Denominator: 10000, Beneficiaries: []*Beneficiary{{
 					Name:      "Wemix Foundation",
-					Addr:      common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248"),
+					Addr:      common.HexToAddress("0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a"),
 					Numerator: 5000,
 				}}},
 				TargetValidators:            newUint64(1),
@@ -586,8 +586,8 @@ var (
 				UseNCP:                      newBool(false),
 			},
 			Init: &WbftInit{
-				Validators:    []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")},
-				BLSPublicKeys: []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+				Validators:    []common.Address{common.HexToAddress("0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a")},
+				BLSPublicKeys: []string{"0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6"},
 			},
 			GovContracts: &GovContracts{
 				GovConfig: &GovContract{

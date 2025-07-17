@@ -318,6 +318,21 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	// Check whether the genesis block is already written.
 	if genesis != nil {
 		applyOverrides(genesis.Config)
+		if genesis.Config.CroissantEnabled() && genesis.Config.CroissantBlock.Sign() == 0 {
+			if err := genesis.Config.Croissant.CheckValidity(); err != nil {
+				return nil, common.Hash{}, fmt.Errorf("Invalid genesis config: %v", err)
+			}
+
+			var err error
+			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Croissant)
+			if err != nil {
+				return genesis.Config, common.Hash{}, err
+			}
+			err = InjectContracts(genesis, genesis.Config)
+			if err != nil {
+				return genesis.Config, common.Hash{}, err
+			}
+		}
 		hash := genesis.ToBlock().Hash()
 		if hash != stored {
 			return genesis.Config, hash, &GenesisMismatchError{stored, hash}

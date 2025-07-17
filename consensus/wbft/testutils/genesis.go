@@ -9,6 +9,8 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 
+	"github.com/ethereum/go-ethereum/consensus/wbft"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	wbftcommon "github.com/ethereum/go-ethereum/consensus/wbft/common"
@@ -42,11 +44,18 @@ func Genesis(validators []common.Address, blsPublicKeys [][]byte) *core.Genesis 
 	genesis.Config.Ethash = nil
 	genesis.Difficulty = types.WBFTDefaultDifficulty
 	genesis.Nonce = wbftcommon.EmptyBlockNonce.Uint64()
+	// Set genesis config as given validators and blsPubkeys
+	genesis.Config.Croissant.Init.Validators = validators
+	blsPubKeysStr := make([]string, len(blsPublicKeys))
+	for i, b := range blsPublicKeys {
+		blsPubKeysStr[i] = hexutil.Encode(b)
+	}
+	genesis.Config.Croissant.Init.BLSPublicKeys = blsPubKeysStr
 
-	_ = core.InjectContracts(genesis, genesis.Config)
-
-	appendValidators(genesis, validators, blsPublicKeys)
-
+	if genesis.Config.CroissantEnabled() && genesis.Config.CroissantBlock.Sign() == 0 {
+		genesis.ExtraData, _ = wbft.CreateInitialExtraData(genesis.Config.Croissant)
+		core.InjectContracts(genesis, genesis.Config)
+	}
 	return genesis
 }
 
@@ -100,10 +109,6 @@ func GenesisAndFixedKeys(n int) (*core.Genesis, []*ecdsa.PrivateKey, []common.Ad
 	genesis := Genesis(addrs, blsPubKeys)
 
 	return genesis, nodeKeys, addrs
-}
-
-func appendValidators(genesis *core.Genesis, addrs []common.Address, blsPublicKeys [][]byte) {
-	setWBFTExtra(genesis, addrs, blsPublicKeys, false)
 }
 
 func appendValidatorsAndPrevSeals(genesis *core.Genesis, validators []common.Address, blsPublicKeys [][]byte) {

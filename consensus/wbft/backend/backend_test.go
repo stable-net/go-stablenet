@@ -31,13 +31,14 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/wbft"
 	wbftcommon "github.com/ethereum/go-ethereum/consensus/wbft/common"
 	"github.com/ethereum/go-ethereum/consensus/wbft/validator"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 )
 
 func TestSign(t *testing.T) {
-	b := newBackend()
+	b, _ := newBackend()
 	defer b.Stop()
 	data := []byte("Here is a string....")
 	sig, err := b.Sign(data)
@@ -59,7 +60,7 @@ func TestCheckSignature(t *testing.T) {
 	data := []byte("Here is a string....")
 	hashData := crypto.Keccak256(data)
 	sig, _ := crypto.Sign(hashData, key)
-	b := newBackend()
+	b, _ := newBackend()
 	defer b.Stop()
 	a := getAddress()
 	err := b.CheckSignature(data, a, sig)
@@ -119,7 +120,7 @@ func TestCheckValidatorSignature(t *testing.T) {
 }
 
 func TestCommit(t *testing.T) {
-	backend := newBackend()
+	backend, chain := newBackend()
 	defer backend.Stop()
 
 	commitCh := make(chan *types.Block)
@@ -137,9 +138,8 @@ func TestCommit(t *testing.T) {
 			[]wbft.SealData{{Seal: testSignature, Sealer: 0}},
 			[]wbft.SealData{{Seal: testSignature, Sealer: 0}},
 			func() *types.Block {
-				chain, engine, _ := newBlockChain(1)
-				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-				return updateWBFTBlock(block, engine.Address())
+				block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
+				return updateWBFTBlock(block, backend.Address())
 			},
 		},
 		{
@@ -148,9 +148,8 @@ func TestCommit(t *testing.T) {
 			nil,
 			[]wbft.SealData{{Seal: testSignature, Sealer: 0}},
 			func() *types.Block {
-				chain, engine, _ := newBlockChain(1)
-				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-				return updateWBFTBlock(block, engine.Address())
+				block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
+				return updateWBFTBlock(block, backend.Address())
 			},
 		},
 		{
@@ -159,9 +158,8 @@ func TestCommit(t *testing.T) {
 			[]wbft.SealData{{Seal: testSignature, Sealer: 0}},
 			nil,
 			func() *types.Block {
-				chain, engine, _ := newBlockChain(1)
-				block := makeBlockWithoutSeal(chain, engine, chain.Genesis())
-				return updateWBFTBlock(block, engine.Address())
+				block := makeBlockWithoutSeal(chain, backend, chain.Genesis())
+				return updateWBFTBlock(block, backend.Address())
 			},
 		},
 	}
@@ -287,8 +285,8 @@ func (slice Keys) Swap(i, j int) {
 	slice[i], slice[j] = slice[j], slice[i]
 }
 
-func newBackend() (b *Backend) {
-	_, b, _ = newBlockChain(1)
+func newBackend() (b *Backend, c *core.BlockChain) {
+	c, b, _ = newBlockChain(1)
 	key, _ := generatePrivateKey()
 	b.privateKey = key
 	return

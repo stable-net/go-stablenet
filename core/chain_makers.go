@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/consensus/wbft"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -425,6 +426,12 @@ func GenerateChainWithGenesis(genesis *Genesis, engine consensus.Engine, n int, 
 	db := rawdb.NewMemoryDatabase()
 	triedb := triedb.NewDatabase(db, triedb.HashDefaults)
 	defer triedb.Close()
+	// before committing genesis, generate contract allocation and extraData for croissant config
+	if genesis.Config.CroissantEnabled() && genesis.Config.CroissantBlock.Sign() == 0 {
+		genesis.ExtraData, _ = wbft.CreateInitialExtraData(genesis.Config.Croissant)
+
+		_ = InjectContracts(genesis, genesis.Config)
+	}
 	_, err := genesis.Commit(db, triedb)
 	if err != nil {
 		panic(err)
