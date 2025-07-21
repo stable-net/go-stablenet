@@ -122,6 +122,12 @@ func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 		return errNotFromProposer
 	}
 
+	// Reject if sequence ≠ proposal number
+	if preprepare.Sequence.Uint64() != preprepare.Proposal.Number().Uint64() {
+		logger.Warn("WBFT: ignore PRE-PREPARE with mismatched sequence and proposal number")
+		return errInvalidPreparedBlock
+	}
+
 	// Validates PRE-PREPARE message justification
 	if preprepare.Round.Uint64() > 0 {
 		if err := isJustified(preprepare.Proposal, preprepare.JustificationRoundChanges, preprepare.JustificationPrepares, c.valSet.QuorumSize()); err != nil {
