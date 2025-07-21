@@ -100,11 +100,13 @@ func (c *Core) handleCommitMsg(commit *wbfmessage.Commit) error {
 	// Check commitSeal
 	block, ok := c.current.Proposal().(*types.Block)
 	if !ok {
+		logger.Error("WBFT: failed to cast proposal from COMMIT message to *types.Block")
 		return errInvalidMessage
 	}
 
 	if verifySeal(c.valSet, block.Header(), uint32(commit.CommonPayload.Round.Uint64()), SealTypeCommit,
 		commit.CommitSeal, commit.Source()) != nil {
+		logger.Error("WBFT: failed to verify seal from COMMIT message", "from", commit.Source())
 		return errInvalidMessage
 	}
 

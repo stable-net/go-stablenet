@@ -97,11 +97,13 @@ func (c *Core) handlePrepareMsg(prepare *wbfmessage.Prepare) error {
 	// Check prepareSeal
 	block, ok := c.current.Proposal().(*types.Block)
 	if !ok {
+		logger.Error("WBFT: failed to cast proposal from PREPARE message to *types.Block")
 		return errInvalidMessage
 	}
 
 	if verifySeal(c.valSet, block.Header(), uint32(prepare.CommonPayload.Round.Uint64()), SealTypePrepare,
 		prepare.PrepareSeal, prepare.Source()) != nil {
+		logger.Error("WBFT: failed to verify seal from PREPARE message", "from", prepare.Source())
 		return errInvalidMessage
 	}
 
