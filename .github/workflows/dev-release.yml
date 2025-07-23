@@ -1,0 +1,49 @@
+name: "Action for dev release"
+
+on:
+  push:
+    tags:
+      - w*
+
+jobs:
+
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.4'
+
+      - name: Setup packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libjemalloc-dev liblz4-dev libsnappy-dev libzstd-dev libudev-dev
+          sudo apt remove -y bzip2 libbz2-dev zlib1g-dev
+
+      - name: Build binary
+        run: make geth
+
+      - name: Create tarball
+        run: |
+          mkdir -p release
+          cp build/bin/geth release/
+          cd release
+          tar -czf geth.tar.gz geth
+          cd ..
+
+      - name: Set version
+        run: |
+          GETH_VERSION=$(build/bin/geth version | awk '/^Version/{ print $2 }')
+          COMMIT_HASH=$(echo ${{ github.sha }} | cut -c1-8)
+          echo "RELEASE_VERSION=${GETH_VERSION}-${COMMIT_HASH}" >> "$GITHUB_ENV"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2.0.5
+        with:
+          name: Dev Build (${{ env.RELEASE_VERSION }})
+          draft: true
+          files: |
+            geth-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gza
