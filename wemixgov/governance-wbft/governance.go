@@ -167,7 +167,7 @@ func NCPStakers(govStakingAddress, govNCPAddress common.Address, state StateRead
 	ncps := NCPList(govNCPAddress, state)
 	for _, ncp := range ncps {
 		v := StakerByOperator(govStakingAddress, state, ncp)
-		if v != (common.Address{}) {
+		if v != (common.Address{}) && IsStaker(govStakingAddress, state, v) {
 			stakers = append(stakers, v)
 		}
 	}
