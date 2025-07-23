@@ -46,4 +46,4 @@ jobs:
           name: Dev Build (${{ env.RELEASE_VERSION }})
           draft: true
           files: |
-            geth-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gza
+            geth-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
