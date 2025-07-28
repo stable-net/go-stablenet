@@ -65,8 +65,8 @@ var Defaults = Config{
 	TdSyncInterval: common.Duration(10 * time.Second), // Time interval to verify TD changes and detect sync stalling
 
 	NetworkId:          0, // enable auto configuration of networkID == chainID
-	TxLookupLimit:      2350000,
-	TransactionHistory: 2350000,
+	TxLookupLimit:      31536000,
+	TransactionHistory: 31536000,
 	StateHistory:       params.FullImmutabilityThreshold,
 	LightPeers:         100,
 	DatabaseCache:      512,
