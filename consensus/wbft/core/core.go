@@ -88,6 +88,7 @@ type Core struct {
 	events                *event.TypeMuxSubscription
 	finalCommittedSub     *event.TypeMuxSubscription
 	timeoutSub            *event.TypeMuxSubscription
+	retryTimeoutSub       *event.TypeMuxSubscription
 	futurePreprepareTimer *time.Timer
 
 	valSet     wbft.ValidatorSet
@@ -108,6 +109,8 @@ type Core struct {
 	roundChangeSet          *roundChangeSet
 	roundChangeTimer        *time.Timer
 	lastSentTimeoutCanceled *bool
+
+	retrySendingRoundChangeTimer *time.Timer
 
 	WBFTPreparedPrepares []*wbftmessage.Prepare
 
@@ -311,6 +314,10 @@ func (c *Core) stopFuturePreprepareTimer() {
 
 func (c *Core) stopTimer() {
 	c.stopFuturePreprepareTimer()
+
+	// Stop retry sending ROUND-CHANGE retry timer
+	c.stopRetrySendingRoundChangeTimer()
+
 	if c.roundChangeTimer != nil {
 		c.roundChangeTimer.Stop()
 	}
@@ -347,15 +354,24 @@ func (c *Core) newRoundChangeTimer() {
 		}
 		// prevent log storm when unexpected overflow happens
 		if timeout < baseTimeout {
-			c.currentLogger(true, nil).Error("WBFT: Possible request timeout overflow detected, setting timeout value to maxRequestTimeout",
+			c.currentLogger(true, nil).Warn("WBFT: Possible request timeout overflow detected, setting timeout value to maxRequestTimeout",
 				"timeout", timeout.Seconds(),
 				"max_request_timeout", maxRequestTimeout.Seconds(),
 			)
 			timeout = maxRequestTimeout
 		}
 	} else {
-		// effectively impossible to observe overflow happen when maxRequestTimeout is disabled
-		timeout = baseTimeout * time.Duration(math.Pow(2, float64(round)))
+		timeoutFloat64 := math.Pow(2, float64(round)) * float64(baseTimeout)
+
+		if math.IsNaN(timeoutFloat64) || math.IsInf(timeoutFloat64, 0) || timeoutFloat64 > float64(math.MaxInt64) {
+			c.currentLogger(true, nil).Warn("WBFT: Timeout overflow detected, setting timeout value to MaxInt64",
+				"round", round,
+				"adjusted_timeout", time.Duration(math.MaxInt64).Seconds(),
+			)
+			timeout = time.Duration(math.MaxInt64)
+		} else {
+			timeout = time.Duration(int64(timeoutFloat64))
+		}
 	}
 
 	c.currentLogger(true, nil).Trace("WBFT: start new ROUND-CHANGE timer", "timeout", timeout.Seconds())
@@ -363,6 +379,27 @@ func (c *Core) newRoundChangeTimer() {
 	*c.lastSentTimeoutCanceled = false
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
 		c.sendEvent(timeoutEvent{c.lastSentTimeoutCanceled})
+	})
+}
+
+// stopRetrySendingRoundChangeTimer stops the round-change retry timer if running.
+func (c *Core) stopRetrySendingRoundChangeTimer() {
+	if c.retrySendingRoundChangeTimer != nil {
+		c.retrySendingRoundChangeTimer.Stop()
+	}
+}
+
+// newRetrySendingRoundChangeTimer sets a retry timer to reattempt round-change after a timeout
+func (c *Core) newRetrySendingRoundChangeTimer() {
+	c.stopRetrySendingRoundChangeTimer()
+
+	// set timeout based on the round number
+	cfg := c.config.GetConfig(c.current.Sequence())
+	timeout := time.Duration(cfg.RequestTimeout) * time.Millisecond
+
+	c.currentLogger(true, nil).Trace("WBFT: set ROUND-CHANGE retry timer", "round", c.current.Round(), "timeout", timeout.Seconds())
+	c.retrySendingRoundChangeTimer = time.AfterFunc(timeout, func() {
+		c.sendEvent(retryTimeoutEvent{c.current.Round()})
 	})
 }
 

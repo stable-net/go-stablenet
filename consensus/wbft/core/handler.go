@@ -75,6 +75,9 @@ func (c *Core) subscribeEvents() {
 	c.finalCommittedSub = c.backend.EventMux().Subscribe(
 		wbft.FinalCommittedEvent{},
 	)
+	c.retryTimeoutSub = c.backend.EventMux().Subscribe(
+		retryTimeoutEvent{},
+	)
 }
 
 // Unsubscribe all events
@@ -82,6 +85,7 @@ func (c *Core) unsubscribeEvents() {
 	c.events.Unsubscribe()
 	c.timeoutSub.Unsubscribe()
 	c.finalCommittedSub.Unsubscribe()
+	c.retryTimeoutSub.Unsubscribe()
 }
 
 // handleEvents starts main wbft handler loop that processes all incoming messages
@@ -162,6 +166,15 @@ func (c *Core) handleEvents() {
 			switch event.Data.(type) {
 			case wbft.FinalCommittedEvent:
 				c.handleFinalCommittedMsg()
+			}
+		case event, ok := <-c.retryTimeoutSub.Chan():
+			// handle round-change retry timeout event
+			if !ok {
+				return
+			}
+			if e, ok := event.Data.(retryTimeoutEvent); ok {
+				// Re-broadcast round-change message for the same round on retry timeout
+				c.broadcastRoundChange(e.round)
 			}
 		}
 	}

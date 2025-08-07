@@ -20,7 +20,9 @@
 
 package core
 
-import "github.com/ethereum/go-ethereum/common"
+import (
+	"github.com/ethereum/go-ethereum/common"
+)
 
 func (c *Core) handleFinalCommittedMsg() error {
 	c.currentLogger(true, nil).Info("WBFT: handle final committed")

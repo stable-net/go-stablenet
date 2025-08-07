@@ -49,6 +49,7 @@ func (c *Core) broadcastNextRoundChange() {
 // - Creates and sign ROUND-CHANGE message
 // - broadcast the ROUND-CHANGE message with the given round
 func (c *Core) broadcastRoundChange(round *big.Int) {
+	c.newRetrySendingRoundChangeTimer()
 	logger := c.currentLogger(true, nil)
 
 	// Validates new round corresponds to current view
