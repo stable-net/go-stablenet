@@ -45,4 +45,8 @@ var (
 	// errInvalidExtraSealMessage is returned when message is not appropriate to be added to extraSeals
 	errInvalidExtraSealMessage = errors.New("invalid extra seal message")
 	errCurrentIsNil            = errors.New("current is nil")
+
+	// errFutureMessage is returned when the received message has a view
+	// significantly ahead of the current view (in sequence or round).
+	errFutureViewTooFar = errors.New("future view too far ahead: sequence or round difference too large")
 )

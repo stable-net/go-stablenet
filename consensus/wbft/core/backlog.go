@@ -41,6 +41,55 @@ var (
 	}
 )
 
+const (
+	sequenceThreshold = 1  // Allow up to 1 future sequence
+	roundThreshold    = 10 // Allow up to 10 future rounds
+)
+
+// isSequenceTooFarAhead returns true if the sequence difference exceeds the threshold
+func (c *Core) isSequenceTooFarAhead(viewSeq, currSeq *big.Int, threshold int64) (*big.Int, bool) {
+	seqDiff := new(big.Int).Sub(viewSeq, currSeq)
+	return seqDiff, seqDiff.Cmp(big.NewInt(threshold)) >= 0
+}
+
+// isRoundTooFarAhead returns true if the round difference exceeds the threshold
+func (c *Core) isRoundTooFarAhead(viewRound, currRound *big.Int, threshold int64) (*big.Int, bool) {
+	roundDiff := new(big.Int).Sub(viewRound, currRound)
+	return roundDiff, roundDiff.Cmp(big.NewInt(threshold)) >= 0
+}
+
+// isTooFarFutureMessage filters out messages too far ahead in sequence or round
+// This function prevents the node from processing messages that are excessively ahead,
+// which could disrupt the normal flow of the consensus process
+func (c *Core) isTooFarFutureMessage(view *wbft.View) bool {
+	curr := c.currentView()
+
+	if view.Sequence.Cmp(curr.Sequence) > 0 {
+		// In the initial phase of block consensus, a message with a sequence number one higher than the current sequence may be received.
+		if seqDiff, tooFar := c.isSequenceTooFarAhead(view.Sequence, curr.Sequence, sequenceThreshold); tooFar {
+			c.logger.Trace("WBFT: future message too far ahead in sequence, dropped",
+				"msg_seq", view.Sequence.String(),
+				"curr_seq", curr.Sequence.String(),
+				"diff", seqDiff.String(),
+			)
+			return true
+		}
+	}
+
+	if view.Sequence.Cmp(curr.Sequence) == 0 && view.Round.Cmp(curr.Round) > 0 {
+		if roundDiff, tooFar := c.isRoundTooFarAhead(view.Round, curr.Round, roundThreshold); tooFar {
+			c.logger.Trace("WBFT: future message too far ahead in round, dropped",
+				"msg_round", view.Round.String(),
+				"curr_round", curr.Round.String(),
+				"diff", roundDiff.String(),
+			)
+			return true
+		}
+	}
+
+	return false
+}
+
 // checkMessage checks that a message matches our current WBFT state
 //
 // In particular it ensures that
@@ -54,6 +103,12 @@ var (
 func (c *Core) checkMessage(msgCode uint64, view *wbft.View) error {
 	if view == nil || view.Sequence == nil || view.Round == nil {
 		return errInvalidMessage
+	}
+
+	// Drop the message if the view's sequence or round number is too far ahead
+	// This prevents processing of messages that may disrupt consensus due to excessive lead
+	if c.isTooFarFutureMessage(view) {
+		return errFutureViewTooFar
 	}
 
 	if msgCode == wbfmessage.RoundChangeCode {
