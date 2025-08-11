@@ -319,7 +319,7 @@ func (sb *Backend) GetProposer(number uint64) common.Address {
 func (sb *Backend) Validators(proposal wbft.Proposal) wbft.ValidatorSet {
 	valSet, err := sb.Engine().GetValidators(sb.chain, new(big.Int).Add(proposal.Number(), common.Big1), proposal.Hash(), nil)
 	if err != nil {
-		return validator.NewSet(nil, nil, sb.config.ProposerPolicy)
+		return validator.NewSet(nil, nil, sb.config.GetConfig(proposal.Number()).ProposerPolicy)
 	}
 	return valSet
 }

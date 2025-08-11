@@ -714,7 +714,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	}
 
 	// Accumulate proposer counts being selected within epoch.
-	valSet := validator.NewSet(validators, latestEpochInfo.BLSPublicKeys, e.cfg.ProposerPolicy)
+	valSet := validator.NewSet(validators, latestEpochInfo.BLSPublicKeys, e.cfg.GetConfig(header.Number).ProposerPolicy)
 	for i := len(proposers) - 1; i >= 0; i-- {
 		proposer := proposers[i]
 		for round := 0; ; round++ {
@@ -961,7 +961,7 @@ func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *b
 		return nil, err
 	}
 
-	vs := validator.NewSet(epochInfo.GetValidators(), epochInfo.BLSPublicKeys, e.cfg.ProposerPolicy)
+	vs := validator.NewSet(epochInfo.GetValidators(), epochInfo.BLSPublicKeys, e.cfg.GetConfig(blockNumber).ProposerPolicy)
 	return vs, nil
 }
 
