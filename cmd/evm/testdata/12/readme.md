@@ -30,7 +30,7 @@ INFO [03-09|10:43:12.650] Trie dumping complete                    accounts=1 el
     "rejected": [
       {
         "index": 0,
-        "error": "insufficient funds for gas * price + value: address 0xa94f5374Fce5edBC8E2a8697C15331677e6EbF0B have 84000000 want 84000032"
+        "error": "insufficient funds for gas * price + value: sender 0xa94f5374Fce5edBC8E2a8697C15331677e6EbF0B have 84000000 want 84000032"
       }
     ],
     "currentDifficulty": "0x20000",

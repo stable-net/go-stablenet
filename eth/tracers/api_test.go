@@ -298,7 +298,7 @@ func TestTraceCall(t *testing.T) {
 				Value: (*hexutil.Big)(new(big.Int).Add(big.NewInt(params.Ether), big.NewInt(100))),
 			},
 			config:    &TraceCallConfig{TxIndex: uintPtr(0)},
-			expectErr: fmt.Errorf("tracing failed: insufficient funds for gas * price + value: address %s have 1000000000000000000 want 1000000000000000100", accounts[2].addr),
+			expectErr: fmt.Errorf("tracing failed: insufficient funds for gas * price + value: sender %s have 1000000000000000000 want 1000000000000000100", accounts[2].addr),
 		},
 		// Before the target transaction, should be failed
 		{
@@ -309,7 +309,7 @@ func TestTraceCall(t *testing.T) {
 				Value: (*hexutil.Big)(new(big.Int).Add(big.NewInt(params.Ether), big.NewInt(100))),
 			},
 			config:    &TraceCallConfig{TxIndex: uintPtr(1)},
-			expectErr: fmt.Errorf("tracing failed: insufficient funds for gas * price + value: address %s have 1000000000000000000 want 1000000000000000100", accounts[2].addr),
+			expectErr: fmt.Errorf("tracing failed: insufficient funds for gas * price + value: sender %s have 1000000000000000000 want 1000000000000000100", accounts[2].addr),
 		},
 		// After the target transaction, should be succeed
 		{
