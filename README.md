@@ -3,13 +3,15 @@
 WBFT(WEMIX Byzantine Fault Tolerant) is a consensus algorithm that emphasizes decentralization, adapting Istanbul BFT(https://github.com/ethereum/EIPs/issues/650) and QBFT(https://github.com/Consensys/qbft-formal-spec-and-verification) for use in public blockchains. The following improvements have been implemented:
 
 - Adoption of DPoS(Delegated Proof of Stake): Allows anyone to participate as a validator through staking.
-- Validator selection: Chosen via randao(randomness dao) based on staking amount and validation diligence.
+- Validator selection: Chosen via randao(randomness dao) based on staking amount and validation diligence. (to do in v4.5)
 - Reward system and diligence metrics.
 - Concept of epoch: Defines a unit where the validator set changes.
 - Inclusion of consensus proof in the agreement process.
 - Apply BLS signature aggregation at the consensus proof to reduce the size of the seals.
+- Simple and fully-trustless built-in governance contract system.
 - Improved miner worker operations.
 - Enhanced block header verification.
+- Improved defences against malicious validators for more powerful byzantine tolerance.
 
 ### Terminology
 - `Staker`: A participant who stakes an amount exceeding the minimum staking threshold. Candidates for validators during an epoch.
@@ -51,7 +53,7 @@ Rules related to staking:
   - If the own staking amount reaches under minimum staking threshold by unstaking or slashing, it is removed from staker set.
   - If a staker is removed from staker set, its remaining own staking amounts are unstaked but its delegated amounts are remained as dangling delegated.
   - Unstaked funds can be claimed by the _staker operator address_ after the unbonding period (1 weeks).
-- Slashing
+- Slashing (to do in v4.5)
   - Stakers considered as malicious may be slashed, paying their some own staked amounts to WEMIX ecosystem.
   - Funds in the unbonding state can still be slashed.
 - Delegation
@@ -70,16 +72,20 @@ In WBFT, the proposer of the last block in an epoch (referred to as the epoch bl
   - The very first validator set is defined in genesis.json, and validators in the genesis block initially have a staking amount of zero.
 - After stabilization stage, validator selection follows below rules
   - `minimum stakers <= number of stakers <= target validators`: every stakers become validators.
-  - `number of stakers > target validators`: validators are selected using randao, considering staking amount and diligence.
+  - `number of stakers > target validators`: 
+    - (in v4.0) top `target validators` stakers are selected as validators based on their staking amount.
+    - (in v4.5) validators are selected using randao, considering staking amount and diligence.
   - `number of stakers < minimum stakers`: all remaining stakers become validators, which should not occur in a public network after stabilization stage for the sake of network security.
 
-Validators are selected to act as proposers in a round-robin manner and the order is shuffled at every epoch.
+Validators are selected to act as proposers in a round-robin manner and the order is _shuffled_ at every epoch.
 
 ### Randao system
 WBFT uses a randao system to select validators and to order them based on their staking amount and diligence. The randao system is designed to be secure against manipulation by validators, ensuring that the selection process is fair and transparent.
 WBFT blocks include a `RandaoReveal` fields in the extra data and use a legacy field `MixDigest` of the header as the randao mix, which is used to generate a random value for validator selection and shuffled ordering.
 - `MixDigest`: a xor value of the previous block header's `MixDigest` and the current block's `RandaoReveal`
 - `RandaoReveal`: is a ECDSA signature of the proposer on some data(chainId, hard fork version, block height) using big-endian encoding.
+
+(Note: The randao system is implemented in v4.0, but selection of validators using randao system will be added in v4.5.)
 
 ### Reward System and Diligence Metrics
 WBFT rewards consist of two types:
@@ -251,7 +257,7 @@ If you want to use the WBFT consensus, you should use the following chain config
   "upgrades": null
 }
 ```
-- `croissantBlock` defines the block height at which the mont blanc hard fork occurs. You can set it to zero for the genesis block.
+- `croissantBlock` defines the block height at which the Croissant hard fork occurs. You can set it to zero for the genesis block.
 - `croissant` defines the WBFT consensus configuration. It consists of three sections: `wBFT`, `init`, and `upgrades`.
 - `wBFT` defines the WBFT consensus engine parameters:
 - `blockRewardBeneficiary` defines the address that will receive the block minting rewards consistently.
@@ -295,35 +301,22 @@ The previous [WEMIX 3.0 fee policy](https://docs.wemix.com/en/design/eip1559) fo
 - Custom baseFee calculation method: (Refer to the document linked above).
 - Mandatory fixed priorityFee for dynamic fee transactions: When using dynamic fees in transactions, the priorityFee had to be explicitly set to >= 100 Gwei. Otherwise, the transaction would be immediately rejected by the mempool with an error.
 
-In contrast, WEMIX 3.5 and WBFT chains adhere strictly to the original EIP-1559 standard, which is designed to foster a competitive fee market among validators, suitable for a public chain environment.
+In contrast, WEMIX 4.0 and WBFT chains adhere strictly to the original EIP-1559 standard, which is designed to foster a competitive fee market among validators, suitable for a public chain environment.
 
 Consequently:
 - The return value of the eth_maxPriorityFeePerGas API can now vary based on network conditions.
 - The baseFee calculation follows the standard EIP-1559 specification.
 - The original EIP-1559 behavior, where specifying a higher priorityFee prioritizes the transaction for inclusion in the block (mempool), has been restored.
 
-### WEMIX 3.5
+### WEMIX 4.0 features as an intermediate stage toward fully public chain(WEMIX 4.5)
 
-WEMIX 3.5 defines a hard fork from the existing WEMIX SPoA consensus to the WBFT consensus and adopts an intermediate consensus method with some features disabled for a safe transition to WBFT.
-
-#### Croissant hard fork
-
-WBFT is designed to record the first epoch information in the genesis block. However, since the WEMIX chain needs to transition from an already existing chain to a WBFT chain, exception rules for this are defined in the mont blanc hard fork. The following protocol applies to this hard fork:
-- WPoA validator nodes stop block creation when it is time to create the mont blanc block (i.e., they create blocks up to just before the mont blanc hard fork).
-- WBFT validator nodes receive block propagation normally up to the block before mont blanc.
-- WBFT validator nodes recognize the mont blanc hard fork and can obtain the validator set from the WBFT config when it is their turn to create this block.
-- WBFT validator nodes can create blocks and proceed with consensus once they can obtain the validator set.
-- The mont blanc block is a special block. Validators that receive this block perform additional tasks to deploy and initialize the NCP contract and GovStaking contract.
-- The mont blanc block is the first epoch block of WBFT. Therefore, the first validator set is recorded.
-- The first epoch starts from the block after the mont blanc block, during which stakers start staking from zero.
-- If the number of stakers is equal to or greater than the minimum stakers during the first epoch, these stakers become validators from the next epoch.
-- If the number of stakers is less than the minimum stakers during the first epoch, the initial validator set is maintained.
+WEMIX 4.0 adopts an intermediate consensus method with some features disabled for a safe transition to WBFT.
 
 #### NCP
 
-Although WBFT is designed and implemented to be used as a public chain, the Wemix chain continues selecting validators from NCPs for a safer transition to a public chain as an intermediate step. NCPs are selected from the existing Wemix 3.0 NCPs and are defined by contract. They have the obligation to run (mining) nodes for maintaining WEMIX 3.5 safely. The addition/removal of NCPs is decided by voting among NCPs, so it can proceed without a separate hard fork. Anyone can know the NCP list by querying the NCP contract. The NCP system is a temporary feature used only in WEMIX 3.5 and will not be used in WEMIX 4.0.
+Although WBFT is designed and implemented to be used as a public chain, the Wemix chain continues selecting validators from NCPs for a safer transition to a public chain as an intermediate step. NCPs are selected from the existing Wemix 3.0 NCPs and are defined by contract. They have the obligation to run (mining) nodes for maintaining WEMIX 4.0 safely. The addition/removal of NCPs is decided by voting among NCPs, so it can proceed without a separate hard fork. Anyone can know the NCP list by querying the NCP contract. The NCP system is a temporary feature used only in WEMIX 4.0 and will not be used in WEMIX 4.5.
 
-During the WEMIX 3.5 phase, the validator set selection rules are as follows:
+During the WEMIX 4.0 phase, the validator set selection rules are as follows:
 - Retrieve stakers from the GovStaking contract.
 - Among these stakers, nodes that are NCPs are selected for the validator set.
 - Stakers who are not NCPs are not included in the validator set.
@@ -331,9 +324,11 @@ During the WEMIX 3.5 phase, the validator set selection rules are as follows:
 The process of obtaining the validator set at any block height is as follows (replacing the snapshot function in the existing IBFT):
 - If the current block is an epoch block, obtain the validator set from the current block.
 - If the current block is not an epoch block, traverse blocks backward from the height - 1 block to find the most recent epoch block and obtain the validator set.
-- It should meet the mont blanc hard fork block or the genesis block during traversing, otherwise it is a failure.
+- It should meet the Croissant hard fork block or the genesis block during traversing, otherwise it is a failure.
 
-#### Not implemented in WEMIX 3.5
+Node that NCP system is optional for use of a private chain and can be disabled by setting `useNCP` to false in the genesis.json. If it is set to false, the all stakers can be validators if the number of stakers is less than or equal to the target validators.
+
+#### Not implemented in WEMIX 4.0
 - Slashing: The NCP system is used to ensure the safety of the chain during the transition period, and the slashing mechanism is not necessary.
 - validator random selection based on staking amount and diligence.
 
