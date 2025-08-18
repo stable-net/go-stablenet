@@ -1186,6 +1186,8 @@ func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Hea
 	extra, err := types.ExtractWBFTExtra(header)
 	if err != nil {
 		return err
+	} else if extra.EpochInfo == nil {
+		return errors.New("WBFT: epochInfo is nil")
 	}
 
 	// Check Stakers.
@@ -1406,6 +1408,8 @@ func (e *Engine) extractEpochInfo(epochHeader *types.Header) (*big.Int, *types.E
 	epochExtra, err := types.ExtractWBFTExtra(epochHeader)
 	if err != nil {
 		return nil, nil, err
+	} else if epochExtra.EpochInfo == nil {
+		return nil, nil, errors.New("WBFT: epochInfo is nil")
 	}
 	e.epochCache.Add(epochHeader.Number.Uint64(), epochExtra.EpochInfo)
 
