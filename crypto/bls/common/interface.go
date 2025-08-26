@@ -1,3 +1,12 @@
+// This file is sourced from the Prysm project, licensed under the GPLv3.
+// Original source: https://github.com/OffchainLabs/prysm/blob/develop/crypto/bls/common/interface.go
+// Copyright The Prysm Authors.
+
+// Package common provides the BLS interfaces that are implemented by the various BLS wrappers.
+//
+// This package should not be used by downstream consumers. These interfaces are re-exporter by
+// github.com/prysmaticlabs/prysm/crypto/bls. This package exists to prevent an import circular
+// dependency.
 package common
 
 // SecretKey represents a BLS secret or private key.

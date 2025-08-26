@@ -1,3 +1,8 @@
+// Copyright 2025 The go-wemix-wbft Authors
+// This file is sourced from the Prysm project, licensed under the GPLv3.
+// Original source: https://github.com/OffchainLabs/prysm/blob/develop/crypto/bls/bls_test.go
+// Copyright The Prysm Authors.
+
 package test
 
 import (

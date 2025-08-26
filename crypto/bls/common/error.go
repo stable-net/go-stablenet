@@ -1,3 +1,7 @@
+// This file is sourced from the Prysm project, licensed under the GPLv3.
+// Original source: https://github.com/OffchainLabs/prysm/blob/develop/crypto/bls/common/error.go
+// Copyright The Prysm Authors.
+
 package common
 
 import "errors"

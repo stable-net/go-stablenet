@@ -1,3 +1,8 @@
+// Copyright 2025 The go-wemix-wbft Authors
+// This file is sourced from the Prysm project, licensed under the GPLv3.
+// Original source: https://github.com/OffchainLabs/prysm/blob/develop/crypto/bls/blst/init.go
+// Copyright The Prysm Authors.
+
 //go:build ((linux && amd64) || (linux && arm64) || (darwin && amd64) || (darwin && arm64) || (windows && amd64)) && !blst_disabled
 
 package blst
