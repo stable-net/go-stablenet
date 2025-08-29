@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
+	"github.com/ethereum/go-ethereum/consensus/wbft"
 	wbftBackend "github.com/ethereum/go-ethereum/consensus/wbft/backend"
 	"github.com/ethereum/go-ethereum/consensus/wemix"
 	"github.com/ethereum/go-ethereum/core"
@@ -616,8 +617,13 @@ func (w *worker) newWorkLoopWBFT() {
 				panic(fmt.Errorf("invalid engine"))
 			}
 
-			handler.NewChainHead()
+			err := handler.NewChainHead()
 			clearPending(head.Block.NumberU64())
+			if errors.Is(err, wbft.ErrStoppedEngine) {
+				// If WBFT engine is running, we don't need to commit new work here because
+				// it will triggered by readyToCommitCh
+				commit(commitInterruptNewHead)
+			}
 
 		case round := <-w.readyToCommitCh:
 			if round.Uint64() == 0 {

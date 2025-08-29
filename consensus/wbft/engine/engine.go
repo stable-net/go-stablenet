@@ -447,11 +447,7 @@ func (e *Engine) PeriodToNextBlock(blockNumber *big.Int) uint64 {
 	return e.cfg.GetConfig(blockNumber).BlockPeriod
 }
 
-func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header, validators wbft.ValidatorSet, extraPreparedSeal, extraCommittedSeal []wbft.SealData) error {
-	if _, v := validators.GetByAddress(e.Address()); v == nil {
-		return wbftcommon.ErrUnauthorized
-	}
-
+func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header, extraPreparedSeal, extraCommittedSeal []wbft.SealData) error {
 	header.Coinbase = e.Address()
 	header.Nonce = wbftcommon.EmptyBlockNonce
 

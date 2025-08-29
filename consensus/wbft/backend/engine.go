@@ -152,18 +152,13 @@ func (sb *Backend) timeForNextWork() uint64 {
 // Prepare initializes the consensus fields of a block header according to the
 // rules of a particular engine. The changes are executed inline.
 func (sb *Backend) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	valSet, err := sb.Engine().GetValidators(chain, header.Number, header.ParentHash, nil)
-	if err != nil {
-		return err
-	}
-
 	if sb.simApplier != nil {
 		sb.simApplier.Apply(chain.Config(), sb.config, header.Number)
 	}
 
 	extraPreparedSeal, extraCommittedSeal := sb.processExtraSeals()
 
-	err = sb.Engine().Prepare(chain, header, valSet, extraPreparedSeal, extraCommittedSeal)
+	err := sb.Engine().Prepare(chain, header, extraPreparedSeal, extraCommittedSeal)
 	if err != nil {
 		return err
 	}
@@ -227,7 +222,6 @@ func (sb *Backend) processExtraSeals() ([]wbft.SealData, []wbft.SealData) {
 	sb.coreMu.RLock()
 	defer sb.coreMu.RUnlock()
 	if sb.core == nil {
-		sb.logger.Warn("WBFT: fail to process extra seals due to nil core")
 		return nil, nil
 	} else {
 		return sb.core.ProcessExtraSeal(sb.currentBlock(), sb.core.PriorRound(), sb.core.PriorValidators())
