@@ -893,6 +893,13 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 		if err = epochHandler(e, chain, header, state); err != nil {
 			return err
 		}
+	} else {
+		extra, err := types.ExtractWBFTExtra(header)
+		if err != nil {
+			return err
+		} else if extra.EpochInfo != nil {
+			return wbftcommon.ErrEpochInfoIsNotNil
+		}
 	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))

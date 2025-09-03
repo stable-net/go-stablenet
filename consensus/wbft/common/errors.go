@@ -141,4 +141,6 @@ var (
 	ErrInvalidSpecificCall = errors.New("invalid method name for engine specific function")
 
 	ErrIsNotWBFTBlock = errors.New("block is not a wbft block")
+
+	ErrEpochInfoIsNotNil = errors.New("epoch info should be nil for non-epoch block")
 )
