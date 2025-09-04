@@ -30,7 +30,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
@@ -51,8 +50,6 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-const inmemoryCache = 128 // Number of recent validator set to keep in memory
-
 var (
 	nilUncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 )
@@ -67,20 +64,18 @@ type Candidate struct {
 }
 
 type Engine struct {
-	cfg        *wbft.Config
-	signer     common.Address   // Ethereum address of the signing key
-	sign       SignerFn         // Signer function to authorize hashes with
-	checkSig   CheckSignatureFn // Check signature function to verify signatures
-	epochCache *lru.Cache[uint64, *types.EpochInfo]
+	cfg      *wbft.Config
+	signer   common.Address   // Ethereum address of the signing key
+	sign     SignerFn         // Signer function to authorize hashes with
+	checkSig CheckSignatureFn // Check signature function to verify signatures
 }
 
 func NewEngine(cfg *wbft.Config, signer common.Address, sign SignerFn, checkSig CheckSignatureFn) *Engine {
 	return &Engine{
-		cfg:        cfg,
-		signer:     signer,
-		sign:       sign,
-		checkSig:   checkSig,
-		epochCache: lru.NewCache[uint64, *types.EpochInfo](inmemoryCache),
+		cfg:      cfg,
+		signer:   signer,
+		sign:     sign,
+		checkSig: checkSig,
 	}
 }
 
@@ -319,7 +314,7 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		return fmt.Errorf("invalid randao mix: have %x, want %x", header.MixDigest, calculatedRandaoMix)
 	}
 
-	// prev seals validation for monblanc block or first block after genesis is skipped because it's empty
+	// prev seals validation for croissant block or first block after genesis is skipped because it's empty
 	if mustHavePrevSeals(header, chain.Config()) {
 		// if croissant == 0: croissant+1(== 1) has no prev seals;
 		// if croissant > 0: croissant+1 has prev seals;
@@ -499,7 +494,7 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 			)
 		}
 	} else {
-		// monblac hardFork block has empty prev seal
+		// croissant hardFork block has empty prev seal
 		// next block of genesis croissant block has empty prev seal
 		madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header))
 	}
@@ -716,7 +711,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 			}
 		}
 	} else if it.Number.Sign() != 0 {
-		// exeption case: if "it" is the croissant block, all current stakers were validators in the croissant block
+		// exception case: if "it" is the croissant block, all current stakers were validators in the croissant block
 		// in other words, all current stakers can have the previous seals in the point of the first block
 		for _, st := range stakerMap {
 			st.wasValidator = true
@@ -851,7 +846,6 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 		log.Trace(fmt.Sprintf("  - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
 	}
 
-	e.epochCache.Add(header.Number.Uint64(), &newEpoch)
 	return &newEpoch, nil
 }
 
@@ -1218,12 +1212,13 @@ func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Hea
 	}
 	for i := range epoch.Stakers {
 		if epoch.Stakers[i].Addr != extra.EpochInfo.Stakers[i].Addr {
-			return errors.New("WBFT: The two stakers do not match")
+			return fmt.Errorf("WBFT: The two stakers do not match at index %d: expected %v, got %v",
+				i, extra.EpochInfo.Stakers[i].Addr.Hex(), epoch.Stakers[i].Addr.Hex())
 		}
 		// Validate Diligence matches
 		if epoch.Stakers[i].Diligence != extra.EpochInfo.Stakers[i].Diligence {
 			return fmt.Errorf("WBFT: Diligence mismatch at index %d: expected %d, got %d",
-				i, epoch.Stakers[i].Diligence, extra.EpochInfo.Stakers[i].Diligence)
+				i, extra.EpochInfo.Stakers[i].Diligence, epoch.Stakers[i].Diligence)
 		}
 	}
 
@@ -1387,9 +1382,6 @@ func mergeSeals(seal *types.WBFTAggregatedSeal, extraSeals []wbft.SealData) *typ
 
 func (e *Engine) GetEpochInfo(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (*big.Int, *types.EpochInfo, error) {
 	if chain.Config().CroissantBlock.Cmp(header.Number) == 0 {
-		if epochInfo, ok := e.epochCache.Get(header.Number.Uint64()); ok {
-			return header.Number, epochInfo, nil
-		}
 		return e.extractEpochInfo(header)
 	}
 
@@ -1401,10 +1393,6 @@ func (e *Engine) getEpochInfo(chain consensus.ChainHeaderReader, blockNumber *bi
 	_, epochNum, err := e.IsEpochBlockNumber(chain.Config(), new(big.Int).SetUint64(parentNumber))
 	if err != nil {
 		return nil, nil, err
-	}
-
-	if epochInfo, ok := e.epochCache.Get(epochNum.Uint64()); ok {
-		return epochNum, epochInfo, nil
 	}
 
 	if epochHeader := chain.GetHeaderByNumber(epochNum.Uint64()); epochHeader != nil {
@@ -1438,7 +1426,6 @@ func (e *Engine) extractEpochInfo(epochHeader *types.Header) (*big.Int, *types.E
 	} else if epochExtra.EpochInfo == nil {
 		return nil, nil, errors.New("WBFT: epochInfo is nil")
 	}
-	e.epochCache.Add(epochHeader.Number.Uint64(), epochExtra.EpochInfo)
 
 	return epochHeader.Number, epochExtra.EpochInfo, nil
 }
