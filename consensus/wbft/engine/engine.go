@@ -1180,6 +1180,12 @@ func (e *Engine) calculateRewards(chain consensus.ChainHeaderReader, header *typ
 }
 
 func writeEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) error {
+	if valSet, err := e.GetValidators(chain, header.Number, header.ParentHash, nil); err != nil {
+		return err
+	} else if idx, _ := valSet.GetByAddress(e.Address()); idx < 0 {
+		return nil
+	}
+
 	newEpoch, err := e.buildEpochInfo(chain, header, state)
 	if err != nil {
 		return err
