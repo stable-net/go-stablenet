@@ -22,6 +22,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 	"sort"
 	"sync"
@@ -119,6 +120,25 @@ func (c *Core) handleRoundChangeMsg(roundChange *wbfmessage.RoundChange) error {
 		var pr *big.Int = nil
 		var pb *types.Block = nil
 		if roundChange.PreparedRound != nil && roundChange.PreparedBlock != nil && roundChange.Justification != nil && len(roundChange.Justification) > 0 {
+			// We should check the prepared block hash and sequence number
+			if roundChange.PreparedBlock.Number().Cmp(c.currentView().Sequence) != 0 {
+				err := fmt.Errorf(
+					"prepared block number %v does not match current sequence %v",
+					roundChange.PreparedBlock.Number().Uint64(),
+					c.currentView().Sequence.Uint64(),
+				)
+				logger.Warn("WBFT: round-change validation failed", "err", err)
+				return err
+			}
+			if roundChange.PreparedBlock.Hash() != roundChange.PreparedDigest {
+				err := fmt.Errorf(
+					"prepared block hash %s does not match prepared digest %s in ROUND-CHANGE message",
+					roundChange.PreparedBlock.Hash().Hex(),
+					roundChange.PreparedDigest.Hex(),
+				)
+				logger.Warn("WBFT: round-change validation failed", "err", err)
+				return err
+			}
 			prepareMessages = roundChange.Justification
 			pr = roundChange.PreparedRound
 			pb = roundChange.PreparedBlock
