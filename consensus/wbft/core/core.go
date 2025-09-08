@@ -229,10 +229,10 @@ func (c *Core) startNewRound(round *big.Int) {
 			Round:    new(big.Int),
 		}
 		nextValSet = c.backend.Validators(lastProposal)
-	}
 
-	// Add extra seal that contributed to consensus
-	c.addEffectiveSealToExtraSeal()
+		// Add extra seal that contributed to consensus
+		c.addEffectiveSealToExtraSeal()
+	}
 
 	// New snapshot for new round
 	c.updateRoundState(nextValSet, newView, roundChange)
