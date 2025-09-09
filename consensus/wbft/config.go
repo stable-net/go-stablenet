@@ -264,9 +264,9 @@ func CreateInitialEpochInfo(config *params.CroissantConfig) (*types.EpochInfo, e
 		epochInfo.Stabilizing = true
 	}
 
-	log.Trace("initial epoch info", "validators", epochInfo.Validators)
+	log.Trace("WBFT: initial epoch info", "validators", epochInfo.Validators)
 	for i, staker := range epochInfo.Stakers {
-		log.Trace(fmt.Sprintf("  - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
+		log.Trace(fmt.Sprintf("WBFT:   - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
 	}
 
 	return epochInfo, nil

@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/wbft"
 	wbfmessage "github.com/ethereum/go-ethereum/consensus/wbft/messages"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // addToExtraSeal adds a seal received after consensus to extraSeals.
@@ -57,6 +58,8 @@ func (c *Core) addToExtraSeal(msg wbfmessage.WBFTMessage) error {
 		// verify msg seal is matched with msg digest and seal type
 		if err := verifySeal(valSet, block.Header(), uint32(prepareMsg.CommonPayload.Round.Uint64()), sealType,
 			prepareMsg.PrepareSeal, prepareMsg.Source()); err != nil {
+			logger.Error("WBFT: PREPARE seal verify failed",
+				"round", prepareMsg.CommonPayload.Round, "from", prepareMsg.Source(), "err", err)
 			return err
 		}
 
@@ -71,6 +74,8 @@ func (c *Core) addToExtraSeal(msg wbfmessage.WBFTMessage) error {
 		// verify msg seal is matched with msg digest and seal type
 		if err := verifySeal(valSet, block.Header(), uint32(commitMsg.CommonPayload.Round.Uint64()), sealType,
 			commitMsg.CommitSeal, commitMsg.Source()); err != nil {
+			logger.Error("WBFT: COMMIT seal verify failed",
+				"round", commitMsg.CommonPayload.Round, "from", commitMsg.Source(), "err", err)
 			return err
 		}
 
@@ -92,7 +97,7 @@ func (c *Core) addToPrepareExtraSeal(prepareMsg *wbfmessage.Prepare) {
 		}
 	}
 	c.prepareExtraSeals[prepareMsg.Source()] = prepareMsg
-	logger.Debug("WBFT: new extra prepare seal message")
+	logger.Trace("WBFT: new extra prepare seal message", "source", prepareMsg.Source(), "sequence", prepareMsg.Sequence.Uint64(), "round", prepareMsg.Round.Uint64())
 }
 
 func (c *Core) addToCommitExtraSeal(commitMsg *wbfmessage.Commit) {
@@ -106,7 +111,7 @@ func (c *Core) addToCommitExtraSeal(commitMsg *wbfmessage.Commit) {
 		}
 	}
 	c.commitExtraSeals[commitMsg.Source()] = commitMsg
-	logger.Debug("WBFT: new extra commit seal message")
+	logger.Trace("WBFT: new extra commit seal message", "source", commitMsg.Source(), "sequence", commitMsg.Sequence.Uint64(), "round", commitMsg.Round.Uint64())
 }
 
 // addEffectiveSealToExtraSeal adds a consensus-effective seal to extraSeals used during block creation.
@@ -183,6 +188,7 @@ func (c *Core) ClearExtraSeals(lastNum *big.Int) {
 	// process prepare seal
 	for addr, msg := range c.prepareExtraSeals {
 		if msg != nil && msg.Sequence.Cmp(lastNum) < 0 {
+			log.Debug("WBFT: clear extra prepare seal", "source", addr, "sequence", msg.Sequence.Uint64(), "round", msg.Round.Uint64(), "lastNum", lastNum.Uint64())
 			delete(c.prepareExtraSeals, addr) // erase invalid seal
 		}
 	}
@@ -190,6 +196,7 @@ func (c *Core) ClearExtraSeals(lastNum *big.Int) {
 	// process commit seal
 	for addr, msg := range c.commitExtraSeals {
 		if msg != nil && msg.Sequence.Cmp(lastNum) < 0 {
+			log.Debug("WBFT: clear extra commit seal", "source", addr, "sequence", msg.Sequence.Uint64(), "round", msg.Round.Uint64(), "lastNum", lastNum.Uint64())
 			delete(c.commitExtraSeals, addr) // erase invalid seal
 		}
 	}

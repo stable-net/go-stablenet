@@ -71,7 +71,8 @@ func (c *Core) broadcastCommit() {
 		return
 	}
 
-	withMsg(logger, commit).Info("WBFT: broadcast COMMIT message", "payload", hexutil.Encode(payload))
+	withMsg(logger, commit).Info("WBFT: broadcast COMMIT message")
+	withMsg(logger, commit).Trace("WBFT: COMMIT payload", "payload", hexutil.Encode(payload))
 
 	// Broadcast RLP-encoded message
 	if err = c.backend.Broadcast(c.valSet, commit.Code(), payload); err != nil {
@@ -89,24 +90,24 @@ func (c *Core) broadcastCommit() {
 func (c *Core) handleCommitMsg(commit *wbfmessage.Commit) error {
 	logger := c.currentLogger(true, commit)
 
-	logger.Info("WBFT: handle COMMIT message", "commits.count", c.current.WBFTCommits.Size(), "quorum", c.valSet.QuorumSize())
+	logger.Debug("WBFT: handle COMMIT message", "commits.count", c.current.WBFTCommits.Size(), "quorum", c.valSet.QuorumSize())
 
 	// Check digest
 	if commit.Digest != c.current.Proposal().Hash() {
-		logger.Error("WBFT: invalid COMMIT message digest", "digest", commit.Digest, "proposal", c.current.Proposal().Hash().String())
+		logger.Warn("WBFT: invalid COMMIT message digest", "digest", commit.Digest, "proposal", c.current.Proposal().Hash().String())
 		return errInvalidMessage
 	}
 
 	// Check commitSeal
 	block, ok := c.current.Proposal().(*types.Block)
 	if !ok {
-		logger.Error("WBFT: failed to cast proposal from COMMIT message to *types.Block")
+		logger.Warn("WBFT: failed to cast proposal from COMMIT message to *types.Block")
 		return errInvalidMessage
 	}
 
 	if verifySeal(c.valSet, block.Header(), uint32(commit.CommonPayload.Round.Uint64()), SealTypeCommit,
 		commit.CommitSeal, commit.Source()) != nil {
-		logger.Error("WBFT: failed to verify seal from COMMIT message", "from", commit.Source())
+		logger.Warn("WBFT: failed to verify seal from COMMIT message", "number", block.Header().Number, "from", commit.Source())
 		return errInvalidMessage
 	}
 
@@ -123,7 +124,7 @@ func (c *Core) handleCommitMsg(commit *wbfmessage.Commit) error {
 		logger.Info("WBFT: received quorum of COMMIT messages")
 		c.commitWBFT()
 	} else {
-		logger.Debug("WBFT: accepted new COMMIT messages")
+		logger.Trace("WBFT: accepted new COMMIT messages")
 	}
 
 	return nil

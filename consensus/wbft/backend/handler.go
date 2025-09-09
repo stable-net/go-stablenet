@@ -104,7 +104,7 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 	if msg.Code == NewBlockMsg && sb.core != nil && sb.core.IsProposer() { // eth.NewBlockMsg: import cycle
 		// this case is to safeguard the race of similar block which gets propagated from other node while this node is proposing
 		// as p2p.Msg can only be decoded once (get EOF for any subsequence read), we need to make sure the payload is restored after we decode it
-		sb.logger.Debug("BFT: received NewBlockMsg", "size", msg.Size, "payload.type", reflect.TypeOf(msg.Payload), "sender", addr)
+		sb.logger.Debug("WBFT: received NewBlockMsg", "size", msg.Size, "payload.type", reflect.TypeOf(msg.Payload), "sender", addr)
 		if reader, ok := msg.Payload.(*bytes.Reader); ok {
 			payload, err := io.ReadAll(reader)
 			if err != nil {
@@ -117,12 +117,12 @@ func (sb *Backend) HandleMsg(addr common.Address, msg p2p.Msg) (bool, error) {
 				TD    *big.Int
 			}
 			if err := msg.Decode(&request); err != nil {
-				sb.logger.Error("BFT: unable to decode the NewBlockMsg", "error", err)
+				sb.logger.Warn("WBFT: unable to decode the NewBlockMsg", "error", err)
 				return false, nil
 			}
 			newRequestedBlock := request.Block
 			if newRequestedBlock.Header().Difficulty.Cmp(types.WBFTDefaultDifficulty) == 0 && sb.core.IsCurrentProposal(newRequestedBlock.Hash()) {
-				sb.logger.Debug("BFT: block already proposed", "hash", newRequestedBlock.Hash(), "sender", addr)
+				sb.logger.Debug("WBFT: block already proposed", "hash", newRequestedBlock.Hash(), "sender", addr)
 				return true, nil
 			}
 		}

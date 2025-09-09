@@ -262,7 +262,7 @@ func (sb *Backend) Start(
 	sb.hasBadBlock = hasBadBlock
 	sb.notifyNewRound = notifyNewRound
 
-	log.Info("start WBFT")
+	log.Info("WBFT: start")
 	err := sb.startWBFT()
 
 	if err != nil {

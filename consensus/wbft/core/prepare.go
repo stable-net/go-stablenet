@@ -68,7 +68,8 @@ func (c *Core) broadcastPrepare() {
 		return
 	}
 
-	withMsg(logger, prepare).Info("WBFT: broadcast PREPARE message", "payload", hexutil.Encode(payload))
+	withMsg(logger, prepare).Info("WBFT: broadcast PREPARE message")
+	withMsg(logger, prepare).Trace("WBFT: PREPARE payload", "payload", hexutil.Encode(payload))
 
 	// Broadcast RLP-encoded message
 	if err = c.backend.Broadcast(c.valSet, prepare.Code(), payload); err != nil {
@@ -86,24 +87,24 @@ func (c *Core) broadcastPrepare() {
 func (c *Core) handlePrepareMsg(prepare *wbfmessage.Prepare) error {
 	logger := c.currentLogger(true, prepare).New()
 
-	logger.Info("WBFT: handle PREPARE message", "prepares.count", c.current.WBFTPrepares.Size(), "quorum", c.valSet.QuorumSize())
+	logger.Debug("WBFT: handle PREPARE message", "prepares.count", c.current.WBFTPrepares.Size(), "quorum", c.valSet.QuorumSize())
 
 	// Check digest
 	if prepare.Digest != c.current.Proposal().Hash() {
-		logger.Error("WBFT: invalid PREPARE message digest")
+		logger.Warn("WBFT: invalid PREPARE message digest")
 		return errInvalidMessage
 	}
 
 	// Check prepareSeal
 	block, ok := c.current.Proposal().(*types.Block)
 	if !ok {
-		logger.Error("WBFT: failed to cast proposal from PREPARE message to *types.Block")
+		logger.Warn("WBFT: failed to cast proposal from PREPARE message to *types.Block")
 		return errInvalidMessage
 	}
 
 	if verifySeal(c.valSet, block.Header(), uint32(prepare.CommonPayload.Round.Uint64()), SealTypePrepare,
 		prepare.PrepareSeal, prepare.Source()) != nil {
-		logger.Error("WBFT: failed to verify seal from PREPARE message", "from", prepare.Source())
+		logger.Warn("WBFT: failed to verify seal from PREPARE message", "number", block.Header().Number, "from", prepare.Source())
 		return errInvalidMessage
 	}
 
@@ -131,14 +132,14 @@ func (c *Core) handlePrepareMsg(prepare *wbfmessage.Prepare) error {
 		}
 
 		if c.current.Proposal() != nil && c.current.Proposal().Hash() == prepare.Digest {
-			logger.Debug("WBFT: PREPARE message matches proposal", "proposal", c.current.Proposal().Hash(), "prepare", prepare.Digest)
+			logger.Trace("WBFT: PREPARE message matches proposal", "proposal", c.current.Proposal().Hash(), "prepare", prepare.Digest)
 			c.current.preparedBlock = c.current.Proposal()
 		}
 
 		c.setState(StatePrepared)
 		c.broadcastCommit()
 	} else {
-		logger.Debug("WBFT: accepted PREPARE messages")
+		logger.Trace("WBFT: accepted PREPARE messages")
 	}
 
 	return nil

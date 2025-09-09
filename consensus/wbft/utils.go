@@ -60,7 +60,7 @@ func CheckValidatorSignature(valSet ValidatorSet, data []byte, sig []byte) (comm
 	// 1. Get signature address
 	signer, err := GetSignatureAddress(data, sig)
 	if err != nil {
-		log.Error("Failed to get signer address", "err", err)
+		log.Error("WBFT: Failed to get signer address", "err", err)
 		return common.Address{}, err
 	}
 

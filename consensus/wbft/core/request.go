@@ -33,7 +33,7 @@ import (
 func (c *Core) handleRequest(request *Request) error {
 	logger := c.currentLogger(true, nil)
 
-	logger.Info("WBFT: handle block proposal request")
+	logger.Debug("WBFT: handle block proposal request")
 
 	if err := c.checkRequestMsg(request); err != nil {
 		if err == errInvalidMessage {
@@ -95,7 +95,7 @@ func (c *Core) processPendingRequests() {
 	defer c.pendingRequestsMu.Unlock()
 
 	logger := c.currentLogger(true, nil)
-	logger.Debug("WBFT: lookup for pending block proposal requests")
+	logger.Trace("WBFT: lookup for pending block proposal requests")
 
 	for !(c.pendingRequests.Empty()) {
 		r, prio := c.pendingRequests.Pop()

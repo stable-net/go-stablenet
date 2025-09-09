@@ -152,7 +152,7 @@ func (sb *Backend) Address() common.Address {
 func (sb *Backend) Broadcast(valSet wbft.ValidatorSet, code uint64, payload []byte) error {
 	_, validator := valSet.GetByAddress(sb.address)
 	if validator == nil {
-		sb.logger.Error("BFT: invalid validator",
+		sb.logger.Error("WBFT: invalid validator",
 			"address", sb.Address(),
 			"validator", validator,
 			"payload", hexutil.Encode(payload),
@@ -214,7 +214,7 @@ func (sb *Backend) Commit(proposal wbft.Proposal, preparedSeals, committedSeals 
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
-		sb.logger.Error("BFT: invalid block proposal", "proposal", proposal)
+		sb.logger.Warn("WBFT: invalid block proposal", "proposal", proposal)
 		return wbftcommon.ErrInvalidProposal
 	}
 
@@ -228,7 +228,7 @@ func (sb *Backend) Commit(proposal wbft.Proposal, preparedSeals, committedSeals 
 	// update block's header
 	block = block.WithSeal(h)
 
-	sb.logger.Info("BFT: block proposal committed", "author", sb.Address(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
+	sb.logger.Info("WBFT: block proposal committed", "author", sb.Address(), "hash", proposal.Hash(), "number", proposal.Number().Uint64())
 
 	// - if the proposed and committed blocks are the same, send the proposed hash
 	//   to commit channel, which is being watched inside the engine.Seal() function.
@@ -259,13 +259,13 @@ func (sb *Backend) Verify(proposal wbft.Proposal) (time.Duration, error) {
 	// Check if the proposal is a valid block
 	block, ok := proposal.(*types.Block)
 	if !ok {
-		sb.logger.Error("BFT: invalid block proposal", "proposal", proposal)
+		sb.logger.Warn("WBFT: invalid block proposal", "proposal", proposal)
 		return 0, wbftcommon.ErrInvalidProposal
 	}
 
 	// check bad block
 	if sb.HasBadProposal(block.Hash()) {
-		sb.logger.Warn("BFT: bad block proposal", "proposal", proposal)
+		sb.logger.Warn("WBFT: bad block proposal", "proposal", proposal)
 		return 0, wbftcommon.ErrBlacklistedHash
 	}
 
@@ -332,7 +332,7 @@ func (sb *Backend) LastProposal() (wbft.Proposal, common.Address) {
 		var err error
 		proposer, err = sb.Author(block.Header())
 		if err != nil {
-			sb.logger.Error("BFT: last block proposal invalid", "err", err)
+			sb.logger.Error("WBFT: last block proposal invalid", "err", err)
 			return nil, common.Address{}
 		}
 	}
@@ -353,13 +353,13 @@ func (sb *Backend) Close() error {
 }
 
 func (sb *Backend) startWBFT() error {
-	sb.logger.Info("BFT: activate WBFT")
-	sb.logger.Trace("BFT: set ProposerPolicy sorter to ValidatorSortByByteFunc")
+	sb.logger.Info("WBFT: activate WBFT")
+	sb.logger.Trace("WBFT: set ProposerPolicy sorter to ValidatorSortByByteFunc")
 	sb.config.ProposerPolicy.Use(wbft.ValidatorSortByByte())
 
 	sb.core = wbftcore.New(sb, sb.config)
 	if err := sb.core.Start(); err != nil {
-		sb.logger.Error("BFT: failed to activate WBFT", "err", err)
+		sb.logger.Error("WBFT: failed to activate WBFT", "err", err)
 		return err
 	}
 
@@ -371,9 +371,9 @@ func (sb *Backend) stop() error {
 	sb.core = nil
 
 	if core != nil {
-		sb.logger.Info("BFT: deactivate")
+		sb.logger.Info("WBFT: deactivate")
 		if err := core.Stop(); err != nil {
-			sb.logger.Error("BFT: failed to deactivate", "err", err)
+			sb.logger.Error("WBFT: failed to deactivate", "err", err)
 			return err
 		}
 	}

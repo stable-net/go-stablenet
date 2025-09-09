@@ -144,7 +144,7 @@ func (h *handler) handleConsensus(p *eth.Peer, protoRW p2p.MsgReadWriter) error 
 	// istanbulMsg = 0x11, and NewBlockMsg = 0x07.
 	handled, err := h.handleConsensusMsg(p, msg)
 	if handled {
-		p.Log().Debug("consensus message was handled by consensus engine", "msg", msg.Code,
+		p.Log().Trace("consensus message was handled by consensus engine", "msg", msg.Code,
 			"quorumConsensusProtocolName", quorumConsensusProtocolName, "err", err)
 		return err
 	}

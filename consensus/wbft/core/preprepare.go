@@ -90,7 +90,8 @@ func (c *Core) sendPreprepareMsg(request *Request) {
 
 		logger = withMsg(logger, preprepare).New("block.number", preprepare.Proposal.Number().Uint64(), "block.hash", preprepare.Proposal.Hash().String())
 
-		logger.Info("WBFT: broadcast PRE-PREPARE message", "payload", hexutil.Encode(payload))
+		logger.Info("WBFT: broadcast PRE-PREPARE message")
+		logger.Trace("WBFT: PRE-PREPARE payload", "payload", hexutil.Encode(payload))
 
 		// Broadcast RLP-encoded message
 		if err = c.backend.Broadcast(c.valSet, preprepare.Code(), payload); err != nil {
@@ -114,7 +115,7 @@ func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 
 	logger = logger.New("proposal.number", preprepare.Proposal.Number().Uint64(), "proposal.hash", preprepare.Proposal.Hash().String())
 
-	c.logger.Info("WBFT: handle PRE-PREPARE message")
+	c.logger.Debug("WBFT: handle PRE-PREPARE message")
 
 	// Validates PRE-PREPARE message comes from current proposer
 	if !c.valSet.IsProposer(preprepare.Source()) {
@@ -160,7 +161,7 @@ func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 
 	// Here is about to accept the PRE-PREPARE
 	if c.state == StateAcceptRequest {
-		c.logger.Info("WBFT: accepted PRE-PREPARE message")
+		c.logger.Debug("WBFT: accepted PRE-PREPARE message")
 
 		// Re-initialize ROUND-CHANGE timer
 		c.newRoundChangeTimer()

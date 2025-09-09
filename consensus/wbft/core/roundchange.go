@@ -56,7 +56,7 @@ func (c *Core) broadcastRoundChange(round *big.Int) {
 	// Validates new round corresponds to current view
 	cv := c.currentView()
 	if cv.Round.Cmp(round) > 0 {
-		logger.Error("WBFT: invalid past target round", "target", round)
+		logger.Warn("WBFT: invalid past target round", "current", cv.Round, "target", round)
 		return
 	}
 
@@ -180,7 +180,7 @@ func (c *Core) handleRoundChangeMsg(roundChange *wbfmessage.RoundChange) error {
 			if c.current != nil && c.current.pendingRequest != nil {
 				proposal = c.current.pendingRequest.Proposal
 			} else {
-				log.Warn("round change returns an error: no proposal as pending request is nil")
+				log.Warn("WBFT: round change returns an error: no proposal as pending request is nil")
 				return errors.New("no proposal as pending request is nil")
 			}
 		}
