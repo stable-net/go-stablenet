@@ -230,6 +230,7 @@ func sealForJSON(seal *types.WBFTAggregatedSeal, valSet []common.Address) map[st
 	}
 
 	sealerIndxs := seal.Sealers.GetSealers()
+
 	sealers := make([]string, 0, len(sealerIndxs))
 
 	for _, idx := range sealerIndxs {
@@ -308,18 +309,16 @@ func (api *API) GetWbftExtraInfo(number rpc.BlockNumber) (map[string]interface{}
 	}
 
 	header := api.chain.GetHeaderByNumber(uint64(number))
-
 	if header == nil {
 		return nil, fmt.Errorf("block %d not found", bNumber)
 	}
 
 	extra, err := types.ExtractWBFTExtra(header)
-
 	if err != nil {
 		return nil, err
 	}
 
-	validators, err := api.GetValidators(&number)
+	curValidators, prevValidators, err := api.backend.GetValidatorsForVerifying(api.chain, header, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -328,11 +327,11 @@ func (api *API) GetWbftExtraInfo(number rpc.BlockNumber) (map[string]interface{}
 		"vanityData":        DecodeVanityData(extra.VanityData),
 		"randaoReveal":      "0x" + hex.EncodeToString(extra.RandaoReveal),
 		"prevRound":         fmt.Sprintf("0x%x", extra.PrevRound),
-		"prevPreparedSeal":  sealForJSON(extra.PrevPreparedSeal, validators),
-		"prevCommittedSeal": sealForJSON(extra.PrevCommittedSeal, validators),
+		"prevPreparedSeal":  sealForJSON(extra.PrevPreparedSeal, prevValidators.AddressList()),
+		"prevCommittedSeal": sealForJSON(extra.PrevCommittedSeal, prevValidators.AddressList()),
 		"round":             fmt.Sprintf("0x%x", extra.Round),
-		"preparedSeal":      sealForJSON(extra.PreparedSeal, validators),
-		"committedSeal":     sealForJSON(extra.CommittedSeal, validators),
+		"preparedSeal":      sealForJSON(extra.PreparedSeal, curValidators.AddressList()),
+		"committedSeal":     sealForJSON(extra.CommittedSeal, curValidators.AddressList()),
 		"epochInfo":         epochForJSON(extra.EpochInfo),
 	}
 
