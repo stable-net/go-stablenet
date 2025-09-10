@@ -613,17 +613,18 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 
 	proposedSealsInEpoch := make(map[common.Address]int)
 	submittedSealsInEpoch := make(map[common.Address]int)
-	proposedCountsInEpoch := make(map[common.Address]int)
+	beingProposerCountInEpoch := make(map[common.Address]int)
 	proposers := []common.Address{}
 	epochLength := uint64(0)
 
-	var lastProposer common.Address
+	var firstProposer, lastProposer common.Address
 	latestEpoch, latestEpochInfo, err := e.GetEpochInfo(chain, header, nil)
 	if err != nil {
 		log.Error("WBFT: failed to get latest epoch info", "number", header.Number, "err", err)
 		return nil, err
 	}
 
+	validatorsDiff := 0 // latestEpochInfo.Validators - previousEpochInfo.Validators
 	// Traverse blocks until reaching the epoch block.
 	// Stop counting if the block reaches to the epoch block.
 	it := header
@@ -649,15 +650,19 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 				log.Error("WBFT: failed to get previous epoch info", "number", parent.Number, "err", err)
 				return nil, err
 			}
+			firstProposer, _ = e.Author(it)
 			lastProposer, _ = e.Author(parent)
 			epochInfo = info
+
+			// Calculate the difference of validator set between two epochs. can be negative.
+			validatorsDiff = len(latestEpochInfo.Validators) - len(info.Validators)
 		}
 
 		// Accumulate PrevPreparedSeal counts.
 		if parent.Number.Sign() == 0 {
 			// If the parent block is the genesis block, PrevPreparedSeal is empty.
 			// So we don't count proposed seal for the first block.
-			proposedCountsInEpoch[proposer]-- // it will be -1
+			beingProposerCountInEpoch[proposer]-- // it will be -1
 		} else {
 			prepareSigners, err := getSignerAddress(epochInfo, extra.PrevPreparedSeal)
 			if err != nil {
@@ -738,7 +743,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 
 			valSet.CalcProposer(lastProposer, uint64(round))
 			currP := valSet.GetProposer().Address()
-			proposedCountsInEpoch[currP]++
+			beingProposerCountInEpoch[currP]++
 
 			if currP == proposer {
 				break
@@ -766,6 +771,12 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 		} else {
 			// Calculate validator's diligence for current epoch.
 			//
+			// p: number of seals of proposed blocks in current epoch
+			// v: number of validators in current epoch
+			// e: epoch length (in blocks)
+			// w: number of times being proposer in current epoch
+			// s: number of submitted seals in current epoch
+			//
 			// If validator proposed any blocks, d(h) = p / (2*v*w) + s / (2*e),
 			// Otherwise, d(h) = 1 + s / (2*e)
 
@@ -786,9 +797,13 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 				d = uint64(submittedSealsInEpoch[staker]) * types.DiligenceDenominator / (2 * (epochLength - 1))
 			}
 
-			if proposedCountsInEpoch[staker] > 0 {
-				d += uint64(proposedSealsInEpoch[staker]) * types.DiligenceDenominator /
-					uint64(2*len(latestEpochInfo.Validators)*proposedCountsInEpoch[staker])
+			if beingProposerCountInEpoch[staker] > 0 {
+				maxProposedSeals := 2 * len(latestEpochInfo.Validators) * beingProposerCountInEpoch[staker]
+				if staker.Cmp(firstProposer) == 0 && stakerInfo.wasValidator {
+					// first proposer can put more prev seals as much as -validatorsDiff
+					maxProposedSeals -= 2 * validatorsDiff
+				}
+				d += uint64(proposedSealsInEpoch[staker]) * types.DiligenceDenominator / uint64(maxProposedSeals)
 			} else {
 				d += types.DiligenceDenominator
 			}

@@ -117,8 +117,8 @@ func (c *CroissantConfig) CheckValidity() error {
 	if c.WBFT.BlockPeriodSeconds == 0 {
 		return errors.New("`croissant.wBFT`: `blockPeriodSeconds` must be greater than 0")
 	}
-	if c.WBFT.EpochLength == 0 {
-		return errors.New("`croissant.wBFT`: `epochLength` must be greater than 0")
+	if c.WBFT.EpochLength <= 1 {
+		return errors.New("`croissant.wBFT`: `epochLength` must be greater than or equal to 2")
 	}
 	if c.WBFT.StabilizingStakersThreshold == nil {
 		return errors.New("`croissant.wBFT`: missing `stabilizingStakersThreshold`")
