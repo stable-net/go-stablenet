@@ -1402,11 +1402,7 @@ func TestRPCMarshalBlock(t *testing.T) {
 				"stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
 				"timestamp": "0x0",
 				"transactionsRoot": "0x661a9febcfa8f1890af549b874faf9fa274aede26ef489d9db0b25daa569450e",
-				"uncles": [],
-				"fees":null,
-				"minerNodeId":"0x",
-				"minerNodeSig":"0x",
-				"rewards":"0x"
+				"uncles": []
 			}`,
 		},
 		// only tx hashes
@@ -1437,11 +1433,7 @@ func TestRPCMarshalBlock(t *testing.T) {
 					"0x12e1f81207b40c3bdcc13c0ee18f5f86af6d31754d57a0ea1b0d4cfef21abef1"
 				],
 				"transactionsRoot": "0x661a9febcfa8f1890af549b874faf9fa274aede26ef489d9db0b25daa569450e",
-				"uncles": [],
-				"fees":null,
-				"minerNodeId":"0x",
-				"minerNodeSig":"0x",
-				"rewards":"0x"
+				"uncles": []
 				}`,
 		},
 		// full tx details
@@ -1544,11 +1536,7 @@ func TestRPCMarshalBlock(t *testing.T) {
 					}
 				],
 				"transactionsRoot": "0x661a9febcfa8f1890af549b874faf9fa274aede26ef489d9db0b25daa569450e",
-				"uncles": [],
-				"fees":null,
-				"minerNodeId":"0x",
-				"minerNodeSig":"0x",
-				"rewards":"0x"
+				"uncles": []
 			}`,
 		},
 	}

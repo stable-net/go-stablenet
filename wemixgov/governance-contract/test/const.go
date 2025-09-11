@@ -105,32 +105,3 @@ func newEnvBig(name string, value *big.Int) env {
 		Value: value,
 	}
 }
-
-func makeEnvParams(envs ...env) (names [][32]byte, values []*big.Int) {
-	length := len(envs)
-	names = make([][32]byte, length)
-	values = make([]*big.Int, length)
-	for i, e := range envs {
-		names[i] = e.Name
-		values[i] = e.Value
-	}
-	return
-}
-
-var EnvTypes = struct {
-	Invalid *big.Int
-	Int     *big.Int
-	Uint    *big.Int
-	Address *big.Int
-	Bytes32 *big.Int
-	Bytes   *big.Int
-	String  *big.Int
-}{big.NewInt(0), big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4), big.NewInt(5), big.NewInt(6)}
-
-var BallotStates = struct {
-	Invalid    *big.Int
-	Ready      *big.Int
-	InProgress *big.Int
-	Accepted   *big.Int
-	Rejected   *big.Int
-}{big.NewInt(0), big.NewInt(1), big.NewInt(2), big.NewInt(3), big.NewInt(4)}

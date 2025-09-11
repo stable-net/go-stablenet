@@ -19,7 +19,6 @@ package test
 
 import (
 	"encoding/json"
-	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -81,24 +80,4 @@ func (bc *bindContract) New(backend bindBackend, address common.Address) *bind.B
 
 func (bc *bindContract) Deploy(backend bindBackend, opts *bind.TransactOpts, args ...interface{}) (common.Address, *types.Transaction, *bind.BoundContract, error) {
 	return bind.DeployContract(opts, bc.Abi, bc.Bin, backend, args...)
-}
-
-type nodeInfo struct {
-	name  []byte
-	enode []byte
-	ip    []byte
-	port  *big.Int
-}
-
-type MemberInfo struct {
-	Staker     common.Address `json:"staker"`
-	Voter      common.Address `json:"voter"`
-	Reward     common.Address `json:"reward"`
-	Name       []byte         `json:"name"`
-	Enode      []byte         `json:"enode"`
-	Ip         []byte         `json:"ip"`
-	Port       *big.Int       `json:"port"`
-	LockAmount *big.Int       `json:"lockAmount"`
-	Memo       []byte         `json:"memo"`
-	Duration   *big.Int       `json:"duration"`
 }

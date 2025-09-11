@@ -24,7 +24,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/lru"
-	"github.com/ethereum/go-ethereum/consensus/wpoa"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
@@ -152,9 +151,6 @@ func NewOracle(backend OracleBackend, params Config) *Oracle {
 func (oracle *Oracle) SuggestTipCap(ctx context.Context) (*big.Int, error) {
 	head, _ := oracle.backend.HeaderByNumber(ctx, rpc.LatestBlockNumber)
 
-	if oracle.backend.ChainConfig().CroissantBlock != nil && !oracle.backend.ChainConfig().IsCroissant(head.Number) {
-		return wpoa.SuggestGasPrice(), nil
-	}
 	headHash := head.Hash()
 
 	// If the latest gasprice is still available, return it.
