@@ -1761,14 +1761,14 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1111
 		}
-		cfg.Genesis = core.DefaultWemixMainnetGenesisBlock()
-		SetDNSDiscoveryDefaults(cfg, params.WemixMainnetGenesisHash)
+		cfg.Genesis = core.DefaultStableOneMainnetGenesisBlock()
+		SetDNSDiscoveryDefaults(cfg, params.StableOneMainnetGenesisHash)
 	case ctx.Bool(WemixTestnetFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1112
 		}
-		cfg.Genesis = core.DefaultWemixTestnetGenesisBlock()
-		SetDNSDiscoveryDefaults(cfg, params.WemixTestnetGenesisHash)
+		cfg.Genesis = core.DefaultStableOneTestnetGenesisBlock()
+		SetDNSDiscoveryDefaults(cfg, params.StableOneTestnetGenesisHash)
 	case ctx.Bool(HoleskyFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 17000
@@ -2076,9 +2076,9 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 	var genesis *core.Genesis
 	switch {
 	case ctx.Bool(MainnetFlag.Name):
-		genesis = core.DefaultWemixMainnetGenesisBlock()
+		genesis = core.DefaultStableOneMainnetGenesisBlock()
 	case ctx.Bool(WemixTestnetFlag.Name):
-		genesis = core.DefaultWemixTestnetGenesisBlock()
+		genesis = core.DefaultStableOneTestnetGenesisBlock()
 	case ctx.Bool(HoleskyFlag.Name):
 		genesis = core.DefaultHoleskyGenesisBlock()
 	case ctx.Bool(SepoliaFlag.Name):

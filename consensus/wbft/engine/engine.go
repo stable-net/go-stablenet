@@ -46,7 +46,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
-	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -884,11 +883,6 @@ func (e *Engine) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 //     It processes actions specific to the EpochBlock, which records the ValidatorList for the next Epoch,
 //     and is the last block of the (N-1)th Epoch for the (N)th Epoch.
 func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, epochHandler func(*Engine, consensus.ChainHeaderReader, *types.Header, govwbft.StateReader) error) error {
-	// Accumulate any block and uncle rewards and commit the final state root
-	if err := e.accumulateRewards(chain, state, header); err != nil {
-		return err
-	}
-
 	if st, err := wbft.GetGovContractsStateTransition(e.cfg, header.Number); err != nil {
 		return err
 	} else if st != nil {
@@ -1073,131 +1067,6 @@ func setExtra(h *types.Header, wbftExtra *types.WBFTExtra) error {
 	return nil
 }
 
-func makeRewardFunc(state *state.StateDB, blockReward *big.Int) func(*govwbft.Staker, *big.Int) {
-	validatorReward := new(big.Int).Set(blockReward)
-	return func(staker *govwbft.Staker, tot *big.Int) {
-		r := new(big.Int).Set(validatorReward)
-		r.Mul(r, staker.TotalStaked)
-		r.Div(r, tot)
-		if r.Sign() > 0 {
-			state.AddBalance(staker.Rewardee, uint256.MustFromBig(r))
-			blockReward.Sub(blockReward, r)
-			log.Trace("WBFT: accumulate rewards to", "rewardee", staker.Rewardee, "block reward", r)
-		} else {
-			log.Trace("WBFT: skip accumulating rewards to", "rewardee", staker.Rewardee)
-		}
-	}
-}
-
-// AccumulateRewards credits the beneficiary of the given block with a reward.
-func (e *Engine) accumulateRewards(chain consensus.ChainHeaderReader, state *state.StateDB, header *types.Header) error {
-	var blockReward *big.Int
-
-	// if brioche config exists, use it
-	// else, get block reward from wbft config
-	if chain.Config().IsBrioche(header.Number) {
-		blockReward = chain.Config().Brioche.GetBriocheBlockReward(params.DefaultBriocheBlockReward, header.Number)
-	} else {
-		cfgBlockReward := e.cfg.GetConfig(header.Number).BlockReward
-		if cfgBlockReward != nil {
-			blockReward = new(big.Int).Set((*big.Int)(cfgBlockReward))
-		}
-	}
-
-	// Deduct rewards of beneficiaries.
-	if blockReward.Sign() > 0 {
-		bReward := new(big.Int)
-		beneficiaryInfo := e.cfg.GetConfig(header.Number).BlockRewardBeneficiary
-		if beneficiaryInfo != nil {
-			for _, beneficiary := range beneficiaryInfo.Beneficiaries {
-				r := new(big.Int).Set(blockReward)
-				r.Mul(r, new(big.Int).SetUint64(beneficiary.Numerator))
-				r.Div(r, new(big.Int).SetUint64(beneficiaryInfo.Denominator))
-
-				log.Debug("WBFT: accumulate rewards to", "beneficiary", beneficiary.Addr, "block reward", r)
-				state.AddBalance(beneficiary.Addr, uint256.MustFromBig(r))
-				bReward.Add(bReward, r)
-			}
-		}
-
-		if blockReward.Cmp(bReward) < 0 {
-			// Unreachable if genesis block is set correctly.
-			log.Error("WBFT: block reward underflow", "blockReward", blockReward, "bReward", bReward)
-			return errors.New("block reward underflow")
-		}
-		blockReward.Sub(blockReward, bReward)
-	}
-
-	govStakingAddress := e.cfg.GetGovContracts(header.Number, chain.Config()).GovStaking.Address
-	getStakerInfo := func(addr common.Address) *govwbft.Staker {
-		// If the staker is removed from gov, use fallback staker info with zero staking.
-		if !govwbft.IsStaker(govStakingAddress, state, addr) {
-			log.Trace("WBFT: fallback staker info", "staker", addr)
-			return &govwbft.Staker{
-				Operator:    addr,
-				Rewardee:    addr,
-				TotalStaked: big.NewInt(0),
-				Delegated:   big.NewInt(0),
-			}
-		}
-
-		s := govwbft.StakerInfo(govStakingAddress, state, addr)
-		return &s
-	}
-
-	// Distribute remaining block reward to validators (including proposer) who signed the block.
-	if blockReward.Sign() > 0 {
-		if err := e.calculateRewards(
-			chain,
-			header,
-			makeRewardFunc(state, blockReward),
-			getStakerInfo,
-		); err != nil {
-			log.Error("WBFT: Error while calculating rewards", "err", err)
-			return err
-		}
-	}
-
-	// The reward left rewards to the proposer.
-	if blockReward.Sign() > 0 {
-		proposer, _ := e.Author(header)
-		staker := getStakerInfo(proposer)
-		state.AddBalance(staker.Rewardee, uint256.MustFromBig(blockReward))
-		log.Trace("WBFT: Block reward left rewards to", "rewardee", staker.Rewardee, "amount", blockReward)
-	}
-	return nil
-}
-
-// calculateRewards calculates the reward for the given block.
-// Currently, seals are not considered for rewards because which we cannot determine malicious validators.
-// Instead, we use diligence score to give faithful validator opportunity to propose more blocks.
-func (e *Engine) calculateRewards(chain consensus.ChainHeaderReader, header *types.Header, rewardFn func(*govwbft.Staker, *big.Int), getStakerInfo func(common.Address) *govwbft.Staker) error {
-	valSet, err := e.GetValidators(chain, header.Number, header.ParentHash, nil)
-	if err != nil {
-		return err
-	}
-	validators := valSet.AddressList()
-
-	// Get staking amounts for rewardees.
-	stakers := make([]*govwbft.Staker, len(validators))
-	totStakingAmount := big.NewInt(0)
-	for i, val := range validators {
-		staker := getStakerInfo(val)
-		stakers[i] = staker
-		totStakingAmount.Add(totStakingAmount, staker.TotalStaked)
-	}
-
-	log.Trace("WBFT: Calculating block reward", "currentBlock", header.Number, "totStakingAmount", totStakingAmount, "validator", validators)
-
-	if rewardFn != nil && totStakingAmount.Sign() > 0 {
-		for _, staker := range stakers {
-			rewardFn(staker, totStakingAmount)
-		}
-	}
-
-	return nil
-}
-
 func writeEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) error {
 	if valSet, err := e.GetValidators(chain, header.Number, header.ParentHash, nil); err != nil {
 		return err
@@ -1275,12 +1144,12 @@ func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Hea
 	return nil
 }
 
-// 1. WEMIX 3.5
+// 1. WEMIX 4.0
 // - sort by (staking amount, diligence) descending
 // - cut off the list at targetValidators
 // - shuffle the list randomly
 //
-// 2. WEMIX 4.0 (not implemented yet)
+// 2. WEMIX 4.5 (not implemented yet)
 // - randomSelect(staking amount, diligence) until targetValidators
 // - shuffle the list randomly
 func (e *Engine) decideValidators(header *types.Header, newStakers []Candidate, targetValidators uint64) ([]uint32, error) {

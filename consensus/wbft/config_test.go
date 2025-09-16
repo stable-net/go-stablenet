@@ -98,8 +98,6 @@ func setConfigFromChainConfig(wbftCfg *Config, chainCfg *chainConfigWrapper) err
 	if config.EpochLength != 0 {
 		wbftCfg.Epoch = config.EpochLength
 	}
-	wbftCfg.BlockReward = config.BlockReward
-	wbftCfg.BlockRewardBeneficiary = config.BlockRewardBeneficiary
 
 	if config.ProposerPolicy != nil {
 		wbftCfg.ProposerPolicy = NewProposerPolicy(ProposerPolicyId(*config.ProposerPolicy))

@@ -133,9 +133,7 @@ func newTestBackend(t *testing.T, londonBlock *big.Int, pending bool) *testBacke
 	config.LondonBlock = londonBlock
 	config.ArrowGlacierBlock = londonBlock
 	config.GrayGlacierBlock = londonBlock
-	config.PangyoBlock = nil
 	config.ApplepieBlock = nil
-	config.BriocheBlock = nil
 	config.CroissantBlock = nil
 	config.Croissant = nil
 	engine := ethash.NewFaker()

@@ -26,7 +26,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -104,17 +103,15 @@ func (p *ProposerPolicy) Use(v ValidatorSortByFunc) {
 }
 
 type Config struct {
-	RequestTimeout              uint64                  `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
-	BlockPeriod                 uint64                  `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
-	ProposerPolicy              *ProposerPolicy         `toml:",omitempty"` // The policy for proposer selection
-	Epoch                       uint64                  `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
-	AllowedFutureBlockTime      uint64                  `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
-	BlockReward                 *math.HexOrDecimal256   `toml:",omitempty"` // Reward
-	BlockRewardBeneficiary      *params.BeneficiaryInfo `toml:",omitempty"`
-	TargetValidators            uint64                  `toml:",omitempty"`
-	MaxRequestTimeoutSeconds    uint64                  `toml:",omitempty"`
-	StabilizingStakersThreshold uint64                  `toml:",omitempty"`
-	UseNCP                      bool                    `toml:",omitempty"` // Use NCP or not
+	RequestTimeout              uint64          `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
+	BlockPeriod                 uint64          `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
+	ProposerPolicy              *ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
+	Epoch                       uint64          `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+	AllowedFutureBlockTime      uint64          `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
+	TargetValidators            uint64          `toml:",omitempty"`
+	MaxRequestTimeoutSeconds    uint64          `toml:",omitempty"`
+	StabilizingStakersThreshold uint64          `toml:",omitempty"`
+	UseNCP                      bool            `toml:",omitempty"` // Use NCP or not
 	Transitions                 []params.Transition
 	GovContractUpgrades         []params.Upgrade
 }
@@ -176,12 +173,6 @@ func (c Config) GetConfig(blockNumber *big.Int) Config {
 			}
 			if transition.EpochLength != 0 {
 				newConfig.Epoch = transition.EpochLength
-			}
-			if transition.BlockReward != nil {
-				newConfig.BlockReward = transition.BlockReward
-			}
-			if transition.BlockRewardBeneficiary != nil {
-				newConfig.BlockRewardBeneficiary = transition.BlockRewardBeneficiary
 			}
 			if transition.ProposerPolicy != nil {
 				newConfig.ProposerPolicy = NewProposerPolicy(ProposerPolicyId(*transition.ProposerPolicy))
