@@ -509,6 +509,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		fee := new(uint256.Int).SetUint64(st.gasUsed())
 		fee.Mul(fee, effectiveTipU256)
 		st.state.AddBalance(st.evm.Context.Coinbase, fee)
+		st.evm.AddTransferLog(sender.Address(), st.evm.Context.Coinbase, fee, st.evm.Context.BlockNumber.Uint64())
 	}
 
 	return &ExecutionResult{

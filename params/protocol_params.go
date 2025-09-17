@@ -188,6 +188,10 @@ var (
 	BeaconRootsStorageAddress = common.HexToAddress("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02")
 	// SystemAddress is where the system-transaction is sent from as per EIP-4788
 	SystemAddress common.Address = common.HexToAddress("0xfffffffffffffffffffffffffffffffffffffffe")
+
+	KRCTokenAddress  = common.HexToAddress("0x9999")
+	TransferEventSig = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef") // crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
+	TransferLogGas   = LogGas + 3*LogTopicGas + 32*LogDataGas                                                 // base + topics(eventSig, from, to) + data(amount)
 )
 
 // wemix parameters

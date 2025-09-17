@@ -208,6 +208,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		evm.StateDB.CreateAccount(addr)
 	}
 	evm.Context.Transfer(evm.StateDB, caller.Address(), addr, value)
+	gas = evm.AddTransferLog(caller.Address(), addr, value, gas)
 
 	// Capture the tracer start/end events in debug mode
 	if debug {
@@ -452,6 +453,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		evm.StateDB.SetNonce(address, 1)
 	}
 	evm.Context.Transfer(evm.StateDB, caller.Address(), address, value)
+	gas = evm.AddTransferLog(caller.Address(), address, value, gas)
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
@@ -529,3 +531,29 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
+
+// emit Transfer event for native coin
+func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256.Int, suppliedGas uint64) uint64 {
+	if amount.IsZero() {
+		return suppliedGas
+	}
+
+	topics := []common.Hash{
+		params.TransferEventSig, // topic0: event signature
+		common.BytesToHash(common.LeftPadBytes(sender.Bytes(), 32)),
+		common.BytesToHash(common.LeftPadBytes(recipient.Bytes(), 32)),
+	}
+
+	// data (amount as 32-byte big-endian)
+	data := common.LeftPadBytes(amount.Bytes(), 32)
+
+	// Add log
+	evm.StateDB.AddLog(&types.Log{
+		Address:     params.KRCTokenAddress,
+		Topics:      topics,
+		Data:        data,
+		BlockNumber: evm.Context.BlockNumber.Uint64(),
+	})
+
+	return suppliedGas - params.TransferLogGas
+}
