@@ -188,10 +188,6 @@ var (
 	BeaconRootsStorageAddress = common.HexToAddress("0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02")
 	// SystemAddress is where the system-transaction is sent from as per EIP-4788
 	SystemAddress common.Address = common.HexToAddress("0xfffffffffffffffffffffffffffffffffffffffe")
-
-	KRCTokenAddress  = common.HexToAddress("0x9999")
-	TransferEventSig = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef") // crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
-	TransferLogGas   = LogGas + 3*LogTopicGas + 32*LogDataGas                                                 // base + topics(eventSig, from, to) + data(amount)
 )
 
 // wemix parameters
@@ -200,4 +196,16 @@ var (
 
 	BLSPoPPrecompileAddress        = common.BytesToAddress([]byte{0xb0, 0x00, 0x01}) // 0x0000000000000000000000000000000000B00001
 	BLSPoPPrecompileGas     uint64 = 45000                                           // set gas cost to ~15× ecrecover, based on benchmarked execution time.
+)
+
+// stable-one parameters
+const (
+	TransferLogGas          = LogGas + 3*LogTopicGas + 32*LogDataGas // base + topics(eventSig, from, to) + data(amount)
+	UpdateBalanceGas uint64 = 4500                                   // StateDB.SetBalance
+)
+
+var (
+	NativeCoinManagerAddress = common.HexToAddress("0xC013")
+	NativeCoinWrapperAddress = common.HexToAddress("0xC023")
+	TransferEventSig         = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef") // crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
 )

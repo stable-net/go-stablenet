@@ -188,11 +188,15 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		return nil, gas, ErrInsufficientBalance
 	}
 	snapshot := evm.StateDB.Snapshot()
+	isCoinManager, err := evm.checkCoinManagerCall(CALL, caller, addr)
+	if err != nil {
+		return nil, gas, err
+	}
 	p, isPrecompile := evm.precompile(addr)
 	debug := evm.Config.Tracer != nil
 
 	if !evm.StateDB.Exist(addr) {
-		if !isPrecompile && evm.chainRules.IsEIP158 && value.IsZero() {
+		if !isPrecompile && !isCoinManager && evm.chainRules.IsEIP158 && value.IsZero() {
 			// Calling a non existing account, don't do anything, but ping the tracer
 			if debug {
 				if evm.depth == 0 {
@@ -225,8 +229,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			}(gas)
 		}
 	}
-
-	if isPrecompile {
+	if isCoinManager {
+		ret, gas, err = evm.runNativeCoinManager(input, gas)
+	} else if isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
@@ -270,6 +275,9 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
+	}
+	if _, err := evm.checkCoinManagerCall(CALLCODE, caller, addr); err != nil {
+		return nil, gas, err
 	}
 	// Fail if we're trying to transfer more than the available balance
 	// Note although it's noop to transfer X ether to caller itself. But
@@ -319,6 +327,9 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+	if _, err := evm.checkCoinManagerCall(DELEGATECALL, caller, addr); err != nil {
+		return nil, gas, err
+	}
 	var snapshot = evm.StateDB.Snapshot()
 
 	// Invoke tracer hooks that signal entering/exiting a call frame
@@ -361,6 +372,9 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
+	}
+	if _, err := evm.checkCoinManagerCall(STATICCALL, caller, addr); err != nil {
+		return nil, gas, err
 	}
 	// We take a snapshot here. This is a bit counter-intuitive, and could probably be skipped.
 	// However, even a staticcall is considered a 'touch'. On mainnet, static calls were introduced
@@ -549,7 +563,7 @@ func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256
 
 	// Add log
 	evm.StateDB.AddLog(&types.Log{
-		Address:     params.KRCTokenAddress,
+		Address:     params.NativeCoinWrapperAddress,
 		Topics:      topics,
 		Data:        data,
 		BlockNumber: evm.Context.BlockNumber.Uint64(),
