@@ -2101,7 +2101,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node, readonly bool) (*core.BlockCh
 	if err != nil {
 		Fatalf("%v", err)
 	}
-	engine, err := ethconfig.CreateConsensusEngine(stack.GovBackend(), config, stack.Config().NodeKey(), chainDb)
+	engine, err := ethconfig.CreateConsensusEngine(config, stack.Config().NodeKey(), chainDb)
 	if err != nil {
 		Fatalf("%v", err)
 	}

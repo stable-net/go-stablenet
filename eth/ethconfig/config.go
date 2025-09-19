@@ -33,8 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/wbft"
 	wbftBackend "github.com/ethereum/go-ethereum/consensus/wbft/backend"
-	"github.com/ethereum/go-ethereum/consensus/wemix"
-	"github.com/ethereum/go-ethereum/consensus/wpoa"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
@@ -43,7 +41,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/wemixgov"
 )
 
 // FullNodeGPO contains default gasprice oracle settings for full node.
@@ -182,7 +179,7 @@ type Config struct {
 // CreateConsensusEngine creates a consensus engine for the given chain config.
 // Clique is allowed for now to live standalone, but ethash is forbidden and can
 // only exist on already merged networks.
-func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfig, privKey *ecdsa.PrivateKey, db ethdb.Database) (consensus.Engine, error) {
+func CreateConsensusEngine(config *params.ChainConfig, privKey *ecdsa.PrivateKey, db ethdb.Database) (consensus.Engine, error) {
 	// If proof-of-authority is requested, set it up
 	if config.Clique != nil {
 		if config.TerminalTotalDifficulty == nil {
@@ -200,9 +197,6 @@ func CreateConsensusEngine(govCli wemixgov.GovBackend, config *params.ChainConfi
 			return nil, err
 		}
 
-		if config.CroissantBlock.Cmp(common.Big1) >= 0 {
-			return wemix.NewCroissantEngine(wpoa.NewWemixPoAEngine(govCli), wbftCfg, privKey, db), nil
-		}
 		return wbftBackend.New(wbftCfg, privKey, db), nil
 	}
 
@@ -282,17 +276,4 @@ func SetConfigFromChainConfig(wbftCfg *wbft.Config, chainCfg *params.ChainConfig
 	// add hardforks that includes govContracts after croissant here like :
 	// wbftCfg.GovContractUpgrades = append(wbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, GovContracts: chainCfg.Dalgona.GovContracts})
 	return nil
-}
-
-func CreateEthashFakeEngine(config *params.ChainConfig) (consensus.Engine, error) {
-	if !config.TerminalTotalDifficultyPassed {
-		return nil, errors.New("ethash is only supported as a historical component of already merged networks")
-	}
-	return beacon.New(ethash.NewFaker()), nil
-}
-
-func CreateFakeConsensusEngine(prvKey *ecdsa.PrivateKey, govCli wemixgov.GovBackend, config *params.ChainConfig, db ethdb.Database) (consensus.Engine, error) {
-	// If proof-of-authority is requested, set it up
-	engine := wpoa.NewWemixFakeEngine(prvKey, govCli)
-	return beacon.New(engine), nil
 }

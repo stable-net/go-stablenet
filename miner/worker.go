@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/consensus/wbft"
 	wbftBackend "github.com/ethereum/go-ethereum/consensus/wbft/backend"
-	"github.com/ethereum/go-ethereum/consensus/wemix"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -405,8 +404,6 @@ func (w *worker) start() {
 	w.running.Store(true)
 	if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
 		wbftEngine.Start(w.chain, w.chain.CurrentFullBlock, rawdb.HasBadBlock, w.readyToCommit)
-	} else if wemixEngine, ok := w.engine.(*wemix.CroissantConsensus); ok {
-		wemixEngine.Start(w.chainConfig, w.chain, w.chain.CurrentFullBlock, w.eth.BlockChain().SubscribeChainHeadEvent, w.readyToCommit)
 	}
 	w.startCh <- struct{}{}
 }
@@ -415,10 +412,7 @@ func (w *worker) start() {
 func (w *worker) stop() {
 	if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
 		wbftEngine.Stop()
-	} else if wemixEngine, ok := w.engine.(*wemix.CroissantConsensus); ok {
-		wemixEngine.Stop()
 	}
-
 	w.running.Store(false)
 }
 

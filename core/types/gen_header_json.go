@@ -32,10 +32,6 @@ func (h Header) MarshalJSON() ([]byte, error) {
 		MixDigest        common.Hash    `json:"mixHash"`
 		Nonce            BlockNonce     `json:"nonce"`
 		BaseFee          *hexutil.Big   `json:"baseFeePerGas" rlp:"optional"`
-		Fees             *hexutil.Big   `json:"fees" rlp:"optional"`
-		Rewards          hexutil.Bytes  `json:"rewards" rlp:"optional"`
-		MinerNodeId      hexutil.Bytes  `json:"minerNodeId" rlp:"optional"`
-		MinerNodeSig     hexutil.Bytes  `json:"minerNodeSig" rlp:"optional"`
 		WithdrawalsHash  *common.Hash   `json:"withdrawalsRoot" rlp:"optional"`
 		BlobGasUsed      *uint64        `json:"blobGasUsed" rlp:"optional"`
 		ExcessBlobGas    *uint64        `json:"excessBlobGas" rlp:"optional"`
@@ -59,10 +55,6 @@ func (h Header) MarshalJSON() ([]byte, error) {
 	enc.MixDigest = h.MixDigest
 	enc.Nonce = h.Nonce
 	enc.BaseFee = (*hexutil.Big)(h.BaseFee)
-	enc.Fees = (*hexutil.Big)(h.Fees)
-	enc.Rewards = h.Rewards
-	enc.MinerNodeId = h.MinerNodeId
-	enc.MinerNodeSig = h.MinerNodeSig
 	enc.WithdrawalsHash = h.WithdrawalsHash
 	enc.BlobGasUsed = h.BlobGasUsed
 	enc.ExcessBlobGas = h.ExcessBlobGas
@@ -90,10 +82,6 @@ func (h *Header) UnmarshalJSON(input []byte) error {
 		MixDigest        *common.Hash    `json:"mixHash"`
 		Nonce            *BlockNonce     `json:"nonce"`
 		BaseFee          *hexutil.Big    `json:"baseFeePerGas" rlp:"optional"`
-		Fees             *hexutil.Big    `json:"fees" rlp:"optional"`
-		Rewards          *hexutil.Bytes  `json:"rewards" rlp:"optional"`
-		MinerNodeId      *hexutil.Bytes  `json:"minerNodeId" rlp:"optional"`
-		MinerNodeSig     *hexutil.Bytes  `json:"minerNodeSig" rlp:"optional"`
 		WithdrawalsHash  *common.Hash    `json:"withdrawalsRoot" rlp:"optional"`
 		BlobGasUsed      *uint64         `json:"blobGasUsed" rlp:"optional"`
 		ExcessBlobGas    *uint64         `json:"excessBlobGas" rlp:"optional"`
@@ -162,18 +150,6 @@ func (h *Header) UnmarshalJSON(input []byte) error {
 	}
 	if dec.BaseFee != nil {
 		h.BaseFee = (*big.Int)(dec.BaseFee)
-	}
-	if dec.Fees != nil {
-		h.Fees = (*big.Int)(dec.Fees)
-	}
-	if dec.Rewards != nil {
-		h.Rewards = *dec.Rewards
-	}
-	if dec.MinerNodeId != nil {
-		h.MinerNodeId = *dec.MinerNodeId
-	}
-	if dec.MinerNodeSig != nil {
-		h.MinerNodeSig = *dec.MinerNodeSig
 	}
 	if dec.WithdrawalsHash != nil {
 		h.WithdrawalsHash = dec.WithdrawalsHash
