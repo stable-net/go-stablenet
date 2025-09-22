@@ -54,11 +54,13 @@ func Estimate(ctx context.Context, call *core.Message, opts *Options, gasCap uin
 	var (
 		lo uint64 // lowest-known gas limit where tx execution fails
 		hi uint64 // lowest-known gas limit where tx execution succeeds
+
+		isTransferLog bool = opts.Config.IsStableOne(opts.Header.Number) && call.Value.Sign() != 0
 	)
 	// Determine the highest gas limit can be used during the estimation.
 	hi = opts.Header.GasLimit
 	if call.GasLimit >= params.TxGas {
-		if call.Value.Sign() == 0 || call.GasLimit >= (params.TxGas+params.TransferLogGas) {
+		if !isTransferLog || call.GasLimit >= (params.TxGas+params.TransferLogGas) {
 			hi = call.GasLimit
 		}
 	}
@@ -107,7 +109,7 @@ func Estimate(ctx context.Context, call *core.Message, opts *Options, gasCap uin
 	if len(call.Data) == 0 {
 		if call.To != nil && opts.State.GetCodeSize(*call.To) == 0 {
 			gas := params.TxGas
-			if call.Value.Sign() > 0 {
+			if isTransferLog {
 				gas += params.TransferLogGas
 			}
 			failed, _, err := execute(ctx, call, opts, gas)

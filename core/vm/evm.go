@@ -534,7 +534,7 @@ func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 // emit Transfer event for native coin
 func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256.Int, suppliedGas uint64) uint64 {
-	if amount.IsZero() {
+	if !evm.chainRules.IsStableOne || amount.IsZero() {
 		return suppliedGas
 	}
 

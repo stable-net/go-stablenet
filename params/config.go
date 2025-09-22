@@ -823,6 +823,11 @@ func (c *ChainConfig) AnzeonEnabled() bool {
 	return c.Anzeon != nil
 }
 
+// TODO: refactor this function
+func (c *ChainConfig) IsStableOne(num *big.Int) bool {
+	return c.IsCroissant(num)
+}
+
 // CheckCompatible checks whether scheduled fork transitions have been imported
 // with a mismatching chain configuration.
 func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64, time uint64) *ConfigCompatError {
@@ -1152,6 +1157,9 @@ type Rules struct {
 	IsApplepie, IsAnzeon                                    bool
 	IsMerge, IsShanghai, IsCancun, IsPrague                 bool
 	IsVerkle                                                bool
+
+	// for stable-one
+	IsStableOne bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1181,5 +1189,7 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsCancun:         isMerge && c.IsCancun(num, timestamp),
 		IsPrague:         isMerge && c.IsPrague(num, timestamp),
 		IsVerkle:         isMerge && c.IsVerkle(num, timestamp),
+
+		IsStableOne: c.IsStableOne(num),
 	}
 }
