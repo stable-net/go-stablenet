@@ -102,7 +102,7 @@ type jsTracer struct {
 	fromBuf           fromBufFn             // Converts an array, hex string or Uint8Array to a []byte
 	ctx               map[string]goja.Value // KV-bag passed to JS in `result`
 	activePrecompiles []common.Address      // List of active precompiles at current block
-	activeCoinManger  *common.Address       // Address of active coin manager at current block (nil if inactive)
+	activeCoinManager *common.Address       // Address of active coin manager at current block (nil if inactive)
 	traceStep         bool                  // True if tracer object exposes a `step()` method
 	traceFrame        bool                  // True if tracer object exposes the `enter()` and `exit()` methods
 	gasLimit          uint64                // Amount of gas bought for the whole tx
@@ -282,7 +282,7 @@ func (t *jsTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Addr
 	// Update list of precompiles based on current block
 	rules := env.ChainConfig().Rules(env.Context.BlockNumber, (env.Context.Difficulty == nil || env.Context.Difficulty.Cmp(common.Big0) == 0) && env.Context.Random != nil, env.Context.Time)
 	t.activePrecompiles = vm.ActivePrecompiles(rules)
-	t.activeCoinManger = vm.ActiveCoinManger(rules)
+	t.activeCoinManager = vm.ActiveCoinManager(rules)
 }
 
 // CaptureState implements the Tracer interface to trace a single step of VM execution.
@@ -499,7 +499,7 @@ func (t *jsTracer) setBuiltinFunctions() {
 				return true
 			}
 		}
-		if t.activeCoinManger != nil && *(t.activeCoinManger) == addr {
+		if t.activeCoinManager != nil && *(t.activeCoinManager) == addr {
 			return true
 		}
 		return false

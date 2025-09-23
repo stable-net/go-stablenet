@@ -113,7 +113,7 @@ type flatCallTracer struct {
 	ctx               *tracers.Context // Holds tracer context data
 	reason            error            // Textual reason for the interruption
 	activePrecompiles []common.Address // Updated on CaptureStart based on given rules
-	activeCoinManger  *common.Address  // Updated on CaptureStart based on given rules
+	activeCoinManager *common.Address  // Updated on CaptureStart based on given rules
 }
 
 type flatCallTracerConfig struct {
@@ -150,7 +150,7 @@ func (t *flatCallTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	// Update list of precompiles based on current block
 	rules := env.ChainConfig().Rules(env.Context.BlockNumber, (env.Context.Difficulty == nil || env.Context.Difficulty.Cmp(common.Big0) == 0) && env.Context.Random != nil, env.Context.Time)
 	t.activePrecompiles = vm.ActivePrecompiles(rules)
-	t.activeCoinManger = vm.ActiveCoinManger(rules)
+	t.activeCoinManager = vm.ActiveCoinManager(rules)
 }
 
 // CaptureEnd is called after the call finishes to finalize the tracing.
@@ -241,7 +241,7 @@ func (t *flatCallTracer) isPrecompiled(addr common.Address) bool {
 			return true
 		}
 	}
-	if t.activeCoinManger != nil && *(t.activeCoinManger) == addr {
+	if t.activeCoinManager != nil && *(t.activeCoinManager) == addr {
 		return true
 	}
 	return false

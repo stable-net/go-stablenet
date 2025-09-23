@@ -1596,7 +1596,7 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 	// Retrieve the precompiles and coin manager since they don't need to be added to the access list
 	chainRules := b.ChainConfig().Rules(header.Number, isPostMerge, header.Time)
 	precompiles := vm.ActivePrecompiles(chainRules)
-	coinManager := vm.ActiveCoinManger(chainRules)
+	coinManager := vm.ActiveCoinManager(chainRules)
 
 	// Create an initial tracer
 	prevTracer := logger.NewAccessListTracer(nil, args.from(), to, precompiles, coinManager)

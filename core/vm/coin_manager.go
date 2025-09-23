@@ -69,7 +69,7 @@ var CoinManagerMethodsStableOne = map[CoinManagerMethodSelector]CoinManagerMetho
 	CoinManagerTransferSelector: &coinManagerTransfer{},
 }
 
-func ActiveCoinManger(rules params.Rules) *common.Address {
+func ActiveCoinManager(rules params.Rules) *common.Address {
 	if !rules.IsStableOne {
 		return nil
 	}
