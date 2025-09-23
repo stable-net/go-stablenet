@@ -32,9 +32,9 @@ const (
 )
 
 var (
-		ErrNotAvailable          = errors.New("CoinManager: not available before StableOne")
+	ErrNotAvailable          = errors.New("CoinManager: not available before StableOne")
 	ErrUnauthorized          = errors.New("CoinManager: caller is not authorized")
-ErrInvalidCallContext    = errors.New("CoinManager: invalid call context (CALL required)")
+	ErrInvalidCallContext    = errors.New("CoinManager: invalid call context (CALL required)")
 	ErrInvalidSelectorLength = errors.New("CoinManager: invalid method selector length")
 	ErrInvalidMethod         = errors.New("CoinManager: invalid method")
 	ErrInvalidInputLength    = errors.New("CoinManager: invalid input length")
@@ -69,6 +69,13 @@ var CoinManagerMethodsStableOne = map[CoinManagerMethodSelector]CoinManagerMetho
 	CoinManagerTransferSelector: &coinManagerTransfer{},
 }
 
+func ActiveCoinManger(rules params.Rules) *common.Address {
+	if !rules.IsStableOne {
+		return nil
+	}
+	return &params.NativeCoinManagerAddress
+}
+
 func selectCoinManagerMethod(evm *EVM, selector CoinManagerMethodSelector) (CoinManagerMethod, bool) {
 	var methods map[CoinManagerMethodSelector]CoinManagerMethod
 	switch {
@@ -86,7 +93,7 @@ func (evm *EVM) checkCoinManagerCall(typ OpCode, caller ContractRef, addr common
 	if addr != params.NativeCoinManagerAddress {
 		return false, nil
 	}
-if typ != CALL {
+	if typ != CALL {
 		return false, ErrInvalidCallContext
 	}
 	if !evm.chainRules.IsStableOne {
