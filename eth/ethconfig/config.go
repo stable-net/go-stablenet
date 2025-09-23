@@ -224,8 +224,6 @@ func SetConfigFromChainConfig(wbftCfg *wbft.Config, chainCfg *params.ChainConfig
 	if config.AllowedFutureBlockTime != 0 {
 		wbftCfg.AllowedFutureBlockTime = config.AllowedFutureBlockTime
 	}
-	wbftCfg.BlockReward = config.BlockReward
-	wbftCfg.BlockRewardBeneficiary = config.BlockRewardBeneficiary
 
 	if config.ProposerPolicy != nil {
 		wbftCfg.ProposerPolicy = wbft.NewProposerPolicy(wbft.ProposerPolicyId(*config.ProposerPolicy))

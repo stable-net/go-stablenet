@@ -26,7 +26,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/common/math"
 )
 
 var (
@@ -131,38 +130,6 @@ func (c *CroissantConfig) CheckValidity() error {
 		return fmt.Errorf("`croissant.wBFT`: `epochLength` (%d) must be greater than or equal to `targetValidators` (%d)",
 			c.WBFT.EpochLength, *c.WBFT.TargetValidators)
 	}
-
-	if err := checkSanityBeneficiaries(c.WBFT.BlockRewardBeneficiary); err != nil {
-		return fmt.Errorf("`croissant.wBFT`: %v", err)
-	}
-	return nil
-}
-
-func checkSanityBeneficiaries(l *BeneficiaryInfo) error {
-	var totNumerator uint64
-
-	if l == nil {
-		return nil
-	}
-
-	if l.Denominator == 0 {
-		return fmt.Errorf("Denominator cannot be zero")
-	}
-
-	for _, beneficiary := range l.Beneficiaries {
-		if beneficiary.Addr == (common.Address{}) {
-			return fmt.Errorf("Beneficiary address cannot be zero address")
-		}
-		if beneficiary.Numerator > l.Denominator {
-			return fmt.Errorf("Numerator (%v) > denominator (%v)", beneficiary.Numerator, l.Denominator)
-		}
-		totNumerator += beneficiary.Numerator
-	}
-
-	if totNumerator > l.Denominator {
-		return fmt.Errorf("Total of numerator (%v) > denominator (%v)", totNumerator, l.Denominator)
-	}
-
 	return nil
 }
 
@@ -223,28 +190,15 @@ func (u *Upgrade) String() string {
 }
 
 type WBFTConfig struct {
-	RequestTimeoutSeconds       uint64                `json:"requestTimeoutSeconds"`            // Minimum request timeout for each WBFT round in milliseconds
-	BlockPeriodSeconds          uint64                `json:"blockPeriodSeconds"`               // Minimum time between two consecutive WBFT blocks’ timestamps in seconds
-	EpochLength                 uint64                `json:"epochLength"`                      // The duration during which a fixed validator set remains active
-	BlockReward                 *math.HexOrDecimal256 `json:"blockReward,omitempty"`            // Reward from start, works only on WBFT consensus protocol
-	AllowedFutureBlockTime      uint64                `json:"allowedFutureBlockTime,omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
-	BlockRewardBeneficiary      *BeneficiaryInfo      `json:"blockRewardBeneficiary,omitempty"` // Reward beneficiaries
-	ProposerPolicy              *uint64               `json:"proposerPolicy"`                   // The policy for proposer selection
-	TargetValidators            *uint64               `json:"targetValidators"`                 // Target number of validators
-	MaxRequestTimeoutSeconds    *uint64               `json:"maxRequestTimeoutSeconds"`         // The max round time
-	StabilizingStakersThreshold *uint64               `json:"stabilizingStakersThreshold"`      // initial stabilizing stakers threshold, default is 1
-	UseNCP                      *bool                 `json:"useNCP"`                           // Use NCP or not
-}
-
-type BeneficiaryInfo struct {
-	Denominator   uint64         `json:"denominator"`
-	Beneficiaries []*Beneficiary `json:"beneficiaries"`
-}
-
-type Beneficiary struct {
-	Name      string         `json:"name"`
-	Addr      common.Address `json:"addr"`
-	Numerator uint64         `json:"numerator"`
+	RequestTimeoutSeconds       uint64  `json:"requestTimeoutSeconds"`            // Minimum request timeout for each WBFT round in milliseconds
+	BlockPeriodSeconds          uint64  `json:"blockPeriodSeconds"`               // Minimum time between two consecutive WBFT blocks’ timestamps in seconds
+	EpochLength                 uint64  `json:"epochLength"`                      // The duration during which a fixed validator set remains active
+	AllowedFutureBlockTime      uint64  `json:"allowedFutureBlockTime,omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
+	ProposerPolicy              *uint64 `json:"proposerPolicy"`                   // The policy for proposer selection
+	TargetValidators            *uint64 `json:"targetValidators"`                 // Target number of validators
+	MaxRequestTimeoutSeconds    *uint64 `json:"maxRequestTimeoutSeconds"`         // The max round time
+	StabilizingStakersThreshold *uint64 `json:"stabilizingStakersThreshold"`      // initial stabilizing stakers threshold, default is 1
+	UseNCP                      *bool   `json:"useNCP"`                           // Use NCP or not
 }
 
 type Transition struct {
@@ -253,13 +207,11 @@ type Transition struct {
 }
 
 func (t *Transition) String() string {
-	return fmt.Sprintf("{Block: %v RequestTimeoutSeconds: %v BlockPeriodSeconds: %v EpochLength: %v BlockReward: %v BlockRewardBeneficiary: %+v TargetValidators: %v MaxRequestTimeoutSeconds: %v}",
+	return fmt.Sprintf("{Block: %v RequestTimeoutSeconds: %v BlockPeriodSeconds: %v EpochLength: %v TargetValidators: %v MaxRequestTimeoutSeconds: %v}",
 		t.Block.String(),
 		t.RequestTimeoutSeconds,
 		t.BlockPeriodSeconds,
 		t.EpochLength,
-		t.BlockReward,
-		t.BlockRewardBeneficiary,
 		t.TargetValidators,
 		t.MaxRequestTimeoutSeconds,
 	)
@@ -271,7 +223,6 @@ var DefaultCroissantConfig = &CroissantConfig{
 		BlockPeriodSeconds:          1,
 		ProposerPolicy:              newUint64(0),
 		EpochLength:                 10,
-		BlockReward:                 (*math.HexOrDecimal256)(new(big.Int).Mul(big.NewInt(Ether), big.NewInt(1))),
 		TargetValidators:            newUint64(1),
 		StabilizingStakersThreshold: newUint64(1),
 		UseNCP:                      newBool(false),
@@ -302,13 +253,7 @@ var DefaultCroissantConfig = &CroissantConfig{
 }
 
 func (c *WBFTConfig) String() string {
-	var blockReward, maxRequestTimeoutSeconds string
-
-	if c.BlockReward != nil {
-		blockReward = fmt.Sprintf("%v", c.BlockReward)
-	} else {
-		blockReward = "<nil>"
-	}
+	var maxRequestTimeoutSeconds string
 
 	if c.MaxRequestTimeoutSeconds != nil {
 		maxRequestTimeoutSeconds = fmt.Sprintf("%v", *c.MaxRequestTimeoutSeconds)
@@ -316,13 +261,11 @@ func (c *WBFTConfig) String() string {
 		maxRequestTimeoutSeconds = "<nil>"
 	}
 
-	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, BlockReward: %v, BlockRewardBeneficiaries: %+v, TargetValidators: %v, MaxRequestTimeoutSeconds: %v, StabilizingStakersThreshold: %v, UseNCP: %v}",
+	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, TargetValidators: %v, MaxRequestTimeoutSeconds: %v, StabilizingStakersThreshold: %v, UseNCP: %v}",
 		c.EpochLength,
 		c.BlockPeriodSeconds,
 		c.RequestTimeoutSeconds,
 		c.ProposerPolicy,
-		blockReward,
-		c.BlockRewardBeneficiary,
 		c.TargetValidators,
 		maxRequestTimeoutSeconds,
 		c.StabilizingStakersThreshold,

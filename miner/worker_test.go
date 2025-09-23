@@ -86,15 +86,11 @@ func init() {
 	testTxPoolConfig.Journal = ""
 	ethashChainConfig = new(params.ChainConfig)
 	*ethashChainConfig = *params.TestChainConfig
-	ethashChainConfig.BriocheBlock = nil
 	ethashChainConfig.CroissantBlock = nil
-	ethashChainConfig.Brioche = nil
 	ethashChainConfig.Croissant = nil
 	cliqueChainConfig = new(params.ChainConfig)
 	*cliqueChainConfig = *params.TestChainConfig
-	cliqueChainConfig.BriocheBlock = nil
 	cliqueChainConfig.CroissantBlock = nil
-	cliqueChainConfig.Brioche = nil
 	cliqueChainConfig.Croissant = nil
 	cliqueChainConfig.Clique = &params.CliqueConfig{
 		Period: 10,
@@ -111,8 +107,6 @@ func init() {
 	wbftConfig.RequestTimeout = wbftChainConfig.Croissant.WBFT.RequestTimeoutSeconds * 1000
 	wbftConfig.Epoch = wbftChainConfig.Croissant.WBFT.EpochLength
 	wbftConfig.ProposerPolicy = wbft.NewProposerPolicy(wbft.ProposerPolicyId(*wbftChainConfig.Croissant.WBFT.ProposerPolicy))
-	wbftConfig.BlockReward = wbftChainConfig.Croissant.WBFT.BlockReward
-	wbftConfig.BlockRewardBeneficiary = wbftChainConfig.Croissant.WBFT.BlockRewardBeneficiary
 	wbftConfig.TargetValidators = *wbftChainConfig.Croissant.WBFT.TargetValidators
 	wbftConfig.MaxRequestTimeoutSeconds = *wbftChainConfig.Croissant.WBFT.MaxRequestTimeoutSeconds
 

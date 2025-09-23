@@ -14,25 +14,14 @@
     "londonBlock": 0,
     "arrowGlacierBlock": 0,
     "grayGlacierBlock": 0,
-    "pangyoBlock": 0,
     "applepieBlock": 0,
-    "briocheBlock": 0,
     "croissantBlock": 0,
     "ethash": {},
-    "brioche": {
-      "blockReward": 1000000000000000000,
-      "firstHalvingBlock": 50,
-      "halvingPeriod": 50,
-      "finishRewardBlock": 450,
-      "halvingTimes": 8,
-      "halvingRate": 50
-    },
     "croissant": {
       "wBFT": {
         "requestTimeoutSeconds": 2,
         "blockPeriodSeconds": 1,
         "epochLength": 10,
-        "blockReward": "0xde0b6b3a7640000",
         "proposerPolicy": 0,
         "targetValidators": 1,
         "maxRequestTimeoutSeconds": null,
@@ -41,10 +30,10 @@
       },
       "init": {
         "validators": [
-          "0xd0948a5e46145030851afc21e4bd3063c1dede85"
+          "0x7709294179e42af8b33dccd24d2c1ee2d4ef3198"
         ],
         "blsPublicKeys": [
-          "0x8a7f8112a59b84554615813c6785a6a9f260be0b7b164f095ba53d6beb35b5c4e99c6220b47a2c3ebd991b9998ae01e4"
+          "0x941e69908f82e8bd6fd5086ceef9bce0b17565e358c745b59b0e502c576275123d116c556b24563e142abdb0e768e6a0"
         ]
       },
       "govContracts": {
@@ -76,7 +65,7 @@
   },
   "nonce": "0x0",
   "timestamp": "0x0",
-  "extraData": "0xf85a808080c0c080c0c0f850dad994d0948a5e46145030851afc21e4bd3063c1dede85831cfde0c180f1b08a7f8112a59b84554615813c6785a6a9f260be0b7b164f095ba53d6beb35b5c4e99c6220b47a2c3ebd991b9998ae01e401",
+  "extraData": "0xf85a808080c0c080c0c0f850dad9947709294179e42af8b33dccd24d2c1ee2d4ef3198831cfde0c180f1b0941e69908f82e8bd6fd5086ceef9bce0b17565e358c745b59b0e502c576275123d116c556b24563e142abdb0e768e6a001",
   "gasLimit": "0x23f3e20",
   "difficulty": "0x1",
   "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -153,6 +142,9 @@
     "7435ed30a8b4aeb0877cef0c6e8cffe834eb865f": {
       "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
+    "7709294179e42af8b33dccd24d2c1ee2d4ef3198": {
+      "balance": "0xc097ce7bc90715b34b9f1000000000"
+    },
     "7dcd17433742f4c0ca53122ab541d0ba67fc27df": {
       "code": "0x3680600080376000206000548082558060010160005560005263656d697460206000a2",
       "balance": "0x0"
@@ -173,9 +165,6 @@
       "nonce": "0x1"
     },
     "c7b99a164efd027a93f147376cc7da7c67c6bbe0": {
-      "balance": "0xc097ce7bc90715b34b9f1000000000"
-    },
-    "d0948a5e46145030851afc21e4bd3063c1dede85": {
       "balance": "0xc097ce7bc90715b34b9f1000000000"
     },
     "d803681e487e6ac18053afc5a6cd813c86ec3e4d": {
