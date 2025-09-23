@@ -51,6 +51,7 @@ type fourByteTracer struct {
 	interrupt         atomic.Bool      // Atomic flag to signal execution interruption
 	reason            error            // Textual reason for the interruption
 	activePrecompiles []common.Address // Updated on CaptureStart based on given rules
+	activeCoinManger  *common.Address  // Updated on CaptureStart based on given rules
 }
 
 // newFourByteTracer returns a native go tracer which collects
@@ -69,6 +70,9 @@ func (t *fourByteTracer) isPrecompiled(addr common.Address) bool {
 			return true
 		}
 	}
+	if t.activeCoinManger != nil && *(t.activeCoinManger) == addr {
+		return true
+	}
 	return false
 }
 
@@ -83,6 +87,7 @@ func (t *fourByteTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	// Update list of precompiles based on current block
 	rules := env.ChainConfig().Rules(env.Context.BlockNumber, (env.Context.Difficulty == nil || env.Context.Difficulty.Cmp(common.Big0) == 0) && env.Context.Random != nil, env.Context.Time)
 	t.activePrecompiles = vm.ActivePrecompiles(rules)
+	t.activeCoinManger = vm.ActiveCoinManger(rules)
 
 	// Save the outer calldata also
 	if len(input) >= 4 {
