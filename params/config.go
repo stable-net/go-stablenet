@@ -79,33 +79,9 @@ var (
 				BLSPublicKeys: []string{"0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"},
 			},
 			GovContracts: &GovContracts{
-				GovConfig: &GovContract{
-					Address: DefaultGovConfigAddress,
+				GovValidator: &GovContract{
+					Address: DefaultGovValidatorAddress,
 					Version: DefaultGovVersion,
-					Params: map[string]string{
-						"minimumStaking":           "10000000000000000000000000",
-						"maximumStaking":           "100000000000000000000000000",
-						"unbondingPeriodStaker":    "604800", // 7 days
-						"unbondingPeriodDelegator": "259200", // 3 days
-						"feePrecision":             "10000",  // 0.01%
-						"changeFeeDelay":           "604800", // 7 days
-						"govCouncil":               DefaultGovNCPAddress.String(),
-					},
-				},
-				GovStaking: &GovContract{
-					Address: DefaultGovStakingAddress,
-					Version: DefaultGovVersion,
-				},
-				GovRewardeeImp: &GovContract{
-					Address: DefaultGovRewardeeImpAddress,
-					Version: DefaultGovVersion,
-				},
-				GovNCP: &GovContract{
-					Address: DefaultGovNCPAddress,
-					Version: DefaultGovVersion,
-					Params: map[string]string{
-						"ncps": "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697", // comma separated; TODO: define NCPs
-					},
 				},
 			},
 		},
@@ -142,33 +118,9 @@ var (
 				BLSPublicKeys: []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
 			},
 			GovContracts: &GovContracts{
-				GovConfig: &GovContract{
-					Address: DefaultGovConfigAddress,
+				GovValidator: &GovContract{
+					Address: DefaultGovValidatorAddress,
 					Version: DefaultGovVersion,
-					Params: map[string]string{
-						"minimumStaking":           "500000000000000000000000",
-						"maximumStaking":           "1000000000000000000000000000",
-						"unbondingPeriodStaker":    "604800", // 7 days
-						"unbondingPeriodDelegator": "259200", // 3 days
-						"feePrecision":             "10000",  // 0.01%
-						"changeFeeDelay":           "604800", // 7 days
-						"govCouncil":               DefaultGovNCPAddress.String(),
-					},
-				},
-				GovStaking: &GovContract{
-					Address: DefaultGovStakingAddress,
-					Version: DefaultGovVersion,
-				},
-				GovRewardeeImp: &GovContract{
-					Address: DefaultGovRewardeeImpAddress,
-					Version: DefaultGovVersion,
-				},
-				GovNCP: &GovContract{
-					Address: DefaultGovNCPAddress,
-					Version: DefaultGovVersion,
-					Params: map[string]string{
-						"ncps": "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697", // comma separated
-					},
 				},
 			},
 		},
@@ -338,25 +290,9 @@ var (
 				BLSPublicKeys: []string{"0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6"},
 			},
 			GovContracts: &GovContracts{
-				GovConfig: &GovContract{
-					Address: DefaultGovConfigAddress,
+				GovValidator: &GovContract{
+					Address: DefaultGovValidatorAddress,
 					Version: DefaultGovVersion,
-					Params:  DefaultGovConfigParams,
-				},
-				GovStaking: &GovContract{
-					Address: DefaultGovStakingAddress,
-					Version: DefaultGovVersion,
-				},
-				GovRewardeeImp: &GovContract{
-					Address: DefaultGovRewardeeImpAddress,
-					Version: DefaultGovVersion,
-				},
-				GovNCP: &GovContract{
-					Address: DefaultGovNCPAddress,
-					Version: DefaultGovVersion,
-					Params: map[string]string{
-						"ncps": "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697", // comma separated
-					},
 				},
 			},
 		},
@@ -504,17 +440,8 @@ var (
 				BLSPublicKeys: []string{"0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6"},
 			},
 			GovContracts: &GovContracts{
-				GovConfig: &GovContract{
-					Address: DefaultGovConfigAddress,
-					Version: DefaultGovVersion,
-					Params:  DefaultGovConfigParams,
-				},
-				GovStaking: &GovContract{
-					Address: DefaultGovStakingAddress,
-					Version: DefaultGovVersion,
-				},
-				GovRewardeeImp: &GovContract{
-					Address: DefaultGovRewardeeImpAddress,
+				GovValidator: &GovContract{
+					Address: DefaultGovValidatorAddress,
 					Version: DefaultGovVersion,
 				},
 			},
@@ -750,10 +677,7 @@ func (c *ChainConfig) Description() string {
 		}
 		if c.Croissant.GovContracts != nil {
 			banner += "   - GovContracts:\n"
-			banner += fmt.Sprintf("     - GovConfig:        %-8v\n", c.Croissant.GovContracts.GovConfig)
-			banner += fmt.Sprintf("     - GovStaking:       %-8v\n", c.Croissant.GovContracts.GovStaking)
-			banner += fmt.Sprintf("     - GovRewardeeImp:   %-8v\n", c.Croissant.GovContracts.GovRewardeeImp)
-			banner += fmt.Sprintf("     - GovNCP:           %-8v\n", c.Croissant.GovContracts.GovNCP)
+			banner += fmt.Sprintf("     - GovValidator      %-8v\n", c.Croissant.GovContracts.GovValidator)
 		}
 	}
 	banner += "\n"

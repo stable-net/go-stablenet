@@ -25,13 +25,7 @@ const (
 	GOV_CONTRACT_VERSION_1 = "v1"
 	GOV_CONTRACT_VERSION_2 = "v2"
 
-	CONTRACT_GOV_STAKING      = "GovStaking"
-	CONTRACT_GOV_NCP          = "GovNCP"
-	CONTRACT_GOV_CONFIG       = "GovConfig"
-	CONTRACT_GOV_REWARDEE_IMP = "GovRewardeeImp"
-	CONTRACT_GOV_REWARDEE     = "GovRewardee"
-	CONTRACT_MULTISIG_WALLET  = "MultiSigWallet"
-	CONTRACT_OPERATOR_SAMPLE  = "OperatorSample"
+	CONTRACT_GOV_VALIDATOR = "GovValidator"
 
 	GOV_CONFIG_PARAM_MINIMUM_STAKING     = "minimumStaking"
 	GOV_CONFIG_PARAM_MAXIMUM_STAKING     = "maximumStaking"
@@ -53,17 +47,8 @@ const (
 )
 
 var (
-	//go:embed govcontracts/v1/GovStaking
-	GovStakingContractV1 string
-	//go:embed govcontracts/v1/GovNCP
-	GovNCPContractV1 string
-	//go:embed govcontracts/v1/GovConfig
-	GovConfigContractV1 string
-	//go:embed govcontracts/v1/GovRewardeeImp
-	GovRewardeeImpContractV1 string
-
-	//go:embed govcontracts/v2/GovStaking
-	GovStakingContractV2 string
+	//go:embed govcontracts/v1/GovValidator
+	GovValidatorContractV1 string
 
 	GovContractCodes map[string]map[string]string
 )
@@ -71,14 +56,6 @@ var (
 func init() {
 	GovContractCodes = make(map[string]map[string]string)
 
-	GovContractCodes[CONTRACT_GOV_CONFIG] = make(map[string]string)
-	GovContractCodes[CONTRACT_GOV_NCP] = make(map[string]string)
-	GovContractCodes[CONTRACT_GOV_STAKING] = make(map[string]string)
-	GovContractCodes[CONTRACT_GOV_REWARDEE_IMP] = make(map[string]string)
-
-	GovContractCodes[CONTRACT_GOV_CONFIG][GOV_CONTRACT_VERSION_1] = GovConfigContractV1
-	GovContractCodes[CONTRACT_GOV_NCP][GOV_CONTRACT_VERSION_1] = GovNCPContractV1
-	GovContractCodes[CONTRACT_GOV_STAKING][GOV_CONTRACT_VERSION_1] = GovStakingContractV1
-	GovContractCodes[CONTRACT_GOV_REWARDEE_IMP][GOV_CONTRACT_VERSION_1] = GovRewardeeImpContractV1
-	GovContractCodes[CONTRACT_GOV_STAKING][GOV_CONTRACT_VERSION_2] = GovStakingContractV2
+	GovContractCodes[CONTRACT_GOV_VALIDATOR] = make(map[string]string)
+	GovContractCodes[CONTRACT_GOV_VALIDATOR][GOV_CONTRACT_VERSION_1] = GovValidatorContractV1
 }

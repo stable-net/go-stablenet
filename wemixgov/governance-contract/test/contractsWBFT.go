@@ -59,7 +59,7 @@ func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 	if contracts, err := compile.Compile(openzeppelinPath,
 		filepath.Join(root, "GovConfig.sol"),
 		filepath.Join(root, "GovStaking.sol"),
-		filepath.Join(root, "GovNCP.sol"),
+		filepath.Join(root, "GovValidator.sol"),
 		filepath.Join(root, "GovRewardeeImp.sol"),
 		filepath.Join(root, "OperatorSample.sol"),
 	); err != nil {

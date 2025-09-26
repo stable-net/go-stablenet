@@ -29,21 +29,10 @@ import (
 )
 
 var (
-	DefaultGovConfigAddress      = common.HexToAddress("0x1000")
-	DefaultGovStakingAddress     = common.HexToAddress("0x1001")
-	DefaultGovRewardeeImpAddress = common.HexToAddress("0x1002")
-	DefaultGovNCPAddress         = common.HexToAddress("0x1003")
-	DefaultGovVersion            = "v1"
-	DefaultGovConfigParams       = map[string]string{
-		"minimumStaking":           "10000000000000000000000000",
-		"maximumStaking":           "100000000000000000000000000",
-		"unbondingPeriodStaker":    "604800", // 7 days
-		"unbondingPeriodDelegator": "259200", // 3 days
-		"feePrecision":             "10000",  // 0.01%
-		"changeFeeDelay":           "604800", // 7 days
-		"govCouncil":               common.HexToAddress("0x0").String(),
-	}
+	DefaultGovValidatorAddress = common.HexToAddress("0x1000")
+	DefaultGovVersion          = "v1"
 )
+
 var CheckGovContractVersions func(govContracts *GovContracts) error
 
 type WbftInit struct {
@@ -94,14 +83,8 @@ func (c *CroissantConfig) CheckValidity() error {
 	if c.GovContracts == nil {
 		return errors.New("`croissant: missing `govContracts` section")
 	}
-	if c.GovContracts.GovStaking == nil {
-		return errors.New("`croissant.govContracts: missing `govStaking`")
-	}
-	if c.GovContracts.GovConfig == nil {
-		return errors.New("`croissant.govContracts: missing `govConfig`")
-	}
-	if c.GovContracts.GovRewardeeImp == nil {
-		return errors.New("`croissant.govContracts: missing `govRewardeeImp`")
+	if c.GovContracts.GovValidator == nil {
+		return errors.New("`croissant.govContracts: missing `govValidator`")
 	}
 	if err := CheckGovContractVersions(c.GovContracts); err != nil {
 		return fmt.Errorf("`croissant.govContracts`: %v", err)
@@ -148,18 +131,12 @@ func (i *Init) String() string {
 }
 
 type GovContracts struct {
-	GovConfig      *GovContract `json:"govConfig"`
-	GovStaking     *GovContract `json:"govStaking"`
-	GovRewardeeImp *GovContract `json:"govRewardeeImp"`
-	GovNCP         *GovContract `json:"govNCP"`
+	GovValidator *GovContract `json:"govValidator"`
 }
 
 func (c *GovContracts) String() string {
-	return fmt.Sprintf("{GovConfig: %v GovStaking: %v GovRewardeeImp: %v GovNCP: %v}",
-		c.GovConfig,
-		c.GovStaking,
-		c.GovRewardeeImp,
-		c.GovNCP,
+	return fmt.Sprintf("{GovValidator: %v}",
+		c.GovValidator,
 	)
 }
 
@@ -228,24 +205,8 @@ var DefaultCroissantConfig = &CroissantConfig{
 		UseNCP:                      newBool(false),
 	},
 	GovContracts: &GovContracts{
-		GovConfig: &GovContract{
+		GovValidator: &GovContract{
 			Address: common.HexToAddress("0x1000"),
-			Version: "v1",
-			Params: map[string]string{
-				"minimumStaking":           "10000000000000000000000000",
-				"maximumStaking":           "100000000000000000000000000",
-				"unbondingPeriodStaker":    "604800", // 7 days
-				"unbondingPeriodDelegator": "259200", // 3 days
-				"feePrecision":             "10000",  // 0.01%
-				"changeFeeDelay":           "604800", // 7 days
-			},
-		},
-		GovStaking: &GovContract{
-			Address: common.HexToAddress("0x1001"),
-			Version: "v1",
-		},
-		GovRewardeeImp: &GovContract{
-			Address: common.HexToAddress("0x1002"),
 			Version: "v1",
 		},
 	},

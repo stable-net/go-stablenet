@@ -18,13 +18,10 @@
 package govwbft
 
 import (
-	"errors"
 	"fmt"
-	"math/big"
-	"strings"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
+	"math/big"
 )
 
 func init() {
@@ -33,17 +30,8 @@ func init() {
 }
 
 func checkGovContractVersions(govContracts *params.GovContracts) error {
-	if GovContractCodes[CONTRACT_GOV_CONFIG][govContracts.GovConfig.Version] == "" {
-		return fmt.Errorf("`govContracts.govConfig`: unsupported version %s", govContracts.GovConfig.Version)
-	}
-	if GovContractCodes[CONTRACT_GOV_STAKING][govContracts.GovStaking.Version] == "" {
-		return fmt.Errorf("`govContracts.govStaking`: unsupported version %s", govContracts.GovStaking.Version)
-	}
-	if GovContractCodes[CONTRACT_GOV_REWARDEE_IMP][govContracts.GovRewardeeImp.Version] == "" {
-		return fmt.Errorf("`.govContracts.govRewardeeImp`: unsupported version %s", govContracts.GovRewardeeImp.Version)
-	}
-	if govContracts.GovNCP != nil && GovContractCodes[CONTRACT_GOV_NCP][govContracts.GovNCP.Version] == "" {
-		return fmt.Errorf("`govContracts.govNCP`: unsupported version %s", govContracts.GovNCP.Version)
+	if GovContractCodes[CONTRACT_GOV_VALIDATOR][govContracts.GovValidator.Version] == "" {
+		return fmt.Errorf("`govContracts.govConfig`: unsupported version %s", govContracts.GovValidator.Version)
 	}
 	return nil
 }
@@ -51,67 +39,8 @@ func checkGovContractVersions(govContracts *params.GovContracts) error {
 func GetGovContractsTransition(govContracts *params.GovContracts) (*params.StateTransition, error) {
 	st := &params.StateTransition{}
 
-	if govContracts.GovConfig != nil {
-		minStaking, _ := new(big.Int).SetString(govContracts.GovConfig.Params[GOV_CONFIG_PARAM_MINIMUM_STAKING], 10)
-		maxStaking, _ := new(big.Int).SetString(govContracts.GovConfig.Params[GOV_CONFIG_PARAM_MAXIMUM_STAKING], 10)
-		unbondingStaker, _ := new(big.Int).SetString(govContracts.GovConfig.Params[GOV_CONFIG_PARAM_UNBONDING_STAKER], 10)
-		unbondingDelegator, _ := new(big.Int).SetString(govContracts.GovConfig.Params[GOV_CONFIG_PARAM_UNBONDING_DELEGATOR], 10)
-		feePrecision, _ := new(big.Int).SetString(govContracts.GovConfig.Params[GOV_CONFIG_PARAM_FEE_PRECISION], 10)
-		changeFeeDelay, _ := new(big.Int).SetString(govContracts.GovConfig.Params[GOV_CONFIG_PARAM_CHANGE_FEE_DELAY], 10)
-		govCouncil := common.HexToAddress(govContracts.GovConfig.Params[GOV_CONFIG_PARAM_GOV_COUNCIL])
-		if minStaking == nil || maxStaking == nil || unbondingStaker == nil || unbondingDelegator == nil ||
-			feePrecision == nil || changeFeeDelay == nil {
-			return nil, errors.New("invalid gov config params")
-		}
-
-		st.Codes = append(st.Codes, params.CodeParam{
-			Address: govContracts.GovConfig.Address, Code: GovContractCodes[CONTRACT_GOV_CONFIG][govContracts.GovConfig.Version]})
-		st.States = append(st.States, []params.StateParam{
-			{Address: govContracts.GovConfig.Address, Key: common.HexToHash(SLOT_GOV_CONFIG_MINIMUM_STAKING), Value: common.BigToHash(minStaking)},
-			{Address: govContracts.GovConfig.Address, Key: common.HexToHash(SLOT_GOV_CONFIG_MAXIMUM_STAKING), Value: common.BigToHash(maxStaking)},
-			{Address: govContracts.GovConfig.Address, Key: common.HexToHash(SLOT_GOV_CONFIG_UNBONDING_STAKER), Value: common.BigToHash(unbondingStaker)},
-			{Address: govContracts.GovConfig.Address, Key: common.HexToHash(SLOT_GOV_CONFIG_UNBONDING_DELEGATOR), Value: common.BigToHash(unbondingDelegator)},
-			{Address: govContracts.GovConfig.Address, Key: common.HexToHash(SLOT_GOV_CONFIG_FEE_PRECISION), Value: common.BigToHash(feePrecision)},
-			{Address: govContracts.GovConfig.Address, Key: common.HexToHash(SLOT_GOV_CONFIG_CHANGE_FEE_DELAY), Value: common.BigToHash(changeFeeDelay)},
-		}...)
-		if govCouncil != (common.Address{}) {
-			st.States = append(st.States, params.StateParam{
-				Address: govContracts.GovConfig.Address, Key: common.HexToHash(SLOT_GOV_CONFIG_GOV_COUNCIL), Value: common.BytesToHash(govCouncil.Bytes())})
-		}
-	}
-
-	if govContracts.GovStaking != nil {
-		st.Codes = append(st.Codes, params.CodeParam{
-			Address: govContracts.GovStaking.Address, Code: GovContractCodes[CONTRACT_GOV_STAKING][govContracts.GovStaking.Version]})
-
-		// initialize precompiled contract address for BLS PoP verification
-		st.States = append(st.States, params.StateParam{
-			Address: govContracts.GovStaking.Address, Key: common.HexToHash(SLOT_BLS_POP_PRECOMPILED_ADDRESS), Value: common.BytesToHash(params.BLSPoPPrecompileAddress.Bytes())})
-
-		// initialize govConfig, govRewardeeImp addresses of GovStaking contract
-		if govContracts.GovConfig != nil {
-			st.States = append(st.States, params.StateParam{
-				Address: govContracts.GovStaking.Address, Key: common.HexToHash(SLOT_GOV_CONFIG_ADDRESS), Value: common.BytesToHash(govContracts.GovConfig.Address.Bytes())})
-		}
-		if govContracts.GovRewardeeImp != nil {
-			st.States = append(st.States, params.StateParam{
-				Address: govContracts.GovStaking.Address, Key: common.HexToHash(SLOT_GOV_REWARDEE_IMP_ADDRESS), Value: common.BytesToHash(govContracts.GovRewardeeImp.Address.Bytes())})
-		}
-	}
-
-	if govContracts.GovRewardeeImp != nil {
-		st.Codes = append(st.Codes, params.CodeParam{
-			Address: govContracts.GovRewardeeImp.Address, Code: GovContractCodes[CONTRACT_GOV_REWARDEE_IMP][govContracts.GovRewardeeImp.Version]})
-	}
-
-	if govContracts.GovNCP != nil {
-		st.Codes = append(st.Codes, params.CodeParam{Address: govContracts.GovNCP.Address, Code: GovContractCodes[CONTRACT_GOV_NCP][govContracts.GovNCP.Version]})
-		ncpAddresses := strings.Split(govContracts.GovNCP.Params[GOV_NCP_PARAM_NCPS], ",")
-		ncps := make([]common.Address, 0)
-		for _, ncp := range ncpAddresses {
-			ncps = append(ncps, common.HexToAddress(ncp))
-		}
-		st.States = append(st.States, initializeNCP(govContracts.GovNCP.Address, ncps)...)
+	if govContracts.GovValidator != nil {
+		st.Codes = append(st.Codes, params.CodeParam{Address: govContracts.GovValidator.Address, Code: GovContractCodes[CONTRACT_GOV_VALIDATOR][govContracts.GovValidator.Version]})
 	}
 	return st, nil
 }
@@ -198,13 +127,4 @@ func NCPTotalStaking(govStakingAddress, govNCPAddress common.Address, state Stat
 		totalStaking.Add(totalStaking, GetTotalStaked(govStakingAddress, state, v))
 	}
 	return totalStaking
-}
-
-func NCPStakerInfoMap(govStakingAddress, govNCPAddress common.Address, state StateReader) map[common.Address]Staker {
-	stakerInfos := make(map[common.Address]Staker)
-	stakers := NCPStakers(govStakingAddress, govNCPAddress, state)
-	for _, v := range stakers {
-		stakerInfos[v] = StakerInfo(govStakingAddress, state, v)
-	}
-	return stakerInfos
 }
