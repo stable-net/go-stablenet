@@ -212,7 +212,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		evm.StateDB.CreateAccount(addr)
 	}
 	evm.Context.Transfer(evm.StateDB, caller.Address(), addr, value)
-	gas = evm.AddTransferLog(caller.Address(), addr, value, gas)
+	evm.AddTransferLog(caller.Address(), addr, value)
 
 	// Capture the tracer start/end events in debug mode
 	if debug {
@@ -467,7 +467,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		evm.StateDB.SetNonce(address, 1)
 	}
 	evm.Context.Transfer(evm.StateDB, caller.Address(), address, value)
-	gas = evm.AddTransferLog(caller.Address(), address, value, gas)
+	evm.AddTransferLog(caller.Address(), address, value)
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
@@ -547,9 +547,9 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 // emit Transfer event for native coin
-func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256.Int, suppliedGas uint64) uint64 {
+func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256.Int) {
 	if !evm.chainRules.IsStableOne || amount.IsZero() {
-		return suppliedGas
+		return
 	}
 
 	topics := []common.Hash{
@@ -568,6 +568,4 @@ func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256
 		Data:        data,
 		BlockNumber: evm.Context.BlockNumber.Uint64(),
 	})
-
-	return suppliedGas - params.TransferLogGas
 }

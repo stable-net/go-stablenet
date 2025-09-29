@@ -200,9 +200,6 @@ var (
 
 // stable-one parameters
 const (
-	// For compatibility with standard Ethereum transfers (21,000 gas), TransferLogGas is set to 0.
-	// Original calculation: LogGas + 3*LogTopicGas + 32*LogDataGas
-	TransferLogGas   uint64 = 0
 	UpdateBalanceGas uint64 = 4500 // StateDB.SetBalance
 )
 

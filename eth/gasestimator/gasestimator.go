@@ -54,15 +54,11 @@ func Estimate(ctx context.Context, call *core.Message, opts *Options, gasCap uin
 	var (
 		lo uint64 // lowest-known gas limit where tx execution fails
 		hi uint64 // lowest-known gas limit where tx execution succeeds
-
-		isTransferLog bool = opts.Config.IsStableOne(opts.Header.Number) && call.Value.Sign() != 0
 	)
 	// Determine the highest gas limit can be used during the estimation.
 	hi = opts.Header.GasLimit
 	if call.GasLimit >= params.TxGas {
-		if !isTransferLog || call.GasLimit >= (params.TxGas+params.TransferLogGas) {
-			hi = call.GasLimit
-		}
+		hi = call.GasLimit
 	}
 	// Normalize the max fee per gas the call is willing to spend.
 	var feeCap *big.Int
@@ -108,13 +104,9 @@ func Estimate(ctx context.Context, call *core.Message, opts *Options, gasCap uin
 	// unused access list items). Ever so slightly wasteful, but safer overall.
 	if len(call.Data) == 0 {
 		if call.To != nil && opts.State.GetCodeSize(*call.To) == 0 {
-			gas := params.TxGas
-			if isTransferLog {
-				gas += params.TransferLogGas
-			}
-			failed, _, err := execute(ctx, call, opts, gas)
+			failed, _, err := execute(ctx, call, opts, params.TxGas)
 			if !failed && err == nil {
-				return gas, nil, nil
+				return params.TxGas, nil, nil
 			}
 		}
 	}
