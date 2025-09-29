@@ -558,33 +558,12 @@ func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyWBFTExtra {
 	}
 }
 
-// GetStakers
-// If number of stakers >= minStakers (after stabilization stage), use staker list from gov.
-// If number of stakers < minStakers , use validator list (regarded as staker list) from previous epoch.
-func (e *Engine) GetStakers(config *params.ChainConfig, latestEpochInfo *types.EpochInfo, state govwbft.StateReader, num *big.Int) ([]common.Address, bool) {
-	var (
-		stakers     []common.Address
-		stabilizing bool = latestEpochInfo.Stabilizing
-	)
+// GetGovValidators retrieves the list of current validators from the GovValidator contract.
+func (e *Engine) GetGovValidators(config *params.ChainConfig, state govwbft.StateReader, num *big.Int) []common.Address {
 	govContracts := e.cfg.GetGovContracts(num, config)
-	govStakingAddress := govContracts.GovStaking.Address
-	if e.cfg.GetConfig(num).UseNCP {
-		govNCPAddress := govContracts.GovNCP.Address
-		stakers = govwbft.NCPStakers(govStakingAddress, govNCPAddress, state)
-	} else {
-		stakers = govwbft.Stakers(govStakingAddress, state)
-	}
-	if stabilizing {
-		if uint64(len(stakers)) >= e.cfg.StabilizingStakersThreshold {
-			// finally we have enough stakers to be stabilized!!
-			stabilizing = false
-		} else {
-			// epoch in a stabilization stage has the validator set which is same to the previous epoch
-			stakers = latestEpochInfo.GetValidators()
-		}
-	}
+	govValidatorAddress := govContracts.GovValidator.Address
 
-	return stakers, stabilizing
+	return govwbft.ValidatorList(govValidatorAddress, state)
 }
 
 type stakerInfo struct {
@@ -758,9 +737,9 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	)
 
 	// Update epoch info.
-	newStakers, stabilizing := e.GetStakers(config, latestEpochInfo, state, header.Number)
-	newEpoch.Stakers = make([]*types.Staker, len(newStakers))
-	for i, staker := range newStakers {
+	newValidators := e.GetGovValidators(config, state, header.Number)
+	newEpoch.Stakers = make([]*types.Staker, len(newValidators))
+	for i, staker := range newValidators {
 		var d uint64
 
 		stakerInfo := stakerMap[staker]
@@ -827,37 +806,31 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	}
 
 	// epoch in a stabilization stage has the validator set which is same to the previous epoch
-	if stabilizing {
-		newEpoch.Validators = latestEpochInfo.Validators
-		newEpoch.BLSPublicKeys = latestEpochInfo.BLSPublicKeys
-	} else {
-		govStakingAddress := e.cfg.GetGovContracts(header.Number, config).GovStaking.Address
-		candidates := make([]Candidate, 0, len(newStakers))
-		for _, s := range newEpoch.Stakers {
-			candidate := Candidate{
-				Addr:      s.Addr,
-				Diligence: s.Diligence,
-				Power:     govwbft.GetTotalStaked(govStakingAddress, state, s.Addr),
-			}
-			candidates = append(candidates, candidate)
+	govValidatorAddress := e.cfg.GetGovContracts(header.Number, config).GovValidator.Address
+	candidates := make([]Candidate, 0, len(newValidators))
+	for _, s := range newEpoch.Stakers {
+		candidate := Candidate{
+			Addr:      s.Addr,
+			Diligence: s.Diligence,
+			Power:     big.NewInt(1), // Each validator has the same power in Stable-One
 		}
-		newEpoch.Validators, err = e.decideValidators(header, candidates, e.cfg.GetConfig(header.Number).TargetValidators)
-		if err != nil {
-			log.Error("WBFT: Failed to decide validators", "err", err)
+		candidates = append(candidates, candidate)
+	}
+	newEpoch.Validators, err = e.decideValidators(header, candidates)
+	if err != nil {
+		log.Error("WBFT: Failed to decide validators", "err", err)
+		return nil, err
+	}
+	newEpoch.BLSPublicKeys = make([][]byte, len(newEpoch.Validators))
+	for i, addr := range newEpoch.GetValidators() {
+		pk := govwbft.GetBLSPublicKey(govValidatorAddress, state, addr)
+		if len(pk) == 0 {
+			err := errors.New("bls public key is zero")
+			log.Error("WBFT: Invalid BLS Public Key", "err", err)
 			return nil, err
 		}
-		newEpoch.BLSPublicKeys = make([][]byte, len(newEpoch.Validators))
-		for i, addr := range newEpoch.GetValidators() {
-			pk := govwbft.GetBLSPublicKey(govStakingAddress, state, addr)
-			if len(pk) == 0 {
-				err := errors.New("bls public key is zero")
-				log.Error("WBFT: Invalid BLS Public Key", "err", err)
-				return nil, err
-			}
-			newEpoch.BLSPublicKeys[i] = pk
-		}
+		newEpoch.BLSPublicKeys[i] = pk
 	}
-	newEpoch.Stabilizing = stabilizing
 
 	log.Trace("WBFT: update epoch info", "header.Number", header.Number, "validators", newEpoch.Validators)
 	for i, staker := range newEpoch.Stakers {
@@ -1136,33 +1109,15 @@ func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Hea
 		}
 	}
 
-	// Check Stabilizing flag.
-	if epoch.Stabilizing != extra.EpochInfo.Stabilizing {
-		return errors.New("WBFT: mismatch in stabilizing flag")
-	}
-
 	return nil
 }
 
-// 1. WEMIX 4.0
-// - sort by (staking amount, diligence) descending
-// - cut off the list at targetValidators
-// - shuffle the list randomly
-//
-// 2. WEMIX 4.5 (not implemented yet)
-// - randomSelect(staking amount, diligence) until targetValidators
-// - shuffle the list randomly
-func (e *Engine) decideValidators(header *types.Header, newStakers []Candidate, targetValidators uint64) ([]uint32, error) {
+func (e *Engine) decideValidators(header *types.Header, newStakers []Candidate) ([]uint32, error) {
 	indices := sortCandidates(newStakers)
-	if uint64(len(indices)) > targetValidators {
-		// If the number of candidates is greater than targetValidators,
-		// we cut off the list at targetValidators.
-		indices = indices[:targetValidators]
-	}
 	validators := make([]uint32, len(indices))
 	for i := range indices {
 		// Convert the index to uint32 and store it in the validators slice.
-		shuffledIdx, err := computeShuffledIndex(uint64(i), uint64(len(validators)), [32]byte(header.MixDigest), true)
+		shuffledIdx, err := computeShuffledIndex(uint64(i), uint64(len(validators)), header.MixDigest, true)
 		if err != nil {
 			log.Error("WBFT: Failed to compute shuffled index", "index", i, "err", err)
 			return nil, err

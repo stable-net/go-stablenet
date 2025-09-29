@@ -270,9 +270,8 @@ func epochForJSON(epoch *types.EpochInfo) map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"stabilizing": epoch.Stabilizing,
-		"stakers":     stakers,
-		"validators":  validators,
+		"stakers":    stakers,
+		"validators": validators,
 	}
 }
 

@@ -34,17 +34,8 @@ type simSyncer struct {
 }
 
 func combineGovContracts(source *params.GovContracts, target *params.GovContracts) {
-	if target.GovConfig != nil {
-		source.GovConfig = target.GovConfig
-	}
-	if target.GovStaking != nil {
-		source.GovStaking = target.GovStaking
-	}
-	if target.GovNCP != nil {
-		source.GovNCP = target.GovNCP
-	}
-	if target.GovRewardeeImp != nil {
-		source.GovRewardeeImp = target.GovRewardeeImp
+	if target.GovValidator != nil {
+		source.GovValidator = target.GovValidator
 	}
 }
 

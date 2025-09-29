@@ -99,7 +99,6 @@ type EpochInfo struct {
 	Stakers       []*Staker // staker list for next epoch (staker index may be changed for each epoch)
 	Validators    []uint32  // validator list for next epoch (using indices of staker list)
 	BLSPublicKeys [][]byte  // bls public key list for next epoch
-	Stabilizing   bool      // initial epochs are stabilizing epochs, which means that the stakers are less than `stabilizingStakersThreshold`
 }
 
 // EncodeRLP serializes qist into the Ethereum RLP format.
@@ -199,7 +198,6 @@ func (ei *EpochInfo) EncodeRLP(w io.Writer) error {
 		ei.Stakers,
 		ei.Validators,
 		ei.BLSPublicKeys,
-		ei.Stabilizing,
 	})
 }
 
@@ -209,12 +207,11 @@ func (ei *EpochInfo) DecodeRLP(s *rlp.Stream) error {
 		Stakers       []*Staker
 		Validators    []uint32
 		BLSPublicKeys [][]byte
-		Stabilizing   bool
 	}
 	if err := s.Decode(&epochInfo); err != nil {
 		return err
 	}
-	ei.Stakers, ei.Validators, ei.BLSPublicKeys, ei.Stabilizing = epochInfo.Stakers, epochInfo.Validators, epochInfo.BLSPublicKeys, epochInfo.Stabilizing
+	ei.Stakers, ei.Validators, ei.BLSPublicKeys = epochInfo.Stakers, epochInfo.Validators, epochInfo.BLSPublicKeys
 	return nil
 }
 

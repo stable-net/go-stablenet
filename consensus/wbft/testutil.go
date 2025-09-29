@@ -44,17 +44,8 @@ func SetConfigFromChainConfig(wbftCfg *Config, chainCfg *params.ChainConfig) err
 	if config.ProposerPolicy != nil {
 		wbftCfg.ProposerPolicy = NewProposerPolicy(ProposerPolicyId(*config.ProposerPolicy))
 	}
-	if config.TargetValidators != nil {
-		wbftCfg.TargetValidators = *config.TargetValidators
-	}
 	if config.MaxRequestTimeoutSeconds != nil {
 		wbftCfg.MaxRequestTimeoutSeconds = *config.MaxRequestTimeoutSeconds
-	}
-	if config.StabilizingStakersThreshold != nil {
-		wbftCfg.StabilizingStakersThreshold = *config.StabilizingStakersThreshold
-	}
-	if config.UseNCP != nil {
-		wbftCfg.UseNCP = *config.UseNCP
 	}
 
 	hfTransitionBlocks := make(map[*big.Int]bool)

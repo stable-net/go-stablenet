@@ -19,9 +19,12 @@ package govwbft
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/params"
-	"math/big"
 )
 
 func init() {
@@ -41,90 +44,49 @@ func GetGovContractsTransition(govContracts *params.GovContracts) (*params.State
 
 	if govContracts.GovValidator != nil {
 		st.Codes = append(st.Codes, params.CodeParam{Address: govContracts.GovValidator.Address, Code: GovContractCodes[CONTRACT_GOV_VALIDATOR][govContracts.GovValidator.Version]})
+		memberAddresses := strings.Split(govContracts.GovValidator.Params[GOV_BASE_PARAM_MEMBERS], ",")
+		members := make([]common.Address, 0)
+		for _, memberAddr := range memberAddresses {
+			members = append(members, common.HexToAddress(memberAddr))
+		}
+		valAddresses := strings.Split(govContracts.GovValidator.Params[GOV_VALIDATOR_PARAM_VALIDATORS], ",")
+		validators := make([]common.Address, 0)
+		for _, valAddr := range valAddresses {
+			validators = append(validators, common.HexToAddress(valAddr))
+		}
+		blsKeyStrings := strings.Split(govContracts.GovValidator.Params[GOV_VALIDATOR_PARAM_BLS_KEYS], ",")
+
+		if len(members) != len(validators) {
+			return nil, fmt.Errorf("the number of members and validators must be the same")
+		}
+		if len(validators) != len(blsKeyStrings) {
+			return nil, fmt.Errorf("the number of validators and BLS public keys must be the same")
+		}
+
+		quorum, err := strconv.ParseUint(govContracts.GovValidator.Params[GOV_BASE_PARAM_QUORUM], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("`govContracts.govValidator.params.quorum`: %w", err)
+		}
+		expiry, err2 := strconv.ParseUint(govContracts.GovValidator.Params[GOV_BASE_PARAM_EXPIRY], 10, 64)
+		if err2 != nil {
+			return nil, fmt.Errorf("`govContracts.govValidator.params.expiry`: %w", err2)
+		}
+		blsKeys := make([]bls.PublicKey, 0)
+		for _, key := range blsKeyStrings {
+			pk, err3 := bls.PublicKeyFromBytes(common.Hex2Bytes(key))
+			if err3 != nil {
+				return nil, fmt.Errorf("invalid BLS public key: %w", err3)
+			}
+			blsKeys = append(blsKeys, pk)
+		}
+		st.States = append(st.States,
+			initializeValidator(
+				govContracts.GovValidator.Address,
+				members,
+				validators,
+				blsKeys,
+				quorum,
+				expiry)...)
 	}
 	return st, nil
-}
-
-func initializeNCP(govNCPAddress common.Address, ncps []common.Address) []params.StateParam {
-	param := make([]params.StateParam, 0)
-
-	valueSlot := common.HexToHash(SLOT_NCP_LIST)
-	indexSlot := IncrementHash(valueSlot, big.NewInt(1))
-	duplicated := make(map[common.Address]struct{})
-
-	currentIdx := uint64(0)
-	newLength := new(big.Int)
-	ncpID := new(big.Int)
-	for _, ncp := range ncps {
-		if _, ok := duplicated[ncp]; ok {
-			continue
-		}
-		newLength = new(big.Int).SetUint64(currentIdx + 1)
-
-		ncpID = new(big.Int).Add(ncpID, big.NewInt(1))
-		param = append(param,
-			// set index slot
-			params.StateParam{
-				Address: govNCPAddress,
-				Key:     CalculateMappingSlot(indexSlot, ncp),
-				Value:   common.BigToHash(newLength),
-			},
-			// set value slot
-			params.StateParam{
-				Address: govNCPAddress,
-				Key:     CalculateDynamicSlot(valueSlot, new(big.Int).SetUint64(currentIdx)),
-				Value:   common.BytesToHash(ncp.Bytes()),
-			},
-
-			// set id to address mapping
-			params.StateParam{
-				Address: govNCPAddress,
-				Key:     CalculateMappingSlot(common.HexToHash(SLOT_NCP_ID_TO_ADDRESS), ncpID),
-				Value:   common.BytesToHash(ncp.Bytes()),
-			},
-			// set address to id mapping
-			params.StateParam{
-				Address: govNCPAddress,
-				Key:     CalculateMappingSlot(common.HexToHash(SLOT_NCP_ADDRESS_TO_ID), ncp),
-				Value:   common.BigToHash(ncpID),
-			},
-		)
-		duplicated[ncp] = struct{}{}
-		currentIdx++
-	}
-	if newLength.Sign() > 0 {
-		param = append(param,
-			params.StateParam{
-				Address: govNCPAddress,
-				Key:     valueSlot,
-				Value:   common.BigToHash(newLength),
-			},
-			params.StateParam{
-				Address: govNCPAddress,
-				Key:     common.HexToHash(SLOT_NCP_LAST_ID),
-				Value:   common.BigToHash(ncpID),
-			})
-	}
-	return param
-}
-
-func NCPStakers(govStakingAddress, govNCPAddress common.Address, state StateReader) []common.Address {
-	stakers := make([]common.Address, 0)
-	ncps := NCPList(govNCPAddress, state)
-	for _, ncp := range ncps {
-		v := StakerByOperator(govStakingAddress, state, ncp)
-		if v != (common.Address{}) && IsStaker(govStakingAddress, state, v) {
-			stakers = append(stakers, v)
-		}
-	}
-	return stakers
-}
-
-func NCPTotalStaking(govStakingAddress, govNCPAddress common.Address, state StateReader) *big.Int {
-	totalStaking := new(big.Int)
-	stakers := NCPStakers(govStakingAddress, govNCPAddress, state)
-	for _, v := range stakers {
-		totalStaking.Add(totalStaking, GetTotalStaked(govStakingAddress, state, v))
-	}
-	return totalStaking
 }

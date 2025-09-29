@@ -252,12 +252,7 @@ func initGenesis(ctx *cli.Context) error {
 func checkAllocAddress(genesis *core.Genesis) error {
 	if genesis.Alloc != nil && genesis.Config.CroissantEnabled() {
 		forbidden := []common.Address{
-			genesis.Config.Croissant.GovContracts.GovConfig.Address,
-			genesis.Config.Croissant.GovContracts.GovStaking.Address,
-			genesis.Config.Croissant.GovContracts.GovRewardeeImp.Address,
-		}
-		if genesis.Config.Croissant.GovContracts.GovNCP != nil {
-			forbidden = append(forbidden, genesis.Config.Croissant.GovContracts.GovNCP.Address)
+			genesis.Config.Croissant.GovContracts.GovValidator.Address,
 		}
 		for _, addr := range forbidden {
 			if _, exists := genesis.Alloc[addr]; exists {

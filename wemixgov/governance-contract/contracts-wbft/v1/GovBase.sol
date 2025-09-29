@@ -27,7 +27,6 @@ abstract contract GovBase {
     error AlreadyInitialized();
     error InvalidQuorum();
     error InvalidMemberAddress();
-    error DuplicateMember();
     error NotAMember();
     error InvalidProposal();
     error ProposalNotInVoting();
@@ -42,9 +41,6 @@ abstract contract GovBase {
     error NotProposer();
     error AlreadyAMember();
     error IndexOutOfBounds();
-
-    // ========== Constants ==========
-    uint256 public constant PROPOSAL_EXPIRY = 7 days;
 
     // ========== Structs ==========
     struct Member {
@@ -78,14 +74,15 @@ abstract contract GovBase {
     }
 
     // ========== State Variables ==========
+    uint32 public quorum;  // Required number of approvals (m of n)
+    uint256 public proposalExpiry;
     mapping(address => Member) public members;
-    mapping(uint256 => Proposal) public proposals;
     mapping(uint256 => address[]) public versionedMemberList;
+    mapping(uint256 => Proposal) public proposals;
     uint256 public memberVersion = 1;
     uint256 public currentProposalId;
-    uint32 public quorum;  // Required number of approvals (m of n)
-    bool internal initialized;
     uint256 private _reentrancyGuard;  // Reentrancy protection
+    uint256[42] private __gap; // Reserved storage space
 
     // ========== Events ==========
     event ProposalCreated(
@@ -157,35 +154,6 @@ abstract contract GovBase {
         uint32 newQuorum
     );
 
-    // ========== Constructor ==========
-    // Note: For built-in contracts, constructor may not be called during deployment
-    // Use _initialize instead for initialization logic
-    // ========== Initialization ==========
-    function _initialize(address[] memory _members, uint32 _quorum) internal {
-        if (initialized) revert AlreadyInitialized();
-        if (_quorum == 0 || _quorum > _members.length) revert InvalidQuorum();
-        quorum = _quorum;
-
-        for (uint256 i = 0; i < _members.length; i++) {
-            if (_members[i] == address(0)) revert InvalidMemberAddress();
-
-            // Check for duplicates
-            for (uint256 j = 0; j < i; j++) {
-                if (_members[i] == _members[j]) revert DuplicateMember();
-            }
-
-            members[_members[i]] = Member({
-                isActive: true,
-                joinedAt: uint32(block.timestamp)
-            });
-            versionedMemberList[memberVersion].push(_members[i]);
-            emit MemberAdded(_members[i], versionedMemberList[memberVersion].length, quorum);
-
-            onMemberAdded(_members[i]);
-        }
-        initialized = true;
-    }
-
     // ========== Modifiers ==========
     modifier onlyMember() {
         if (!members[msg.sender].isActive) revert NotAMember();
@@ -202,7 +170,7 @@ abstract contract GovBase {
         if (proposal.status != ProposalStatus.Voting && proposal.status != ProposalStatus.Approved) {
             revert ProposalNotInVoting();
         }
-        if (block.timestamp > proposal.createdAt + PROPOSAL_EXPIRY) {
+        if (block.timestamp > proposal.createdAt + proposalExpiry) {
             // Update status before reverting (reentrancy protection)
             proposal.status = ProposalStatus.Expired;
             revert ProposalAlreadyExpired();
@@ -215,7 +183,7 @@ abstract contract GovBase {
         if (proposal.status != ProposalStatus.Approved) {
             revert ProposalNotExecutable();
         }
-        if (block.timestamp > proposal.createdAt + PROPOSAL_EXPIRY) {
+        if (block.timestamp > proposal.createdAt + proposalExpiry) {
             // Update status before reverting (reentrancy protection)
             proposal.status = ProposalStatus.Expired;
             revert ProposalAlreadyExpired();
@@ -233,7 +201,7 @@ abstract contract GovBase {
     modifier noActiveProposal() {
         Proposal storage proposal = proposals[currentProposalId];
         if (proposal.status == ProposalStatus.Voting || proposal.status == ProposalStatus.Approved) {
-            if (block.timestamp > proposal.createdAt + PROPOSAL_EXPIRY) {
+            if (block.timestamp > proposal.createdAt + proposalExpiry) {
                 proposal.status = ProposalStatus.Expired;
             } else {
                 revert AnotherProposalIsActive();
@@ -329,7 +297,7 @@ abstract contract GovBase {
         if (proposal.status != ProposalStatus.Approved) revert ProposalNotExecutable();
         if (proposal.approved < proposal.requiredApprovals) revert InsufficientApprovals();
         // Check for expiry
-        if (block.timestamp > proposal.createdAt + PROPOSAL_EXPIRY) {
+        if (block.timestamp > proposal.createdAt + proposalExpiry) {
             proposal.status = ProposalStatus.Expired;
             emit ProposalExpired(currentProposalId, msg.sender);
             return false;
@@ -386,7 +354,7 @@ abstract contract GovBase {
             joinedAt: uint32(block.timestamp)
         });
 
-        newVersionedMemberList();
+        _newVersionedMemberList();
         versionedMemberList[memberVersion+1] = versionedMemberList[memberVersion];
         versionedMemberList[memberVersion].push(newMember);
 
@@ -398,10 +366,10 @@ abstract contract GovBase {
         emit QuorumUpdated(oldQuorum, newQuorum);
 
         // Call hook for derived contracts
-        onMemberAdded(newMember);
+        _onMemberAdded(newMember);
     }
 
-    function newVersionedMemberList() internal {
+    function _newVersionedMemberList() internal {
         uint256 newVersion = memberVersion + 1;
         for (uint256 i = 0; i < versionedMemberList[memberVersion].length; i++) {
             versionedMemberList[newVersion].push(versionedMemberList[memberVersion][i]);
@@ -409,7 +377,7 @@ abstract contract GovBase {
         memberVersion = newVersion;
     }
 
-    function newVersionedMemberListWithout(address removal) internal {
+    function _newVersionedMemberListWithout(address removal) internal {
         uint256 newVersion = memberVersion + 1;
         for (uint256 i = 0; i < versionedMemberList[memberVersion].length; i++) {
             if (versionedMemberList[memberVersion][i] == removal) continue;
@@ -418,7 +386,7 @@ abstract contract GovBase {
         memberVersion = newVersion;
     }
 
-    function newVersionedMemberListChanging(address oldMember, address newMember) internal {
+    function _newVersionedMemberListChanging(address oldMember, address newMember) internal {
         uint256 newVersion = memberVersion + 1;
         for (uint256 i = 0; i < versionedMemberList[memberVersion].length; i++) {
             address member = versionedMemberList[memberVersion][i];
@@ -436,7 +404,7 @@ abstract contract GovBase {
         members[member].isActive = false;
 
         // Remove from memberList
-        newVersionedMemberListWithout(member);
+        _newVersionedMemberListWithout(member);
 
         // Update quorum
         uint32 oldQuorum = quorum;
@@ -446,15 +414,15 @@ abstract contract GovBase {
         emit QuorumUpdated(oldQuorum, newQuorum);
 
         // Call hook for derived contracts
-        onMemberRemoved(member);
+        _onMemberRemoved(member);
     }
 
     // ========== Hooks for Derived Contracts ==========
     // These hooks are called when members are added or removed
     // Derived contracts can override these to implement custom logic
-    function onMemberAdded(address member) internal virtual {}
-    function onMemberRemoved(address member) internal virtual {}
-    function onMemberChanged(address oldMember, address newMember) internal virtual {}
+    function _onMemberAdded(address member) internal virtual {}
+    function _onMemberRemoved(address member) internal virtual {}
+    function _onMemberChanged(address oldMember, address newMember) internal virtual {}
 
     // ========== Public Functions ==========
     function approveProposal()
@@ -539,11 +507,11 @@ abstract contract GovBase {
         members[_newMember] = members[msg.sender];
         delete members[msg.sender];
 
-        newVersionedMemberListChanging(msg.sender, _newMember);
+        _newVersionedMemberListChanging(msg.sender, _newMember);
 
         emit MemberChanged(msg.sender, _newMember);
 
-        onMemberChanged(msg.sender, _newMember);
+        _onMemberChanged(msg.sender, _newMember);
     }
 
     // ========== View Functions ==========
@@ -568,7 +536,7 @@ abstract contract GovBase {
     function isProposalInVoting() public view returns (bool) {
         Proposal memory proposal = proposals[currentProposalId];
         if (proposal.status == ProposalStatus.Voting) {
-            if (block.timestamp <= proposal.createdAt + PROPOSAL_EXPIRY) {
+            if (block.timestamp <= proposal.createdAt + proposalExpiry) {
                 return true;
             }
         }
@@ -579,7 +547,7 @@ abstract contract GovBase {
         if (currentProposalId == 0) return false;
         Proposal memory proposal = proposals[currentProposalId];
         if (proposal.status != ProposalStatus.Approved) return false;
-        if (block.timestamp > proposal.createdAt + PROPOSAL_EXPIRY) return false;
+        if (block.timestamp > proposal.createdAt + proposalExpiry) return false;
         return proposal.approved >= proposal.requiredApprovals;
     }
 

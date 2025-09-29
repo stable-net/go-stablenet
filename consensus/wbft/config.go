@@ -103,27 +103,22 @@ func (p *ProposerPolicy) Use(v ValidatorSortByFunc) {
 }
 
 type Config struct {
-	RequestTimeout              uint64          `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
-	BlockPeriod                 uint64          `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
-	ProposerPolicy              *ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
-	Epoch                       uint64          `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
-	AllowedFutureBlockTime      uint64          `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
-	TargetValidators            uint64          `toml:",omitempty"`
-	MaxRequestTimeoutSeconds    uint64          `toml:",omitempty"`
-	StabilizingStakersThreshold uint64          `toml:",omitempty"`
-	UseNCP                      bool            `toml:",omitempty"` // Use NCP or not
-	Transitions                 []params.Transition
-	GovContractUpgrades         []params.Upgrade
+	RequestTimeout           uint64          `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
+	BlockPeriod              uint64          `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
+	ProposerPolicy           *ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
+	Epoch                    uint64          `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+	AllowedFutureBlockTime   uint64          `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
+	MaxRequestTimeoutSeconds uint64          `toml:",omitempty"`
+	Transitions              []params.Transition
+	GovContractUpgrades      []params.Upgrade
 }
 
 var DefaultConfig = &Config{
-	RequestTimeout:              1000,
-	BlockPeriod:                 1,
-	ProposerPolicy:              NewRoundRobinProposerPolicy(),
-	Epoch:                       10,
-	AllowedFutureBlockTime:      0,
-	StabilizingStakersThreshold: 1,
-	UseNCP:                      false,
+	RequestTimeout:         1000,
+	BlockPeriod:            1,
+	ProposerPolicy:         NewRoundRobinProposerPolicy(),
+	Epoch:                  10,
+	AllowedFutureBlockTime: 0,
 }
 
 func (c *Config) GetGovContracts(blockNumber *big.Int, chainConfig *params.ChainConfig) params.GovContracts {
@@ -131,17 +126,8 @@ func (c *Config) GetGovContracts(blockNumber *big.Int, chainConfig *params.Chain
 
 	if c.GovContractUpgrades != nil && len(c.GovContractUpgrades) > 0 {
 		c.getGovContractsValue(blockNumber, func(upgrade params.Upgrade) {
-			if upgrade.GovStaking != nil {
-				gc.GovStaking = upgrade.GovStaking
-			}
-			if upgrade.GovConfig != nil {
-				gc.GovConfig = upgrade.GovConfig
-			}
-			if upgrade.GovRewardeeImp != nil {
-				gc.GovRewardeeImp = upgrade.GovRewardeeImp
-			}
-			if upgrade.GovNCP != nil {
-				gc.GovNCP = upgrade.GovNCP
+			if upgrade.GovValidator != nil {
+				gc.GovValidator = upgrade.GovValidator
 			}
 		})
 	} else {
@@ -177,17 +163,8 @@ func (c Config) GetConfig(blockNumber *big.Int) Config {
 			if transition.ProposerPolicy != nil {
 				newConfig.ProposerPolicy = NewProposerPolicy(ProposerPolicyId(*transition.ProposerPolicy))
 			}
-			if transition.TargetValidators != nil {
-				newConfig.TargetValidators = *transition.TargetValidators
-			}
 			if transition.MaxRequestTimeoutSeconds != nil {
 				newConfig.MaxRequestTimeoutSeconds = *transition.MaxRequestTimeoutSeconds
-			}
-			if transition.StabilizingStakersThreshold != nil {
-				newConfig.StabilizingStakersThreshold = *transition.StabilizingStakersThreshold
-			}
-			if transition.UseNCP != nil {
-				newConfig.UseNCP = *transition.UseNCP
 			}
 		})
 	}
@@ -252,7 +229,6 @@ func CreateInitialEpochInfo(config *params.CroissantConfig) (*types.EpochInfo, e
 		})
 		epochInfo.Validators = append(epochInfo.Validators, uint32(i))
 		epochInfo.BLSPublicKeys = append(epochInfo.BLSPublicKeys, hexutil.MustDecode(blsPublicKeys[i]))
-		epochInfo.Stabilizing = true
 	}
 
 	log.Trace("WBFT: initial epoch info", "validators", epochInfo.Validators)

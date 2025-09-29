@@ -102,17 +102,6 @@ func (c *CroissantConfig) CheckValidity() error {
 	if c.WBFT.EpochLength <= 1 {
 		return errors.New("`croissant.wBFT`: `epochLength` must be greater than or equal to 2")
 	}
-	if c.WBFT.StabilizingStakersThreshold == nil {
-		return errors.New("`croissant.wBFT`: missing `stabilizingStakersThreshold`")
-	} else if *c.WBFT.StabilizingStakersThreshold == 0 {
-		return errors.New("`croissant.wBFT`: `stabilizingStakersThreshold` must be greater than 0")
-	}
-	if c.WBFT.TargetValidators == nil {
-		return errors.New("`croissant.wBFT`: missing `targetValidators`")
-	} else if c.WBFT.EpochLength < *c.WBFT.TargetValidators {
-		return fmt.Errorf("`croissant.wBFT`: `epochLength` (%d) must be greater than or equal to `targetValidators` (%d)",
-			c.WBFT.EpochLength, *c.WBFT.TargetValidators)
-	}
 	return nil
 }
 
@@ -167,15 +156,12 @@ func (u *Upgrade) String() string {
 }
 
 type WBFTConfig struct {
-	RequestTimeoutSeconds       uint64  `json:"requestTimeoutSeconds"`            // Minimum request timeout for each WBFT round in milliseconds
-	BlockPeriodSeconds          uint64  `json:"blockPeriodSeconds"`               // Minimum time between two consecutive WBFT blocks’ timestamps in seconds
-	EpochLength                 uint64  `json:"epochLength"`                      // The duration during which a fixed validator set remains active
-	AllowedFutureBlockTime      uint64  `json:"allowedFutureBlockTime,omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
-	ProposerPolicy              *uint64 `json:"proposerPolicy"`                   // The policy for proposer selection
-	TargetValidators            *uint64 `json:"targetValidators"`                 // Target number of validators
-	MaxRequestTimeoutSeconds    *uint64 `json:"maxRequestTimeoutSeconds"`         // The max round time
-	StabilizingStakersThreshold *uint64 `json:"stabilizingStakersThreshold"`      // initial stabilizing stakers threshold, default is 1
-	UseNCP                      *bool   `json:"useNCP"`                           // Use NCP or not
+	RequestTimeoutSeconds    uint64  `json:"requestTimeoutSeconds"`            // Minimum request timeout for each WBFT round in milliseconds
+	BlockPeriodSeconds       uint64  `json:"blockPeriodSeconds"`               // Minimum time between two consecutive WBFT blocks’ timestamps in seconds
+	EpochLength              uint64  `json:"epochLength"`                      // The duration during which a fixed validator set remains active
+	AllowedFutureBlockTime   uint64  `json:"allowedFutureBlockTime,omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
+	ProposerPolicy           *uint64 `json:"proposerPolicy"`                   // The policy for proposer selection
+	MaxRequestTimeoutSeconds *uint64 `json:"maxRequestTimeoutSeconds"`         // The max round time
 }
 
 type Transition struct {
@@ -184,25 +170,21 @@ type Transition struct {
 }
 
 func (t *Transition) String() string {
-	return fmt.Sprintf("{Block: %v RequestTimeoutSeconds: %v BlockPeriodSeconds: %v EpochLength: %v TargetValidators: %v MaxRequestTimeoutSeconds: %v}",
+	return fmt.Sprintf("{Block: %v RequestTimeoutSeconds: %v BlockPeriodSeconds: %v EpochLength: %v MaxRequestTimeoutSeconds: %v}",
 		t.Block.String(),
 		t.RequestTimeoutSeconds,
 		t.BlockPeriodSeconds,
 		t.EpochLength,
-		t.TargetValidators,
 		t.MaxRequestTimeoutSeconds,
 	)
 }
 
 var DefaultCroissantConfig = &CroissantConfig{
 	WBFT: &WBFTConfig{
-		RequestTimeoutSeconds:       2,
-		BlockPeriodSeconds:          1,
-		ProposerPolicy:              newUint64(0),
-		EpochLength:                 10,
-		TargetValidators:            newUint64(1),
-		StabilizingStakersThreshold: newUint64(1),
-		UseNCP:                      newBool(false),
+		RequestTimeoutSeconds: 2,
+		BlockPeriodSeconds:    1,
+		ProposerPolicy:        newUint64(0),
+		EpochLength:           10,
 	},
 	GovContracts: &GovContracts{
 		GovValidator: &GovContract{
@@ -222,15 +204,12 @@ func (c *WBFTConfig) String() string {
 		maxRequestTimeoutSeconds = "<nil>"
 	}
 
-	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, TargetValidators: %v, MaxRequestTimeoutSeconds: %v, StabilizingStakersThreshold: %v, UseNCP: %v}",
+	return fmt.Sprintf("{EpochLength: %v BlockPeriodSeconds: %v RequestTimeoutSeconds: %v, ProposerPolicy: %v, MaxRequestTimeoutSeconds: %v}",
 		c.EpochLength,
 		c.BlockPeriodSeconds,
 		c.RequestTimeoutSeconds,
 		c.ProposerPolicy,
-		c.TargetValidators,
 		maxRequestTimeoutSeconds,
-		c.StabilizingStakersThreshold,
-		c.UseNCP,
 	)
 }
 

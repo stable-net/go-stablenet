@@ -58,13 +58,14 @@ contract GovValidator is GovBase {
             delete blsKeyToValidator[validatorToBlsKey[_oldValidator]];
             delete validatorToBlsKey[_oldValidator];
         }
+        __validators.add(_newValidator);
         operatorToValidator[msg.sender] = _newValidator;
         validatorToOperator[_newValidator] = msg.sender;
         validatorToBlsKey[_newValidator] = _blsPK;
         blsKeyToValidator[_blsPK] = _newValidator;
     }
 
-    function onMemberRemoved(address _member) internal override {
+    function _onMemberRemoved(address _member) internal override {
         address _validator = operatorToValidator[_member];
         if (_validator != address(0)) {
             __validators.remove(_validator);
@@ -76,11 +77,11 @@ contract GovValidator is GovBase {
         }
     }
 
-    function onMemberAdded(address _member) internal override {
+    function _onMemberAdded(address _member) internal override {
         // do nothing
     }
 
-    function onMemberChanged(address _oldMember, address _newMember) internal override {
+    function _onMemberChanged(address _oldMember, address _newMember) internal override {
         address _validator = operatorToValidator[_oldMember];
         if (_validator != address(0)) {
             operatorToValidator[_newMember] = _validator;

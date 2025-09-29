@@ -66,13 +66,10 @@ var (
 		CroissantBlock:      big.NewInt(0),
 		Croissant: &CroissantConfig{
 			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
-				EpochLength:                 10,
-				BlockPeriodSeconds:          1,
-				RequestTimeoutSeconds:       2,
-				ProposerPolicy:              newUint64(0),
-				TargetValidators:            newUint64(1), // TODO: define validators
-				StabilizingStakersThreshold: newUint64(1), // TODO: define min stakers
-				UseNCP:                      newBool(true),
+				EpochLength:           10,
+				BlockPeriodSeconds:    1,
+				RequestTimeoutSeconds: 2,
+				ProposerPolicy:        newUint64(0),
 			},
 			Init: &WbftInit{
 				Validators:    []common.Address{common.HexToAddress("0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697")}, // TODO: define initial validators
@@ -105,13 +102,10 @@ var (
 		CroissantBlock:      big.NewInt(0),
 		Croissant: &CroissantConfig{
 			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
-				EpochLength:                 100,
-				BlockPeriodSeconds:          1,
-				RequestTimeoutSeconds:       1000,
-				ProposerPolicy:              newUint64(0),
-				TargetValidators:            newUint64(1), // TODO: define validators
-				StabilizingStakersThreshold: newUint64(1),
-				UseNCP:                      newBool(true),
+				EpochLength:           100,
+				BlockPeriodSeconds:    1,
+				RequestTimeoutSeconds: 1000,
+				ProposerPolicy:        newUint64(0),
 			},
 			Init: &WbftInit{
 				Validators:    []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")}, // TODO: define initial validators
@@ -277,13 +271,11 @@ var (
 		CroissantBlock:      big.NewInt(0),
 		Croissant: &CroissantConfig{
 			WBFT: &WBFTConfig{
-				EpochLength:                 100,
-				BlockPeriodSeconds:          1,
-				RequestTimeoutSeconds:       1000,
-				ProposerPolicy:              newUint64(0),
-				TargetValidators:            newUint64(1),
-				StabilizingStakersThreshold: newUint64(1),
-				MaxRequestTimeoutSeconds:    &mrts,
+				EpochLength:              100,
+				BlockPeriodSeconds:       1,
+				RequestTimeoutSeconds:    1000,
+				ProposerPolicy:           newUint64(0),
+				MaxRequestTimeoutSeconds: &mrts,
 			},
 			Init: &WbftInit{
 				Validators:    []common.Address{common.HexToAddress("0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a")},
@@ -426,14 +418,11 @@ var (
 		Clique:                        nil,
 		Croissant: &CroissantConfig{
 			WBFT: &WBFTConfig{
-				EpochLength:                 100,
-				BlockPeriodSeconds:          1,
-				RequestTimeoutSeconds:       1000,
-				ProposerPolicy:              newUint64(0),
-				TargetValidators:            newUint64(1),
-				StabilizingStakersThreshold: newUint64(1),
-				MaxRequestTimeoutSeconds:    &mrts,
-				UseNCP:                      newBool(false),
+				EpochLength:              100,
+				BlockPeriodSeconds:       1,
+				RequestTimeoutSeconds:    1000,
+				ProposerPolicy:           newUint64(0),
+				MaxRequestTimeoutSeconds: &mrts,
 			},
 			Init: &WbftInit{
 				Validators:    []common.Address{common.HexToAddress("0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a")},
