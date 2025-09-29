@@ -38,6 +38,9 @@ var (
 	ErrInvalidCode              = errors.New("invalid code: must not begin with 0xef")
 	ErrNonceUintOverflow        = errors.New("nonce uint64 overflow")
 
+	// forbid value transfer to precompiled contracts
+	ErrPrecompileValueTransfer = errors.New("precompile value transfer disallowed")
+
 	// errStopToken is an internal token indicating interpreter loop termination,
 	// never returned to outside callers.
 	errStopToken = errors.New("stop token")

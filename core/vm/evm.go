@@ -183,16 +183,22 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
-	// Fail if we're trying to transfer more than the available balance
-	if !value.IsZero() && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
-		return nil, gas, ErrInsufficientBalance
-	}
-	snapshot := evm.StateDB.Snapshot()
 	isCoinManager, err := evm.checkCoinManagerCall(CALL, caller, addr)
 	if err != nil {
 		return nil, gas, err
 	}
 	p, isPrecompile := evm.precompile(addr)
+	if !value.IsZero() {
+		// Fail if we're trying to transfer more than the available balance
+		if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+			return nil, gas, ErrInsufficientBalance
+		}
+		// Fail if transferring value to a precompiled contract
+		if isCoinManager || isPrecompile {
+			return nil, gas, ErrPrecompileValueTransfer
+		}
+	}
+	snapshot := evm.StateDB.Snapshot()
 	debug := evm.Config.Tracer != nil
 
 	if !evm.StateDB.Exist(addr) {
