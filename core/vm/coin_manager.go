@@ -32,6 +32,10 @@ const (
 )
 
 var (
+	zeroAddress = common.Address{}
+)
+
+var (
 	ErrNotAvailable          = errors.New("CoinManager: not available before StableOne")
 	ErrUnauthorized          = errors.New("CoinManager: caller is not authorized")
 	ErrInvalidCallContext    = errors.New("CoinManager: invalid call context (CALL required)")
@@ -51,8 +55,7 @@ func bytesToCoinManagerMethodSelector(b []byte) CoinManagerMethodSelector {
 
 type CoinManagerMethod interface {
 	ParamCount() int
-	RequiredGas(evm *EVM, data []byte) uint64  // RequiredPrice calculates the method gas use
-	Run(evm *EVM, data []byte) ([]byte, error) // Run runs the coin manager method
+	Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) // Run runs the coin manager method
 }
 
 // Update method selectors below if method names, parameters, etc. are added or changed:
@@ -124,73 +127,80 @@ func (evm *EVM) runNativeCoinManager(input []byte, suppliedGas uint64) (ret []by
 		return nil, suppliedGas, ErrInvalidInputLength
 	}
 
-	gasCost := method.RequiredGas(evm, data)
-	if suppliedGas < gasCost {
-		return nil, 0, ErrOutOfGas
-	}
-	suppliedGas -= gasCost
-	output, err := method.Run(evm, data)
-	return output, suppliedGas, err
+	return method.Run(evm, data, suppliedGas)
 }
 
 // coinManagerMint implemented as a native contract method.
 type coinManagerMint struct{}
 
 func (c *coinManagerMint) ParamCount() int { return 2 }
-func (c *coinManagerMint) RequiredGas(evm *EVM, data []byte) uint64 {
-	gas := params.UpdateBalanceGas
-	// to [0:32], amount[32:64]
-	if evm.StateDB.Empty(common.BytesToAddress(data[0:32])) {
-		gas += params.CallNewAccountGas
-	}
-	return gas
-}
-func (c *coinManagerMint) Run(evm *EVM, data []byte) ([]byte, error) {
+func (c *coinManagerMint) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	to := common.BytesToAddress(data[0:32])
 	amount := uint256.MustFromBig(new(big.Int).SetBytes(data[32:64]))
 
-	evm.StateDB.AddBalance(to, amount)
-	return nil, nil
+	gasCost := params.UpdateBalanceGas
+	if !evm.StateDB.Exist(to) {
+		gasCost += params.CallNewAccountGas
+	}
+
+	if suppliedGas < gasCost {
+		return nil, 0, ErrOutOfGas
+	}
+	suppliedGas -= gasCost
+
+	// Temporarily increase 0x0 balance to enable mint transfer to receiver
+	evm.StateDB.AddBalance(zeroAddress, amount)
+
+	// Note: evm.depth is not incremented for coin_manager calls because
+	// it is already increased when the coin_manager itself is invoked.
+	// No further increment is needed here.
+	return evm.Call(AccountRef(zeroAddress), to, nil, suppliedGas, amount)
 }
 
 // coinManagerBurn implemented as a native contract method.
 type coinManagerBurn struct{}
 
-func (c *coinManagerBurn) ParamCount() int                     { return 2 }
-func (c *coinManagerBurn) RequiredGas(_ *EVM, _ []byte) uint64 { return params.UpdateBalanceGas }
-func (c *coinManagerBurn) Run(evm *EVM, data []byte) ([]byte, error) {
+func (c *coinManagerBurn) ParamCount() int { return 2 }
+func (c *coinManagerBurn) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	from := common.BytesToAddress(data[0:32])
 	amount := uint256.MustFromBig(new(big.Int).SetBytes(data[32:64]))
 
 	if !evm.Context.CanTransfer(evm.StateDB, from, amount) {
-		return nil, ErrInsufficientBalance
+		return nil, suppliedGas, ErrInsufficientBalance
 	}
 
+	if suppliedGas < params.UpdateBalanceGas {
+		return nil, 0, ErrOutOfGas
+	}
+	suppliedGas -= params.UpdateBalanceGas
+
 	evm.StateDB.SubBalance(from, amount)
-	return nil, nil
+	evm.AddTransferLog(from, zeroAddress, amount)
+
+	return nil, suppliedGas, nil
 }
 
 // coinManagerTransfer implemented as a native contract method.
 type coinManagerTransfer struct{}
 
 func (c *coinManagerTransfer) ParamCount() int { return 3 }
-func (c *coinManagerTransfer) RequiredGas(evm *EVM, data []byte) uint64 {
-	gas := 2 * params.UpdateBalanceGas // addBalance, subBalance
-	// from [0:32], to [32:64], amount[64:92]
-	to := common.BytesToAddress(data[32:64])
-	if evm.StateDB.Empty(to) {
-		gas += params.CallNewAccountGas
-	}
-	return gas
-}
-func (c *coinManagerTransfer) Run(evm *EVM, data []byte) ([]byte, error) {
+func (c *coinManagerTransfer) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	from := common.BytesToAddress(data[0:32])
 	to := common.BytesToAddress(data[32:64])
 	amount := uint256.MustFromBig(new(big.Int).SetBytes(data[64:96]))
 
-	if !evm.Context.CanTransfer(evm.StateDB, from, amount) {
-		return nil, ErrInsufficientBalance
+	gasCost := 2 * params.UpdateBalanceGas // addBalance, subBalance
+	if !evm.StateDB.Exist(to) {
+		gasCost += params.CallNewAccountGas
 	}
-	evm.Context.Transfer(evm.StateDB, from, to, amount)
-	return nil, nil
+
+	if suppliedGas < gasCost {
+		return nil, 0, ErrOutOfGas
+	}
+	suppliedGas -= gasCost
+
+	// Note: evm.depth is not incremented for coin_manager calls because
+	// it is already increased when the coin_manager itself is invoked.
+	// No further increment is needed here.
+	return evm.Call(AccountRef(from), to, nil, suppliedGas, amount)
 }
