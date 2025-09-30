@@ -19,8 +19,9 @@
 package govwbft
 
 import (
-	"fmt"
 	"github.com/ethereum/go-ethereum/params"
+
+	"fmt"
 )
 
 func init() {

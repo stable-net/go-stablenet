@@ -107,7 +107,6 @@ func init() {
 	wbftConfig.RequestTimeout = wbftChainConfig.Croissant.WBFT.RequestTimeoutSeconds * 1000
 	wbftConfig.Epoch = wbftChainConfig.Croissant.WBFT.EpochLength
 	wbftConfig.ProposerPolicy = wbft.NewProposerPolicy(wbft.ProposerPolicyId(*wbftChainConfig.Croissant.WBFT.ProposerPolicy))
-	wbftConfig.TargetValidators = *wbftChainConfig.Croissant.WBFT.TargetValidators
 	wbftConfig.MaxRequestTimeoutSeconds = *wbftChainConfig.Croissant.WBFT.MaxRequestTimeoutSeconds
 
 	signer := types.LatestSigner(params.TestChainConfig)
@@ -163,7 +162,6 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 				Stakers: []*types.Staker{
 					{Addr: testBankAddress, Diligence: types.DefaultDiligence},
 				},
-				Stabilizing:   true,
 				Validators:    []uint32{0},
 				BLSPublicKeys: [][]byte{testBankBlsPubKey.Marshal()},
 			},

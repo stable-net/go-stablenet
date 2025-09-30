@@ -109,8 +109,7 @@ func TestWriteCommittedSeals(t *testing.T) {
 				{Addr: testAccount3.addr, Diligence: 1_900_000},
 				{Addr: testAccount4.addr, Diligence: 1_900_000},
 			},
-			Stabilizing: true,
-			Validators:  []uint32{0, 1, 2, 3},
+			Validators: []uint32{0, 1, 2, 3},
 			BLSPublicKeys: [][]byte{
 				testAccount1.blsKey.PublicKey().Marshal(),
 				testAccount2.blsKey.PublicKey().Marshal(),
@@ -189,7 +188,6 @@ func TestWritePreparedSeals(t *testing.T) {
 				testAccount3.blsKey.PublicKey().Marshal(),
 				testAccount4.blsKey.PublicKey().Marshal(),
 			},
-			Stabilizing: true,
 		},
 	}
 	// use this to generate istRawData
@@ -255,8 +253,7 @@ func TestWriteRoundNumber(t *testing.T) {
 				{Addr: testAccount3.addr, Diligence: 1_900_000},
 				{Addr: testAccount4.addr, Diligence: 1_900_000},
 			},
-			Stabilizing: true,
-			Validators:  []uint32{0, 1, 2, 3},
+			Validators: []uint32{0, 1, 2, 3},
 			BLSPublicKeys: [][]byte{
 				testAccount1.blsKey.PublicKey().Marshal(),
 				testAccount2.blsKey.PublicKey().Marshal(),
@@ -716,7 +713,6 @@ func makeGenesis(signers []account) *types.Header {
 		e.Validators = append(e.Validators, uint32(i))
 		e.BLSPublicKeys = append(e.BLSPublicKeys, s.blsKey.PublicKey().Marshal())
 	}
-	e.Stabilizing = true
 	ApplyHeaderWBFTExtra(header, WriteEpochInfo(e))
 	return header
 }

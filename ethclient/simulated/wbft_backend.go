@@ -96,7 +96,6 @@ func genExtraData(validator common.Address, blsPubKey []byte) []byte {
 			Stakers: []*types.Staker{
 				{Addr: validator, Diligence: types.DefaultDiligence},
 			},
-			Stabilizing:   true,
 			Validators:    []uint32{0},
 			BLSPublicKeys: [][]byte{blsPubKey},
 		},

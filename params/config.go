@@ -37,7 +37,6 @@ var (
 )
 
 func newUint64(val uint64) *uint64 { return &val }
-func newBool(val bool) *bool       { return &val }
 
 var (
 	MainnetTerminalTotalDifficulty, _ = new(big.Int).SetString("58_750_000_000_000_000_000_000", 0)

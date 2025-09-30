@@ -102,17 +102,8 @@ func setConfigFromChainConfig(wbftCfg *Config, chainCfg *chainConfigWrapper) err
 	if config.ProposerPolicy != nil {
 		wbftCfg.ProposerPolicy = NewProposerPolicy(ProposerPolicyId(*config.ProposerPolicy))
 	}
-	if config.TargetValidators != nil {
-		wbftCfg.TargetValidators = *config.TargetValidators
-	}
 	if config.MaxRequestTimeoutSeconds != nil {
 		wbftCfg.MaxRequestTimeoutSeconds = *config.MaxRequestTimeoutSeconds
-	}
-	if config.StabilizingStakersThreshold != nil {
-		wbftCfg.StabilizingStakersThreshold = *config.StabilizingStakersThreshold
-	}
-	if config.UseNCP != nil {
-		wbftCfg.UseNCP = *config.UseNCP
 	}
 
 	hfTransitionBlocks := make(map[*big.Int]bool)
@@ -281,17 +272,8 @@ func getGovContracts(blockNumber *big.Int, wbftCfg *Config) params.GovContracts 
 
 	if wbftCfg.GovContractUpgrades != nil && len(wbftCfg.GovContractUpgrades) > 0 {
 		wbftCfg.getGovContractsValue(blockNumber, func(upgrade params.Upgrade) {
-			if upgrade.GovStaking != nil {
-				gc.GovStaking = upgrade.GovStaking
-			}
-			if upgrade.GovConfig != nil {
-				gc.GovConfig = upgrade.GovConfig
-			}
-			if upgrade.GovRewardeeImp != nil {
-				gc.GovRewardeeImp = upgrade.GovRewardeeImp
-			}
-			if upgrade.GovNCP != nil {
-				gc.GovNCP = upgrade.GovNCP
+			if upgrade.GovValidator != nil {
+				gc.GovValidator = upgrade.GovValidator
 			}
 		})
 	}
@@ -307,7 +289,7 @@ func TestGetGovContracts(t *testing.T) {
 	testConfig.addFakeHardFork("TestFork1", big.NewInt(10),
 		nil,
 		&params.GovContracts{
-			GovConfig: &params.GovContract{
+			GovValidator: &params.GovContract{
 				Address: common.HexToAddress("0x2000"),
 				Version: "v2",
 				Params:  nil,
@@ -317,7 +299,7 @@ func TestGetGovContracts(t *testing.T) {
 	testConfig.addFakeHardFork("TestFork2", big.NewInt(20),
 		nil,
 		&params.GovContracts{
-			GovStaking: &params.GovContract{
+			GovValidator: &params.GovContract{
 				Address: common.HexToAddress("0x2000"),
 				Version: "v2",
 				Params:  nil,
@@ -347,7 +329,7 @@ func TestGetGovContracts(t *testing.T) {
 			name:        "After first transition (block 1)",
 			blockNumber: 11,
 			expectedConfig: createExpectedGovContracts(baseContracts, func(contracts *params.GovContracts) {
-				contracts.GovConfig = &params.GovContract{
+				contracts.GovValidator = &params.GovContract{
 					Address: common.HexToAddress("0x2000"),
 					Version: "v2",
 					Params:  nil,
@@ -358,12 +340,12 @@ func TestGetGovContracts(t *testing.T) {
 			name:        "After second transition (block 3)",
 			blockNumber: 20,
 			expectedConfig: createExpectedGovContracts(baseContracts, func(contracts *params.GovContracts) {
-				contracts.GovConfig = &params.GovContract{
+				contracts.GovValidator = &params.GovContract{
 					Address: common.HexToAddress("0x2000"),
 					Version: "v2",
 					Params:  nil,
 				}
-				contracts.GovStaking = &params.GovContract{
+				contracts.GovValidator = &params.GovContract{
 					Address: common.HexToAddress("0x2000"),
 					Version: "v2",
 					Params:  nil,

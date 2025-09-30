@@ -69,7 +69,6 @@ func TestExtractToWBFTExtra(t *testing.T) {
 					},
 					Validators:    []uint32{0, 1, 2, 3},
 					BLSPublicKeys: [][]byte{{}, {}, {}, {}},
-					Stabilizing:   true,
 				},
 				PrevRound:         0,
 				PrevPreparedSeal:  nil,
