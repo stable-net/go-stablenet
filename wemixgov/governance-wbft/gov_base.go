@@ -19,17 +19,20 @@ package govwbft
 
 import (
 	"encoding/binary"
-	"math/big"
-	"time"
-
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
+	"math/big"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const (
-	GOV_BASE_PARAM_MEMBERS = "members"
-	GOV_BASE_PARAM_QUORUM  = "quorum"
-	GOV_BASE_PARAM_EXPIRY  = "expiry"
+	GOV_BASE_PARAM_MEMBERS        = "members"
+	GOV_BASE_PARAM_QUORUM         = "quorum"
+	GOV_BASE_PARAM_EXPIRY         = "expiry"
+	GOV_BASE_PARAM_MEMBER_VERSION = "memberVersion"
 
 	SLOT_GOV_BASE_quorum              = "0x0"
 	SLOT_GOV_BASE_proposalExpiry      = "0x1"
@@ -54,69 +57,105 @@ func (m Member) ToHash() common.Hash {
 	return result
 }
 
-func initializeBase(govBaseAddress common.Address, members []common.Address, quorum uint64, expiry uint64) []params.StateParam {
-	param := make([]params.StateParam, 0)
+func initializeBase(govBaseAddress common.Address, param map[string]string) ([]params.StateParam, error) {
+	sp := make([]params.StateParam, 0)
 
-	param = append(param,
-		params.StateParam{
-			Address: govBaseAddress,
-			Key:     common.HexToHash(SLOT_GOV_BASE_quorum),
-			Value:   common.BigToHash(big.NewInt(int64(quorum))),
-		},
-		params.StateParam{
-			Address: govBaseAddress,
-			Key:     common.HexToHash(SLOT_GOV_BASE_proposalExpiry),
-			Value:   common.BigToHash(big.NewInt(int64(expiry))),
-		},
-	)
-
-	membersSlot := common.HexToHash(SLOT_GOV_BASE_members)
-	versionedMemberListSlot := common.HexToHash(SLOT_GOV_BASE_versionedMemberList)
-	versionSlot := common.HexToHash(SLOT_GOV_BASE_version)
-	version := new(big.Int).SetUint64(1)
-	duplicated := make(map[common.Address]struct{})
-
-	memberData := Member{
-		IsActive: true,
-		JoinedAt: uint32(time.Now().Unix()),
-	}.ToHash()
-
-	currentIdx := uint64(0)
-	for _, member := range members {
-		if _, ok := duplicated[member]; ok {
-			continue
+	quorum := uint64(0)
+	if quorumStr, ok := param[GOV_BASE_PARAM_QUORUM]; ok {
+		var err error
+		quorum, err = strconv.ParseUint(quorumStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("`govContracts.govBase.params.quorum`: %w", err)
 		}
-		param = append(param,
+
+		sp = append(sp,
 			params.StateParam{
 				Address: govBaseAddress,
-				Key:     CalculateMappingSlot(membersSlot, member),
-				Value:   memberData,
-			},
-			params.StateParam{
-				Address: govBaseAddress,
-				Key:     CalculateDynamicSlot(CalculateMappingSlot(versionedMemberListSlot, version), new(big.Int).SetUint64(currentIdx)),
-				Value:   common.BytesToHash(member.Bytes()),
+				Key:     common.HexToHash(SLOT_GOV_BASE_quorum),
+				Value:   common.BigToHash(big.NewInt(int64(quorum))),
 			},
 		)
-		duplicated[member] = struct{}{}
-		currentIdx++
 	}
 
-	if currentIdx > 0 {
-		param = append(param,
+	if expiryStr, ok := param[GOV_BASE_PARAM_EXPIRY]; ok {
+		expiry, err := strconv.ParseUint(expiryStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("`govContracts.govBase.params.expiry`: %w", err)
+		}
+		sp = append(sp,
 			params.StateParam{
 				Address: govBaseAddress,
-				Key:     CalculateMappingSlot(versionedMemberListSlot, version),
-				Value:   common.BigToHash(new(big.Int).SetUint64(currentIdx)),
+				Key:     common.HexToHash(SLOT_GOV_BASE_proposalExpiry),
+				Value:   common.BigToHash(big.NewInt(int64(expiry))),
 			},
 		)
 	}
-	param = append(param,
-		params.StateParam{
-			Address: govBaseAddress,
-			Key:     versionSlot,
-			Value:   common.BigToHash(version),
-		},
-	)
-	return param
+
+	if membersStr, ok := param[GOV_BASE_PARAM_MEMBERS]; ok {
+		memberAddresses := strings.Split(membersStr, ",")
+		if quorum > 0 && uint64(len(memberAddresses)) < quorum {
+			return nil, fmt.Errorf("`govContracts.govBase.params.quorum` must not be greater than the number of members")
+		}
+
+		membersSlot := common.HexToHash(SLOT_GOV_BASE_members)
+		versionedMemberListSlot := common.HexToHash(SLOT_GOV_BASE_versionedMemberList)
+		versionSlot := common.HexToHash(SLOT_GOV_BASE_version)
+
+		versionStr, ok2 := param[GOV_BASE_PARAM_MEMBER_VERSION]
+		if !ok2 {
+			return nil, fmt.Errorf("`govContracts.govBase.params.memberVersion` is required when `govContracts.govBase.params.members` is set")
+		}
+		versionInt, err := strconv.ParseUint(versionStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("`govContracts.govBase.params.memberVersion`: %w", err)
+		}
+		version := new(big.Int).SetUint64(versionInt)
+
+		duplicated := make(map[common.Address]struct{})
+		memberData := Member{
+			IsActive: true,
+			JoinedAt: uint32(time.Now().Unix()),
+		}.ToHash()
+
+		currentIdx := uint64(0)
+		for _, memberAddr := range memberAddresses {
+			member := common.HexToAddress(memberAddr)
+			if _, ok := duplicated[member]; ok {
+				continue
+			}
+			sp = append(sp,
+				params.StateParam{
+					Address: govBaseAddress,
+					Key:     CalculateMappingSlot(membersSlot, member),
+					Value:   memberData,
+				},
+				params.StateParam{
+					Address: govBaseAddress,
+					Key:     CalculateDynamicSlot(CalculateMappingSlot(versionedMemberListSlot, version), new(big.Int).SetUint64(currentIdx)),
+					Value:   common.BytesToHash(member.Bytes()),
+				},
+			)
+			duplicated[member] = struct{}{}
+			currentIdx++
+		}
+
+		if currentIdx > 0 {
+			sp = append(sp,
+				params.StateParam{
+					Address: govBaseAddress,
+					Key:     CalculateMappingSlot(versionedMemberListSlot, version),
+					Value:   common.BigToHash(new(big.Int).SetUint64(currentIdx)),
+				},
+			)
+		}
+		sp = append(sp,
+			params.StateParam{
+				Address: govBaseAddress,
+				Key:     versionSlot,
+				Value:   common.BigToHash(version),
+			},
+		)
+	}
+
+	return sp, nil
 }

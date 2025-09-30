@@ -18,7 +18,9 @@
 package govwbft
 
 import (
+	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
@@ -44,83 +46,116 @@ func (w *blsWrapper) Bytes() []byte {
 	return w.blsKey
 }
 
-func initializeValidator(govValidatorAddress common.Address, members []common.Address, validators []common.Address, blsKeys [][]byte, quorum uint64, expiry uint64) []params.StateParam {
-	param := initializeBase(govValidatorAddress, members, quorum, expiry)
-
-	param = append(param,
+func initializeValidator(govValidatorAddress common.Address, param map[string]string) ([]params.StateParam, error) {
+	sp, err := initializeBase(govValidatorAddress, param)
+	if err != nil {
+		return sp, err
+	}
+	sp = append(sp,
 		params.StateParam{
 			Address: govValidatorAddress,
 			Key:     common.HexToHash(SLOT_VALIDATOR_blsPop),
 			Value:   common.BytesToHash(params.BLSPoPPrecompileAddress.Bytes())},
 	)
 
-	valueSlot := common.HexToHash(SLOT_VALIDATOR_validators)
-	indexSlot := IncrementHash(valueSlot, big.NewInt(1))
-	duplicated := make(map[common.Address]struct{})
-
-	currentIdx := uint64(0)
-	newLength := new(big.Int)
-
-	for i, val := range validators {
-		if _, ok := duplicated[val]; ok {
-			continue
+	if valStr, ok := param[GOV_VALIDATOR_PARAM_VALIDATORS]; ok {
+		if _, ok2 := param[GOV_VALIDATOR_PARAM_BLS_KEYS]; !ok2 {
+			return nil, fmt.Errorf("`govContracts.govValidator.params`: missing parameter: %s", GOV_VALIDATOR_PARAM_BLS_KEYS)
 		}
-		newLength = new(big.Int).SetUint64(currentIdx + 1)
 
-		param = append(param,
-			// set index slot
-			params.StateParam{
-				Address: govValidatorAddress,
-				Key:     CalculateMappingSlot(indexSlot, val),
-				Value:   common.BigToHash(newLength),
-			},
-			// set value slot
-			params.StateParam{
-				Address: govValidatorAddress,
-				Key:     CalculateDynamicSlot(valueSlot, new(big.Int).SetUint64(currentIdx)),
-				Value:   common.BytesToHash(val.Bytes()),
-			},
+		memberAddresses := strings.Split(param[GOV_BASE_PARAM_MEMBERS], ",")
+		valAddresses := strings.Split(valStr, ",")
+		blsKeyStrings := strings.Split(param[GOV_VALIDATOR_PARAM_BLS_KEYS], ",")
+		if len(memberAddresses) != len(valAddresses) {
+			return nil, fmt.Errorf("`govContracts.govValidator.params`: the number of members and validators must be the same")
+		}
+		if len(valAddresses) != len(blsKeyStrings) {
+			return nil, fmt.Errorf("`govContracts.govValidator.params`: the number of validators and BLS public keys must be the same")
+		}
 
-			// validator to operator(member) mapping
-			params.StateParam{
-				Address: govValidatorAddress,
-				Key:     CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_validatorToOperator), val),
-				Value:   common.BytesToHash(members[i].Bytes()),
-			},
-			// operator(member) to validator mapping
-			params.StateParam{
-				Address: govValidatorAddress,
-				Key:     CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_operatorToValidator), members[i]),
-				Value:   common.BytesToHash(val.Bytes()),
-			},
-		)
+		validators := make([]common.Address, 0)
+		for _, valAddr := range valAddresses {
+			validators = append(validators, common.HexToAddress(valAddr))
+		}
 
-		param = append(param, MakeMultipleParam(govValidatorAddress, CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_validatorToBlsKey), val), VarLenBytesToMultipleHash(blsKeys[i]))...)
+		blsKeys := make([][]byte, 0)
+		for _, key := range blsKeyStrings {
+			blsKeys = append(blsKeys, common.FromHex(key))
+		}
 
-		param = append(param,
-			params.StateParam{
-				Address: govValidatorAddress,
-				Key: CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_blsKeyToValidator), &blsWrapper{
-					blsKey: blsKeys[i],
-				}),
-				Value: common.BytesToHash(val.Bytes()),
-			},
-		)
+		valueSlot := common.HexToHash(SLOT_VALIDATOR_validators)
+		indexSlot := IncrementHash(valueSlot, big.NewInt(1))
+		duplicated := make(map[common.Address]struct{})
 
-		duplicated[val] = struct{}{}
-		currentIdx++
+		currentIdx := uint64(0)
+		newLength := new(big.Int)
+
+		for i, val := range validators {
+			if _, ok := duplicated[val]; ok {
+				continue
+			}
+			newLength = new(big.Int).SetUint64(currentIdx + 1)
+			member := common.HexToAddress(memberAddresses[i])
+
+			sp = append(sp,
+				// set index slot
+				params.StateParam{
+					Address: govValidatorAddress,
+					Key:     CalculateMappingSlot(indexSlot, val),
+					Value:   common.BigToHash(newLength),
+				},
+				// set value slot
+				params.StateParam{
+					Address: govValidatorAddress,
+					Key:     CalculateDynamicSlot(valueSlot, new(big.Int).SetUint64(currentIdx)),
+					Value:   common.BytesToHash(val.Bytes()),
+				},
+
+				// validator to operator(member) mapping
+				params.StateParam{
+					Address: govValidatorAddress,
+					Key:     CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_validatorToOperator), val),
+					Value:   common.BytesToHash(member.Bytes()),
+				},
+				// operator(member) to validator mapping
+				params.StateParam{
+					Address: govValidatorAddress,
+					Key:     CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_operatorToValidator), member),
+					Value:   common.BytesToHash(val.Bytes()),
+				},
+			)
+
+			sp = append(sp, MakeMultipleParam(govValidatorAddress, CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_validatorToBlsKey), val), VarLenBytesToMultipleHash(blsKeys[i]))...)
+
+			sp = append(sp,
+				params.StateParam{
+					Address: govValidatorAddress,
+					Key: CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_blsKeyToValidator), &blsWrapper{
+						blsKey: blsKeys[i],
+					}),
+					Value: common.BytesToHash(val.Bytes()),
+				},
+			)
+
+			duplicated[val] = struct{}{}
+			currentIdx++
+		}
+		if newLength.Sign() > 0 {
+			sp = append(sp,
+				params.StateParam{
+					Address: govValidatorAddress,
+					Key:     valueSlot,
+					Value:   common.BigToHash(newLength),
+				},
+			)
+		}
+	} else {
+		if _, ok2 := param[GOV_VALIDATOR_PARAM_BLS_KEYS]; ok2 {
+			return nil, fmt.Errorf("`govContracts.govValidator.params`: missing parameter: %s", GOV_VALIDATOR_PARAM_VALIDATORS)
+		}
 	}
-	if newLength.Sign() > 0 {
-		param = append(param,
-			params.StateParam{
-				Address: govValidatorAddress,
-				Key:     valueSlot,
-				Value:   common.BigToHash(newLength),
-			},
-		)
-	}
 
-	return param
+	return sp, nil
 }
 
 func MakeMultipleParam(govValidatorAddress common.Address, baseSlot common.Hash, value []common.Hash) []params.StateParam {

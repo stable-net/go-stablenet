@@ -20,10 +20,6 @@ package govwbft
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
-
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -44,45 +40,11 @@ func GetGovContractsTransition(govContracts *params.GovContracts) (*params.State
 
 	if govContracts.GovValidator != nil {
 		st.Codes = append(st.Codes, params.CodeParam{Address: govContracts.GovValidator.Address, Code: GovContractCodes[CONTRACT_GOV_VALIDATOR][govContracts.GovValidator.Version]})
-		memberAddresses := strings.Split(govContracts.GovValidator.Params[GOV_BASE_PARAM_MEMBERS], ",")
-		members := make([]common.Address, 0)
-		for _, memberAddr := range memberAddresses {
-			members = append(members, common.HexToAddress(memberAddr))
-		}
-		valAddresses := strings.Split(govContracts.GovValidator.Params[GOV_VALIDATOR_PARAM_VALIDATORS], ",")
-		validators := make([]common.Address, 0)
-		for _, valAddr := range valAddresses {
-			validators = append(validators, common.HexToAddress(valAddr))
-		}
-		blsKeyStrings := strings.Split(govContracts.GovValidator.Params[GOV_VALIDATOR_PARAM_BLS_KEYS], ",")
-
-		if len(members) != len(validators) {
-			return nil, fmt.Errorf("the number of members and validators must be the same")
-		}
-		if len(validators) != len(blsKeyStrings) {
-			return nil, fmt.Errorf("the number of validators and BLS public keys must be the same")
-		}
-
-		quorum, err := strconv.ParseUint(govContracts.GovValidator.Params[GOV_BASE_PARAM_QUORUM], 10, 64)
+		sp, err := initializeValidator(govContracts.GovValidator.Address, govContracts.GovValidator.Params)
 		if err != nil {
-			return nil, fmt.Errorf("`govContracts.govValidator.params.quorum`: %w", err)
+			return nil, err
 		}
-		expiry, err2 := strconv.ParseUint(govContracts.GovValidator.Params[GOV_BASE_PARAM_EXPIRY], 10, 64)
-		if err2 != nil {
-			return nil, fmt.Errorf("`govContracts.govValidator.params.expiry`: %w", err2)
-		}
-		blsKeys := make([][]byte, 0)
-		for _, key := range blsKeyStrings {
-			blsKeys = append(blsKeys, common.FromHex(key))
-		}
-		st.States = append(st.States,
-			initializeValidator(
-				govContracts.GovValidator.Address,
-				members,
-				validators,
-				blsKeys,
-				quorum,
-				expiry)...)
+		st.States = append(st.States, sp...)
 	}
 	return st, nil
 }
