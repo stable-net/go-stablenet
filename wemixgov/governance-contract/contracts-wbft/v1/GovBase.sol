@@ -78,8 +78,8 @@ abstract contract GovBase {
     uint256 public proposalExpiry;
     mapping(address => Member) public members;
     mapping(uint256 => address[]) public versionedMemberList;
+    uint256 public memberVersion;
     mapping(uint256 => Proposal) public proposals;
-    uint256 public memberVersion = 1;
     uint256 public currentProposalId;
     uint256 private _reentrancyGuard;  // Reentrancy protection
     uint256[42] private __gap; // Reserved storage space
@@ -556,9 +556,5 @@ abstract contract GovBase {
         if (memberIndex >= versionedMemberList[memberVersion].length) return false;
         uint256 bit = 1 << memberIndex;
         return proposals[currentProposalId].votedBitmap & bit != 0;
-    }
-
-    function getQuorum() public view returns (uint32) {
-        return quorum;
     }
 }

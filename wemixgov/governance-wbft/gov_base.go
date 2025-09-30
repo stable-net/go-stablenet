@@ -18,12 +18,12 @@
 package govwbft
 
 import (
+	"encoding/binary"
 	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 const (
@@ -35,11 +35,23 @@ const (
 	SLOT_GOV_BASE_proposalExpiry      = "0x1"
 	SLOT_GOV_BASE_members             = "0x2"
 	SLOT_GOV_BASE_versionedMemberList = "0x3"
+	SLOT_GOV_BASE_version             = "0x4"
 )
 
 type Member struct {
 	IsActive bool
 	JoinedAt uint32
+}
+
+func (m Member) ToHash() common.Hash {
+	var result common.Hash
+	if m.IsActive {
+		result[31] = 0x01
+	} else {
+		result[31] = 0x00
+	}
+	binary.BigEndian.PutUint32(result[27:31], m.JoinedAt)
+	return result
 }
 
 func initializeBase(govBaseAddress common.Address, members []common.Address, quorum uint64, expiry uint64) []params.StateParam {
@@ -60,25 +72,16 @@ func initializeBase(govBaseAddress common.Address, members []common.Address, quo
 
 	membersSlot := common.HexToHash(SLOT_GOV_BASE_members)
 	versionedMemberListSlot := common.HexToHash(SLOT_GOV_BASE_versionedMemberList)
+	versionSlot := common.HexToHash(SLOT_GOV_BASE_version)
 	version := new(big.Int).SetUint64(1)
 	duplicated := make(map[common.Address]struct{})
 
 	memberData := Member{
 		IsActive: true,
 		JoinedAt: uint32(time.Now().Unix()),
-	}
-	isActiveRLP, _ := rlp.EncodeToBytes(memberData.IsActive)
-	joinedAtRLP, _ := rlp.EncodeToBytes(memberData.JoinedAt)
-	isActivePadded := common.LeftPadBytes(isActiveRLP, 32)
-	joinedAtPadded := common.LeftPadBytes(joinedAtRLP, 32)
-	currentIdx := int64(0)
-	param = append(param,
-		params.StateParam{
-			Address: govBaseAddress,
-			Key:     CalculateMappingSlot(versionedMemberListSlot, version),
-			Value:   common.BigToHash(big.NewInt(int64(len(members)))),
-		})
+	}.ToHash()
 
+	currentIdx := uint64(0)
 	for _, member := range members {
 		if _, ok := duplicated[member]; ok {
 			continue
@@ -87,23 +90,33 @@ func initializeBase(govBaseAddress common.Address, members []common.Address, quo
 			params.StateParam{
 				Address: govBaseAddress,
 				Key:     CalculateMappingSlot(membersSlot, member),
-				Value:   common.BytesToHash(isActivePadded),
+				Value:   memberData,
 			},
-
 			params.StateParam{
 				Address: govBaseAddress,
-				Key:     IncrementHash(CalculateMappingSlot(membersSlot, member), big.NewInt(1)),
-				Value:   common.BytesToHash(joinedAtPadded),
-			},
-
-			params.StateParam{
-				Address: govBaseAddress,
-				Key:     CalculateMappingSlot(CalculateMappingSlot(versionedMemberListSlot, version), big.NewInt(currentIdx)),
+				Key:     CalculateDynamicSlot(CalculateMappingSlot(versionedMemberListSlot, version), new(big.Int).SetUint64(currentIdx)),
 				Value:   common.BytesToHash(member.Bytes()),
 			},
 		)
 		duplicated[member] = struct{}{}
+		currentIdx++
 	}
 
+	if currentIdx > 0 {
+		param = append(param,
+			params.StateParam{
+				Address: govBaseAddress,
+				Key:     CalculateMappingSlot(versionedMemberListSlot, version),
+				Value:   common.BigToHash(new(big.Int).SetUint64(currentIdx)),
+			},
+		)
+	}
+	param = append(param,
+		params.StateParam{
+			Address: govBaseAddress,
+			Key:     versionSlot,
+			Value:   common.BigToHash(version),
+		},
+	)
 	return param
 }
