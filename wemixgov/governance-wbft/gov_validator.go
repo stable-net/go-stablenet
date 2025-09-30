@@ -21,7 +21,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -38,14 +37,14 @@ const (
 )
 
 type blsWrapper struct {
-	blsKey bls.PublicKey
+	blsKey []byte
 }
 
 func (w *blsWrapper) Bytes() []byte {
-	return w.blsKey.Marshal()
+	return w.blsKey
 }
 
-func initializeValidator(govValidatorAddress common.Address, members []common.Address, validators []common.Address, blsKey []bls.PublicKey, quorum uint64, expiry uint64) []params.StateParam {
+func initializeValidator(govValidatorAddress common.Address, members []common.Address, validators []common.Address, blsKeys [][]byte, quorum uint64, expiry uint64) []params.StateParam {
 	param := initializeBase(govValidatorAddress, members, quorum, expiry)
 
 	param = append(param,
@@ -94,26 +93,51 @@ func initializeValidator(govValidatorAddress common.Address, members []common.Ad
 				Key:     CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_operatorToValidator), members[i]),
 				Value:   common.BytesToHash(val.Bytes()),
 			},
-			// validator to blsKey mapping
-			params.StateParam{
-				Address: govValidatorAddress,
-				Key:     CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_validatorToBlsKey), val),
-				Value:   common.BytesToHash(blsKey[i].Marshal()),
-			},
-			// blsKey to validator mapping
+		)
+
+		param = append(param, MakeMultipleParam(govValidatorAddress, CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_validatorToBlsKey), val), VarLenBytesToMultipleHash(blsKeys[i]))...)
+
+		param = append(param,
 			params.StateParam{
 				Address: govValidatorAddress,
 				Key: CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_blsKeyToValidator), &blsWrapper{
-					blsKey: blsKey[i],
+					blsKey: blsKeys[i],
 				}),
 				Value: common.BytesToHash(val.Bytes()),
 			},
 		)
+
 		duplicated[val] = struct{}{}
 		currentIdx++
 	}
+	if newLength.Sign() > 0 {
+		param = append(param,
+			params.StateParam{
+				Address: govValidatorAddress,
+				Key:     valueSlot,
+				Value:   common.BigToHash(newLength),
+			},
+		)
+	}
 
 	return param
+}
+
+func MakeMultipleParam(govValidatorAddress common.Address, baseSlot common.Hash, value []common.Hash) []params.StateParam {
+	result := make([]params.StateParam, 0)
+	result = append(result, params.StateParam{
+		Address: govValidatorAddress,
+		Key:     baseSlot,
+		Value:   value[0],
+	})
+	for i := uint64(1); i < uint64(len(value)); i++ {
+		result = append(result, params.StateParam{
+			Address: govValidatorAddress,
+			Key:     CalculateDynamicSlot(baseSlot, big.NewInt(int64(i-1))),
+			Value:   value[i],
+		})
+	}
+	return result
 }
 
 func ValidatorList(govValidatorAddress common.Address, state StateReader) []common.Address {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2025 The go-wemix-wbft Authors
+// Copyright 2025 The stable-one Authors
 // This file is part of the go-wemix-wbft library.
 //
 // The go-wemix-wbft library is free software: you can redistribute it and/or modify
@@ -23,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -71,13 +71,9 @@ func GetGovContractsTransition(govContracts *params.GovContracts) (*params.State
 		if err2 != nil {
 			return nil, fmt.Errorf("`govContracts.govValidator.params.expiry`: %w", err2)
 		}
-		blsKeys := make([]bls.PublicKey, 0)
+		blsKeys := make([][]byte, 0)
 		for _, key := range blsKeyStrings {
-			pk, err3 := bls.PublicKeyFromBytes(common.Hex2Bytes(key))
-			if err3 != nil {
-				return nil, fmt.Errorf("invalid BLS public key: %w", err3)
-			}
-			blsKeys = append(blsKeys, pk)
+			blsKeys = append(blsKeys, common.FromHex(key))
 		}
 		st.States = append(st.States,
 			initializeValidator(
