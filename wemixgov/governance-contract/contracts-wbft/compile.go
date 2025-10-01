@@ -34,7 +34,7 @@ var (
 func main() {
 	flag.Parse()
 	root := *rootFlag
-	versions := []string{govwbft.GOV_CONTRACT_VERSION_1, govwbft.GOV_CONTRACT_VERSION_2}
+	versions := []string{govwbft.SYSTEM_CONTRACT_VERSION_1, govwbft.SYSTEM_CONTRACT_VERSION_2}
 	srcFiles := [][]string{
 		{ // v1
 			filepath.Join(filepath.Join(root, versions[0]), "GovValidator.sol"),

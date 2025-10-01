@@ -29,31 +29,31 @@ import (
 )
 
 var (
-	DefaultGovValidatorAddress = common.HexToAddress("0x1000")
+	DefaultGovValidatorAddress = common.HexToAddress("0x1001")
 	DefaultGovVersion          = "v1"
 )
 
-var CheckGovContractVersions func(govContracts *GovContracts) error
+var CheckSystemContractVersions func(systemContracts *SystemContracts) error
 
 type WbftInit struct {
-	Validators    []common.Address `json:"validators"`    // initial WBFT validators, order is matter
+	Validators    []common.Address `json:"validators"`    // initial Wbft validators, order is matter
 	BLSPublicKeys []string         `json:"blsPublicKeys"` // BLS public ket list of validators, order must be same as validators
 }
 
-type CroissantConfig struct {
-	WBFT         *WBFTConfig   `json:"wBFT"`
-	Init         *WbftInit     `json:"init"`
-	GovContracts *GovContracts `json:"govContracts"`
+type AnzeonConfig struct {
+	Wbft            *WbftConfig      `json:"wbft"`
+	Init            *WbftInit        `json:"init"`
+	SystemContracts *SystemContracts `json:"systemContracts"`
 }
 
-func (c *CroissantConfig) String() string {
-	return fmt.Sprintf("{WBFT: %v Init: %v GovContracts: %v}",
-		c.WBFT,
+func (c *AnzeonConfig) String() string {
+	return fmt.Sprintf("{Wbft: %v Init: %v SystemContracts: %v}",
+		c.Wbft,
 		c.Init,
-		c.GovContracts)
+		c.SystemContracts)
 }
 
-func (c *CroissantConfig) GetInitialBLSPublicKeys() [][]byte {
+func (c *AnzeonConfig) GetInitialBLSPublicKeys() [][]byte {
 	blsPubKeys := make([][]byte, len(c.Init.BLSPublicKeys))
 	for i, pk := range c.Init.BLSPublicKeys {
 		blsPubKeys[i] = hexutil.MustDecode(pk)
@@ -61,81 +61,81 @@ func (c *CroissantConfig) GetInitialBLSPublicKeys() [][]byte {
 	return blsPubKeys
 }
 
-func (c *CroissantConfig) CheckValidity() error {
+func (c *AnzeonConfig) CheckValidity() error {
 	if c == nil {
-		return errors.New("`croissant`: missing `croissant` section")
+		return errors.New("`anzeon`: missing `anzeon` section")
 	}
 	if c.Init == nil {
-		return errors.New("`croissant`: missing `init` section")
+		return errors.New("`anzeon`: missing `init` section")
 	}
 	if c.Init.BLSPublicKeys == nil || len(c.Init.BLSPublicKeys) == 0 {
-		return errors.New("`croissant.init`: missing `blsPublicKeys` field")
+		return errors.New("`anzeon.init`: missing `blsPublicKeys` field")
 	}
 	if c.Init.Validators == nil || len(c.Init.Validators) == 0 {
-		return errors.New("`croissant.init`: missing `validators`")
+		return errors.New("`anzeon.init`: missing `validators`")
 	}
 	if len(c.Init.Validators) != len(c.Init.BLSPublicKeys) {
 		return fmt.Errorf(
-			"`croissant.init`: mismatched lengths: %d validators vs %d blsPublicKeys",
+			"`anzeon.init`: mismatched lengths: %d validators vs %d blsPublicKeys",
 			len(c.Init.Validators), len(c.Init.BLSPublicKeys),
 		)
 	}
-	if c.GovContracts == nil {
-		return errors.New("`croissant: missing `govContracts` section")
+	if c.SystemContracts == nil {
+		return errors.New("`anzeon: missing `systemContracts` section")
 	}
-	if c.GovContracts.GovValidator == nil {
-		return errors.New("`croissant.govContracts: missing `govValidator`")
+	if c.SystemContracts.GovValidator == nil {
+		return errors.New("`anzeon.systemContracts: missing `govValidator`")
 	}
-	if err := CheckGovContractVersions(c.GovContracts); err != nil {
-		return fmt.Errorf("`croissant.govContracts`: %v", err)
+	if err := CheckSystemContractVersions(c.SystemContracts); err != nil {
+		return fmt.Errorf("`anzeon.systemContracts`: %v", err)
 	}
 
-	if c.WBFT == nil {
-		return errors.New("`croissant`: missing `wBFT` section")
+	if c.Wbft == nil {
+		return errors.New("`anzeon`: missing `wBFT` section")
 	}
-	if c.WBFT.RequestTimeoutSeconds == 0 {
-		return errors.New("`croissant.wBFT`: `requestTimeoutSeconds` must be greater than 0")
+	if c.Wbft.RequestTimeoutSeconds == 0 {
+		return errors.New("`anzeon.wBFT`: `requestTimeoutSeconds` must be greater than 0")
 	}
-	if c.WBFT.BlockPeriodSeconds == 0 {
-		return errors.New("`croissant.wBFT`: `blockPeriodSeconds` must be greater than 0")
+	if c.Wbft.BlockPeriodSeconds == 0 {
+		return errors.New("`anzeon.wBFT`: `blockPeriodSeconds` must be greater than 0")
 	}
-	if c.WBFT.EpochLength <= 1 {
-		return errors.New("`croissant.wBFT`: `epochLength` must be greater than or equal to 2")
+	if c.Wbft.EpochLength <= 1 {
+		return errors.New("`anzeon.wBFT`: `epochLength` must be greater than or equal to 2")
 	}
 	return nil
 }
 
 type Init struct {
-	Validators    []common.Address `json:"validators"`    // initial WBFT validators, order is matter
-	BLSPublicKeys []string         `json:"blsPublicKeys"` // BLS public ket list of validators, order must be same as validators
-	GovContracts  *GovContracts    `json:"govContracts"`  // initial gov contracts, order must be same as validators
+	Validators      []common.Address `json:"validators"`      // initial Wbft validators, order is matter
+	BLSPublicKeys   []string         `json:"blsPublicKeys"`   // BLS public ket list of validators, order must be same as validators
+	SystemContracts *SystemContracts `json:"systemContracts"` // initial gov contracts, order must be same as validators
 }
 
 func (i *Init) String() string {
-	return fmt.Sprintf("{Validators: %v BLSPublicKeys: %v GovContracts: %v}",
+	return fmt.Sprintf("{Validators: %v BLSPublicKeys: %v SystemContracts: %v}",
 		i.Validators,
 		i.BLSPublicKeys,
-		i.GovContracts,
+		i.SystemContracts,
 	)
 }
 
-type GovContracts struct {
-	GovValidator *GovContract `json:"govValidator"`
+type SystemContracts struct {
+	GovValidator *SystemContract `json:"govValidator"`
 }
 
-func (c *GovContracts) String() string {
+func (c *SystemContracts) String() string {
 	return fmt.Sprintf("{GovValidator: %v}",
 		c.GovValidator,
 	)
 }
 
-type GovContract struct {
+type SystemContract struct {
 	Address common.Address    `json:"address"`
 	Version string            `json:"version"`
 	Params  map[string]string `json:"params"`
 }
 
-func (gc *GovContract) String() string {
+func (gc *SystemContract) String() string {
 	return fmt.Sprintf("{Address: %v Version: %v Params: %v}",
 		gc.Address,
 		gc.Version,
@@ -144,20 +144,20 @@ func (gc *GovContract) String() string {
 }
 
 type Upgrade struct {
-	Block         *big.Int `json:"block"`
-	*GovContracts `json:"govContracts"`
+	Block            *big.Int `json:"block"`
+	*SystemContracts `json:"systemContracts"`
 }
 
 func (u *Upgrade) String() string {
-	return fmt.Sprintf("{Block: %v GovContracts: %v}",
+	return fmt.Sprintf("{Block: %v SystemContracts: %v}",
 		u.Block.String(),
-		u.GovContracts.String(),
+		u.SystemContracts.String(),
 	)
 }
 
-type WBFTConfig struct {
-	RequestTimeoutSeconds    uint64  `json:"requestTimeoutSeconds"`            // Minimum request timeout for each WBFT round in milliseconds
-	BlockPeriodSeconds       uint64  `json:"blockPeriodSeconds"`               // Minimum time between two consecutive WBFT blocks’ timestamps in seconds
+type WbftConfig struct {
+	RequestTimeoutSeconds    uint64  `json:"requestTimeoutSeconds"`            // Minimum request timeout for each Wbft round in milliseconds
+	BlockPeriodSeconds       uint64  `json:"blockPeriodSeconds"`               // Minimum time between two consecutive Wbft blocks’ timestamps in seconds
 	EpochLength              uint64  `json:"epochLength"`                      // The duration during which a fixed validator set remains active
 	AllowedFutureBlockTime   uint64  `json:"allowedFutureBlockTime,omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
 	ProposerPolicy           *uint64 `json:"proposerPolicy"`                   // The policy for proposer selection
@@ -166,7 +166,7 @@ type WBFTConfig struct {
 
 type Transition struct {
 	Block *big.Int `json:"block"`
-	*WBFTConfig
+	*WbftConfig
 }
 
 func (t *Transition) String() string {
@@ -179,23 +179,23 @@ func (t *Transition) String() string {
 	)
 }
 
-var DefaultCroissantConfig = &CroissantConfig{
-	WBFT: &WBFTConfig{
+var DefaultAnzeonConfig = &AnzeonConfig{
+	Wbft: &WbftConfig{
 		RequestTimeoutSeconds: 2,
 		BlockPeriodSeconds:    1,
 		ProposerPolicy:        newUint64(0),
 		EpochLength:           10,
 	},
-	GovContracts: &GovContracts{
-		GovValidator: &GovContract{
-			Address: common.HexToAddress("0x1000"),
+	SystemContracts: &SystemContracts{
+		GovValidator: &SystemContract{
+			Address: common.HexToAddress("0x1001"),
 			Version: "v1",
 		},
 	},
 	Init: &WbftInit{},
 }
 
-func (c *WBFTConfig) String() string {
+func (c *WbftConfig) String() string {
 	var maxRequestTimeoutSeconds string
 
 	if c.MaxRequestTimeoutSeconds != nil {
@@ -242,4 +242,4 @@ func (st *StateTransition) String() string {
 	return fmt.Sprintf("{Block: %v Codes: %v States: %v}", st.Block, st.Codes, st.States)
 }
 
-// ## Croissant CHAIN CONFIG END
+// ## Anzeon CHAIN CONFIG END

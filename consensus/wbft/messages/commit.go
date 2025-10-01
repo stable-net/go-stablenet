@@ -27,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// A WBFT COMMIT message.
+// A Wbft COMMIT message.
 type Commit struct {
 	CommonPayload
 	Digest     common.Hash

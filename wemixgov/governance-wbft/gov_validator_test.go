@@ -43,7 +43,7 @@ func TestInitializeValidator(t *testing.T) {
 				{
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
-					Value:   anyHash,
+					Value:   common.HexToHash("0x"),
 				},
 			},
 		},
@@ -58,7 +58,7 @@ func TestInitializeValidator(t *testing.T) {
 				{ // members
 					Address: common.Address{},
 					Key:     derivedKeyHashForMembers,
-					Value:   anyHash,
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
 				{ // versionedMemberList.members
 					Address: common.Address{},
@@ -89,7 +89,7 @@ func TestInitializeValidator(t *testing.T) {
 				GOV_BASE_PARAM_MEMBER_VERSION:  "1",
 				GOV_VALIDATOR_PARAM_VALIDATORS: sampleMemberAddress,
 			},
-			expectErr:   "`govContracts.govValidator.params`: missing parameter: blsPublicKeys",
+			expectErr:   "`systemContracts.govValidator.params`: missing parameter: blsPublicKeys",
 			expectParam: nil,
 		},
 		{
@@ -99,7 +99,7 @@ func TestInitializeValidator(t *testing.T) {
 				GOV_BASE_PARAM_MEMBER_VERSION: "1",
 				GOV_VALIDATOR_PARAM_BLS_KEYS:  sampleBlsKey,
 			},
-			expectErr:   "`govContracts.govValidator.params`: missing parameter: validators",
+			expectErr:   "`systemContracts.govValidator.params`: missing parameter: validators",
 			expectParam: nil,
 		},
 		{
@@ -110,7 +110,7 @@ func TestInitializeValidator(t *testing.T) {
 				GOV_VALIDATOR_PARAM_VALIDATORS: sampleMemberAddress + "," + sampleMemberAddress,
 				GOV_VALIDATOR_PARAM_BLS_KEYS:   sampleBlsKey,
 			},
-			expectErr:   "`govContracts.govValidator.params`: the number of members and validators must be the same",
+			expectErr:   "`systemContracts.govValidator.params`: the number of members and validators must be the same",
 			expectParam: nil,
 		},
 		{
@@ -121,7 +121,7 @@ func TestInitializeValidator(t *testing.T) {
 				GOV_VALIDATOR_PARAM_VALIDATORS: sampleMemberAddress,
 				GOV_VALIDATOR_PARAM_BLS_KEYS:   sampleBlsKey + "," + sampleBlsKey,
 			},
-			expectErr:   "`govContracts.govValidator.params`: the number of validators and BLS public keys must be the same",
+			expectErr:   "`systemContracts.govValidator.params`: the number of validators and BLS public keys must be the same",
 			expectParam: nil,
 		},
 		{
@@ -137,7 +137,7 @@ func TestInitializeValidator(t *testing.T) {
 				{ // members
 					Address: common.Address{},
 					Key:     derivedKeyHashForMembers,
-					Value:   anyHash,
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
 				{ // versionedMemberList.members
 					Address: common.Address{},

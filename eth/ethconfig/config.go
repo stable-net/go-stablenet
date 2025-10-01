@@ -189,7 +189,7 @@ func CreateConsensusEngine(config *params.ChainConfig, privKey *ecdsa.PrivateKey
 		return beacon.New(clique.New(config.Clique, db)), nil
 	}
 
-	if config.CroissantEnabled() {
+	if config.AnzeonEnabled() {
 		wbftCfg := new(wbft.Config)
 		err := SetConfigFromChainConfig(wbftCfg, config)
 
@@ -211,7 +211,7 @@ func CreateConsensusEngine(config *params.ChainConfig, privKey *ecdsa.PrivateKey
 }
 
 func SetConfigFromChainConfig(wbftCfg *wbft.Config, chainCfg *params.ChainConfig) error {
-	config := chainCfg.Croissant.WBFT
+	config := chainCfg.Anzeon.Wbft
 	if config.RequestTimeoutSeconds != 0 {
 		wbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
 	}
@@ -234,10 +234,10 @@ func SetConfigFromChainConfig(wbftCfg *wbft.Config, chainCfg *params.ChainConfig
 
 	hfTransitionBlocks := make(map[*big.Int]bool)
 
-	//add hardforks that includes wbft config after croissant here like :
+	//add hardforks that includes wbft config after anzeon here like :
 	// transition := params.Transition{
 	// 	Block:      chainCfg.DalgonaBlock,
-	// 	WBFTConfig: chainCfg.Dalgona.WBFT,
+	// 	WbftConfig: chainCfg.Dalgona.Wbft,
 	// }
 	// wbftCfg.Transitions = append(wbftCfg.Transitions, transition)
 	// hfTransitionBlocks[chainCfg.DalgonaBlock] = true
@@ -261,8 +261,8 @@ func SetConfigFromChainConfig(wbftCfg *wbft.Config, chainCfg *params.ChainConfig
 		return wbftCfg.Transitions[i].Block.Cmp(wbftCfg.Transitions[j].Block) < 0
 	})
 
-	wbftCfg.GovContractUpgrades = append(wbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.CroissantBlock, GovContracts: chainCfg.Croissant.GovContracts})
-	// add hardforks that includes govContracts after croissant here like :
-	// wbftCfg.GovContractUpgrades = append(wbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, GovContracts: chainCfg.Dalgona.GovContracts})
+	wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: new(big.Int), SystemContracts: chainCfg.Anzeon.SystemContracts})
+	// add hardforks that includes systemContracts after anzeon here like :
+	// wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, SystemContracts: chainCfg.Dalgona.SystemContracts})
 	return nil
 }

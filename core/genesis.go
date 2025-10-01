@@ -256,13 +256,13 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 		}
 		applyOverrides(genesis.Config)
 
-		if genesis.Config.CroissantEnabled() && genesis.Config.CroissantBlock.Sign() == 0 {
-			if err := genesis.Config.Croissant.CheckValidity(); err != nil {
+		if genesis.Config.AnzeonEnabled() {
+			if err := genesis.Config.Anzeon.CheckValidity(); err != nil {
 				return nil, common.Hash{}, fmt.Errorf("Invalid genesis config: %v", err)
 			}
 
 			var err error
-			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Croissant)
+			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Anzeon)
 			if err != nil {
 				return genesis.Config, common.Hash{}, err
 			}
@@ -288,12 +288,12 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 		}
 		applyOverrides(genesis.Config)
 
-		if genesis.Config.CroissantEnabled() && genesis.Config.CroissantBlock.Sign() == 0 {
-			if err := genesis.Config.Croissant.CheckValidity(); err != nil {
+		if genesis.Config.AnzeonEnabled() {
+			if err := genesis.Config.Anzeon.CheckValidity(); err != nil {
 				return nil, common.Hash{}, fmt.Errorf("Invalid genesis config: %v", err)
 			}
 			var err error
-			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Croissant)
+			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Anzeon)
 			if err != nil {
 				return genesis.Config, stored, err
 			}
@@ -309,6 +309,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 			return genesis.Config, hash, &GenesisMismatchError{stored, hash}
 		}
 		block, err := genesis.Commit(db, triedb)
+		fmt.Printf("zzzzzz2 genesis block=%v\n", block)
 		if err != nil {
 			return genesis.Config, hash, err
 		}
@@ -317,13 +318,13 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	// Check whether the genesis block is already written.
 	if genesis != nil {
 		applyOverrides(genesis.Config)
-		if genesis.Config.CroissantEnabled() && genesis.Config.CroissantBlock.Sign() == 0 {
-			if err := genesis.Config.Croissant.CheckValidity(); err != nil {
+		if genesis.Config.AnzeonEnabled() {
+			if err := genesis.Config.Anzeon.CheckValidity(); err != nil {
 				return nil, common.Hash{}, fmt.Errorf("Invalid genesis config: %v", err)
 			}
 
 			var err error
-			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Croissant)
+			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Anzeon)
 			if err != nil {
 				return genesis.Config, common.Hash{}, err
 			}
@@ -657,14 +658,14 @@ func TestGenesisBlock() *Genesis {
 	}
 }
 
-// InjectContracts sets WBFT GovContracts to genesis
+// InjectContracts sets Wbft SystemContracts to genesis
 func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
-	transition, err := govwbft.GetGovContractsTransition(config.Croissant.GovContracts)
+	transition, err := govwbft.GetSystemContractsTransition(config.Anzeon.SystemContracts)
 	if err != nil {
 		return err
 	}
 	if transition == nil {
-		return errors.New("Some or all of the Croissant parameters are missing from the genesis configuration.")
+		return errors.New("Some or all of the Anzeon parameters are missing from the genesis configuration.")
 	}
 	if genesis.Alloc == nil {
 		genesis.Alloc = map[common.Address]types.Account{}

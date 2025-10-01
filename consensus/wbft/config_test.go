@@ -61,10 +61,10 @@ type chainConfigWrapper struct {
 }
 
 type fakeHardFork struct {
-	name              string
-	blockNum          *big.Int
-	WBFTConfig        *params.WBFTConfig
-	GovContractConfig *params.GovContracts
+	name                 string
+	blockNum             *big.Int
+	WBFTConfig           *params.WbftConfig
+	SystemContractConfig *params.SystemContracts
 }
 
 // newTestChainConfig creates a test chain config with fake hard forks
@@ -76,19 +76,19 @@ func newTestChainConfig() *chainConfigWrapper {
 }
 
 // addFakeHardFork adds a fake hard fork for testing
-func (cw *chainConfigWrapper) addFakeHardFork(name string, blockNum *big.Int, wbftConfig *params.WBFTConfig, govContractConfig *params.GovContracts) {
+func (cw *chainConfigWrapper) addFakeHardFork(name string, blockNum *big.Int, wbftConfig *params.WbftConfig, systemContractConfig *params.SystemContracts) {
 	fh := fakeHardFork{
-		name:              name,
-		blockNum:          blockNum,
-		WBFTConfig:        wbftConfig,
-		GovContractConfig: govContractConfig,
+		name:                 name,
+		blockNum:             blockNum,
+		WBFTConfig:           wbftConfig,
+		SystemContractConfig: systemContractConfig,
 	}
 	cw.fakeHardForks = append(cw.fakeHardForks, fh)
 }
 
 // setConfigFromChainConfig is a test version of SetConfigFromChainConfig that works with fake hardForks
 func setConfigFromChainConfig(wbftCfg *Config, chainCfg *chainConfigWrapper) error {
-	config := chainCfg.Croissant.WBFT
+	config := chainCfg.Anzeon.Wbft
 	if config.RequestTimeoutSeconds != 0 {
 		wbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
 	}
@@ -110,7 +110,7 @@ func setConfigFromChainConfig(wbftCfg *Config, chainCfg *chainConfigWrapper) err
 	for _, hf := range chainCfg.fakeHardForks {
 		transition := params.Transition{
 			Block:      hf.blockNum,
-			WBFTConfig: hf.WBFTConfig,
+			WbftConfig: hf.WBFTConfig,
 		}
 		wbftCfg.Transitions = append(wbftCfg.Transitions, transition)
 		hfTransitionBlocks[hf.blockNum] = true
@@ -135,13 +135,13 @@ func setConfigFromChainConfig(wbftCfg *Config, chainCfg *chainConfigWrapper) err
 		return wbftCfg.Transitions[i].Block.Cmp(wbftCfg.Transitions[j].Block) < 0
 	})
 
-	wbftCfg.GovContractUpgrades = append(wbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.CroissantBlock, GovContracts: chainCfg.Croissant.GovContracts})
+	wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: new(big.Int), SystemContracts: chainCfg.Anzeon.SystemContracts})
 	for _, hf := range chainCfg.fakeHardForks {
 		upgrade := params.Upgrade{
-			Block:        hf.blockNum,
-			GovContracts: hf.GovContractConfig,
+			Block:           hf.blockNum,
+			SystemContracts: hf.SystemContractConfig,
 		}
-		wbftCfg.GovContractUpgrades = append(wbftCfg.GovContractUpgrades, upgrade)
+		wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, upgrade)
 	}
 
 	return nil
@@ -154,21 +154,21 @@ func TestGetConfig(t *testing.T) {
 
 	// Add fake hard forks
 	testConfig.addFakeHardFork("TestFork1", big.NewInt(10),
-		&params.WBFTConfig{
+		&params.WbftConfig{
 			EpochLength: 200,
 		},
 		nil,
 	)
 
 	testConfig.addFakeHardFork("TestFork2", big.NewInt(20),
-		&params.WBFTConfig{
+		&params.WbftConfig{
 			BlockPeriodSeconds: 3,
 		},
 		nil,
 	)
 
 	testConfig.addFakeHardFork("TestFork3", big.NewInt(30),
-		&params.WBFTConfig{
+		&params.WbftConfig{
 			RequestTimeoutSeconds: 4000,
 		},
 		nil,
@@ -176,13 +176,13 @@ func TestGetConfig(t *testing.T) {
 
 	testConfig.Transitions = []params.Transition{{
 		Block:      big.NewInt(1),
-		WBFTConfig: &params.WBFTConfig{EpochLength: 40000},
+		WbftConfig: &params.WbftConfig{EpochLength: 40000},
 	}, {
 		Block:      big.NewInt(3),
-		WBFTConfig: &params.WBFTConfig{BlockPeriodSeconds: 100},
+		WbftConfig: &params.WbftConfig{BlockPeriodSeconds: 100},
 	}, {
 		Block:      big.NewInt(5),
-		WBFTConfig: &params.WBFTConfig{RequestTimeoutSeconds: 5000},
+		WbftConfig: &params.WbftConfig{RequestTimeoutSeconds: 5000},
 	}}
 
 	setConfigFromChainConfig(wbftCfg, testConfig)
@@ -266,12 +266,12 @@ func TestGetConfig(t *testing.T) {
 	}
 }
 
-// getGovContracts is test version of GetGovContracts that works with fake hardForks
-func getGovContracts(blockNumber *big.Int, wbftCfg *Config) params.GovContracts {
-	gc := params.GovContracts{}
+// getSystemContracts is test version of GetSystemContracts that works with fake hardForks
+func getSystemContracts(blockNumber *big.Int, wbftCfg *Config) params.SystemContracts {
+	gc := params.SystemContracts{}
 
-	if wbftCfg.GovContractUpgrades != nil && len(wbftCfg.GovContractUpgrades) > 0 {
-		wbftCfg.getGovContractsValue(blockNumber, func(upgrade params.Upgrade) {
+	if wbftCfg.SystemContractUpgrades != nil && len(wbftCfg.SystemContractUpgrades) > 0 {
+		wbftCfg.getSystemContractsValue(blockNumber, func(upgrade params.Upgrade) {
 			if upgrade.GovValidator != nil {
 				gc.GovValidator = upgrade.GovValidator
 			}
@@ -280,7 +280,7 @@ func getGovContracts(blockNumber *big.Int, wbftCfg *Config) params.GovContracts 
 	return gc
 }
 
-func TestGetGovContracts(t *testing.T) {
+func TestGetSystemContracts(t *testing.T) {
 	// Create test chain config with fake hard forks
 	testConfig := newTestChainConfig()
 	wbftCfg := new(Config)
@@ -288,8 +288,8 @@ func TestGetGovContracts(t *testing.T) {
 	// Add fake hard forks
 	testConfig.addFakeHardFork("TestFork1", big.NewInt(10),
 		nil,
-		&params.GovContracts{
-			GovValidator: &params.GovContract{
+		&params.SystemContracts{
+			GovValidator: &params.SystemContract{
 				Address: common.HexToAddress("0x2000"),
 				Version: "v2",
 				Params:  nil,
@@ -298,8 +298,8 @@ func TestGetGovContracts(t *testing.T) {
 	)
 	testConfig.addFakeHardFork("TestFork2", big.NewInt(20),
 		nil,
-		&params.GovContracts{
-			GovValidator: &params.GovContract{
+		&params.SystemContracts{
+			GovValidator: &params.SystemContract{
 				Address: common.HexToAddress("0x2000"),
 				Version: "v2",
 				Params:  nil,
@@ -308,9 +308,9 @@ func TestGetGovContracts(t *testing.T) {
 	)
 
 	setConfigFromChainConfig(wbftCfg, testConfig)
-	baseContracts := testConfig.Croissant.GovContracts
+	baseContracts := testConfig.Anzeon.SystemContracts
 
-	createExpectedGovContracts := func(baseConfig *params.GovContracts, modifications func(config *params.GovContracts)) params.GovContracts {
+	createExpectedSystemContracts := func(baseConfig *params.SystemContracts, modifications func(config *params.SystemContracts)) params.SystemContracts {
 		expected := *baseConfig
 		modifications(&expected)
 		return expected
@@ -318,7 +318,7 @@ func TestGetGovContracts(t *testing.T) {
 	tests := []struct {
 		name           string
 		blockNumber    uint64
-		expectedConfig params.GovContracts
+		expectedConfig params.SystemContracts
 	}{
 		{
 			name:           "Before any hard forks",
@@ -328,8 +328,8 @@ func TestGetGovContracts(t *testing.T) {
 		{
 			name:        "After first transition (block 1)",
 			blockNumber: 11,
-			expectedConfig: createExpectedGovContracts(baseContracts, func(contracts *params.GovContracts) {
-				contracts.GovValidator = &params.GovContract{
+			expectedConfig: createExpectedSystemContracts(baseContracts, func(contracts *params.SystemContracts) {
+				contracts.GovValidator = &params.SystemContract{
 					Address: common.HexToAddress("0x2000"),
 					Version: "v2",
 					Params:  nil,
@@ -339,13 +339,13 @@ func TestGetGovContracts(t *testing.T) {
 		{
 			name:        "After second transition (block 3)",
 			blockNumber: 20,
-			expectedConfig: createExpectedGovContracts(baseContracts, func(contracts *params.GovContracts) {
-				contracts.GovValidator = &params.GovContract{
+			expectedConfig: createExpectedSystemContracts(baseContracts, func(contracts *params.SystemContracts) {
+				contracts.GovValidator = &params.SystemContract{
 					Address: common.HexToAddress("0x2000"),
 					Version: "v2",
 					Params:  nil,
 				}
-				contracts.GovValidator = &params.GovContract{
+				contracts.GovValidator = &params.SystemContract{
 					Address: common.HexToAddress("0x2000"),
 					Version: "v2",
 					Params:  nil,
@@ -356,7 +356,7 @@ func TestGetGovContracts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result := getGovContracts(big.NewInt(int64(test.blockNumber)), wbftCfg)
+			result := getSystemContracts(big.NewInt(int64(test.blockNumber)), wbftCfg)
 			if !reflect.DeepEqual(result, test.expectedConfig) {
 				t.Errorf("error in %s:\nexpected: %+v\ngot: %+v\n", test.name, test.expectedConfig, result)
 			}

@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// A WBFT PREPARE message.
+// A Wbft PREPARE message.
 type Prepare struct {
 	CommonPayload
 	Digest      common.Hash

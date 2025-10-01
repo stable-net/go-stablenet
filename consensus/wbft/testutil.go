@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-wemix-wbft library. If not, see <http://www.gnu.org/licenses/>.
 //
-// This file provides test utilities for WBFT consensus to avoid code duplication
+// This file provides test utilities for Wbft consensus to avoid code duplication
 // across test files while preventing cyclic imports.
 
 package wbft
@@ -30,7 +30,7 @@ import (
 // SetConfigFromChainConfigForTest is a copy of ethconfig.SetConfigFromChainConfig
 // This function is used in test files to avoid cyclic import issues
 func SetConfigFromChainConfig(wbftCfg *Config, chainCfg *params.ChainConfig) error {
-	config := chainCfg.Croissant.WBFT
+	config := chainCfg.Anzeon.Wbft
 	if config.RequestTimeoutSeconds != 0 {
 		wbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
 	}
@@ -50,10 +50,10 @@ func SetConfigFromChainConfig(wbftCfg *Config, chainCfg *params.ChainConfig) err
 
 	hfTransitionBlocks := make(map[*big.Int]bool)
 
-	//add hardforks that includes wbft config after croissant here like :
+	//add hardforks that includes wbft config after anzeon here like :
 	// transition := params.Transition{
 	// 	Block:      chainCfg.DalgonaBlock,
-	// 	WBFTConfig: chainCfg.Dalgona.WBFT,
+	// 	WbftConfig: chainCfg.Dalgona.Wbft,
 	// }
 	// wbftCfg.Transitions = append(wbftCfg.Transitions, transition)
 	// hfTransitionBlocks[chainCfg.DalgonaBlock] = true
@@ -77,8 +77,8 @@ func SetConfigFromChainConfig(wbftCfg *Config, chainCfg *params.ChainConfig) err
 		return wbftCfg.Transitions[i].Block.Cmp(wbftCfg.Transitions[j].Block) < 0
 	})
 
-	wbftCfg.GovContractUpgrades = append(wbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.CroissantBlock, GovContracts: chainCfg.Croissant.GovContracts})
-	// add hardforks that includes govContracts after croissant here like :
-	// wbftCfg.GovContractUpgrades = append(wbftCfg.GovContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, GovContracts: chainCfg.Dalgona.GovContracts})
+	wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: new(big.Int), SystemContracts: chainCfg.Anzeon.SystemContracts})
+	// add hardforks that includes systemContracts after anzeon here like :
+	// wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, SystemContracts: chainCfg.Dalgona.SystemContracts})
 	return nil
 }

@@ -60,17 +60,17 @@ func initializeValidator(govValidatorAddress common.Address, param map[string]st
 
 	if valStr, ok := param[GOV_VALIDATOR_PARAM_VALIDATORS]; ok {
 		if _, ok2 := param[GOV_VALIDATOR_PARAM_BLS_KEYS]; !ok2 {
-			return nil, fmt.Errorf("`govContracts.govValidator.params`: missing parameter: %s", GOV_VALIDATOR_PARAM_BLS_KEYS)
+			return nil, fmt.Errorf("`systemContracts.govValidator.params`: missing parameter: %s", GOV_VALIDATOR_PARAM_BLS_KEYS)
 		}
 
 		memberAddresses := strings.Split(param[GOV_BASE_PARAM_MEMBERS], ",")
 		valAddresses := strings.Split(valStr, ",")
 		blsKeyStrings := strings.Split(param[GOV_VALIDATOR_PARAM_BLS_KEYS], ",")
 		if len(memberAddresses) != len(valAddresses) {
-			return nil, fmt.Errorf("`govContracts.govValidator.params`: the number of members and validators must be the same")
+			return nil, fmt.Errorf("`systemContracts.govValidator.params`: the number of members and validators must be the same")
 		}
 		if len(valAddresses) != len(blsKeyStrings) {
-			return nil, fmt.Errorf("`govContracts.govValidator.params`: the number of validators and BLS public keys must be the same")
+			return nil, fmt.Errorf("`systemContracts.govValidator.params`: the number of validators and BLS public keys must be the same")
 		}
 
 		validators := make([]common.Address, 0)
@@ -151,7 +151,7 @@ func initializeValidator(govValidatorAddress common.Address, param map[string]st
 		}
 	} else {
 		if _, ok2 := param[GOV_VALIDATOR_PARAM_BLS_KEYS]; ok2 {
-			return nil, fmt.Errorf("`govContracts.govValidator.params`: missing parameter: %s", GOV_VALIDATOR_PARAM_VALIDATORS)
+			return nil, fmt.Errorf("`systemContracts.govValidator.params`: missing parameter: %s", GOV_VALIDATOR_PARAM_VALIDATORS)
 		}
 	}
 

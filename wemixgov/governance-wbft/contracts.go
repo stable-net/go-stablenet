@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2025 The go-wemix-wbft Authors
+// Copyright 2025 The stable-one Authors
 // This file is part of the go-wemix-wbft library.
 //
 // The go-wemix-wbft library is free software: you can redistribute it and/or modify
@@ -22,8 +23,8 @@ import (
 )
 
 const (
-	GOV_CONTRACT_VERSION_1 = "v1"
-	GOV_CONTRACT_VERSION_2 = "v2"
+	SYSTEM_CONTRACT_VERSION_1 = "v1"
+	SYSTEM_CONTRACT_VERSION_2 = "v2"
 
 	CONTRACT_GOV_VALIDATOR = "GovValidator"
 )
@@ -32,12 +33,12 @@ var (
 	//go:embed govcontracts/v1/GovValidator
 	GovValidatorContractV1 string
 
-	GovContractCodes map[string]map[string]string
+	SystemContractCodes map[string]map[string]string
 )
 
 func init() {
-	GovContractCodes = make(map[string]map[string]string)
+	SystemContractCodes = make(map[string]map[string]string)
 
-	GovContractCodes[CONTRACT_GOV_VALIDATOR] = make(map[string]string)
-	GovContractCodes[CONTRACT_GOV_VALIDATOR][GOV_CONTRACT_VERSION_1] = GovValidatorContractV1
+	SystemContractCodes[CONTRACT_GOV_VALIDATOR] = make(map[string]string)
+	SystemContractCodes[CONTRACT_GOV_VALIDATOR][SYSTEM_CONTRACT_VERSION_1] = GovValidatorContractV1
 }

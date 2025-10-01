@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"errors"
+	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 	"math/big"
 	"reflect"
 	"slices"
@@ -326,7 +327,6 @@ func TestSortCandidates(t *testing.T) {
 func TestWriteRandao(t *testing.T) {
 	privateKey, _ := crypto.GenerateKey()
 	blockNumber := big.NewInt(3)
-	parentBlockNumber := new(big.Int).Sub(blockNumber, big.NewInt(1))
 	parentMixDigest := crypto.Keccak256Hash([]byte("My sample randao mix"))
 	engine := NewEngine(wbft.DefaultConfig, crypto.PubkeyToAddress(privateKey.PublicKey), func(data []byte) ([]byte, error) {
 		hashData := crypto.Keccak256(data)
@@ -334,8 +334,7 @@ func TestWriteRandao(t *testing.T) {
 	}, nil)
 
 	chainConfig := &params.ChainConfig{
-		ChainID:        new(big.Int).SetUint64(9999),
-		CroissantBlock: parentBlockNumber,
+		ChainID: new(big.Int).SetUint64(9999),
 	}
 
 	expectedRandaoReveal, _ := crypto.Sign(crypto.Keccak256(makeRandaoData(chainConfig, blockNumber)), privateKey)
@@ -410,6 +409,22 @@ func newAccounts(n int) (accounts []account) {
 	}
 
 	return accounts
+}
+
+func updateChainConfig(chainConfig *params.ChainConfig, newValidators []account) {
+	vals := ""
+	blsKeys := ""
+	for i, v := range newValidators {
+		if i != 0 {
+			vals += ","
+			blsKeys += ","
+		}
+		vals += v.addr.Hex()
+		blsKeys += "0x" + hexutil.Encode(v.blsKey.PublicKey().Marshal())[2:]
+	}
+	chainConfig.Anzeon.SystemContracts.GovValidator.Params[govwbft.GOV_BASE_PARAM_MEMBERS] = vals
+	chainConfig.Anzeon.SystemContracts.GovValidator.Params[govwbft.GOV_VALIDATOR_PARAM_VALIDATORS] = vals
+	chainConfig.Anzeon.SystemContracts.GovValidator.Params[govwbft.GOV_VALIDATOR_PARAM_BLS_KEYS] = blsKeys
 }
 
 func TestEpochInfo(t *testing.T) {
@@ -535,6 +550,8 @@ func TestEpochInfo(t *testing.T) {
 			// Setup test chain genesis
 			c := new(fakeChain)
 			c.chainConfig = params.TestWBFTChainConfig
+			updateChainConfig(c.chainConfig, signers)
+
 			wbftCfg := new(wbft.Config)
 			wbft.SetConfigFromChainConfig(wbftCfg, c.chainConfig)
 			wbftCfg.Epoch = 3
@@ -547,7 +564,7 @@ func TestEpochInfo(t *testing.T) {
 			tdb := state.NewDatabase(db)
 			statedb, _ := state.New(types.EmptyRootHash, tdb, nil)
 
-			st, _ := wbft.GetGovContractsStateTransition(wbftCfg, parent.Number)
+			st, _ := wbft.GetSystemContractsStateTransition(wbftCfg, parent.Number)
 			for _, c := range st.Codes {
 				statedb.SetCode(c.Address, hexutil.MustDecode(c.Code))
 			}
@@ -610,96 +627,6 @@ func TestEpochInfo(t *testing.T) {
 	}
 }
 
-func TestEpochInfoTransition(t *testing.T) {
-	var testCases = []struct {
-		name           string
-		epoch          uint64
-		croissantBlock *big.Int
-	}{
-		{
-			"Epoch info transition (epoch = croissantBlock)",
-			3,
-			big.NewInt(3),
-		},
-		{
-			"Epoch info transition (epoch > croissantBlock)",
-			4,
-			big.NewInt(3),
-		},
-		{
-			"Epoch info transition (epoch < croissantBlock)",
-			3,
-			big.NewInt(4),
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			var parent *types.Header
-
-			// Setup validators
-			signers := newAccounts(4)
-			var validators []common.Address
-			var blsPubKeys []string
-			for _, s := range signers {
-				validators = append(validators, s.addr)
-				blsPubKeys = append(blsPubKeys, hexutil.Encode(s.blsKey.PublicKey().Marshal()))
-			}
-
-			// Setup test chain genesis
-			c := new(fakeChain)
-			c.chainConfig = new(params.ChainConfig) // do not mess TestChainConfig
-			*c.chainConfig = *params.TestWBFTChainConfig
-			c.chainConfig.CroissantBlock = tc.croissantBlock
-			c.chainConfig.Croissant.Init.Validators = validators
-			c.chainConfig.Croissant.Init.BLSPublicKeys = blsPubKeys
-			testConfig := *wbft.DefaultConfig
-			testConfig.Epoch = tc.epoch
-			engine := NewEngine(&testConfig, common.Address{}, nil, nil)
-			parent = makeGenesis(signers)
-			c.insertHeader(parent)
-
-			for {
-				h := makeHeader(parent)
-
-				c.insertHeader(h)
-				parent = h
-
-				// Build epoch info
-				newEpoch, _ := engine.buildEpochInfo(c, h, nil)
-				ApplyHeaderWBFTExtra(h, WriteEpochInfo(newEpoch))
-				isEpoch, _, _ := engine.IsEpochBlockNumber(c.chainConfig, h.Number)
-				if newEpoch != nil && !isEpoch {
-					t.Errorf("expected epoch info to be nil")
-				}
-
-				if newEpoch == nil {
-					if h.Number.Cmp(c.chainConfig.CroissantBlock) >= 0 {
-						t.Error("epoch is nil", "h.Number", h.Number, "croissantBlock", c.chainConfig.CroissantBlock)
-						break
-					}
-					continue
-				}
-
-				if h.Number.Cmp(c.chainConfig.CroissantBlock) != 0 {
-					t.Error("epoch is not nil", "h.Number", h.Number, "croissantBlock", c.chainConfig.CroissantBlock)
-					break
-				}
-
-				// Validate wbftExtra
-				wbftExtra, _ := types.ExtractWBFTExtra(h)
-				for j := 0; j < 4; j++ {
-					staker := wbftExtra.EpochInfo.Stakers[j]
-					if staker.Diligence != types.DefaultDiligence {
-						t.Errorf("expected diligence mismatch for staker %d: have %d, want %d", j, staker.Diligence, types.DefaultDiligence)
-					}
-				}
-				break
-			}
-		})
-	}
-}
-
 func makeGenesis(signers []account) *types.Header {
 	header := &types.Header{
 		Number:     big.NewInt(0),
@@ -757,7 +684,7 @@ func TestIsEpochBlock(t *testing.T) {
 		expectedLatestEpoch *big.Int
 		expectedError       error
 	}{
-		// case 1: no croissant fork, zero block is an epoch block
+		// case 1: zero block is an epoch block
 		{
 			params.ChainConfig{},
 			wbft.Config{
@@ -768,7 +695,7 @@ func TestIsEpochBlock(t *testing.T) {
 			new(big.Int),
 			nil,
 		},
-		// case 2: no croissant fork, 1 block is not an epoch block
+		// case 2: 1 block is not an epoch block
 		{
 			params.ChainConfig{},
 			wbft.Config{
@@ -779,7 +706,7 @@ func TestIsEpochBlock(t *testing.T) {
 			new(big.Int),
 			nil,
 		},
-		// case 3: no croissant fork, epoch - 1 block is not an epoch block
+		// case 3: epoch - 1 block is not an epoch block
 		{
 			params.ChainConfig{},
 			wbft.Config{
@@ -790,7 +717,7 @@ func TestIsEpochBlock(t *testing.T) {
 			new(big.Int),
 			nil,
 		},
-		// case 4: no croissant fork, epoch block is an epoch block
+		// case 4: epoch block is an epoch block
 		{
 			params.ChainConfig{},
 			wbft.Config{
@@ -801,7 +728,7 @@ func TestIsEpochBlock(t *testing.T) {
 			new(big.Int).SetUint64(100),
 			nil,
 		},
-		// case 5: no croissant fork, epoch block * n is an epoch block
+		// case 5: epoch block * n is an epoch block
 		{
 			params.ChainConfig{},
 			wbft.Config{
@@ -810,173 +737,6 @@ func TestIsEpochBlock(t *testing.T) {
 			new(big.Int).SetUint64(300),
 			true,
 			new(big.Int).SetUint64(300),
-			nil,
-		},
-		// case 6: croissant fork, error before fork
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(1),
-			},
-			wbft.Config{
-				Epoch: 100,
-			},
-			new(big.Int),
-			false,
-			nil,
-			wbftcommon.ErrIsNotWBFTBlock,
-		},
-		// case 7: croissant fork, fork block is an epoch block
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(13),
-			},
-			wbft.Config{
-				Epoch: 100,
-			},
-			new(big.Int).SetUint64(13),
-			true,
-			new(big.Int).SetUint64(13),
-			nil,
-		},
-		// case 8: croissant fork, next of fork block is not an epoch block
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(13),
-			},
-			wbft.Config{
-				Epoch: 100,
-			},
-			new(big.Int).SetUint64(14),
-			false,
-			new(big.Int).SetUint64(13),
-			nil,
-		},
-		// case 9: croissant fork, fork block + epoch is an epoch block
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(13),
-			},
-			wbft.Config{
-				Epoch: 100,
-			},
-			new(big.Int).SetUint64(113),
-			true,
-			new(big.Int).SetUint64(113),
-			nil,
-		},
-		// case 10: croissant fork, transition exist, before transition
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(1000),
-			},
-			wbft.Config{
-				Epoch: 100,
-				Transitions: []params.Transition{
-					{Block: new(big.Int).SetUint64(1101), WBFTConfig: &params.WBFTConfig{EpochLength: 200}},
-				},
-			},
-			new(big.Int).SetUint64(1100), // before transition
-			true,
-			new(big.Int).SetUint64(1100),
-			nil,
-		},
-		// case 11: croissant fork, transition exist, just on transition
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(1000),
-			},
-			wbft.Config{
-				Epoch: 100,
-				Transitions: []params.Transition{
-					{Block: new(big.Int).SetUint64(1100), WBFTConfig: &params.WBFTConfig{EpochLength: 200}},
-				},
-			},
-			new(big.Int).SetUint64(1100), // on transition
-			true,
-			new(big.Int).SetUint64(1100),
-			nil,
-		},
-		// case 12: croissant fork, transition exist, after transition, applied new epoch length
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(1000),
-			},
-			wbft.Config{
-				Epoch: 100,
-				Transitions: []params.Transition{
-					{Block: new(big.Int).SetUint64(1100), WBFTConfig: &params.WBFTConfig{EpochLength: 200}},
-				},
-			},
-			new(big.Int).SetUint64(1200),
-			false,
-			new(big.Int).SetUint64(1100),
-			nil,
-		},
-		// case 13: edge case; transition before croissant fork?
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(1000),
-			},
-			wbft.Config{
-				Epoch: 100,
-				Transitions: []params.Transition{
-					{Block: new(big.Int).SetUint64(950), WBFTConfig: &params.WBFTConfig{EpochLength: 50}},
-				},
-			},
-			new(big.Int).SetUint64(1050),
-			true,
-			new(big.Int).SetUint64(1050),
-			nil,
-		},
-		// case 14: croissant fork, transitions exist, after transition, applied new epoch length
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(1000),
-			},
-			wbft.Config{
-				Epoch: 100,
-				Transitions: []params.Transition{
-					{Block: new(big.Int).SetUint64(1100), WBFTConfig: &params.WBFTConfig{EpochLength: 200}},
-					{Block: new(big.Int).SetUint64(1300), WBFTConfig: &params.WBFTConfig{EpochLength: 100}},
-				},
-			},
-			new(big.Int).SetUint64(1200),
-			false,
-			new(big.Int).SetUint64(1100),
-			nil,
-		},
-		// case 15: croissant fork, transitions exist, after transitions, applied new epoch length
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(1000),
-			},
-			wbft.Config{
-				Epoch: 100,
-				Transitions: []params.Transition{
-					{Block: new(big.Int).SetUint64(1100), WBFTConfig: &params.WBFTConfig{EpochLength: 200}},
-					{Block: new(big.Int).SetUint64(1300), WBFTConfig: &params.WBFTConfig{EpochLength: 50}},
-				},
-			},
-			new(big.Int).SetUint64(1350),
-			true,
-			new(big.Int).SetUint64(1350),
-			nil,
-		},
-		// case 16: croissant fork, transitions exist, after transitions, applied new epoch length
-		{
-			params.ChainConfig{
-				CroissantBlock: new(big.Int).SetUint64(1000),
-			},
-			wbft.Config{
-				Epoch: 100,
-				Transitions: []params.Transition{
-					{Block: new(big.Int).SetUint64(1100), WBFTConfig: &params.WBFTConfig{EpochLength: 10}},
-					{Block: new(big.Int).SetUint64(1300), WBFTConfig: &params.WBFTConfig{EpochLength: 50}},
-				},
-			},
-			new(big.Int).SetUint64(1310),
-			false,
-			new(big.Int).SetUint64(1300),
 			nil,
 		},
 	}

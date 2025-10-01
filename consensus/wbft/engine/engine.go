@@ -78,8 +78,8 @@ func NewEngine(cfg *wbft.Config, signer common.Address, sign SignerFn, checkSig 
 	}
 }
 
-func mustHavePrevSeals(header *types.Header, config *params.ChainConfig) bool {
-	return header.Number.Cmp(config.CroissantBlock) > 0 && header.Number.Cmp(common.Big1) > 0
+func mustHavePrevSeals(header *types.Header) bool {
+	return header.Number.Cmp(new(big.Int)) > 0 && header.Number.Cmp(common.Big1) > 0
 }
 
 func (e *Engine) Author(header *types.Header) (common.Address, error) {
@@ -313,10 +313,8 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		return fmt.Errorf("invalid randao mix: have %x, want %x", header.MixDigest, calculatedRandaoMix)
 	}
 
-	// prev seals validation for croissant block or first block after genesis is skipped because it's empty
-	if mustHavePrevSeals(header, chain.Config()) {
-		// if croissant == 0: croissant+1(== 1) has no prev seals;
-		// if croissant > 0: croissant+1 has prev seals;
+	// prev seals validation for anzeon block or first block after genesis is skipped because it's empty
+	if mustHavePrevSeals(header) {
 		// Verify prevPreparedSeals and prevCommittedSeals
 		if err := e.verifyPrevSeals(header, parent, prevValidators, currentExtra); err != nil {
 			return err
@@ -468,7 +466,7 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 
 	var madeExtra *types.WBFTExtra
 	var err error
-	if mustHavePrevSeals(header, chain.Config()) {
+	if mustHavePrevSeals(header) {
 		lastCanonicalHeader := chain.GetHeaderByNumber(header.Number.Uint64() - 1)
 		if lastCanonicalHeader.Number.Sign() == 0 {
 			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header))
@@ -497,8 +495,7 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 			)
 		}
 	} else {
-		// croissant hardFork block has empty prev seal
-		// next block of genesis croissant block has empty prev seal
+		// genesis block has empty prev seal
 		madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header))
 	}
 	if err != nil {
@@ -524,8 +521,8 @@ func makeRandaoData(config *params.ChainConfig, number *big.Int) []byte {
 	var data []byte
 	chainId := config.ChainID
 	randaoVersion := new(big.Int)
-	if config.IsCroissant(number) {
-		randaoVersion.SetUint64(1) // croissant randao version is 1
+	if config.AnzeonEnabled() {
+		randaoVersion.SetUint64(1) // anzeon randao version is 1
 	}
 	data = append(data, chainId.Bytes()...)
 	data = append(data, randaoVersion.Bytes()...)
@@ -560,8 +557,8 @@ func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyWBFTExtra {
 
 // GetGovValidators retrieves the list of current validators from the GovValidator contract.
 func (e *Engine) GetGovValidators(config *params.ChainConfig, state govwbft.StateReader, num *big.Int) []common.Address {
-	govContracts := e.cfg.GetGovContracts(num, config)
-	govValidatorAddress := govContracts.GovValidator.Address
+	systemContracts := e.cfg.GetSystemContracts(num, config)
+	govValidatorAddress := systemContracts.GovValidator.Address
 
 	return govwbft.ValidatorList(govValidatorAddress, state)
 }
@@ -585,8 +582,8 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	}
 
 	// Generate initial epoch block if a transition occurs.
-	if config.CroissantBlock != nil && header.Number.Cmp(config.CroissantBlock) == 0 {
-		return wbft.CreateInitialEpochInfo(config.Croissant)
+	if header.Number.Sign() == 0 {
+		return wbft.CreateInitialEpochInfo(config.Anzeon)
 	}
 
 	proposedSealsInEpoch := make(map[common.Address]int)
@@ -684,7 +681,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	}
 
 	// set prior validator
-	if it.Number.Cmp(config.CroissantBlock) > 0 {
+	if it.Number.Cmp(new(big.Int)) > 0 {
 		parent := chain.GetHeader(it.ParentHash, it.Number.Uint64()-1)
 		_, priorEpochInfo, err2 := e.GetEpochInfo(chain, parent, nil)
 		if err2 != nil {
@@ -696,12 +693,6 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 			if stakerMap[addr] != nil { // if stakerMap[addr] == nil -> this is not current staker
 				stakerMap[addr].wasValidator = true
 			}
-		}
-	} else if it.Number.Sign() != 0 {
-		// exception case: if "it" is the croissant block, all current stakers were validators in the croissant block
-		// in other words, all current stakers can have the previous seals in the point of the first block
-		for _, st := range stakerMap {
-			st.wasValidator = true
 		}
 	}
 
@@ -806,7 +797,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	}
 
 	// epoch in a stabilization stage has the validator set which is same to the previous epoch
-	govValidatorAddress := e.cfg.GetGovContracts(header.Number, config).GovValidator.Address
+	govValidatorAddress := e.cfg.GetSystemContracts(header.Number, config).GovValidator.Address
 	candidates := make([]Candidate, 0, len(newValidators))
 	for _, s := range newEpoch.Stakers {
 		candidate := Candidate{
@@ -856,7 +847,7 @@ func (e *Engine) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 //     It processes actions specific to the EpochBlock, which records the ValidatorList for the next Epoch,
 //     and is the last block of the (N-1)th Epoch for the (N)th Epoch.
 func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, epochHandler func(*Engine, consensus.ChainHeaderReader, *types.Header, govwbft.StateReader) error) error {
-	if st, err := wbft.GetGovContractsStateTransition(e.cfg, header.Number); err != nil {
+	if st, err := wbft.GetSystemContractsStateTransition(e.cfg, header.Number); err != nil {
 		return err
 	} else if st != nil {
 		for _, c := range st.Codes {
@@ -910,15 +901,12 @@ func (e *Engine) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, 
 // IsEpochBlockNumber returns whether the given block number is an epoch block.
 // it returns whether the given block number is an epoch block and the last epoch block number.
 func (e *Engine) IsEpochBlockNumber(config *params.ChainConfig, number *big.Int) (bool, *big.Int, error) {
-	if config.CroissantBlock != nil && !config.IsCroissant(number) {
+	if !config.AnzeonEnabled() {
 		return false, nil, wbftcommon.ErrIsNotWBFTBlock
 	}
 
 	epochLength := new(big.Int).SetUint64(e.cfg.Epoch)
 	firstNewEpoch := new(big.Int).SetUint64(0)
-	if config.CroissantBlock != nil {
-		firstNewEpoch.Set(config.CroissantBlock)
-	}
 	for _, transition := range e.cfg.Transitions {
 		if transition.Block.Cmp(number) > 0 {
 			break
@@ -938,12 +926,12 @@ func (e *Engine) IsEpochBlockNumber(config *params.ChainConfig, number *big.Int)
 // GetValidators retrieve the validator list of the epoch to which block of given number belongs.
 // If the given block is an epoch block, it returns the validators of prior epoch.
 // `parents` is a hint for backward traverse.
-// exceptional case: blockNumber is genesis block number or croissant hard fork block number, then
+// exceptional case: blockNumber is genesis block number, then
 // it returns the validators from chain config.
 func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *big.Int, parentHash common.Hash, parents []*types.Header) (wbft.ValidatorSet, error) {
 	chainConfig := chain.Config()
-	// 1. Check if the block is not a WBFT block
-	if chainConfig.CroissantBlock != nil && !chainConfig.IsCroissant(blockNumber) {
+	// 1. Check if the block is not a Wbft block
+	if !chainConfig.AnzeonEnabled() {
 		return nil, wbftcommon.ErrIsNotWBFTBlock
 	}
 
@@ -951,9 +939,9 @@ func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *b
 		epochInfo *types.EpochInfo
 		err       error
 	)
-	if blockNumber.Cmp(chainConfig.CroissantBlock) == 0 {
-		//croissant hard fork validators from croissant config
-		vs := validator.NewSet(chainConfig.Croissant.Init.Validators, chainConfig.Croissant.GetInitialBLSPublicKeys(), e.cfg.ProposerPolicy)
+	if blockNumber.Sign() == 0 {
+		// if it is genesis block, get validators from anzeon config
+		vs := validator.NewSet(chainConfig.Anzeon.Init.Validators, chainConfig.Anzeon.GetInitialBLSPublicKeys(), e.cfg.ProposerPolicy)
 		return vs, nil
 	}
 
@@ -1230,7 +1218,7 @@ func mergeSeals(seal *types.WBFTAggregatedSeal, extraSeals []wbft.SealData) *typ
 }
 
 func (e *Engine) GetEpochInfo(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (*big.Int, *types.EpochInfo, error) {
-	if chain.Config().CroissantBlock.Cmp(header.Number) == 0 {
+	if header.Number.Sign() == 0 {
 		return e.extractEpochInfo(header)
 	}
 

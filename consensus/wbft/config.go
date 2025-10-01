@@ -110,7 +110,7 @@ type Config struct {
 	AllowedFutureBlockTime   uint64          `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
 	MaxRequestTimeoutSeconds uint64          `toml:",omitempty"`
 	Transitions              []params.Transition
-	GovContractUpgrades      []params.Upgrade
+	SystemContractUpgrades   []params.Upgrade
 }
 
 var DefaultConfig = &Config{
@@ -121,27 +121,27 @@ var DefaultConfig = &Config{
 	AllowedFutureBlockTime: 0,
 }
 
-func (c *Config) GetGovContracts(blockNumber *big.Int, chainConfig *params.ChainConfig) params.GovContracts {
-	gc := params.GovContracts{}
+func (c *Config) GetSystemContracts(blockNumber *big.Int, chainConfig *params.ChainConfig) params.SystemContracts {
+	gc := params.SystemContracts{}
 
-	if c.GovContractUpgrades != nil && len(c.GovContractUpgrades) > 0 {
-		c.getGovContractsValue(blockNumber, func(upgrade params.Upgrade) {
+	if c.SystemContractUpgrades != nil && len(c.SystemContractUpgrades) > 0 {
+		c.getSystemContractsValue(blockNumber, func(upgrade params.Upgrade) {
 			if upgrade.GovValidator != nil {
 				gc.GovValidator = upgrade.GovValidator
 			}
 		})
 	} else {
-		// Normally unreachable since c.GovContractsUpgrades is set when wbft engine is created,
+		// Normally unreachable since c.SystemContractsUpgrades is set when wbft engine is created,
 		// but used in few tests where wbft.Config isn't properly initialized — fallback to Montblanc chain config.
-		gc = *chainConfig.Croissant.GovContracts
+		gc = *chainConfig.Anzeon.SystemContracts
 	}
 	return gc
 }
 
-func (c *Config) getGovContractsValue(num *big.Int, callback func(govContracts params.Upgrade)) {
+func (c *Config) getSystemContractsValue(num *big.Int, callback func(systemContracts params.Upgrade)) {
 	if c != nil && num != nil {
-		for i := 0; i < len(c.GovContractUpgrades) && c.GovContractUpgrades[i].Block.Cmp(num) <= 0; i++ {
-			callback(c.GovContractUpgrades[i])
+		for i := 0; i < len(c.SystemContractUpgrades) && c.SystemContractUpgrades[i].Block.Cmp(num) <= 0; i++ {
+			callback(c.SystemContractUpgrades[i])
 		}
 	}
 }
@@ -184,11 +184,11 @@ func (c *Config) String() string {
 	return "wbft"
 }
 
-// GetGovContractsStateTransition is used when for gov contracts needs to be set in the middle of the chain processing
-func GetGovContractsStateTransition(wbftCfg *Config, num *big.Int) (*params.StateTransition, error) {
-	for _, upgrade := range wbftCfg.GovContractUpgrades {
+// GetSystemContractsStateTransition is used when for gov contracts needs to be set in the middle of the chain processing
+func GetSystemContractsStateTransition(wbftCfg *Config, num *big.Int) (*params.StateTransition, error) {
+	for _, upgrade := range wbftCfg.SystemContractUpgrades {
 		if num.Cmp(upgrade.Block) == 0 {
-			return govwbft.GetGovContractsTransition(upgrade.GovContracts)
+			return govwbft.GetSystemContractsTransition(upgrade.SystemContracts)
 		} else if num.Cmp(upgrade.Block) < 0 {
 			break
 		}
@@ -196,7 +196,7 @@ func GetGovContractsStateTransition(wbftCfg *Config, num *big.Int) (*params.Stat
 	return nil, nil
 }
 
-func CreateInitialExtraData(config *params.CroissantConfig) ([]byte, error) {
+func CreateInitialExtraData(config *params.AnzeonConfig) ([]byte, error) {
 	epochInfo, err := CreateInitialEpochInfo(config)
 	if err != nil {
 		return nil, err
@@ -214,7 +214,7 @@ func CreateInitialExtraData(config *params.CroissantConfig) ([]byte, error) {
 	return extraDataBytes, nil
 }
 
-func CreateInitialEpochInfo(config *params.CroissantConfig) (*types.EpochInfo, error) {
+func CreateInitialEpochInfo(config *params.AnzeonConfig) (*types.EpochInfo, error) {
 	var (
 		stakers       []common.Address
 		blsPublicKeys []string

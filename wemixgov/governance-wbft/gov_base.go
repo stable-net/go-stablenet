@@ -20,13 +20,11 @@ package govwbft
 import (
 	"encoding/binary"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"math/big"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
@@ -66,7 +64,7 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 		var err error
 		quorum, err = strconv.ParseUint(quorumStr, 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("`govContracts.govBase.params.quorum`: %w", err)
+			return nil, fmt.Errorf("`systemContracts.govBase.params.quorum`: %w", err)
 		}
 
 		sp = append(sp,
@@ -81,7 +79,7 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 	if expiryStr, ok := param[GOV_BASE_PARAM_EXPIRY]; ok {
 		expiry, err := strconv.ParseUint(expiryStr, 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("`govContracts.govBase.params.expiry`: %w", err)
+			return nil, fmt.Errorf("`systemContracts.govBase.params.expiry`: %w", err)
 		}
 		sp = append(sp,
 			params.StateParam{
@@ -95,7 +93,7 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 	if membersStr, ok := param[GOV_BASE_PARAM_MEMBERS]; ok {
 		memberAddresses := strings.Split(membersStr, ",")
 		if quorum > 0 && uint64(len(memberAddresses)) < quorum {
-			return nil, fmt.Errorf("`govContracts.govBase.params.quorum` must not be greater than the number of members")
+			return nil, fmt.Errorf("`systemContracts.govBase.params.quorum` must not be greater than the number of members")
 		}
 
 		membersSlot := common.HexToHash(SLOT_GOV_BASE_members)
@@ -104,18 +102,22 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 
 		versionStr, ok2 := param[GOV_BASE_PARAM_MEMBER_VERSION]
 		if !ok2 {
-			return nil, fmt.Errorf("`govContracts.govBase.params.memberVersion` is required when `govContracts.govBase.params.members` is set")
+			return nil, fmt.Errorf("`systemContracts.govBase.params.memberVersion` is required when `systemContracts.govBase.params.members` is set")
 		}
 		versionInt, err := strconv.ParseUint(versionStr, 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("`govContracts.govBase.params.memberVersion`: %w", err)
+			return nil, fmt.Errorf("`systemContracts.govBase.params.memberVersion`: %w", err)
 		}
 		version := new(big.Int).SetUint64(versionInt)
 
 		duplicated := make(map[common.Address]struct{})
+
+		// joinedAt is set to 0 for all initial members.
+		// We do not use the current time in the genesis (configuration).
+		// This is because it makes the genesis generation non-deterministic.
 		memberData := Member{
 			IsActive: true,
-			JoinedAt: uint32(time.Now().Unix()),
+			JoinedAt: 0,
 		}.ToHash()
 
 		currentIdx := uint64(0)

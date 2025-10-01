@@ -85,7 +85,6 @@ var (
 	errBlockInterruptedByNewHead  = errors.New("new head arrived while building block")
 	errBlockInterruptedByRecommit = errors.New("recommit interrupt while building block")
 	errBlockInterruptedByTimeout  = errors.New("timeout while building block")
-	errSkipMiningBeforeCroissant  = errors.New("skipping block preparation before Croissant hard fork")
 )
 
 var (
@@ -458,7 +457,7 @@ func recalcRecommit(minRecommit, prev time.Duration, target float64, inc bool) t
 
 // newWorkLoop is a standalone goroutine to submit new sealing work upon received events.
 func (w *worker) newWorkLoop(recommit time.Duration) {
-	if w.chainConfig.Croissant == nil {
+	if w.chainConfig.Anzeon == nil {
 		w.newWorkLoopOrigin(recommit)
 	} else {
 		w.newWorkLoopWBFT()
@@ -563,7 +562,7 @@ func (w *worker) newWorkLoopOrigin(recommit time.Duration) {
 	}
 }
 
-// newWorkLoopWBFT is a standalone goroutine to submit new sealing work upon received events for WBFT.
+// newWorkLoopWBFT is a standalone goroutine to submit new sealing work upon received events for Wbft.
 func (w *worker) newWorkLoopWBFT() {
 	defer w.wg.Done()
 	var (
@@ -614,7 +613,7 @@ func (w *worker) newWorkLoopWBFT() {
 			err := handler.NewChainHead()
 			clearPending(head.Block.NumberU64())
 			if errors.Is(err, wbft.ErrStoppedEngine) {
-				// If WBFT engine is running, we don't need to commit new work here because
+				// If Wbft engine is running, we don't need to commit new work here because
 				// it will triggered by readyToCommitCh
 				commit(commitInterruptNewHead)
 			}
@@ -627,10 +626,10 @@ func (w *worker) newWorkLoopWBFT() {
 			}
 
 		case <-w.resubmitIntervalCh:
-			log.Warn("resubmitInterval is not used in WBFT")
+			log.Warn("resubmitInterval is not used in Wbft")
 
 		case <-w.resubmitAdjustCh:
-			log.Trace("ResubmitAdjust is not used in WBFT")
+			log.Trace("ResubmitAdjust is not used in Wbft")
 
 		case <-w.exitCh:
 			return
@@ -1123,11 +1122,6 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		header.ParentBeaconRoot = genParams.beaconRoot
 	}
 
-	if w.chainConfig.CroissantBlock != nil && !w.chainConfig.IsCroissant(header.Number) {
-		// If we are not in the Croissant phase, we don't prepare a block
-		log.Info("Skipping block preparation before Croissant hard fork", "number", header.Number, "fork", w.chainConfig.CroissantBlock)
-		return nil, errSkipMiningBeforeCroissant
-	}
 	// Run the consensus preparation with the default or customized consensus engine.
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for sealing", "err", err)
@@ -1261,9 +1255,7 @@ func (w *worker) commitWork(interrupt *atomic.Int32, timestamp int64) {
 		coinbase:  coinbase,
 	})
 	if err != nil {
-		if !errors.Is(err, errSkipMiningBeforeCroissant) {
-			log.Error("Fail to prepare work", "err", err)
-		}
+		log.Error("Fail to prepare work", "err", err)
 		return
 	}
 	// Fill pending transactions from the txpool into the block.

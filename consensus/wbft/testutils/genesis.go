@@ -59,15 +59,15 @@ func Genesis(validators []common.Address, blsPublicKeys [][]byte) *core.Genesis 
 	genesis.Difficulty = types.WBFTDefaultDifficulty
 	genesis.Nonce = wbftcommon.EmptyBlockNonce.Uint64()
 	// Set genesis config as given validators and blsPubkeys
-	genesis.Config.Croissant.Init.Validators = validators
+	genesis.Config.Anzeon.Init.Validators = validators
 	blsPubKeysStr := make([]string, len(blsPublicKeys))
 	for i, b := range blsPublicKeys {
 		blsPubKeysStr[i] = hexutil.Encode(b)
 	}
-	genesis.Config.Croissant.Init.BLSPublicKeys = blsPubKeysStr
+	genesis.Config.Anzeon.Init.BLSPublicKeys = blsPubKeysStr
 
-	if genesis.Config.CroissantEnabled() && genesis.Config.CroissantBlock.Sign() == 0 {
-		genesis.ExtraData, _ = wbft.CreateInitialExtraData(genesis.Config.Croissant)
+	if genesis.Config.AnzeonEnabled() {
+		genesis.ExtraData, _ = wbft.CreateInitialExtraData(genesis.Config.Anzeon)
 		core.InjectContracts(genesis, genesis.Config)
 	}
 	return genesis

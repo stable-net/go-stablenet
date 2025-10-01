@@ -90,7 +90,7 @@ func (c *Core) isTooFarFutureMessage(view *wbft.View) bool {
 	return false
 }
 
-// checkMessage checks that a message matches our current WBFT state
+// checkMessage checks that a message matches our current Wbft state
 //
 // In particular it ensures that
 // - message has the expected round

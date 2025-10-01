@@ -83,14 +83,14 @@ func NewGovWBFT(t *testing.T, ncpList []common.Address, alloc types.GenesisAlloc
 	g := &GovWBFT{
 		owner: owner,
 		backend: simulated.NewWbftBackend(alloc, func(nodeConf *node.Config, ethConf *ethconfig.Config) {
-			defaultBlockPeriod = time.Duration(ethConf.Genesis.Config.Croissant.WBFT.BlockPeriodSeconds) * time.Second
+			defaultBlockPeriod = time.Duration(ethConf.Genesis.Config.Anzeon.Wbft.BlockPeriodSeconds) * time.Second
 		}),
 	}
 	if len(ncpList) > 0 {
-		g.backend.CommitWithState(&params.GovContracts{
-			GovValidator: &params.GovContract{
+		g.backend.CommitWithState(&params.SystemContracts{
+			GovValidator: &params.SystemContract{
 				Address: TestGovValidatorAddress,
-				Version: govwbft.GOV_CONTRACT_VERSION_1,
+				Version: govwbft.SYSTEM_CONTRACT_VERSION_1,
 				Params: map[string]string{
 					"members":       "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697",
 					"memberVersion": "1",

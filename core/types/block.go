@@ -111,7 +111,7 @@ type headerMarshaling struct {
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
 // RLP encoding.
 func (h *Header) Hash() common.Hash {
-	// If the header's difficulty is equivalent to the predefined WBFT difficulty, use Istanbul specific hash calculation.
+	// If the header's difficulty is equivalent to the predefined Wbft difficulty, use Istanbul specific hash calculation.
 	if h != nil && h.Difficulty != nil && h.Difficulty.Cmp(WBFTDefaultDifficulty) == 0 {
 		// Seal is reserved in extra-data. To prove block is signed by the proposer.
 		if istanbulHeader := WBFTFilteredHeader(h); istanbulHeader != nil {

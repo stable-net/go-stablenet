@@ -30,10 +30,10 @@ type simSyncer struct {
 	workCh              chan *newWorkReq
 	resultCh            chan common.Hash
 	adjustedBlockPeriod map[uint64]uint64
-	upgradeContracts    map[uint64]*params.GovContracts
+	upgradeContracts    map[uint64]*params.SystemContracts
 }
 
-func combineGovContracts(source *params.GovContracts, target *params.GovContracts) {
+func combineSystemContracts(source *params.SystemContracts, target *params.SystemContracts) {
 	if target.GovValidator != nil {
 		source.GovValidator = target.GovValidator
 	}
@@ -44,24 +44,24 @@ func (ss *simSyncer) Apply(chainConfig *params.ChainConfig, config *wbft.Config,
 	if ss.adjustedBlockPeriod[number] > 0 {
 		config.Transitions = append(config.Transitions, params.Transition{
 			Block: num,
-			WBFTConfig: &params.WBFTConfig{
+			WbftConfig: &params.WbftConfig{
 				BlockPeriodSeconds: ss.adjustedBlockPeriod[number],
 			},
 		})
 	}
 	if upgradeContracts, ok := ss.upgradeContracts[number]; ok {
-		if chainConfig.CroissantBlock.Cmp(num) == 0 {
-			if chainConfig.Croissant.GovContracts == nil {
-				chainConfig.Croissant.GovContracts = new(params.GovContracts)
+		if num.Sign() == 0 {
+			if chainConfig.Anzeon.SystemContracts == nil {
+				chainConfig.Anzeon.SystemContracts = new(params.SystemContracts)
 			}
-			combineGovContracts(chainConfig.Croissant.GovContracts, upgradeContracts)
+			combineSystemContracts(chainConfig.Anzeon.SystemContracts, upgradeContracts)
 		} else {
 			newUpgrade := params.Upgrade{
-				Block:        num,
-				GovContracts: upgradeContracts,
+				Block:           num,
+				SystemContracts: upgradeContracts,
 			}
 
-			config.GovContractUpgrades = append(config.GovContractUpgrades, newUpgrade)
+			config.SystemContractUpgrades = append(config.SystemContractUpgrades, newUpgrade)
 		}
 	}
 }
@@ -81,7 +81,7 @@ func newSimSyncer(worker *worker) *simSyncer {
 		workCh:              make(chan *newWorkReq),
 		resultCh:            make(chan common.Hash),
 		adjustedBlockPeriod: make(map[uint64]uint64),
-		upgradeContracts:    make(map[uint64]*params.GovContracts),
+		upgradeContracts:    make(map[uint64]*params.SystemContracts),
 	}
 }
 
@@ -109,7 +109,7 @@ func (ss *simSyncer) commitWithPeriod(duration time.Duration) common.Hash {
 	return <-ss.resultCh
 }
 
-func (ss *simSyncer) commitWithState(upgradeContracts *params.GovContracts, num *big.Int) common.Hash {
+func (ss *simSyncer) commitWithState(upgradeContracts *params.SystemContracts, num *big.Int) common.Hash {
 	req := <-ss.workCh
 	if num == nil {
 		num = new(big.Int).Add(ss.worker.chain.CurrentBlock().Number, common.Big1)

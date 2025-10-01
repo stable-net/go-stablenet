@@ -24,12 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var anyHash common.Hash
-
-func init() {
-	anyHash = common.HexToHash("0x1234567890123456789012345678901234567890123456789012345678901234")
-}
-
 func CompareParam(result params.StateParam, expect params.StateParam, t *testing.T, testName string) {
 	if result.Address != expect.Address {
 		t.Errorf("[test=%v] Address mismatch: result %s, expect %s", testName, result.Address.Hex(), expect.Address.Hex())
@@ -37,7 +31,7 @@ func CompareParam(result params.StateParam, expect params.StateParam, t *testing
 	if result.Key != expect.Key {
 		t.Errorf("[test=%v] Key mismatch: result %s, expect %s", testName, result.Key.Hex(), expect.Key.Hex())
 	}
-	if expect.Value != anyHash && result.Value != expect.Value {
+	if result.Value != expect.Value {
 		t.Errorf("[test=%v] Value mismatch: result %s, expect %s", testName, result.Value.Hex(), expect.Value.Hex())
 	}
 }
@@ -63,7 +57,7 @@ func TestInitializeBase(t *testing.T) {
 			param: map[string]string{
 				GOV_BASE_PARAM_MEMBERS: sampleMemberAddress,
 			},
-			expectErr:   "`govContracts.govBase.params.memberVersion` is required when `govContracts.govBase.params.members` is set",
+			expectErr:   "`systemContracts.govBase.params.memberVersion` is required when `systemContracts.govBase.params.members` is set",
 			expectParam: nil,
 		},
 		{
@@ -72,7 +66,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
 				GOV_BASE_PARAM_MEMBER_VERSION: "v2",
 			},
-			expectErr:   "`govContracts.govBase.params.memberVersion`: strconv.ParseUint: parsing \"v2\": invalid syntax",
+			expectErr:   "`systemContracts.govBase.params.memberVersion`: strconv.ParseUint: parsing \"v2\": invalid syntax",
 			expectParam: nil,
 		},
 		{
@@ -86,7 +80,7 @@ func TestInitializeBase(t *testing.T) {
 				{ // members
 					Address: common.Address{},
 					Key:     derivedKeyHashForMembers,
-					Value:   anyHash,
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
 				{ // versionedMemberList.members
 					Address: common.Address{},
@@ -122,7 +116,7 @@ func TestInitializeBase(t *testing.T) {
 				{ // members
 					Address: common.Address{},
 					Key:     derivedKeyHashForMembers,
-					Value:   anyHash,
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
 				{ // versionedMemberList.members
 					Address: common.Address{},
@@ -148,7 +142,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_MEMBER_VERSION: "2",
 				GOV_BASE_PARAM_QUORUM:         "2",
 			},
-			expectErr:   "`govContracts.govBase.params.quorum` must not be greater than the number of members",
+			expectErr:   "`systemContracts.govBase.params.quorum` must not be greater than the number of members",
 			expectParam: nil,
 		},
 		{
@@ -158,7 +152,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_MEMBER_VERSION: "2",
 				GOV_BASE_PARAM_QUORUM:         "2.2",
 			},
-			expectErr:   "`govContracts.govBase.params.quorum`: strconv.ParseUint: parsing \"2.2\": invalid syntax",
+			expectErr:   "`systemContracts.govBase.params.quorum`: strconv.ParseUint: parsing \"2.2\": invalid syntax",
 			expectParam: nil,
 		},
 		{
@@ -166,7 +160,7 @@ func TestInitializeBase(t *testing.T) {
 			param: map[string]string{
 				GOV_BASE_PARAM_EXPIRY: "T123",
 			},
-			expectErr:   "`govContracts.govBase.params.expiry`: strconv.ParseUint: parsing \"T123\": invalid syntax",
+			expectErr:   "`systemContracts.govBase.params.expiry`: strconv.ParseUint: parsing \"T123\": invalid syntax",
 			expectParam: nil,
 		},
 		{
@@ -192,7 +186,7 @@ func TestInitializeBase(t *testing.T) {
 				{ // members
 					Address: common.Address{},
 					Key:     derivedKeyHashForMembers,
-					Value:   anyHash,
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
 				{ // versionedMemberList.members
 					Address: common.Address{},

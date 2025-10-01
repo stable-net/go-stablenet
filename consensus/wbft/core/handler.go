@@ -89,7 +89,7 @@ func (c *Core) unsubscribeEvents() {
 }
 
 // handleEvents starts main wbft handler loop that processes all incoming messages
-// sequentially. Each time a message is processed, internal WBFT state is mutated
+// sequentially. Each time a message is processed, internal Wbft state is mutated
 
 // when processing a message it makes sure that the message matches the current state
 // - in case the message is past, either for an older round or a state that already got acknowledge (e.g. a PREPARE message but we

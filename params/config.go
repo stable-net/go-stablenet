@@ -28,8 +28,8 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableOneMainnetGenesisHash = common.HexToHash("0xab9b7bcc131cccc8c7912884b4c9674cfc99b3d98c36b51e6ddda511e608123c")
-	StableOneTestnetGenesisHash = common.HexToHash("0x15f522870e65c4e66230341b71b63ca421a61d4b5432f59d4906f021802435c6")
+	StableOneMainnetGenesisHash = common.HexToHash("0x1d358fc37eefe9a619d135e9a97bf1a53922c85930ad46c3ec26a744260ba884")
+	StableOneTestnetGenesisHash = common.HexToHash("0x1d358fc37eefe9a619d135e9a97bf1a53922c85930ad46c3ec26a744260ba884")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash          = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
@@ -62,9 +62,8 @@ var (
 		PragueTime:          nil,
 		VerkleTime:          nil,
 		ApplepieBlock:       big.NewInt(0),
-		CroissantBlock:      big.NewInt(0),
-		Croissant: &CroissantConfig{
-			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
+		Anzeon: &AnzeonConfig{
+			Wbft: &WbftConfig{ // TODO: this is just for test on mainnet
 				EpochLength:           10,
 				BlockPeriodSeconds:    1,
 				RequestTimeoutSeconds: 2,
@@ -74,10 +73,18 @@ var (
 				Validators:    []common.Address{common.HexToAddress("0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697")}, // TODO: define initial validators
 				BLSPublicKeys: []string{"0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"},
 			},
-			GovContracts: &GovContracts{
-				GovValidator: &GovContract{
+			SystemContracts: &SystemContracts{
+				GovValidator: &SystemContract{
 					Address: DefaultGovValidatorAddress,
 					Version: DefaultGovVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
+					},
 				},
 			},
 		},
@@ -98,22 +105,29 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		ApplepieBlock:       big.NewInt(0),
-		CroissantBlock:      big.NewInt(0),
-		Croissant: &CroissantConfig{
-			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
-				EpochLength:           100,
+		Anzeon: &AnzeonConfig{
+			Wbft: &WbftConfig{ // TODO: this is just for test on mainnet
+				EpochLength:           10,
 				BlockPeriodSeconds:    1,
-				RequestTimeoutSeconds: 1000,
+				RequestTimeoutSeconds: 2,
 				ProposerPolicy:        newUint64(0),
 			},
 			Init: &WbftInit{
-				Validators:    []common.Address{common.HexToAddress("0x5b5682ab6952f96f5e68c7dd34c8018c71748248")}, // TODO: define initial validators
-				BLSPublicKeys: []string{"0x935344a9e431d256fd4fcb819fd5497fb80ce4cd402b4f93ea0cd585dfb4dc433e962a55a153f8c041a773304ef8833d"},
+				Validators:    []common.Address{common.HexToAddress("0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697")}, // TODO: define initial validators
+				BLSPublicKeys: []string{"0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"},
 			},
-			GovContracts: &GovContracts{
-				GovValidator: &GovContract{
+			SystemContracts: &SystemContracts{
+				GovValidator: &SystemContract{
 					Address: DefaultGovValidatorAddress,
 					Version: DefaultGovVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
+					},
 				},
 			},
 		},
@@ -267,9 +281,8 @@ var (
 		LondonBlock:         big.NewInt(0),
 		ArrowGlacierBlock:   big.NewInt(0),
 		GrayGlacierBlock:    big.NewInt(0),
-		CroissantBlock:      big.NewInt(0),
-		Croissant: &CroissantConfig{
-			WBFT: &WBFTConfig{
+		Anzeon: &AnzeonConfig{
+			Wbft: &WbftConfig{
 				EpochLength:              100,
 				BlockPeriodSeconds:       1,
 				RequestTimeoutSeconds:    1000,
@@ -280,10 +293,18 @@ var (
 				Validators:    []common.Address{common.HexToAddress("0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a")},
 				BLSPublicKeys: []string{"0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6"},
 			},
-			GovContracts: &GovContracts{
-				GovValidator: &GovContract{
+			SystemContracts: &SystemContracts{
+				GovValidator: &SystemContract{
 					Address: DefaultGovValidatorAddress,
 					Version: DefaultGovVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
+						"memberVersion": "1",
+						"validators":    "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
+						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
+					},
 				},
 			},
 		},
@@ -387,7 +408,7 @@ var (
 
 	// TestWBFTChainConfig contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers for testing purposes
-	// and used for WBFT engine tests.
+	// and used for Wbft engine tests.
 	TestWBFTChainConfig = &ChainConfig{
 		ChainID:                       big.NewInt(8282),
 		HomesteadBlock:                big.NewInt(0),
@@ -406,7 +427,6 @@ var (
 		ArrowGlacierBlock:             big.NewInt(0),
 		GrayGlacierBlock:              big.NewInt(0),
 		MergeNetsplitBlock:            nil,
-		CroissantBlock:                big.NewInt(0),
 		ShanghaiTime:                  nil,
 		CancunTime:                    nil,
 		PragueTime:                    nil,
@@ -415,8 +435,8 @@ var (
 		TerminalTotalDifficultyPassed: false,
 		Ethash:                        new(EthashConfig),
 		Clique:                        nil,
-		Croissant: &CroissantConfig{
-			WBFT: &WBFTConfig{
+		Anzeon: &AnzeonConfig{
+			Wbft: &WbftConfig{
 				EpochLength:              100,
 				BlockPeriodSeconds:       1,
 				RequestTimeoutSeconds:    1000,
@@ -427,10 +447,18 @@ var (
 				Validators:    []common.Address{common.HexToAddress("0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a")},
 				BLSPublicKeys: []string{"0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6"},
 			},
-			GovContracts: &GovContracts{
-				GovValidator: &GovContract{
+			SystemContracts: &SystemContracts{
+				GovValidator: &SystemContract{
 					Address: DefaultGovValidatorAddress,
 					Version: DefaultGovVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
+						"memberVersion": "1",
+						"validators":    "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
+						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
+					},
 				},
 			},
 		},
@@ -536,7 +564,6 @@ type ChainConfig struct {
 	GrayGlacierBlock    *big.Int `json:"grayGlacierBlock,omitempty"`    // Eip-5133 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	MergeNetsplitBlock  *big.Int `json:"mergeNetsplitBlock,omitempty"`  // Virtual fork after The Merge to use as a network splitter
 	ApplepieBlock       *big.Int `json:"applepieBlock,omitempty"`       // Applepie switch block (nil = no fork, 0 = already on Applepie)
-	CroissantBlock      *big.Int `json:"croissantBlock,omitempty"`      // Croissant switch block (nil = no fork, 0 = already on Croissant)
 
 	// Fork scheduling was switched from blocks to timestamps here
 
@@ -558,8 +585,8 @@ type ChainConfig struct {
 	Ethash *EthashConfig `json:"ethash,omitempty"`
 	Clique *CliqueConfig `json:"clique,omitempty"`
 
-	Croissant   *CroissantConfig `json:"croissant,omitempty"`
-	Transitions []Transition     `json:"transitions,omitempty"`
+	Anzeon      *AnzeonConfig `json:"anzeon,omitempty"`
+	Transitions []Transition  `json:"transitions,omitempty"`
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -608,8 +635,8 @@ func (c *ChainConfig) Description() string {
 		} else {
 			banner += "Consensus: Beacon (proof-of-stake), merged from Clique (proof-of-authority)\n"
 		}
-	case c.CroissantEnabled():
-		banner += "Consensus: WBFT (wemix-byzantine-fault-tolerance)\n"
+	case c.AnzeonEnabled():
+		banner += "Consensus: Wbft (wemix-byzantine-fault-tolerance)\n"
 	default:
 		banner += "Consensus: WEMIX PoA\n"
 	}
@@ -642,30 +669,29 @@ func (c *ChainConfig) Description() string {
 		banner += fmt.Sprintf(" - Gray Glacier:                #%-8v (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/gray-glacier.md)\n", c.GrayGlacierBlock)
 	}
 	banner += fmt.Sprintf(" - Applepie:                    #%-8v\n", c.ApplepieBlock)
-	banner += fmt.Sprintf(" - Croissant:                   #%-8v\n", c.CroissantBlock)
-	if c.Croissant != nil {
-		if c.Croissant.WBFT != nil {
-			banner += "   - WBFT\n"
-			banner += fmt.Sprintf("     - EpochLength:               %-8v\n", c.Croissant.WBFT.EpochLength)
-			banner += fmt.Sprintf("     - BlockPeriodSeconds:        %-8v\n", c.Croissant.WBFT.BlockPeriodSeconds)
-			banner += fmt.Sprintf("     - RequestTimeoutSeconds:     %-8v\n", c.Croissant.WBFT.RequestTimeoutSeconds)
-			banner += fmt.Sprintf("     - ProposerPolicy:            %-8v\n", c.Croissant.WBFT.ProposerPolicy)
-			if c.Croissant.WBFT.MaxRequestTimeoutSeconds == nil {
+	if c.Anzeon != nil {
+		if c.Anzeon.Wbft != nil {
+			banner += "   - Wbft\n"
+			banner += fmt.Sprintf("     - EpochLength:               %-8v\n", c.Anzeon.Wbft.EpochLength)
+			banner += fmt.Sprintf("     - BlockPeriodSeconds:        %-8v\n", c.Anzeon.Wbft.BlockPeriodSeconds)
+			banner += fmt.Sprintf("     - RequestTimeoutSeconds:     %-8v\n", c.Anzeon.Wbft.RequestTimeoutSeconds)
+			banner += fmt.Sprintf("     - ProposerPolicy:            %-8v\n", c.Anzeon.Wbft.ProposerPolicy)
+			if c.Anzeon.Wbft.MaxRequestTimeoutSeconds == nil {
 				banner += fmt.Sprintf("     - MaxRequestTimeoutSeconds:  %-8v\n", 0)
 			} else {
-				banner += fmt.Sprintf("     - MaxRequestTimeoutSeconds:  %-8v\n", *c.Croissant.WBFT.MaxRequestTimeoutSeconds)
+				banner += fmt.Sprintf("     - MaxRequestTimeoutSeconds:  %-8v\n", *c.Anzeon.Wbft.MaxRequestTimeoutSeconds)
 			}
 		}
-		if c.Croissant.Init != nil {
-			if c.Croissant.Init != nil {
+		if c.Anzeon.Init != nil {
+			if c.Anzeon.Init != nil {
 				banner += "   - Init\n"
-				banner += fmt.Sprintf("     - Validators:         %-8v\n", c.Croissant.Init.Validators)
-				banner += fmt.Sprintf("     - BLSPublicKeys:      %-8v\n", c.Croissant.Init.BLSPublicKeys)
+				banner += fmt.Sprintf("     - Validators:         %-8v\n", c.Anzeon.Init.Validators)
+				banner += fmt.Sprintf("     - BLSPublicKeys:      %-8v\n", c.Anzeon.Init.BLSPublicKeys)
 			}
 		}
-		if c.Croissant.GovContracts != nil {
-			banner += "   - GovContracts:\n"
-			banner += fmt.Sprintf("     - GovValidator      %-8v\n", c.Croissant.GovContracts.GovValidator)
+		if c.Anzeon.SystemContracts != nil {
+			banner += "   - SystemContracts:\n"
+			banner += fmt.Sprintf("     - GovValidator      %-8v\n", c.Anzeon.SystemContracts.GovValidator)
 		}
 	}
 	banner += "\n"
@@ -793,12 +819,8 @@ func (c *ChainConfig) IsVerkle(num *big.Int, time uint64) bool {
 	return c.IsLondon(num) && isTimestampForked(c.VerkleTime, time)
 }
 
-func (c *ChainConfig) IsCroissant(num *big.Int) bool {
-	return isBlockForked(c.CroissantBlock, num)
-}
-
-func (c *ChainConfig) CroissantEnabled() bool {
-	return c.CroissantBlock != nil && c.Croissant != nil
+func (c *ChainConfig) AnzeonEnabled() bool {
+	return c.Anzeon != nil
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -852,7 +874,6 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "arrowGlacierBlock", block: c.ArrowGlacierBlock, optional: true},
 		{name: "grayGlacierBlock", block: c.GrayGlacierBlock, optional: true},
 		{name: "applepieBlock", block: c.ApplepieBlock, optional: true},
-		{name: "croissantBlock", block: c.CroissantBlock, optional: true},
 		{name: "mergeNetsplitBlock", block: c.MergeNetsplitBlock, optional: true},
 		{name: "shanghaiTime", timestamp: c.ShanghaiTime, optional: true},
 		{name: "cancunTime", timestamp: c.CancunTime, optional: true},
@@ -951,9 +972,6 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkBlockIncompatible(c.ApplepieBlock, newcfg.ApplepieBlock, headNumber) {
 		return newBlockCompatError("Applepie fork block", c.ApplepieBlock, newcfg.ApplepieBlock)
-	}
-	if isForkBlockIncompatible(c.CroissantBlock, newcfg.CroissantBlock, headNumber) {
-		return newBlockCompatError("Croissant fork block", c.CroissantBlock, newcfg.CroissantBlock)
 	}
 	if isForkBlockIncompatible(c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock, headNumber) {
 		return newBlockCompatError("Merge netsplit fork block", c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock)
@@ -1131,7 +1149,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
-	IsApplepie, IsCroissant                                 bool
+	IsApplepie, IsAnzeon                                    bool
 	IsMerge, IsShanghai, IsCancun, IsPrague                 bool
 	IsVerkle                                                bool
 }
@@ -1157,7 +1175,7 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsBerlin:         c.IsBerlin(num),
 		IsLondon:         c.IsLondon(num),
 		IsApplepie:       c.IsApplepie(num),
-		IsCroissant:      c.IsCroissant(num),
+		IsAnzeon:         c.AnzeonEnabled(),
 		IsMerge:          isMerge,
 		IsShanghai:       isMerge && c.IsShanghai(num, timestamp),
 		IsCancun:         isMerge && c.IsCancun(num, timestamp),

@@ -26,22 +26,22 @@ import (
 
 func init() {
 	// to avoid import cycle
-	params.CheckGovContractVersions = checkGovContractVersions
+	params.CheckSystemContractVersions = checkSystemContractVersions
 }
 
-func checkGovContractVersions(govContracts *params.GovContracts) error {
-	if GovContractCodes[CONTRACT_GOV_VALIDATOR][govContracts.GovValidator.Version] == "" {
-		return fmt.Errorf("`govContracts.govConfig`: unsupported version %s", govContracts.GovValidator.Version)
+func checkSystemContractVersions(systemContracts *params.SystemContracts) error {
+	if SystemContractCodes[CONTRACT_GOV_VALIDATOR][systemContracts.GovValidator.Version] == "" {
+		return fmt.Errorf("`systemContracts.govValidator`: unsupported version %s", systemContracts.GovValidator.Version)
 	}
 	return nil
 }
 
-func GetGovContractsTransition(govContracts *params.GovContracts) (*params.StateTransition, error) {
+func GetSystemContractsTransition(systemContracts *params.SystemContracts) (*params.StateTransition, error) {
 	st := &params.StateTransition{}
 
-	if govContracts.GovValidator != nil {
-		st.Codes = append(st.Codes, params.CodeParam{Address: govContracts.GovValidator.Address, Code: GovContractCodes[CONTRACT_GOV_VALIDATOR][govContracts.GovValidator.Version]})
-		sp, err := initializeValidator(govContracts.GovValidator.Address, govContracts.GovValidator.Params)
+	if systemContracts.GovValidator != nil {
+		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovValidator.Address, Code: SystemContractCodes[CONTRACT_GOV_VALIDATOR][systemContracts.GovValidator.Version]})
+		sp, err := initializeValidator(systemContracts.GovValidator.Address, systemContracts.GovValidator.Params)
 		if err != nil {
 			return nil, err
 		}

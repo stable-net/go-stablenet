@@ -25,7 +25,7 @@ import (
 )
 
 // handleRequest is called by proposer in reaction to `miner.Seal()`
-// (this is the starting of the WBFT validation process)
+// (this is the starting of the Wbft validation process)
 
 // It
 // - validates block proposal is not empty and number correspond to the current sequence
@@ -85,10 +85,10 @@ func (c *Core) storeRequestMsg(request *Request) {
 	c.pendingRequestsMu.Lock()
 	defer c.pendingRequestsMu.Unlock()
 
-	c.pendingRequests.Push(request, -request.Proposal.Number().Int64()) // ## WBFT
+	c.pendingRequests.Push(request, -request.Proposal.Number().Int64()) // ## Wbft
 }
 
-// processPendingRequests is called each time WBFT state is re-initialized
+// processPendingRequests is called each time Wbft state is re-initialized
 // it lookup over pending requests and re-input its so they can be treated
 func (c *Core) processPendingRequests() {
 	c.pendingRequestsMu.Lock()

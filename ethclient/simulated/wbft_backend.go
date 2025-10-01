@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// WbftBackend is a simulated blockchain for WBFT. You can use it to test your contracts or
+// WbftBackend is a simulated blockchain for Wbft. You can use it to test your contracts or
 // other code that interacts with the Ethereum chain.
 type WbftBackend struct {
 	eth    *eth.Ethereum
@@ -35,7 +35,7 @@ type WbftBackend struct {
 
 type WbftClient simClient
 
-// NewWbftBackend creates a new simulated blockchain for WBFT that can be used as a backend for
+// NewWbftBackend creates a new simulated blockchain for Wbft that can be used as a backend for
 // contract bindings in unit tests.
 //
 // A simulated backend always uses chainID 1337.
@@ -61,10 +61,10 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 	blsKey, _ := bls.DeriveFromECDSA(nodeConf.P2P.PrivateKey)
 	blsPubKey := blsKey.PublicKey().Marshal()
 
-	ethConf.Genesis.Config.Croissant.Init.Validators = []common.Address{validator}
-	ethConf.Genesis.Config.Croissant.Init.BLSPublicKeys = []string{hexutil.Encode(blsPubKey)}
-	ethConf.Genesis.Config.Croissant.WBFT.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
-	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey)            // simulated chain block
+	ethConf.Genesis.Config.Anzeon.Init.Validators = []common.Address{validator}
+	ethConf.Genesis.Config.Anzeon.Init.BLSPublicKeys = []string{hexutil.Encode(blsPubKey)}
+	ethConf.Genesis.Config.Anzeon.Wbft.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
+	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey)         // simulated chain block
 	ethConf.SyncMode = downloader.FullSync
 	ethConf.Miner.GasPrice = big.NewInt(1)
 	ethConf.Miner.SimulatedEnabled = true
@@ -91,7 +91,7 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 
 func genExtraData(validator common.Address, blsPubKey []byte) []byte {
 	sampleExtra := &types.WBFTExtra{
-		VanityData: []byte("WEMIX Croissant chain block"),
+		VanityData: []byte("WEMIX Anzeon chain block"),
 		EpochInfo: &types.EpochInfo{
 			Stakers: []*types.Staker{
 				{Addr: validator, Diligence: types.DefaultDiligence},
@@ -108,7 +108,7 @@ func genExtraData(validator common.Address, blsPubKey []byte) []byte {
 // newWithNode sets up a simulated backend on an existing node. The provided node
 // must not be started and will be started by this method.
 func newWbftWithNode(stack *node.Node, conf *eth.Config) (*WbftBackend, error) {
-	if err := conf.Genesis.Config.Croissant.CheckValidity(); err != nil {
+	if err := conf.Genesis.Config.Anzeon.CheckValidity(); err != nil {
 		return nil, err
 	}
 	backend, err := eth.New(stack, conf)
@@ -125,7 +125,7 @@ func newWbftWithNode(stack *node.Node, conf *eth.Config) (*WbftBackend, error) {
 	if err := stack.Start(); err != nil {
 		return nil, err
 	}
-	// Start Miner & WBFT Engine
+	// Start Miner & Wbft Engine
 	backend.StartMining()
 	wbftEngine := backend.Engine().(*wbftBackend.Backend)
 	backend.Miner().InjectSimApplierTo(wbftEngine)
@@ -172,7 +172,7 @@ func (n *WbftBackend) Commit() common.Hash {
 	return n.eth.Miner().CommitSimulated()
 }
 
-func (n *WbftBackend) CommitWithState(upgradeContracts *params.GovContracts, num *big.Int) common.Hash {
+func (n *WbftBackend) CommitWithState(upgradeContracts *params.SystemContracts, num *big.Int) common.Hash {
 	return n.eth.Miner().CommitSimulatedWithState(upgradeContracts, num)
 }
 
