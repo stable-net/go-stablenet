@@ -1320,7 +1320,7 @@ func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, d
 			al.AddAddress(coinbase)
 		}
 
-		if rules.IsStableOne {
+		if rules.IsAnzeon {
 			al.AddAddress(params.NativeCoinManagerAddress)
 		}
 	}
