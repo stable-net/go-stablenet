@@ -1,7 +1,13 @@
 /**
+ * Original Apache-2.0 License:
  * Copyright 2023 Circle Internet Group, Inc. All rights reserved.
  *
  * SPDX-License-Identifier: Apache-2.0
+ *
+ * Original code based on: https://github.com/circlefin/stablecoin-evm/tree/c8c31b249341bf3ffb2e8dbff41977c392a260c5/contracts
+ *
+ * NOTE: This contract is included in a GPL-3.0 project.
+ *       When distributed as part of the project, it is subject to GPL-3.0 terms.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
