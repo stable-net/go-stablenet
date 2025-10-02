@@ -250,10 +250,10 @@ func epochForJSON(epoch *types.EpochInfo) map[string]interface{} {
 		return nil
 	}
 	// Candidates
-	stakers := make([]map[string]interface{}, 0, len(epoch.Candidates))
+	candidates := make([]map[string]interface{}, 0, len(epoch.Candidates))
 
 	for _, s := range epoch.Candidates {
-		stakers = append(stakers, map[string]interface{}{
+		candidates = append(candidates, map[string]interface{}{
 			"addr":      s.Addr.Hex(),
 			"diligence": fmt.Sprintf("0x%x", s.Diligence),
 		})
@@ -270,7 +270,7 @@ func epochForJSON(epoch *types.EpochInfo) map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"stakers":    stakers,
+		"candidates": candidates,
 		"validators": validators,
 	}
 }
