@@ -1821,10 +1821,10 @@ func genExtraData(validatorPrvKey *ecdsa.PrivateKey) []byte {
 	sampleExtra := &types.WBFTExtra{
 		VanityData: []byte("WEMIX Anzeon chain block"),
 		EpochInfo: &types.EpochInfo{
-			RegisteredVals: []*types.ValidatorWithDiligence{
+			Candidates: []*types.Candidate{
 				{Addr: crypto.PubkeyToAddress(validatorPrvKey.PublicKey), Diligence: types.DefaultDiligence},
 			},
-			DecidedVals:   []uint32{0},
+			Validators:    []uint32{0},
 			BLSPublicKeys: [][]byte{blsKey.PublicKey().Marshal()},
 		},
 		PreparedSeal:  &types.WBFTAggregatedSeal{},

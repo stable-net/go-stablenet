@@ -135,11 +135,11 @@ func setWBFTExtra(genesis *core.Genesis, validators []common.Address, blsPublicK
 	epochInfo := new(types.EpochInfo)
 	blsPubKeys := make([]string, len(validators))
 	for i, addr := range validators {
-		epochInfo.RegisteredVals = append(epochInfo.RegisteredVals, &types.ValidatorWithDiligence{
+		epochInfo.Candidates = append(epochInfo.Candidates, &types.Candidate{
 			Addr:      addr,
 			Diligence: types.DefaultDiligence,
 		})
-		epochInfo.DecidedVals = append(epochInfo.DecidedVals, uint32(i))
+		epochInfo.Validators = append(epochInfo.Validators, uint32(i))
 		epochInfo.BLSPublicKeys = append(epochInfo.BLSPublicKeys, blsPublicKeys[i])
 		blsPubKeys[i] = hexutil.Encode(blsPublicKeys[i])
 	}

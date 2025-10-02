@@ -157,10 +157,10 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 			VanityData: []byte("WEMIX Anzeon chain block"),
 			Round:      0,
 			EpochInfo: &types.EpochInfo{
-				RegisteredVals: []*types.ValidatorWithDiligence{
+				Candidates: []*types.Candidate{
 					{Addr: testBankAddress, Diligence: types.DefaultDiligence},
 				},
-				DecidedVals:   []uint32{0},
+				Validators:    []uint32{0},
 				BLSPublicKeys: [][]byte{testBankBlsPubKey.Marshal()},
 			},
 		}

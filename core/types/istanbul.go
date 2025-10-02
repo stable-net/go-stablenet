@@ -90,15 +90,15 @@ type WBFTExtra struct {
 	EpochInfo         *EpochInfo // epoch info is filled only for last block of epoch
 }
 
-type ValidatorWithDiligence struct {
+type Candidate struct {
 	Addr      common.Address
 	Diligence uint64 // unit: 10^-6
 }
 
 type EpochInfo struct {
-	RegisteredVals []*ValidatorWithDiligence // staker list for next epoch (staker index may be changed for each epoch)
-	DecidedVals    []uint32                  // validator list for next epoch (using indices of staker list)
-	BLSPublicKeys  [][]byte                  // bls public key list for next epoch
+	Candidates    []*Candidate // staker list for next epoch (staker index may be changed for each epoch)
+	Validators    []uint32     // validator list for next epoch (using indices of staker list)
+	BLSPublicKeys [][]byte     // bls public key list for next epoch
 }
 
 // EncodeRLP serializes qist into the Ethereum RLP format.
@@ -139,55 +139,55 @@ func (qst *WBFTExtra) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-func (ei *EpochInfo) GetRegisteredValidators() []common.Address {
+func (ei *EpochInfo) GetCandidates() []common.Address {
 	if ei == nil {
 		return nil
 	}
 
-	l := make([]common.Address, len(ei.RegisteredVals))
-	for i, staker := range ei.RegisteredVals {
+	l := make([]common.Address, len(ei.Candidates))
+	for i, staker := range ei.Candidates {
 		l[i] = staker.Addr
 	}
 	return l
 }
 
-func (ei *EpochInfo) FindValidatorByAddress(addr common.Address) (uint32, *ValidatorWithDiligence) {
+func (ei *EpochInfo) FindValidatorByAddress(addr common.Address) (uint32, *Candidate) {
 	if ei == nil {
 		return 0, nil
 	}
 
-	for i, staker := range ei.RegisteredVals {
+	for i, staker := range ei.Candidates {
 		if staker.Addr == addr {
 			return uint32(i), staker
 		}
 	}
 
-	return uint32(len(ei.RegisteredVals)), nil
+	return uint32(len(ei.Candidates)), nil
 }
 
-func (ei *EpochInfo) GetDecidedValidators() []common.Address {
+func (ei *EpochInfo) GetValidators() []common.Address {
 	if ei == nil {
 		return nil
 	}
 
-	l := make([]common.Address, len(ei.DecidedVals))
-	for i, validator := range ei.DecidedVals {
-		l[i] = ei.GetRegisteredValidator(validator)
+	l := make([]common.Address, len(ei.Validators))
+	for i, validator := range ei.Validators {
+		l[i] = ei.GetCandidate(validator)
 	}
 	return l
 }
 
-func (ei *EpochInfo) GetRegisteredValidator(index uint32) common.Address {
-	if ei == nil || int(index) >= len(ei.RegisteredVals) {
+func (ei *EpochInfo) GetCandidate(index uint32) common.Address {
+	if ei == nil || int(index) >= len(ei.Candidates) {
 		return common.Address{}
 	}
-	return ei.RegisteredVals[index].Addr
+	return ei.Candidates[index].Addr
 }
 
 func (ei *EpochInfo) GetValidatorIndexMap() map[common.Address]uint32 {
 	validatorIndexMap := make(map[common.Address]uint32)
-	for _, idx := range ei.DecidedVals {
-		validatorIndexMap[ei.GetRegisteredValidator(idx)] = idx
+	for _, idx := range ei.Validators {
+		validatorIndexMap[ei.GetCandidate(idx)] = idx
 	}
 	return validatorIndexMap
 }
@@ -195,8 +195,8 @@ func (ei *EpochInfo) GetValidatorIndexMap() map[common.Address]uint32 {
 // EncodeRLP serializes epochInfo into the Ethereum RLP format.
 func (ei *EpochInfo) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{
-		ei.RegisteredVals,
-		ei.DecidedVals,
+		ei.Candidates,
+		ei.Validators,
 		ei.BLSPublicKeys,
 	})
 }
@@ -204,27 +204,27 @@ func (ei *EpochInfo) EncodeRLP(w io.Writer) error {
 // DecodeRLP implements rlp.Decoder, and load the EpochInfo fields from a RLP stream.
 func (ei *EpochInfo) DecodeRLP(s *rlp.Stream) error {
 	var epochInfo struct {
-		RegisteredVals []*ValidatorWithDiligence
-		DecidedVals    []uint32
-		BLSPublicKeys  [][]byte
+		Candidates    []*Candidate
+		Validators    []uint32
+		BLSPublicKeys [][]byte
 	}
 	if err := s.Decode(&epochInfo); err != nil {
 		return err
 	}
-	ei.RegisteredVals, ei.DecidedVals, ei.BLSPublicKeys = epochInfo.RegisteredVals, epochInfo.DecidedVals, epochInfo.BLSPublicKeys
+	ei.Candidates, ei.Validators, ei.BLSPublicKeys = epochInfo.Candidates, epochInfo.Validators, epochInfo.BLSPublicKeys
 	return nil
 }
 
-// EncodeRLP serializes ValidatorWithDiligence into the Ethereum RLP format.
-func (stkr *ValidatorWithDiligence) EncodeRLP(w io.Writer) error {
+// EncodeRLP serializes Candidate into the Ethereum RLP format.
+func (stkr *Candidate) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, []interface{}{
 		stkr.Addr,
 		stkr.Diligence,
 	})
 }
 
-// DecodeRLP implements rlp.Decoder, and load the ValidatorWithDiligence fields from a RLP stream.
-func (stkr *ValidatorWithDiligence) DecodeRLP(s *rlp.Stream) error {
+// DecodeRLP implements rlp.Decoder, and load the Candidate fields from a RLP stream.
+func (stkr *Candidate) DecodeRLP(s *rlp.Stream) error {
 	var staker struct {
 		Addr      common.Address
 		Diligence uint64

@@ -61,13 +61,13 @@ func TestExtractToWBFTExtra(t *testing.T) {
 				VanityData:   []byte{},
 				RandaoReveal: []byte{},
 				EpochInfo: &EpochInfo{
-					RegisteredVals: []*ValidatorWithDiligence{
+					Candidates: []*Candidate{
 						{Addr: common.BytesToAddress(hexutil.MustDecode("0x44add0ec310f115a0e603b2d7db9f067778eaf8a")), Diligence: DefaultDiligence},
 						{Addr: common.BytesToAddress(hexutil.MustDecode("0x294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212")), Diligence: DefaultDiligence},
 						{Addr: common.BytesToAddress(hexutil.MustDecode("0x6beaaed781d2d2ab6350f5c4566a2c6eaac407a6")), Diligence: DefaultDiligence},
 						{Addr: common.BytesToAddress(hexutil.MustDecode("0x8be76812f765c24641ec63dc2852b378aba2b440")), Diligence: DefaultDiligence},
 					},
-					DecidedVals:   []uint32{0, 1, 2, 3},
+					Validators:    []uint32{0, 1, 2, 3},
 					BLSPublicKeys: [][]byte{{}, {}, {}, {}},
 				},
 				PrevRound:         0,
@@ -99,10 +99,10 @@ func TestGenerateExtra(t *testing.T) {
 	sampleExtra := &WBFTExtra{
 		VanityData: []byte("Stable One chain block"),
 		EpochInfo: &EpochInfo{
-			RegisteredVals: []*ValidatorWithDiligence{
+			Candidates: []*Candidate{
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697")), Diligence: DefaultDiligence},
 			},
-			DecidedVals:   []uint32{0},
+			Validators:    []uint32{0},
 			BLSPublicKeys: [][]byte{{}},
 		},
 		PrevRound:         0,

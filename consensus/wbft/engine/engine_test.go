@@ -104,13 +104,13 @@ func TestWriteCommittedSeals(t *testing.T) {
 		CommittedSeal:     &types.WBFTAggregatedSeal{Signature: expectedCommittedSeal, Sealers: types.SealerSet{0x1}},
 		PreparedSeal:      nil,
 		EpochInfo: &types.EpochInfo{
-			RegisteredVals: []*types.ValidatorWithDiligence{
+			Candidates: []*types.Candidate{
 				{Addr: testAccount1.addr, Diligence: 1_900_000},
 				{Addr: testAccount2.addr, Diligence: 1_900_000},
 				{Addr: testAccount3.addr, Diligence: 1_900_000},
 				{Addr: testAccount4.addr, Diligence: 1_900_000},
 			},
-			DecidedVals: []uint32{0, 1, 2, 3},
+			Validators: []uint32{0, 1, 2, 3},
 			BLSPublicKeys: [][]byte{
 				testAccount1.blsKey.PublicKey().Marshal(),
 				testAccount2.blsKey.PublicKey().Marshal(),
@@ -176,13 +176,13 @@ func TestWritePreparedSeals(t *testing.T) {
 		CommittedSeal:     nil,
 		PreparedSeal:      &types.WBFTAggregatedSeal{Signature: expectedPreparedSeal, Sealers: types.SealerSet{0x1}},
 		EpochInfo: &types.EpochInfo{
-			RegisteredVals: []*types.ValidatorWithDiligence{
+			Candidates: []*types.Candidate{
 				{Addr: testAccount1.addr, Diligence: 1_900_000},
 				{Addr: testAccount2.addr, Diligence: 1_900_000},
 				{Addr: testAccount3.addr, Diligence: 1_900_000},
 				{Addr: testAccount4.addr, Diligence: 1_900_000},
 			},
-			DecidedVals: []uint32{0, 1, 2, 3},
+			Validators: []uint32{0, 1, 2, 3},
 			BLSPublicKeys: [][]byte{
 				testAccount1.blsKey.PublicKey().Marshal(),
 				testAccount2.blsKey.PublicKey().Marshal(),
@@ -248,13 +248,13 @@ func TestWriteRoundNumber(t *testing.T) {
 		CommittedSeal:     nil,
 		PreparedSeal:      nil,
 		EpochInfo: &types.EpochInfo{
-			RegisteredVals: []*types.ValidatorWithDiligence{
+			Candidates: []*types.Candidate{
 				{Addr: testAccount1.addr, Diligence: 1_900_000},
 				{Addr: testAccount2.addr, Diligence: 1_900_000},
 				{Addr: testAccount3.addr, Diligence: 1_900_000},
 				{Addr: testAccount4.addr, Diligence: 1_900_000},
 			},
-			DecidedVals: []uint32{0, 1, 2, 3},
+			Validators: []uint32{0, 1, 2, 3},
 			BLSPublicKeys: [][]byte{
 				testAccount1.blsKey.PublicKey().Marshal(),
 				testAccount2.blsKey.PublicKey().Marshal(),
@@ -297,7 +297,7 @@ func TestWriteRoundNumber(t *testing.T) {
 }
 
 func TestSortCandidates(t *testing.T) {
-	candidates := []Candidate{
+	candidates := []PoweredCandidate{
 		{Addr: common.HexToAddress("0x1"), Power: new(big.Int).SetUint64(10001), Diligence: 100},
 		{Addr: common.HexToAddress("0x2"), Power: new(big.Int).SetUint64(10001), Diligence: 101},
 		{Addr: common.HexToAddress("0x3"), Power: new(big.Int).SetUint64(10002), Diligence: 102},
@@ -305,7 +305,7 @@ func TestSortCandidates(t *testing.T) {
 		{Addr: common.HexToAddress("0x5"), Power: new(big.Int).SetUint64(10000), Diligence: 104},
 		{Addr: common.HexToAddress("0x6"), Power: new(big.Int).SetUint64(10000), Diligence: 105},
 	}
-	expected := []Candidate{
+	expected := []PoweredCandidate{
 		{Addr: common.HexToAddress("0x4"), Power: new(big.Int).SetUint64(10002), Diligence: 103},
 		{Addr: common.HexToAddress("0x3"), Power: new(big.Int).SetUint64(10002), Diligence: 102},
 		{Addr: common.HexToAddress("0x2"), Power: new(big.Int).SetUint64(10001), Diligence: 101},
@@ -488,7 +488,7 @@ func TestEpochInfo(t *testing.T) {
 			},
 		},
 		{
-			"DecidedVals propose multiple number of blocks (2 validators, 3 blocks / epoch)",
+			"Validators propose multiple number of blocks (2 validators, 3 blocks / epoch)",
 			2,
 			[]int{0, 1, 0, 1, 0, 1},
 			[][]int{
@@ -600,8 +600,8 @@ func TestEpochInfo(t *testing.T) {
 				newEpoch, _ := engine.buildEpochInfo(c, h, statedb)
 				if newEpoch != nil {
 					// manipulate validators to make sequential proposer order(to ignore random proposer selection)
-					for i := 0; i < len(newEpoch.DecidedVals); i++ {
-						newEpoch.DecidedVals[i] = sequentialProposerIndex
+					for i := 0; i < len(newEpoch.Validators); i++ {
+						newEpoch.Validators[i] = sequentialProposerIndex
 						sequentialProposerIndex = (sequentialProposerIndex + 1) % uint32(len(tc.proposers))
 					}
 				}
@@ -625,9 +625,9 @@ func TestEpochInfo(t *testing.T) {
 
 				// Validate diligences
 				for j, d := range tc.expDiligences[i] {
-					staker := wbftExtra.EpochInfo.RegisteredVals[j]
+					staker := wbftExtra.EpochInfo.Candidates[j]
 					if d != staker.Diligence {
-						t.Errorf("expected diligence mismatch for staker %d: have %d, want %d", j, staker.Diligence, d)
+						t.Errorf("expected diligence mismatch for candidate %d: have %d, want %d", j, staker.Diligence, d)
 					}
 				}
 			}
@@ -644,8 +644,8 @@ func makeGenesis(signers []account) *types.Header {
 
 	e := new(types.EpochInfo)
 	for i, s := range signers {
-		e.RegisteredVals = append(e.RegisteredVals, &types.ValidatorWithDiligence{Addr: s.addr, Diligence: 1900000})
-		e.DecidedVals = append(e.DecidedVals, uint32(i))
+		e.Candidates = append(e.Candidates, &types.Candidate{Addr: s.addr, Diligence: 1900000})
+		e.Validators = append(e.Validators, uint32(i))
 		e.BLSPublicKeys = append(e.BLSPublicKeys, s.blsKey.PublicKey().Marshal())
 	}
 	ApplyHeaderWBFTExtra(header, WriteEpochInfo(e))

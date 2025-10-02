@@ -112,7 +112,7 @@ type Init struct {
 }
 
 func (i *Init) String() string {
-	return fmt.Sprintf("{DecidedVals: %v BLSPublicKeys: %v SystemContracts: %v}",
+	return fmt.Sprintf("{Validators: %v BLSPublicKeys: %v SystemContracts: %v}",
 		i.Validators,
 		i.BLSPublicKeys,
 		i.SystemContracts,
