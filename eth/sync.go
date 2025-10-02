@@ -212,7 +212,7 @@ func (cs *chainSyncer) nextSyncOp() *chainSyncOp {
 		}
 		return nil // We're in sync
 	} else if cs.handler.chain.Config().AnzeonEnabled() && op.td.Cmp(new(big.Int).Add(ourTD, big.NewInt(tdAdjustment))) <= 0 {
-		// in Wbft, we're in sync if the peer's TD is within tdAdjustment of our own
+		// in WBFT, we're in sync if the peer's TD is within tdAdjustment of our own
 		return nil
 	}
 	return op

@@ -63,13 +63,13 @@ var (
 		VerkleTime:          nil,
 		ApplepieBlock:       big.NewInt(0),
 		Anzeon: &AnzeonConfig{
-			Wbft: &WbftConfig{ // TODO: this is just for test on mainnet
+			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
 				EpochLength:           10,
 				BlockPeriodSeconds:    1,
 				RequestTimeoutSeconds: 2,
 				ProposerPolicy:        newUint64(0),
 			},
-			Init: &WbftInit{
+			Init: &WBFTInit{
 				Validators:    []common.Address{common.HexToAddress("0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697")}, // TODO: define initial validators
 				BLSPublicKeys: []string{"0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"},
 			},
@@ -106,13 +106,13 @@ var (
 		LondonBlock:         big.NewInt(0),
 		ApplepieBlock:       big.NewInt(0),
 		Anzeon: &AnzeonConfig{
-			Wbft: &WbftConfig{ // TODO: this is just for test on mainnet
+			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
 				EpochLength:           10,
 				BlockPeriodSeconds:    1,
 				RequestTimeoutSeconds: 2,
 				ProposerPolicy:        newUint64(0),
 			},
-			Init: &WbftInit{
+			Init: &WBFTInit{
 				Validators:    []common.Address{common.HexToAddress("0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697")}, // TODO: define initial validators
 				BLSPublicKeys: []string{"0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"},
 			},
@@ -282,14 +282,14 @@ var (
 		ArrowGlacierBlock:   big.NewInt(0),
 		GrayGlacierBlock:    big.NewInt(0),
 		Anzeon: &AnzeonConfig{
-			Wbft: &WbftConfig{
+			WBFT: &WBFTConfig{
 				EpochLength:              100,
 				BlockPeriodSeconds:       1,
 				RequestTimeoutSeconds:    1000,
 				ProposerPolicy:           newUint64(0),
 				MaxRequestTimeoutSeconds: &mrts,
 			},
-			Init: &WbftInit{
+			Init: &WBFTInit{
 				Validators:    []common.Address{common.HexToAddress("0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a")},
 				BLSPublicKeys: []string{"0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6"},
 			},
@@ -408,7 +408,7 @@ var (
 
 	// TestWBFTChainConfig contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers for testing purposes
-	// and used for Wbft engine tests.
+	// and used for WBFT engine tests.
 	TestWBFTChainConfig = &ChainConfig{
 		ChainID:                       big.NewInt(8282),
 		HomesteadBlock:                big.NewInt(0),
@@ -436,14 +436,14 @@ var (
 		Ethash:                        new(EthashConfig),
 		Clique:                        nil,
 		Anzeon: &AnzeonConfig{
-			Wbft: &WbftConfig{
+			WBFT: &WBFTConfig{
 				EpochLength:              100,
 				BlockPeriodSeconds:       1,
 				RequestTimeoutSeconds:    1000,
 				ProposerPolicy:           newUint64(0),
 				MaxRequestTimeoutSeconds: &mrts,
 			},
-			Init: &WbftInit{
+			Init: &WBFTInit{
 				Validators:    []common.Address{common.HexToAddress("0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a")},
 				BLSPublicKeys: []string{"0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6"},
 			},
@@ -636,7 +636,7 @@ func (c *ChainConfig) Description() string {
 			banner += "Consensus: Beacon (proof-of-stake), merged from Clique (proof-of-authority)\n"
 		}
 	case c.AnzeonEnabled():
-		banner += "Consensus: Wbft (wemix-byzantine-fault-tolerance)\n"
+		banner += "Consensus: WBFT (wemix-byzantine-fault-tolerance)\n"
 	default:
 		banner += "Consensus: WEMIX PoA\n"
 	}
@@ -670,16 +670,16 @@ func (c *ChainConfig) Description() string {
 	}
 	banner += fmt.Sprintf(" - Applepie:                    #%-8v\n", c.ApplepieBlock)
 	if c.Anzeon != nil {
-		if c.Anzeon.Wbft != nil {
-			banner += "   - Wbft\n"
-			banner += fmt.Sprintf("     - EpochLength:               %-8v\n", c.Anzeon.Wbft.EpochLength)
-			banner += fmt.Sprintf("     - BlockPeriodSeconds:        %-8v\n", c.Anzeon.Wbft.BlockPeriodSeconds)
-			banner += fmt.Sprintf("     - RequestTimeoutSeconds:     %-8v\n", c.Anzeon.Wbft.RequestTimeoutSeconds)
-			banner += fmt.Sprintf("     - ProposerPolicy:            %-8v\n", c.Anzeon.Wbft.ProposerPolicy)
-			if c.Anzeon.Wbft.MaxRequestTimeoutSeconds == nil {
+		if c.Anzeon.WBFT != nil {
+			banner += "   - WBFT\n"
+			banner += fmt.Sprintf("     - EpochLength:               %-8v\n", c.Anzeon.WBFT.EpochLength)
+			banner += fmt.Sprintf("     - BlockPeriodSeconds:        %-8v\n", c.Anzeon.WBFT.BlockPeriodSeconds)
+			banner += fmt.Sprintf("     - RequestTimeoutSeconds:     %-8v\n", c.Anzeon.WBFT.RequestTimeoutSeconds)
+			banner += fmt.Sprintf("     - ProposerPolicy:            %-8v\n", c.Anzeon.WBFT.ProposerPolicy)
+			if c.Anzeon.WBFT.MaxRequestTimeoutSeconds == nil {
 				banner += fmt.Sprintf("     - MaxRequestTimeoutSeconds:  %-8v\n", 0)
 			} else {
-				banner += fmt.Sprintf("     - MaxRequestTimeoutSeconds:  %-8v\n", *c.Anzeon.Wbft.MaxRequestTimeoutSeconds)
+				banner += fmt.Sprintf("     - MaxRequestTimeoutSeconds:  %-8v\n", *c.Anzeon.WBFT.MaxRequestTimeoutSeconds)
 			}
 		}
 		if c.Anzeon.Init != nil {

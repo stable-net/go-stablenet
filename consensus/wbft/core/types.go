@@ -89,7 +89,7 @@ func (b *Subject) String() string {
 
 // ----------------------------------------------------------------------------
 
-// Backend provides application specific functions for Wbft core
+// Backend provides application specific functions for WBFT core
 type Backend interface {
 	// Address returns the owner's address
 	Address() common.Address

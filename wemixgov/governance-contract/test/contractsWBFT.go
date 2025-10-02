@@ -66,7 +66,7 @@ func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 }
 
 type GovWBFT struct {
-	backend      *simulated.WbftBackend
+	backend      *simulated.WBFTBackend
 	owner        *bind.TransactOpts
 	govValidator *bind.BoundContract
 }
@@ -82,8 +82,8 @@ func NewGovWBFT(t *testing.T, ncpList []common.Address, alloc types.GenesisAlloc
 	alloc[owner.From] = types.Account{Balance: MAX_UINT_128}
 	g := &GovWBFT{
 		owner: owner,
-		backend: simulated.NewWbftBackend(alloc, func(nodeConf *node.Config, ethConf *ethconfig.Config) {
-			defaultBlockPeriod = time.Duration(ethConf.Genesis.Config.Anzeon.Wbft.BlockPeriodSeconds) * time.Second
+		backend: simulated.NewWBFTBackend(alloc, func(nodeConf *node.Config, ethConf *ethconfig.Config) {
+			defaultBlockPeriod = time.Duration(ethConf.Genesis.Config.Anzeon.WBFT.BlockPeriodSeconds) * time.Second
 		}),
 	}
 	if len(ncpList) > 0 {

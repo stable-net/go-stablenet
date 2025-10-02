@@ -34,7 +34,7 @@ var (
 	IstanbulExtraVanity = 32 // Fixed number of extra-data bytes reserved for validator vanity
 	IstanbulExtraSeal   = 96 // Fixed number of extra-data bytes reserved for validator seal (BLS_SIGNATURE_LENGTH)
 
-	// WBFTDefaultDifficulty is used to identify whether the block is from Wbft consensus engine.
+	// WBFTDefaultDifficulty is used to identify whether the block is from WBFT consensus engine.
 	// we use this value on behalf of the role IstanbulDigest
 	WBFTDefaultDifficulty = big.NewInt(1) // ## Wemix
 

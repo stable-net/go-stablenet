@@ -211,7 +211,7 @@ func CreateConsensusEngine(config *params.ChainConfig, privKey *ecdsa.PrivateKey
 }
 
 func SetConfigFromChainConfig(wbftCfg *wbft.Config, chainCfg *params.ChainConfig) error {
-	config := chainCfg.Anzeon.Wbft
+	config := chainCfg.Anzeon.WBFT
 	if config.RequestTimeoutSeconds != 0 {
 		wbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
 	}
@@ -237,7 +237,7 @@ func SetConfigFromChainConfig(wbftCfg *wbft.Config, chainCfg *params.ChainConfig
 	//add hardforks that includes wbft config after anzeon here like :
 	// transition := params.Transition{
 	// 	Block:      chainCfg.DalgonaBlock,
-	// 	WbftConfig: chainCfg.Dalgona.Wbft,
+	// 	WBFTConfig: chainCfg.Dalgona.WBFT,
 	// }
 	// wbftCfg.Transitions = append(wbftCfg.Transitions, transition)
 	// hfTransitionBlocks[chainCfg.DalgonaBlock] = true

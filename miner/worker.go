@@ -562,7 +562,7 @@ func (w *worker) newWorkLoopOrigin(recommit time.Duration) {
 	}
 }
 
-// newWorkLoopWBFT is a standalone goroutine to submit new sealing work upon received events for Wbft.
+// newWorkLoopWBFT is a standalone goroutine to submit new sealing work upon received events for WBFT.
 func (w *worker) newWorkLoopWBFT() {
 	defer w.wg.Done()
 	var (
@@ -613,7 +613,7 @@ func (w *worker) newWorkLoopWBFT() {
 			err := handler.NewChainHead()
 			clearPending(head.Block.NumberU64())
 			if errors.Is(err, wbft.ErrStoppedEngine) {
-				// If Wbft engine is running, we don't need to commit new work here because
+				// If WBFT engine is running, we don't need to commit new work here because
 				// it will triggered by readyToCommitCh
 				commit(commitInterruptNewHead)
 			}
@@ -626,10 +626,10 @@ func (w *worker) newWorkLoopWBFT() {
 			}
 
 		case <-w.resubmitIntervalCh:
-			log.Warn("resubmitInterval is not used in Wbft")
+			log.Warn("resubmitInterval is not used in WBFT")
 
 		case <-w.resubmitAdjustCh:
-			log.Trace("ResubmitAdjust is not used in Wbft")
+			log.Trace("ResubmitAdjust is not used in WBFT")
 
 		case <-w.exitCh:
 			return

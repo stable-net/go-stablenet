@@ -40,7 +40,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func commitTx(backend *simulated.WbftBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
+func commitTx(backend *simulated.WBFTBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
 	backend.Commit()
 	if txErr != nil {
 		return nil, NewRevertError(txErr)
@@ -49,7 +49,7 @@ func commitTx(backend *simulated.WbftBackend, tx *types.Transaction, txErr error
 	return bind.WaitMined(context.TODO(), backend.Client(), tx)
 }
 
-func expectedOk(backend *simulated.WbftBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
+func expectedOk(backend *simulated.WBFTBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
 	receipt, err := commitTx(backend, tx, txErr)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func expectedOk(backend *simulated.WbftBackend, tx *types.Transaction, txErr err
 	return receipt, nil
 }
 
-func expectedFail(backend *simulated.WbftBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
+func expectedFail(backend *simulated.WBFTBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
 	receipt, err := commitTx(backend, tx, txErr)
 	if err != nil {
 		return nil, err

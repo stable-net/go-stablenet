@@ -474,7 +474,7 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 		header.ParentBeaconRoot = new(common.Hash)
 	}
 
-	// Only for Wbft: Coinbase is set in engine.Prepare() but makeHeader() does not
+	// Only for WBFT: Coinbase is set in engine.Prepare() but makeHeader() does not
 	// call engine.Prepare() so we need to set it before finalizing the block.
 	err := engine.CallEngineSpecific("SetCoinbase", header)
 	if err != nil {

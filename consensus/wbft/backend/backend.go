@@ -353,13 +353,13 @@ func (sb *Backend) Close() error {
 }
 
 func (sb *Backend) startWBFT() error {
-	sb.logger.Info("WBFT: activate Wbft")
+	sb.logger.Info("WBFT: activate WBFT")
 	sb.logger.Trace("WBFT: set ProposerPolicy sorter to ValidatorSortByByteFunc")
 	sb.config.ProposerPolicy.Use(wbft.ValidatorSortByByte())
 
 	sb.core = wbftcore.New(sb, sb.config)
 	if err := sb.core.Start(); err != nil {
-		sb.logger.Error("WBFT: failed to activate Wbft", "err", err)
+		sb.logger.Error("WBFT: failed to activate WBFT", "err", err)
 		return err
 	}
 

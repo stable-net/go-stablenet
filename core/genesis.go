@@ -658,7 +658,7 @@ func TestGenesisBlock() *Genesis {
 	}
 }
 
-// InjectContracts sets Wbft SystemContracts to genesis
+// InjectContracts sets WBFT SystemContracts to genesis
 func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
 	transition, err := govwbft.GetSystemContractsTransition(config.Anzeon.SystemContracts)
 	if err != nil {

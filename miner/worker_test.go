@@ -101,11 +101,11 @@ func init() {
 	wbftChainConfig.Ethash = nil
 
 	wbftConfig = new(wbft.Config)
-	wbftConfig.BlockPeriod = wbftChainConfig.Anzeon.Wbft.BlockPeriodSeconds
-	wbftConfig.RequestTimeout = wbftChainConfig.Anzeon.Wbft.RequestTimeoutSeconds * 1000
-	wbftConfig.Epoch = wbftChainConfig.Anzeon.Wbft.EpochLength
-	wbftConfig.ProposerPolicy = wbft.NewProposerPolicy(wbft.ProposerPolicyId(*wbftChainConfig.Anzeon.Wbft.ProposerPolicy))
-	wbftConfig.MaxRequestTimeoutSeconds = *wbftChainConfig.Anzeon.Wbft.MaxRequestTimeoutSeconds
+	wbftConfig.BlockPeriod = wbftChainConfig.Anzeon.WBFT.BlockPeriodSeconds
+	wbftConfig.RequestTimeout = wbftChainConfig.Anzeon.WBFT.RequestTimeoutSeconds * 1000
+	wbftConfig.Epoch = wbftChainConfig.Anzeon.WBFT.EpochLength
+	wbftConfig.ProposerPolicy = wbft.NewProposerPolicy(wbft.ProposerPolicyId(*wbftChainConfig.Anzeon.WBFT.ProposerPolicy))
+	wbftConfig.MaxRequestTimeoutSeconds = *wbftChainConfig.Anzeon.WBFT.MaxRequestTimeoutSeconds
 
 	signer := types.LatestSigner(params.TestChainConfig)
 	tx1 := types.MustSignNewTx(testBankKey, signer, &types.AccessListTx{
@@ -442,8 +442,8 @@ func testGetSealingWork(t *testing.T, chainConfig *params.ChainConfig, engine co
 			t.Logf("Invalid timestamp, want %d, get %d", timestamp, block.Time())
 		}
 		_, isClique := engine.(*clique.Clique)
-		_, isWbft := engine.(*wbftBackend.Backend)
-		if !isClique && !isWbft {
+		_, isWBFT := engine.(*wbftBackend.Backend)
+		if !isClique && !isWBFT {
 			if len(block.Extra()) != 2 {
 				t.Error("Unexpected extra field")
 			}

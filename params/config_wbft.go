@@ -35,20 +35,20 @@ var (
 
 var CheckSystemContractVersions func(systemContracts *SystemContracts) error
 
-type WbftInit struct {
-	Validators    []common.Address `json:"validators"`    // initial Wbft validators, order is matter
+type WBFTInit struct {
+	Validators    []common.Address `json:"validators"`    // initial WBFT validators, order is matter
 	BLSPublicKeys []string         `json:"blsPublicKeys"` // BLS public ket list of validators, order must be same as validators
 }
 
 type AnzeonConfig struct {
-	Wbft            *WbftConfig      `json:"wbft"`
-	Init            *WbftInit        `json:"init"`
+	WBFT            *WBFTConfig      `json:"wbft"`
+	Init            *WBFTInit        `json:"init"`
 	SystemContracts *SystemContracts `json:"systemContracts"`
 }
 
 func (c *AnzeonConfig) String() string {
-	return fmt.Sprintf("{Wbft: %v Init: %v SystemContracts: %v}",
-		c.Wbft,
+	return fmt.Sprintf("{WBFT: %v Init: %v SystemContracts: %v}",
+		c.WBFT,
 		c.Init,
 		c.SystemContracts)
 }
@@ -90,23 +90,23 @@ func (c *AnzeonConfig) CheckValidity() error {
 		return fmt.Errorf("`anzeon.systemContracts`: %v", err)
 	}
 
-	if c.Wbft == nil {
+	if c.WBFT == nil {
 		return errors.New("`anzeon`: missing `wBFT` section")
 	}
-	if c.Wbft.RequestTimeoutSeconds == 0 {
+	if c.WBFT.RequestTimeoutSeconds == 0 {
 		return errors.New("`anzeon.wBFT`: `requestTimeoutSeconds` must be greater than 0")
 	}
-	if c.Wbft.BlockPeriodSeconds == 0 {
+	if c.WBFT.BlockPeriodSeconds == 0 {
 		return errors.New("`anzeon.wBFT`: `blockPeriodSeconds` must be greater than 0")
 	}
-	if c.Wbft.EpochLength <= 1 {
+	if c.WBFT.EpochLength <= 1 {
 		return errors.New("`anzeon.wBFT`: `epochLength` must be greater than or equal to 2")
 	}
 	return nil
 }
 
 type Init struct {
-	Validators      []common.Address `json:"validators"`      // initial Wbft validators, order is matter
+	Validators      []common.Address `json:"validators"`      // initial WBFT validators, order is matter
 	BLSPublicKeys   []string         `json:"blsPublicKeys"`   // BLS public ket list of validators, order must be same as validators
 	SystemContracts *SystemContracts `json:"systemContracts"` // initial gov contracts, order must be same as validators
 }
@@ -155,9 +155,9 @@ func (u *Upgrade) String() string {
 	)
 }
 
-type WbftConfig struct {
-	RequestTimeoutSeconds    uint64  `json:"requestTimeoutSeconds"`            // Minimum request timeout for each Wbft round in milliseconds
-	BlockPeriodSeconds       uint64  `json:"blockPeriodSeconds"`               // Minimum time between two consecutive Wbft blocks’ timestamps in seconds
+type WBFTConfig struct {
+	RequestTimeoutSeconds    uint64  `json:"requestTimeoutSeconds"`            // Minimum request timeout for each WBFT round in milliseconds
+	BlockPeriodSeconds       uint64  `json:"blockPeriodSeconds"`               // Minimum time between two consecutive WBFT blocks’ timestamps in seconds
 	EpochLength              uint64  `json:"epochLength"`                      // The duration during which a fixed validator set remains active
 	AllowedFutureBlockTime   uint64  `json:"allowedFutureBlockTime,omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
 	ProposerPolicy           *uint64 `json:"proposerPolicy"`                   // The policy for proposer selection
@@ -166,7 +166,7 @@ type WbftConfig struct {
 
 type Transition struct {
 	Block *big.Int `json:"block"`
-	*WbftConfig
+	*WBFTConfig
 }
 
 func (t *Transition) String() string {
@@ -180,7 +180,7 @@ func (t *Transition) String() string {
 }
 
 var DefaultAnzeonConfig = &AnzeonConfig{
-	Wbft: &WbftConfig{
+	WBFT: &WBFTConfig{
 		RequestTimeoutSeconds: 2,
 		BlockPeriodSeconds:    1,
 		ProposerPolicy:        newUint64(0),
@@ -192,10 +192,10 @@ var DefaultAnzeonConfig = &AnzeonConfig{
 			Version: DefaultGovVersion,
 		},
 	},
-	Init: &WbftInit{},
+	Init: &WBFTInit{},
 }
 
-func (c *WbftConfig) String() string {
+func (c *WBFTConfig) String() string {
 	var maxRequestTimeoutSeconds string
 
 	if c.MaxRequestTimeoutSeconds != nil {

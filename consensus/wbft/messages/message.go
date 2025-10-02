@@ -24,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/wbft"
 )
 
-// Wbft message codes
+// WBFT message codes
 const (
 	PreprepareCode  = 0x12
 	PrepareCode     = 0x13
@@ -32,7 +32,7 @@ const (
 	RoundChangeCode = 0x15
 )
 
-// A set containing the messages codes for all Wbft messages.
+// A set containing the messages codes for all WBFT messages.
 func MessageCodes() map[uint64]struct{} {
 	return map[uint64]struct{}{
 		PreprepareCode:  {},
@@ -42,7 +42,7 @@ func MessageCodes() map[uint64]struct{} {
 	}
 }
 
-// Common interface for all Wbft messages
+// Common interface for all WBFT messages
 type WBFTMessage interface {
 	Code() uint64
 	View() wbft.View

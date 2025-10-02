@@ -59,7 +59,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		blobBaseFee = eip4844.CalcBlobFee(*header.ExcessBlobGas)
 	}
 	if header.Difficulty.Cmp(common.Big0) == 0 || header.Difficulty.Cmp(types.WBFTDefaultDifficulty) == 0 {
-		// Wbft engine enables the MixDigest field to be used as a random seed
+		// WBFT engine enables the MixDigest field to be used as a random seed
 		random = &header.MixDigest
 	}
 	return vm.BlockContext{

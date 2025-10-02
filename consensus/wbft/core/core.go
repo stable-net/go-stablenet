@@ -52,7 +52,7 @@ var (
 	timeoutRoundMeter = metrics.NewRegisteredMeter("consensus/wbft/core/timeout_round", nil)
 )
 
-// New creates a Wbft consensus core
+// New creates a WBFT consensus core
 func New(backend Backend, config *wbft.Config) *Core {
 	c := &Core{
 		config:             config,

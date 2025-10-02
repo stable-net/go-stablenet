@@ -63,7 +63,7 @@ type chainConfigWrapper struct {
 type fakeHardFork struct {
 	name                 string
 	blockNum             *big.Int
-	WBFTConfig           *params.WbftConfig
+	WBFTConfig           *params.WBFTConfig
 	SystemContractConfig *params.SystemContracts
 }
 
@@ -76,7 +76,7 @@ func newTestChainConfig() *chainConfigWrapper {
 }
 
 // addFakeHardFork adds a fake hard fork for testing
-func (cw *chainConfigWrapper) addFakeHardFork(name string, blockNum *big.Int, wbftConfig *params.WbftConfig, systemContractConfig *params.SystemContracts) {
+func (cw *chainConfigWrapper) addFakeHardFork(name string, blockNum *big.Int, wbftConfig *params.WBFTConfig, systemContractConfig *params.SystemContracts) {
 	fh := fakeHardFork{
 		name:                 name,
 		blockNum:             blockNum,
@@ -88,7 +88,7 @@ func (cw *chainConfigWrapper) addFakeHardFork(name string, blockNum *big.Int, wb
 
 // setConfigFromChainConfig is a test version of SetConfigFromChainConfig that works with fake hardForks
 func setConfigFromChainConfig(wbftCfg *Config, chainCfg *chainConfigWrapper) error {
-	config := chainCfg.Anzeon.Wbft
+	config := chainCfg.Anzeon.WBFT
 	if config.RequestTimeoutSeconds != 0 {
 		wbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
 	}
@@ -110,7 +110,7 @@ func setConfigFromChainConfig(wbftCfg *Config, chainCfg *chainConfigWrapper) err
 	for _, hf := range chainCfg.fakeHardForks {
 		transition := params.Transition{
 			Block:      hf.blockNum,
-			WbftConfig: hf.WBFTConfig,
+			WBFTConfig: hf.WBFTConfig,
 		}
 		wbftCfg.Transitions = append(wbftCfg.Transitions, transition)
 		hfTransitionBlocks[hf.blockNum] = true
@@ -154,21 +154,21 @@ func TestGetConfig(t *testing.T) {
 
 	// Add fake hard forks
 	testConfig.addFakeHardFork("TestFork1", big.NewInt(10),
-		&params.WbftConfig{
+		&params.WBFTConfig{
 			EpochLength: 200,
 		},
 		nil,
 	)
 
 	testConfig.addFakeHardFork("TestFork2", big.NewInt(20),
-		&params.WbftConfig{
+		&params.WBFTConfig{
 			BlockPeriodSeconds: 3,
 		},
 		nil,
 	)
 
 	testConfig.addFakeHardFork("TestFork3", big.NewInt(30),
-		&params.WbftConfig{
+		&params.WBFTConfig{
 			RequestTimeoutSeconds: 4000,
 		},
 		nil,
@@ -176,13 +176,13 @@ func TestGetConfig(t *testing.T) {
 
 	testConfig.Transitions = []params.Transition{{
 		Block:      big.NewInt(1),
-		WbftConfig: &params.WbftConfig{EpochLength: 40000},
+		WBFTConfig: &params.WBFTConfig{EpochLength: 40000},
 	}, {
 		Block:      big.NewInt(3),
-		WbftConfig: &params.WbftConfig{BlockPeriodSeconds: 100},
+		WBFTConfig: &params.WBFTConfig{BlockPeriodSeconds: 100},
 	}, {
 		Block:      big.NewInt(5),
-		WbftConfig: &params.WbftConfig{RequestTimeoutSeconds: 5000},
+		WBFTConfig: &params.WBFTConfig{RequestTimeoutSeconds: 5000},
 	}}
 
 	setConfigFromChainConfig(wbftCfg, testConfig)

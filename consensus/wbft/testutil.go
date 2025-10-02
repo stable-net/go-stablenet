@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-wemix-wbft library. If not, see <http://www.gnu.org/licenses/>.
 //
-// This file provides test utilities for Wbft consensus to avoid code duplication
+// This file provides test utilities for WBFT consensus to avoid code duplication
 // across test files while preventing cyclic imports.
 
 package wbft
@@ -30,7 +30,7 @@ import (
 // SetConfigFromChainConfigForTest is a copy of ethconfig.SetConfigFromChainConfig
 // This function is used in test files to avoid cyclic import issues
 func SetConfigFromChainConfig(wbftCfg *Config, chainCfg *params.ChainConfig) error {
-	config := chainCfg.Anzeon.Wbft
+	config := chainCfg.Anzeon.WBFT
 	if config.RequestTimeoutSeconds != 0 {
 		wbftCfg.RequestTimeout = config.RequestTimeoutSeconds * 1000
 	}
@@ -53,7 +53,7 @@ func SetConfigFromChainConfig(wbftCfg *Config, chainCfg *params.ChainConfig) err
 	//add hardforks that includes wbft config after anzeon here like :
 	// transition := params.Transition{
 	// 	Block:      chainCfg.DalgonaBlock,
-	// 	WbftConfig: chainCfg.Dalgona.Wbft,
+	// 	WBFTConfig: chainCfg.Dalgona.WBFT,
 	// }
 	// wbftCfg.Transitions = append(wbftCfg.Transitions, transition)
 	// hfTransitionBlocks[chainCfg.DalgonaBlock] = true

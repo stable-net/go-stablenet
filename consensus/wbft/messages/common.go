@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/wbft"
 )
 
-// Data that is common to all Wbft messages. Used for composition.
+// Data that is common to all WBFT messages. Used for composition.
 type CommonPayload struct {
 	code      uint64
 	source    common.Address

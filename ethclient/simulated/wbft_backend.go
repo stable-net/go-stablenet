@@ -26,20 +26,20 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// WbftBackend is a simulated blockchain for Wbft. You can use it to test your contracts or
+// WBFTBackend is a simulated blockchain for WBFT. You can use it to test your contracts or
 // other code that interacts with the Ethereum chain.
-type WbftBackend struct {
+type WBFTBackend struct {
 	eth    *eth.Ethereum
-	client WbftClient
+	client WBFTClient
 }
 
-type WbftClient simClient
+type WBFTClient simClient
 
-// NewWbftBackend creates a new simulated blockchain for Wbft that can be used as a backend for
+// NewWBFTBackend creates a new simulated blockchain for WBFT that can be used as a backend for
 // contract bindings in unit tests.
 //
 // A simulated backend always uses chainID 1337.
-func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Config, ethConf *ethconfig.Config)) *WbftBackend {
+func NewWBFTBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Config, ethConf *ethconfig.Config)) *WBFTBackend {
 	// Create the default configurations for the outer node shell and the Ethereum
 	// service to mutate with the options afterwards
 	nodeConf := node.DefaultConfig
@@ -63,7 +63,7 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 
 	ethConf.Genesis.Config.Anzeon.Init.Validators = []common.Address{validator}
 	ethConf.Genesis.Config.Anzeon.Init.BLSPublicKeys = []string{hexutil.Encode(blsPubKey)}
-	ethConf.Genesis.Config.Anzeon.Wbft.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
+	ethConf.Genesis.Config.Anzeon.WBFT.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
 	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey)         // simulated chain block
 	ethConf.SyncMode = downloader.FullSync
 	ethConf.Miner.GasPrice = big.NewInt(1)
@@ -81,7 +81,7 @@ func NewWbftBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 		panic(err) // this should never happen
 	}
 
-	sim, err := newWbftWithNode(stack, &ethConf)
+	sim, err := newWBFTWithNode(stack, &ethConf)
 	if err != nil {
 		panic(err) // this should never happen
 	}
@@ -107,7 +107,7 @@ func genExtraData(validator common.Address, blsPubKey []byte) []byte {
 
 // newWithNode sets up a simulated backend on an existing node. The provided node
 // must not be started and will be started by this method.
-func newWbftWithNode(stack *node.Node, conf *eth.Config) (*WbftBackend, error) {
+func newWBFTWithNode(stack *node.Node, conf *eth.Config) (*WBFTBackend, error) {
 	if err := conf.Genesis.Config.Anzeon.CheckValidity(); err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func newWbftWithNode(stack *node.Node, conf *eth.Config) (*WbftBackend, error) {
 	if err := stack.Start(); err != nil {
 		return nil, err
 	}
-	// Start Miner & Wbft Engine
+	// Start Miner & WBFT Engine
 	backend.StartMining()
 	wbftEngine := backend.Engine().(*wbftBackend.Backend)
 	backend.Miner().InjectSimApplierTo(wbftEngine)
@@ -139,18 +139,18 @@ func newWbftWithNode(stack *node.Node, conf *eth.Config) (*WbftBackend, error) {
 		}
 	}
 
-	return &WbftBackend{
+	return &WBFTBackend{
 		eth:    backend,
-		client: WbftClient{ethclient.NewClient(stack.Attach())},
+		client: WBFTClient{ethclient.NewClient(stack.Attach())},
 	}, nil
 }
 
-// Close shuts down the simWbftBackend.
+// Close shuts down the simWBFTBackend.
 // The simulated backend can't be used afterwards.
-func (n *WbftBackend) Close() error {
+func (n *WBFTBackend) Close() error {
 	if n.client.Client != nil {
 		n.client.Close()
-		n.client = WbftClient{}
+		n.client = WBFTClient{}
 	}
 	if wbftEngine, ok := n.Engine().(*wbftBackend.Backend); ok {
 		if err := wbftEngine.Stop(); err != nil {
@@ -163,25 +163,25 @@ func (n *WbftBackend) Close() error {
 	return nil
 }
 
-func (n *WbftBackend) Engine() consensus.Engine {
+func (n *WBFTBackend) Engine() consensus.Engine {
 	return n.eth.Engine()
 }
 
 // Commit seals a block and moves the chain forward to a new empty block.
-func (n *WbftBackend) Commit() common.Hash {
+func (n *WBFTBackend) Commit() common.Hash {
 	return n.eth.Miner().CommitSimulated()
 }
 
-func (n *WbftBackend) CommitWithState(upgradeContracts *params.SystemContracts, num *big.Int) common.Hash {
+func (n *WBFTBackend) CommitWithState(upgradeContracts *params.SystemContracts, num *big.Int) common.Hash {
 	return n.eth.Miner().CommitSimulatedWithState(upgradeContracts, num)
 }
 
-func (n *WbftBackend) AdjustTime(duration time.Duration) common.Hash {
+func (n *WBFTBackend) AdjustTime(duration time.Duration) common.Hash {
 	return n.eth.Miner().CommitSimulatedWithPeriod(duration)
 }
 
 // Client returns a client that accesses the simulated chain.
-func (n *WbftBackend) Client() Client {
+func (n *WBFTBackend) Client() Client {
 	return n.client
 }
 
@@ -189,7 +189,7 @@ func (n *WbftBackend) Client() Client {
 // the current pending state of the backend blockchain. There is no guarantee that this is
 // the true gas limit requirement as other transactions may be added or removed by miners,
 // but it should provide a basis for setting a reasonable default.
-func (c WbftClient) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+func (c WBFTClient) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
 	var hex hexutil.Uint64
 	err := c.Client.Client().CallContext(ctx, &hex, "eth_estimateGas", toCallArg(msg), rpc.PendingBlockNumber)
 	if err != nil {

@@ -935,7 +935,7 @@ func (e *Engine) IsEpochBlockNumber(config *params.ChainConfig, number *big.Int)
 // it returns the validators from chain config.
 func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *big.Int, parentHash common.Hash, parents []*types.Header) (wbft.ValidatorSet, error) {
 	chainConfig := chain.Config()
-	// 1. Check if the block is not a Wbft block
+	// 1. Check if the block is not a WBFT block
 	if !chainConfig.AnzeonEnabled() {
 		return nil, wbftcommon.ErrIsNotWBFTBlock
 	}

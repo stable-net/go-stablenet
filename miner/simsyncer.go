@@ -44,7 +44,7 @@ func (ss *simSyncer) Apply(chainConfig *params.ChainConfig, config *wbft.Config,
 	if ss.adjustedBlockPeriod[number] > 0 {
 		config.Transitions = append(config.Transitions, params.Transition{
 			Block: num,
-			WbftConfig: &params.WbftConfig{
+			WBFTConfig: &params.WBFTConfig{
 				BlockPeriodSeconds: ss.adjustedBlockPeriod[number],
 			},
 		})

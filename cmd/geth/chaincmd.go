@@ -220,7 +220,7 @@ func initGenesis(ctx *cli.Context) error {
 		overrides.OverrideVerkle = &v
 	}
 
-	// Check sanity for Wbft.
+	// Check sanity for WBFT.
 	if genesis.Config.AnzeonEnabled() {
 		if err := genesis.Config.Anzeon.CheckValidity(); err != nil {
 			utils.Fatalf("Invalid genesis config: %v", err)
