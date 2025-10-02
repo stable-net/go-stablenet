@@ -448,6 +448,13 @@ contract FiatTokenV1 is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP
     /**
      * @inheritdoc Blacklistable
      */
+    function _isBlacklister(address _account) internal view override returns (bool) {
+        return _account == masterMinter;
+    }
+
+    /**
+     * @inheritdoc Blacklistable
+     */
     function _blacklist(address _account) internal override {
         _setBlacklistState(_account, true);
     }

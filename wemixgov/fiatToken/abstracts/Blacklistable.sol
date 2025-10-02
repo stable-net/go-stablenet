@@ -34,7 +34,7 @@ abstract contract Blacklistable {
      * @dev Throws if called by any account other than the blacklister.
      */
     modifier onlyBlacklister() {
-        require(msg.sender == blacklister, "Blacklistable: caller is not the blacklister");
+        require(_isBlacklister(msg.sender), "Blacklistable: caller is not the blacklister");
         _;
     }
 
@@ -88,6 +88,15 @@ abstract contract Blacklistable {
         require(_newBlacklister != address(0), "Blacklistable: new blacklister is the zero address");
         blacklister = _newBlacklister;
         emit BlacklisterChanged(blacklister);
+    }
+
+    /**
+     * @dev Checks if account is blacklister.
+     * @param _account The address to check.
+     * @return true if the account is blacklister, false otherwise.
+     */
+    function _isBlacklister(address _account) internal view virtual returns (bool) {
+        return _account == blacklister;
     }
 
     /**
