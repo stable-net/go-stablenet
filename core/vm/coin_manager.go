@@ -36,7 +36,7 @@ var (
 )
 
 var (
-	ErrNotAvailable          = errors.New("CoinManager: not available before StableOne")
+	ErrNotAvailable          = errors.New("CoinManager: not available before Anzeon")
 	ErrUnauthorized          = errors.New("CoinManager: caller is not authorized")
 	ErrInvalidCallContext    = errors.New("CoinManager: invalid call context (CALL required)")
 	ErrInvalidSelectorLength = errors.New("CoinManager: invalid method selector length")
@@ -66,14 +66,14 @@ var (
 )
 
 // Add, Remove, Modify, etc. CoinManager methods per hardfork as follows:
-var CoinManagerMethodsStableOne = map[CoinManagerMethodSelector]CoinManagerMethod{
+var CoinManagerMethodsAnzeon = map[CoinManagerMethodSelector]CoinManagerMethod{
 	CoinManagerMintSelector:     &coinManagerMint{},
 	CoinManagerBurnSelector:     &coinManagerBurn{},
 	CoinManagerTransferSelector: &coinManagerTransfer{},
 }
 
 func ActiveCoinManager(rules params.Rules) *common.Address {
-	if !rules.IsStableOne {
+	if !rules.IsAnzeon {
 		return nil
 	}
 	return &params.NativeCoinManagerAddress
@@ -85,8 +85,8 @@ func selectCoinManagerMethod(evm *EVM, selector CoinManagerMethodSelector) (Coin
 	// <HardforkName> is a placeholder, e.g., London, Berlin
 	// case evm.chainRules.Is<HardforkName>:
 	// 	methods = CoinManagerMethods<HardforkName>
-	default: // Same as: case evm.chainRules.IsStableOne:
-		methods = CoinManagerMethodsStableOne
+	default: // Same as: case evm.chainRules.IsAnzeon:
+		methods = CoinManagerMethodsAnzeon
 	}
 	m, ok := methods[selector]
 	return m, ok
@@ -99,10 +99,10 @@ func (evm *EVM) checkCoinManagerCall(typ OpCode, caller ContractRef, addr common
 	if typ != CALL {
 		return false, ErrInvalidCallContext
 	}
-	if !evm.chainRules.IsStableOne {
+	if !evm.chainRules.IsAnzeon {
 		return false, ErrNotAvailable
 	}
-	if caller.Address() != params.NativeCoinWrapperAddress {
+	if caller.Address() != evm.chainConfig.Anzeon.SystemContracts.FiatToken.Address {
 		return false, ErrUnauthorized
 	}
 	return true, nil

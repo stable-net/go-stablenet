@@ -558,7 +558,7 @@ func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 // emit Transfer event for native coin
 func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256.Int) {
-	if !evm.chainRules.IsStableOne || amount.IsZero() {
+	if !evm.chainRules.IsAnzeon || amount.IsZero() {
 		return
 	}
 
@@ -573,7 +573,7 @@ func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256
 
 	// Add log
 	evm.StateDB.AddLog(&types.Log{
-		Address:     params.NativeCoinWrapperAddress,
+		Address:     evm.chainConfig.Anzeon.SystemContracts.FiatToken.Address,
 		Topics:      topics,
 		Data:        data,
 		BlockNumber: evm.Context.BlockNumber.Uint64(),

@@ -204,7 +204,6 @@ const (
 )
 
 var (
-	NativeCoinManagerAddress = common.HexToAddress("0xC013")
-	NativeCoinWrapperAddress = common.HexToAddress("0xC023")
+	NativeCoinManagerAddress = common.BytesToAddress([]byte{0xb0, 0x00, 0x02})                                        // 0x0000000000000000000000000000000000B00002
 	TransferEventSig         = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef") // crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
 )
