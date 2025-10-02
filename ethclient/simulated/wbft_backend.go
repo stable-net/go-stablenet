@@ -93,10 +93,10 @@ func genExtraData(validator common.Address, blsPubKey []byte) []byte {
 	sampleExtra := &types.WBFTExtra{
 		VanityData: []byte("WEMIX Anzeon chain block"),
 		EpochInfo: &types.EpochInfo{
-			Stakers: []*types.Staker{
+			RegisteredVals: []*types.ValidatorWithDiligence{
 				{Addr: validator, Diligence: types.DefaultDiligence},
 			},
-			Validators:    []uint32{0},
+			DecidedVals:   []uint32{0},
 			BLSPublicKeys: [][]byte{blsPubKey},
 		},
 		Round: 0,

@@ -566,7 +566,7 @@ func (e *Engine) GetGovValidators(config *params.ChainConfig, state govwbft.Stat
 type stakerInfo struct {
 	isValidator  bool // in current epoch
 	wasValidator bool // in previous epoch
-	staker       *types.Staker
+	staker       *types.ValidatorWithDiligence
 }
 
 // verifyHeader() must catch inconsistent seals before calling this.
@@ -599,7 +599,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 		return nil, err
 	}
 
-	validatorsDiff := 0 // latestEpochInfo.Validators - previousEpochInfo.Validators
+	validatorsDiff := 0 // latestEpochInfo.DecidedVals - previousEpochInfo.DecidedVals
 	// Traverse blocks until reaching the epoch block.
 	// Stop counting if the block reaches to the epoch block.
 	it := header
@@ -630,7 +630,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 			epochInfo = info
 
 			// Calculate the difference of validator set between two epochs. can be negative.
-			validatorsDiff = len(latestEpochInfo.Validators) - len(info.Validators)
+			validatorsDiff = len(latestEpochInfo.DecidedVals) - len(info.DecidedVals)
 		}
 
 		// Accumulate PrevPreparedSeal counts.
@@ -671,11 +671,11 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 
 	stakerMap := make(map[common.Address]*stakerInfo)
 	validators := []common.Address{}
-	for _, staker := range latestEpochInfo.Stakers {
+	for _, staker := range latestEpochInfo.RegisteredVals {
 		stakerMap[staker.Addr] = &stakerInfo{staker: staker}
 	}
-	for _, val := range latestEpochInfo.Validators {
-		addr := latestEpochInfo.GetValidator(val)
+	for _, val := range latestEpochInfo.DecidedVals {
+		addr := latestEpochInfo.GetRegisteredValidator(val)
 		stakerMap[addr].isValidator = true
 		validators = append(validators, addr)
 	}
@@ -688,8 +688,8 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 			log.Error("WBFT: failed to get prior epoch info", "number", parent.Number, "err", err2)
 			return nil, err2
 		}
-		for _, val := range priorEpochInfo.Validators {
-			addr := priorEpochInfo.GetValidator(val)
+		for _, val := range priorEpochInfo.DecidedVals {
+			addr := priorEpochInfo.GetRegisteredValidator(val)
 			if stakerMap[addr] != nil { // if stakerMap[addr] == nil -> this is not current staker
 				stakerMap[addr].wasValidator = true
 			}
@@ -728,9 +728,9 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	)
 
 	// Update epoch info.
-	newValidators := e.GetGovValidators(config, state, header.Number)
-	newEpoch.Stakers = make([]*types.Staker, len(newValidators))
-	for i, staker := range newValidators {
+	newStakers := e.GetGovValidators(config, state, header.Number)
+	newEpoch.RegisteredVals = make([]*types.ValidatorWithDiligence, len(newStakers))
+	for i, staker := range newStakers {
 		var d uint64
 
 		stakerInfo := stakerMap[staker]
@@ -767,7 +767,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 			}
 
 			if beingProposerCountInEpoch[staker] > 0 {
-				maxProposedSeals := 2 * len(latestEpochInfo.Validators) * beingProposerCountInEpoch[staker]
+				maxProposedSeals := 2 * len(latestEpochInfo.DecidedVals) * beingProposerCountInEpoch[staker]
 				if staker.Cmp(firstProposer) == 0 && stakerInfo.wasValidator {
 					// first proposer can put more prev seals as much as -validatorsDiff
 					maxProposedSeals -= 2 * validatorsDiff
@@ -790,7 +790,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 			return nil, fmt.Errorf("WBFT: Invalid Diligence %d exceeds maximum", d)
 		}
 
-		newEpoch.Stakers[i] = &types.Staker{
+		newEpoch.RegisteredVals[i] = &types.ValidatorWithDiligence{
 			Addr:      staker,
 			Diligence: d,
 		}
@@ -798,8 +798,8 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 
 	// epoch in a stabilization stage has the validator set which is same to the previous epoch
 	govValidatorAddress := e.cfg.GetSystemContracts(header.Number, config).GovValidator.Address
-	candidates := make([]Candidate, 0, len(newValidators))
-	for _, s := range newEpoch.Stakers {
+	candidates := make([]Candidate, 0, len(newStakers))
+	for _, s := range newEpoch.RegisteredVals {
 		candidate := Candidate{
 			Addr:      s.Addr,
 			Diligence: s.Diligence,
@@ -807,24 +807,29 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 		}
 		candidates = append(candidates, candidate)
 	}
-	newEpoch.Validators, err = e.decideValidators(header, candidates)
+	newValidators, err := e.decideValidators(header, candidates)
 	if err != nil {
 		log.Error("WBFT: Failed to decide validators", "err", err)
 		return nil, err
 	}
-	newEpoch.BLSPublicKeys = make([][]byte, len(newEpoch.Validators))
-	for i, addr := range newEpoch.GetValidators() {
+	newEpoch.DecidedVals = make([]uint32, 0)
+	newEpoch.BLSPublicKeys = make([][]byte, 0)
+	for _, newVal := range newValidators {
+		addr := newEpoch.RegisteredVals[newVal].Addr
 		pk := govwbft.GetBLSPublicKey(govValidatorAddress, state, addr)
 		if len(pk) == 0 {
-			err := errors.New("bls public key is zero")
-			log.Error("WBFT: Invalid BLS Public Key", "err", err)
-			return nil, err
+			log.Warn("WBFT: no BLS public key for the validator", "validator", addr)
+			// Although a specific validator's BLS key should not be missing from the GovValidator (due to potential bugs),
+			// the consensus engine must not halt if this occurs.
+			// Therefore, the engine is designed to exclude the affected validator and continue consensus.
+			continue
 		}
-		newEpoch.BLSPublicKeys[i] = pk
+		newEpoch.DecidedVals = append(newEpoch.DecidedVals, newVal)
+		newEpoch.BLSPublicKeys = append(newEpoch.BLSPublicKeys, pk)
 	}
 
-	log.Trace("WBFT: update epoch info", "header.Number", header.Number, "validators", newEpoch.Validators)
-	for i, staker := range newEpoch.Stakers {
+	log.Trace("WBFT: update epoch info", "header.Number", header.Number, "validators", newEpoch.DecidedVals)
+	for i, staker := range newEpoch.RegisteredVals {
 		log.Trace(fmt.Sprintf("WBFT:   - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
 	}
 
@@ -951,7 +956,7 @@ func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *b
 		return nil, err
 	}
 
-	vs := validator.NewSet(epochInfo.GetValidators(), epochInfo.BLSPublicKeys, e.cfg.GetConfig(blockNumber).ProposerPolicy)
+	vs := validator.NewSet(epochInfo.GetDecidedValidators(), epochInfo.BLSPublicKeys, e.cfg.GetConfig(blockNumber).ProposerPolicy)
 	return vs, nil
 }
 
@@ -1061,28 +1066,28 @@ func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Hea
 		return errors.New("WBFT: epochInfo is nil")
 	}
 
-	// Check Stakers.
-	if len(epoch.Stakers) != len(extra.EpochInfo.Stakers) {
+	// Check RegisteredVals.
+	if len(epoch.RegisteredVals) != len(extra.EpochInfo.RegisteredVals) {
 		return errors.New("WBFT: mismatch in staker sizes")
 	}
-	for i := range epoch.Stakers {
-		if epoch.Stakers[i].Addr != extra.EpochInfo.Stakers[i].Addr {
+	for i := range epoch.RegisteredVals {
+		if epoch.RegisteredVals[i].Addr != extra.EpochInfo.RegisteredVals[i].Addr {
 			return fmt.Errorf("WBFT: The two stakers do not match at index %d: expected %v, got %v",
-				i, extra.EpochInfo.Stakers[i].Addr.Hex(), epoch.Stakers[i].Addr.Hex())
+				i, extra.EpochInfo.RegisteredVals[i].Addr.Hex(), epoch.RegisteredVals[i].Addr.Hex())
 		}
 		// Validate Diligence matches
-		if epoch.Stakers[i].Diligence != extra.EpochInfo.Stakers[i].Diligence {
+		if epoch.RegisteredVals[i].Diligence != extra.EpochInfo.RegisteredVals[i].Diligence {
 			return fmt.Errorf("WBFT: Diligence mismatch at index %d: expected %d, got %d",
-				i, extra.EpochInfo.Stakers[i].Diligence, epoch.Stakers[i].Diligence)
+				i, extra.EpochInfo.RegisteredVals[i].Diligence, epoch.RegisteredVals[i].Diligence)
 		}
 	}
 
 	// Check validators.
-	if len(epoch.Validators) != len(extra.EpochInfo.Validators) {
+	if len(epoch.DecidedVals) != len(extra.EpochInfo.DecidedVals) {
 		return errors.New("WBFT: mismatch in validator sizes")
 	}
-	for i := range extra.EpochInfo.Validators {
-		if epoch.Validators[i] != extra.EpochInfo.Validators[i] {
+	for i := range extra.EpochInfo.DecidedVals {
+		if epoch.DecidedVals[i] != extra.EpochInfo.DecidedVals[i] {
 			return errors.New("WBFT: The two validators do not match")
 		}
 	}
@@ -1147,7 +1152,7 @@ func getSignerAddress(epochInfo *types.EpochInfo, signedSeal *types.WBFTAggregat
 	sealers := signedSeal.Sealers.GetSealers()
 	signers := make([]common.Address, len(sealers))
 	for i, idx := range sealers {
-		v := epochInfo.GetValidator(epochInfo.Validators[idx])
+		v := epochInfo.GetRegisteredValidator(epochInfo.DecidedVals[idx])
 		if v == (common.Address{}) {
 			return nil, errors.New("validator address is zero")
 		}

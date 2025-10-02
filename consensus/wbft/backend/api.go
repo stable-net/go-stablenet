@@ -249,22 +249,22 @@ func epochForJSON(epoch *types.EpochInfo) map[string]interface{} {
 	if epoch == nil {
 		return nil
 	}
-	// Stakers
-	stakers := make([]map[string]interface{}, 0, len(epoch.Stakers))
+	// RegisteredVals
+	stakers := make([]map[string]interface{}, 0, len(epoch.RegisteredVals))
 
-	for _, s := range epoch.Stakers {
+	for _, s := range epoch.RegisteredVals {
 		stakers = append(stakers, map[string]interface{}{
 			"addr":      s.Addr.Hex(),
 			"diligence": fmt.Sprintf("0x%x", s.Diligence),
 		})
 	}
 
-	// Validators
-	validators := make([]map[string]interface{}, 0, len(epoch.Validators))
-	for i, idx := range epoch.Validators {
+	// DecidedVals
+	validators := make([]map[string]interface{}, 0, len(epoch.DecidedVals))
+	for i, idx := range epoch.DecidedVals {
 		validators = append(validators, map[string]interface{}{
 			"index": fmt.Sprintf("0x%x", idx),
-			"addr":  epoch.GetValidator(idx).Hex(),
+			"addr":  epoch.GetRegisteredValidator(idx).Hex(),
 			"bls":   "0x" + hex.EncodeToString(epoch.BLSPublicKeys[i]),
 		})
 	}

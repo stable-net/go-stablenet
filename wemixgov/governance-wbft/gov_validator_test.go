@@ -43,7 +43,7 @@ func TestInitializeValidator(t *testing.T) {
 				{
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
-					Value:   common.HexToHash("0x"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
 			},
 		},

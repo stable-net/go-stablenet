@@ -223,16 +223,16 @@ func CreateInitialEpochInfo(config *params.AnzeonConfig) (*types.EpochInfo, erro
 	stakers = append(stakers, config.Init.Validators...)
 	blsPublicKeys = append(blsPublicKeys, config.Init.BLSPublicKeys...)
 	for i, addr := range stakers {
-		epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
+		epochInfo.RegisteredVals = append(epochInfo.RegisteredVals, &types.ValidatorWithDiligence{
 			Addr:      addr,
 			Diligence: types.DefaultDiligence,
 		})
-		epochInfo.Validators = append(epochInfo.Validators, uint32(i))
+		epochInfo.DecidedVals = append(epochInfo.DecidedVals, uint32(i))
 		epochInfo.BLSPublicKeys = append(epochInfo.BLSPublicKeys, hexutil.MustDecode(blsPublicKeys[i]))
 	}
 
-	log.Trace("WBFT: initial epoch info", "validators", epochInfo.Validators)
-	for i, staker := range epochInfo.Stakers {
+	log.Trace("WBFT: initial epoch info", "validators", epochInfo.DecidedVals)
+	for i, staker := range epochInfo.RegisteredVals {
 		log.Trace(fmt.Sprintf("WBFT:   - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
 	}
 

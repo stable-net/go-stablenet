@@ -685,7 +685,7 @@ func (c *ChainConfig) Description() string {
 		if c.Anzeon.Init != nil {
 			if c.Anzeon.Init != nil {
 				banner += "   - Init\n"
-				banner += fmt.Sprintf("     - Validators:         %-8v\n", c.Anzeon.Init.Validators)
+				banner += fmt.Sprintf("     - DecidedVals:         %-8v\n", c.Anzeon.Init.Validators)
 				banner += fmt.Sprintf("     - BLSPublicKeys:      %-8v\n", c.Anzeon.Init.BLSPublicKeys)
 			}
 		}
