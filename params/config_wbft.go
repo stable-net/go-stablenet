@@ -188,8 +188,8 @@ var DefaultAnzeonConfig = &AnzeonConfig{
 	},
 	SystemContracts: &SystemContracts{
 		GovValidator: &SystemContract{
-			Address: common.HexToAddress("0x1001"),
-			Version: "v1",
+			Address: DefaultGovValidatorAddress,
+			Version: DefaultGovVersion,
 		},
 	},
 	Init: &WbftInit{},
