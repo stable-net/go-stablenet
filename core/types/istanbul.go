@@ -88,6 +88,7 @@ type WBFTExtra struct {
 	PreparedSeal      *WBFTAggregatedSeal
 	CommittedSeal     *WBFTAggregatedSeal
 	EpochInfo         *EpochInfo // epoch info is filled only for last block of epoch
+	GovTip            *big.Int   // tip value agreed through governance voting (in Wei)
 }
 
 type Candidate struct {
@@ -113,6 +114,7 @@ func (qst *WBFTExtra) EncodeRLP(w io.Writer) error {
 		qst.PreparedSeal,
 		qst.CommittedSeal,
 		qst.EpochInfo,
+		qst.GovTip,
 	})
 }
 
@@ -128,14 +130,21 @@ func (qst *WBFTExtra) DecodeRLP(s *rlp.Stream) error {
 		PreparedSeal      *WBFTAggregatedSeal `rlp:"nil"`
 		CommittedSeal     *WBFTAggregatedSeal `rlp:"nil"`
 		EpochInfo         *EpochInfo          `rlp:"nil"`
+		GovTip            *big.Int            `rlp:"nil"`
 	}
 	if err := s.Decode(&wbftExtra); err != nil {
 		return err
 	}
-
-	qst.VanityData, qst.RandaoReveal, qst.PrevRound, qst.PrevPreparedSeal, qst.PrevCommittedSeal, qst.Round, qst.PreparedSeal, qst.CommittedSeal, qst.EpochInfo =
-		wbftExtra.VanityData, wbftExtra.RandaoReveal, wbftExtra.PrevRound, wbftExtra.PrevPreparedSeal, wbftExtra.PrevCommittedSeal, wbftExtra.Round, wbftExtra.PreparedSeal, wbftExtra.CommittedSeal, wbftExtra.EpochInfo
-
+	qst.VanityData = wbftExtra.VanityData
+	qst.RandaoReveal = wbftExtra.RandaoReveal
+	qst.PrevRound = wbftExtra.PrevRound
+	qst.PrevPreparedSeal = wbftExtra.PrevPreparedSeal
+	qst.PrevCommittedSeal = wbftExtra.PrevCommittedSeal
+	qst.Round = wbftExtra.Round
+	qst.PreparedSeal = wbftExtra.PreparedSeal
+	qst.CommittedSeal = wbftExtra.CommittedSeal
+	qst.EpochInfo = wbftExtra.EpochInfo
+	qst.GovTip = wbftExtra.GovTip
 	return nil
 }
 
