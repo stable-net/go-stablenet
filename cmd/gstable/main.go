@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -120,7 +121,8 @@ var (
 		utils.TdSyncIntervalFlag,
 		utils.MiningEnabledFlag,
 		utils.MinerGasLimitFlag,
-		utils.MinerGasPriceFlag,
+		// DISABLED: MinerGasPriceFlag is disabled - removed from CLI flags
+		// utils.MinerGasPriceFlag,
 		utils.MinerEtherbaseFlag,
 		utils.MinerExtraDataFlag,
 		utils.MinerRecommitIntervalFlag,
@@ -431,8 +433,9 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 		if !ok {
 			utils.Fatalf("Ethereum service not running")
 		}
-		// Set the gas price to the limits from the CLI and start mining
-		gasprice := flags.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
+
+		// DISABLED: Use default gas price instead of CLI flag - miner.gasprice flag is disabled
+		gasprice := ethconfig.Defaults.Miner.GasPrice
 		ethBackend.TxPool().SetGasTip(gasprice)
 		if err := ethBackend.StartMining(); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)

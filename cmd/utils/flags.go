@@ -447,6 +447,7 @@ var (
 		Usage:    "Minimum gas price for mining a transaction",
 		Value:    ethconfig.Defaults.Miner.GasPrice,
 		Category: flags.MinerCategory,
+		Hidden:   true, // DISABLED: Miner gas price flag is disabled - hidden from help but still exists for compatibility
 	}
 	MinerEtherbaseFlag = &cli.StringFlag{
 		Name:     "miner.etherbase",
@@ -1524,7 +1525,8 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 		cfg.GasCeil = ctx.Uint64(MinerGasLimitFlag.Name)
 	}
 	if ctx.IsSet(MinerGasPriceFlag.Name) {
-		cfg.GasPrice = flags.GlobalBig(ctx, MinerGasPriceFlag.Name)
+		// DISABLED: Miner gas price flag is disabled - ignore any attempts to set it via CLI
+		log.Warn("MinerGasPriceFlag is disabled and will be ignored")
 	}
 	if ctx.IsSet(MinerRecommitIntervalFlag.Name) {
 		cfg.Recommit = common.Duration(ctx.Duration(MinerRecommitIntervalFlag.Name))
