@@ -309,6 +309,11 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		worker.simSyncer = newSimSyncer(worker)
 	}
 
+	// apply governance-defined tip (GovTip) to the WBFT engine
+	if wbftEngine, ok := worker.engine.(*wbftBackend.Backend); ok && worker.config.GasPrice != nil {
+		wbftEngine.CallEngineSpecific("SetGovTip", worker.config.GasPrice)
+	}
+
 	worker.wg.Add(4)
 	go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
@@ -350,6 +355,10 @@ func (w *worker) setGasTip(tip *big.Int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.tip = uint256.MustFromBig(tip)
+	// apply governance-defined tip (GovTip) to the WBFT engine
+	if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
+		wbftEngine.CallEngineSpecific("SetGovTip", tip)
+	}
 }
 
 // setRecommitInterval updates the interval for miner sealing work recommitting.

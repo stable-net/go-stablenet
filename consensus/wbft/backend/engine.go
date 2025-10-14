@@ -382,6 +382,16 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		header.MixDigest = wbftengine.CalculateRandaoMix(parent.MixDigest, extra.RandaoReveal)
 		return nil
 
+	case "SetGovTip":
+		if len(args) != 1 {
+			return wbftcommon.ErrInvalidSpecificCall
+		}
+		tip, ok := args[0].(*big.Int)
+		if !ok || tip == nil {
+			return wbftcommon.ErrInvalidSpecificCall
+		}
+		return sb.Engine().SetGovTip(tip)
+
 	case "NewChainHead":
 		return sb.NewChainHead()
 

@@ -67,6 +67,7 @@ type Engine struct {
 	signer   common.Address   // Ethereum address of the signing key
 	sign     SignerFn         // Signer function to authorize hashes with
 	checkSig CheckSignatureFn // Check signature function to verify signatures
+	govTip   *big.Int         // tip value agreed through governance voting (in Wei)
 }
 
 func NewEngine(cfg *wbft.Config, signer common.Address, sign SignerFn, checkSig CheckSignatureFn) *Engine {
@@ -75,7 +76,19 @@ func NewEngine(cfg *wbft.Config, signer common.Address, sign SignerFn, checkSig 
 		signer:   signer,
 		sign:     sign,
 		checkSig: checkSig,
+		govTip:   nil,
 	}
+}
+
+// SetGovTip updates the governance-agreed tip value used by miners (in Wei).
+func (e *Engine) SetGovTip(tip *big.Int) error {
+	if tip == nil {
+		e.govTip = nil
+		return nil
+	}
+	// keep a copy to avoid external mutation
+	e.govTip = new(big.Int).Set(tip)
+	return nil
 }
 
 func mustHavePrevSeals(header *types.Header) bool {
