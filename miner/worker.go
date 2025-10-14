@@ -311,7 +311,11 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 
 	// apply governance-defined tip (GovTip) to the WBFT engine
 	if wbftEngine, ok := worker.engine.(*wbftBackend.Backend); ok && worker.config.GasPrice != nil {
-		wbftEngine.CallEngineSpecific("SetGovTip", worker.config.GasPrice)
+		if res := wbftEngine.CallEngineSpecific("SetGovTip", worker.config.GasPrice); res != nil {
+			if err, ok := res.(error); ok {
+				log.Warn("failed to set GovTip via CallEngineSpecific", "err", err)
+			}
+		}
 	}
 
 	worker.wg.Add(4)
@@ -357,7 +361,11 @@ func (w *worker) setGasTip(tip *big.Int) {
 	w.tip = uint256.MustFromBig(tip)
 	// apply governance-defined tip (GovTip) to the WBFT engine
 	if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
-		wbftEngine.CallEngineSpecific("SetGovTip", tip)
+		if res := wbftEngine.CallEngineSpecific("SetGovTip", tip); res != nil {
+			if err, ok := res.(error); ok {
+				log.Warn("failed to set new GovTip via CallEngineSpecific", "err", err)
+			}
+		}
 	}
 }
 

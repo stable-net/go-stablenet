@@ -76,15 +76,14 @@ func NewEngine(cfg *wbft.Config, signer common.Address, sign SignerFn, checkSig 
 		signer:   signer,
 		sign:     sign,
 		checkSig: checkSig,
-		govTip:   nil,
+		govTip:   big.NewInt(100 * params.GWei),
 	}
 }
 
 // SetGovTip updates the governance-agreed tip value used by miners (in Wei).
 func (e *Engine) SetGovTip(tip *big.Int) error {
 	if tip == nil {
-		e.govTip = nil
-		return nil
+		return fmt.Errorf("invalid govTip: value is nil")
 	}
 	// keep a copy to avoid external mutation
 	e.govTip = new(big.Int).Set(tip)
@@ -334,6 +333,10 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		}
 	}
 
+	if currentExtra.GovTip.Cmp(e.govTip) != 0 {
+		return fmt.Errorf("invalid gov tip: have %d, want %d", currentExtra.GovTip, e.govTip)
+	}
+
 	return nil
 }
 
@@ -482,7 +485,7 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	if mustHavePrevSeals(header) {
 		lastCanonicalHeader := chain.GetHeaderByNumber(header.Number.Uint64() - 1)
 		if lastCanonicalHeader.Number.Sign() == 0 {
-			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header))
+			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteGovTip(e.govTip))
 		} else {
 			extra, err2 := types.ExtractWBFTExtra(lastCanonicalHeader)
 			if err2 != nil {
@@ -505,15 +508,19 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 				header,
 				e.WriteRandao(chain.Config(), header),
 				WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
+				WriteGovTip(e.govTip),
 			)
 		}
 	} else {
-		// genesis block has empty prev seal
-		madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header))
+		// croissant hardFork block has empty prev seal
+		// next block of genesis croissant block has empty prev seal
+		madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteGovTip(e.govTip))
 	}
+
 	if err != nil {
 		return fmt.Errorf("failed to write wbft extra: %w", err)
 	}
+
 	header.MixDigest = CalculateRandaoMix(parent.MixDigest, madeExtra.RandaoReveal)
 	return nil
 }
@@ -564,6 +571,13 @@ func WritePrevSeals(prevRound uint32, prevPreparedSeal, prevCommittedSeal *types
 func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyWBFTExtra {
 	return func(wbftExtra *types.WBFTExtra) error {
 		wbftExtra.EpochInfo = epochInfo
+		return nil
+	}
+}
+
+func WriteGovTip(govTip *big.Int) ApplyWBFTExtra {
+	return func(wbftExtra *types.WBFTExtra) error {
+		wbftExtra.GovTip = govTip
 		return nil
 	}
 }
