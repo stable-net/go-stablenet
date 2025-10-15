@@ -26,11 +26,13 @@
 
 pragma solidity 0.8.14;
 
+import { IBlacklistManagement } from "../interfaces/IBlacklistManagement.sol";
+
 /**
  * @title Blacklistable Token
  * @dev Allows accounts to be blacklisted by a "blacklister" role
  */
-abstract contract Blacklistable {
+abstract contract Blacklistable is IBlacklistManagement {
     address public blacklister;
     mapping(address => bool) internal _blacklisted;
 
@@ -112,17 +114,32 @@ abstract contract Blacklistable {
      * @param _account The address to check.
      * @return true if the account is blacklisted, false otherwise.
      */
-    function _isBlacklisted(address _account) internal view virtual returns (bool);
+    function _isBlacklisted(address _account) internal view virtual returns (bool) {
+        return _blacklisted[_account];
+    }
 
     /**
      * @dev Helper method that blacklists an account.
      * @param _account The address to blacklist.
      */
-    function _blacklist(address _account) internal virtual;
+    function _blacklist(address _account) internal virtual {
+        _setBlacklistState(_account, true);
+    }
 
     /**
      * @dev Helper method that unblacklists an account.
      * @param _account The address to unblacklist.
      */
-    function _unBlacklist(address _account) internal virtual;
+    function _unBlacklist(address _account) internal virtual {
+        _setBlacklistState(_account, false);
+    }
+
+    /**
+     * @dev Helper method that sets the blacklist state of an account.
+     * @param _account         The address of the account.
+     * @param _shouldBlacklist True if the account should be blacklisted, false if the account should be unblacklisted.
+     */
+    function _setBlacklistState(address _account, bool _shouldBlacklist) internal virtual {
+        _blacklisted[_account] = _shouldBlacklist;
+    }
 }

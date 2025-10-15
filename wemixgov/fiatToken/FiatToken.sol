@@ -32,7 +32,7 @@ import { AbstractFiatToken } from "./abstracts/AbstractFiatToken.sol";
 import { Blacklistable } from "./abstracts/Blacklistable.sol";
 import { Mintable } from "./abstracts/Mintable.sol";
 
-import { EIP712Domain } from "./abstracts/eip/EIP712Domain.sol"; // solhint-disable-line no-unused-import
+import { EIP712Domain } from "./abstracts/eip/EIP712Domain.sol";
 import { EIP3009 } from "./abstracts/eip/EIP3009.sol";
 import { EIP2612 } from "./abstracts/eip/EIP2612.sol";
 import { EIP712 } from "./libraries/EIP712.sol";
@@ -43,35 +43,37 @@ import { ICoinManager } from "./interfaces/ICoinManager.sol";
  * @title FiatToken
  * @dev ERC20 Token backed by fiat reserves
  */
-contract FiatTokenV1 is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP2612 {
+contract FiatToken is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP2612 {
     using SafeMath for uint256;
-    address private _coinManager;
-
-    string public name;
-    string public symbol;
-    uint8 public decimals;
-    string public currency;
-
-    mapping(address => mapping(address => uint256)) private _allowed;
-    uint256 private _totalSupply = 0;
-
     /**
-     * @notice Initializes the fiat token contract.
-     * @param tokenName       The name of the fiat token.
-     * @param tokenSymbol     The symbol of the fiat token.
-     * @param tokenCurrency   The fiat currency that the token represents.
-     * @param tokenDecimals   The number of decimals that the token uses.
-     * @param newMasterMinter The masterMinter address for the fiat token.
-     * @param newBlacklister  The blacklister address for the fiat token.
+     * [Mintable]
+     * address masterMinter (slot 0x0)
+     * mapping(address => bool) _minters (slot 0x1)
+     * mapping(address => uint256) _minterAllowed (slot 0x2)
+     *
+     * [Blacklistable]
+     * address blacklister (slot 0x3)
+     * mapping(address => bool) _blacklisted (slot 0x4)
+     *
+     * [EIP3009]
+     * mapping(address => mapping(bytes32 => bool)) _authorizationStates (slot 0x5)
+     *
+     * [EIP2612]
+     * mapping(address => uint256) _permitNonces (slot 0x6)
+     *
+     * [EIP712Domain]
+     * bytes32 _DEPRECATED_CACHED_DOMAIN_SEPARATOR (slot 0x7)
      */
-    //TODO initialize
-    // _coinManager
-    // name
-    // symbol
-    // currency
-    // decimals
-    // masterMinter
-    // blacklister
+
+    address private _coinManager; // (slot 0x8)
+
+    string public name; // (slot 0x9)
+    string public symbol; // (slot 0xa)
+    uint8 public decimals; // (slot 0xb)
+    string public currency; // (slot 0xc)
+
+    mapping(address => mapping(address => uint256)) private _allowed; // (slot 0xd)
+    uint256 private _totalSupply = 0; // (slot 0xe)
 
     /**
      * @notice Gets the totalSupply of the fiat token.
@@ -439,7 +441,13 @@ contract FiatTokenV1 is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP
      * @param deadline    The time at which the signature expires (unix time), or max uint256 value to signal no expiration
      * @param signature   Signature bytes signed by an EOA wallet or a contract wallet
      */
-    function permit(address owner, address spender, uint256 value, uint256 deadline, bytes memory signature) external {
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        bytes memory signature
+    ) external notBlacklisted(owner) notBlacklisted(spender) {
         _permit(owner, spender, value, deadline, signature);
     }
 
@@ -449,8 +457,8 @@ contract FiatTokenV1 is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP
     /**
      * @inheritdoc Blacklistable
      */
-    function updateBlacklister(address _newBlacklister) external override onlyMasterMinter {
-        _updateBlacklister(_newBlacklister);
+    function updateBlacklister(address) external pure override {
+        revert("Blacklister role merged into MasterMinter");
     }
 
     /**
@@ -458,36 +466,6 @@ contract FiatTokenV1 is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP
      */
     function _isBlacklister(address _account) internal view override returns (bool) {
         return _account == masterMinter;
-    }
-
-    /**
-     * @inheritdoc Blacklistable
-     */
-    function _blacklist(address _account) internal override {
-        _setBlacklistState(_account, true);
-    }
-
-    /**
-     * @inheritdoc Blacklistable
-     */
-    function _unBlacklist(address _account) internal override {
-        _setBlacklistState(_account, false);
-    }
-
-    /**
-     * @dev Helper method that sets the blacklist state of an account.
-     * @param _account         The address of the account.
-     * @param _shouldBlacklist True if the account should be blacklisted, false if the account should be unblacklisted.
-     */
-    function _setBlacklistState(address _account, bool _shouldBlacklist) internal {
-        _blacklisted[_account] = _shouldBlacklist;
-    }
-
-    /**
-     * @inheritdoc Blacklistable
-     */
-    function _isBlacklisted(address _account) internal view override returns (bool) {
-        return _blacklisted[_account];
     }
 
     // ============================================================================

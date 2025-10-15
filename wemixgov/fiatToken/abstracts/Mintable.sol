@@ -63,6 +63,7 @@ abstract contract Mintable is IMinterManagement {
     }
 
     function mint(address _to, uint256 _amount) external virtual returns (bool);
+
     function burn(uint256 _amount) external virtual;
 
     /**

@@ -4,6 +4,8 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
+ * Modifications Copyright 2025 The stable-one Authors
+ *
  * Original code based on: https://github.com/circlefin/stablecoin-evm/tree/c8c31b249341bf3ffb2e8dbff41977c392a260c5/contracts
  *
  * NOTE: This contract is included in a GPL-3.0 project.
@@ -27,7 +29,7 @@ pragma solidity 0.8.14;
 /**
  * @dev A contract that implements the MinterManagementInterface has external
  * functions for adding and removing minters and modifying their allowances.
- * An example is the FiatTokenV1 contract.
+ * An example is the FiatToken contract.
  */
 interface IMinterManagement {
     function isMinter(address _account) external view returns (bool);
@@ -37,4 +39,6 @@ interface IMinterManagement {
     function configureMinter(address _minter, uint256 _minterAllowedAmount) external returns (bool);
 
     function removeMinter(address _minter) external returns (bool);
+
+    function updateMasterMinter(address _newMasterMinter) external;
 }
