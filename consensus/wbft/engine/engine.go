@@ -333,7 +333,7 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		}
 	}
 
-	if currentExtra.GovTip.Cmp(e.govTip) != 0 {
+	if header.Number.Uint64() > 0 && currentExtra.GovTip != nil && currentExtra.GovTip.Cmp(e.govTip) != 0 {
 		return fmt.Errorf("invalid gov tip: have %d, want %d", currentExtra.GovTip, e.govTip)
 	}
 

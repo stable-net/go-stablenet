@@ -78,6 +78,7 @@ var (
 	testConfig = &Config{
 		Recommit: common.Duration(time.Second),
 		GasCeil:  params.GenesisGasLimit,
+		GasPrice: big.NewInt(100 * params.GWei), // WBFT 엔진의 기본 GovTip과 일치하도록 설정
 	}
 )
 
@@ -114,7 +115,7 @@ func init() {
 		To:       &testUserAddress,
 		Value:    big.NewInt(1000),
 		Gas:      params.TxGas,
-		GasPrice: big.NewInt(params.InitialBaseFee),
+		GasPrice: big.NewInt(100 * params.GWei),
 	})
 	pendingTxs = append(pendingTxs, tx1)
 
@@ -123,7 +124,7 @@ func init() {
 		To:       &testUserAddress,
 		Value:    big.NewInt(1000),
 		Gas:      params.TxGas,
-		GasPrice: big.NewInt(params.InitialBaseFee),
+		GasPrice: big.NewInt(100 * params.GWei),
 	})
 	newTxs = append(newTxs, tx2)
 }
@@ -163,6 +164,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 				Validators:    []uint32{0},
 				BLSPublicKeys: [][]byte{testBankBlsPubKey.Marshal()},
 			},
+			GovTip: big.NewInt(100 * params.GWei), // WBFT 엔진의 기본 GovTip과 일치하도록 설정
 		}
 		gspec.ExtraData, _ = rlp.EncodeToBytes(sampleExtra)
 	default:

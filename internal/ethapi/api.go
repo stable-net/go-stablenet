@@ -1401,7 +1401,7 @@ type RPCTransaction struct {
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
 // representation, with the given location metadata set (if available).
-func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, blockTime uint64, index uint64, baseFee *big.Int, config *params.ChainConfig) *RPCTransaction {
+func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, blockTime uint64, index uint64, baseFee, govTip *big.Int, config *params.ChainConfig) *RPCTransaction {
 	signer := types.MakeSigner(config, new(big.Int).SetUint64(blockNumber), blockTime)
 	from, _ := types.Sender(signer, tx)
 	v, r, s := tx.RawSignatureValues()
@@ -1448,9 +1448,9 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		result.GasFeeCap = (*hexutil.Big)(tx.GasFeeCap())
 		result.GasTipCap = (*hexutil.Big)(tx.GasTipCap())
 		// if the transaction has been mined, compute the effective gas price
-		if baseFee != nil && blockHash != (common.Hash{}) {
+		if (baseFee != nil || govTip != nil) && blockHash != (common.Hash{}) {
 			// price = min(gasTipCap + baseFee, gasFeeCap)
-			result.GasPrice = (*hexutil.Big)(effectiveGasPrice(tx, baseFee))
+			result.GasPrice = (*hexutil.Big)(effectiveGasPrice(tx, baseFee, govTip))
 		} else {
 			result.GasPrice = (*hexutil.Big)(tx.GasFeeCap())
 		}
@@ -1488,7 +1488,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		result.GasTipCap = (*hexutil.Big)(tx.GasTipCap())
 		// if the transaction has been mined, compute the effective gas price
 		if baseFee != nil && blockHash != (common.Hash{}) {
-			result.GasPrice = (*hexutil.Big)(effectiveGasPrice(tx, baseFee))
+			result.GasPrice = (*hexutil.Big)(effectiveGasPrice(tx, baseFee, govTip))
 		} else {
 			result.GasPrice = (*hexutil.Big)(tx.GasFeeCap())
 		}
@@ -1501,8 +1501,8 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 // effectiveGasPrice computes the transaction gas fee, based on the given basefee value.
 //
 //	price = min(gasTipCap + baseFee, gasFeeCap)
-func effectiveGasPrice(tx *types.Transaction, baseFee *big.Int) *big.Int {
-	fee := tx.GasTipCap()
+func effectiveGasPrice(tx *types.Transaction, baseFee, govTip *big.Int) *big.Int {
+	fee := govTip
 	fee = fee.Add(fee, baseFee)
 	if tx.GasFeeCapIntCmp(fee) < 0 {
 		return tx.GasFeeCap()
@@ -1516,13 +1516,15 @@ func NewRPCPendingTransaction(tx *types.Transaction, current *types.Header, conf
 		baseFee     *big.Int
 		blockNumber = uint64(0)
 		blockTime   = uint64(0)
+		govTip      *big.Int
 	)
 	if current != nil {
 		baseFee = eip1559.CalcBaseFee(config, current)
+		govTip = current.GovTip()
 		blockNumber = current.Number.Uint64()
 		blockTime = current.Time
 	}
-	return newRPCTransaction(tx, common.Hash{}, blockNumber, blockTime, 0, baseFee, config)
+	return newRPCTransaction(tx, common.Hash{}, blockNumber, blockTime, 0, baseFee, govTip, config)
 }
 
 // newRPCTransactionFromBlockIndex returns a transaction that will serialize to the RPC representation.
@@ -1531,7 +1533,7 @@ func newRPCTransactionFromBlockIndex(b *types.Block, index uint64, config *param
 	if index >= uint64(len(txs)) {
 		return nil
 	}
-	return newRPCTransaction(txs[index], b.Hash(), b.NumberU64(), b.Time(), index, b.BaseFee(), config)
+	return newRPCTransaction(txs[index], b.Hash(), b.NumberU64(), b.Time(), index, b.BaseFee(), b.Header().GovTip(), config)
 }
 
 // newRPCRawTransactionFromBlockIndex returns the bytes of a transaction given a block and a transaction index.
@@ -1734,7 +1736,7 @@ func (s *TransactionAPI) GetTransactionByHash(ctx context.Context, hash common.H
 	if err != nil {
 		return nil, err
 	}
-	return newRPCTransaction(tx, blockHash, blockNumber, header.Time, index, header.BaseFee, s.b.ChainConfig()), nil
+	return newRPCTransaction(tx, blockHash, blockNumber, header.Time, index, header.BaseFee, header.GovTip(), s.b.ChainConfig()), nil
 }
 
 // GetRawTransactionByHash returns the bytes of the transaction for the given hash.
