@@ -46,6 +46,20 @@ type Member struct {
 	JoinedAt uint32
 }
 
+type Proposal struct {
+	ActionType        [32]byte
+	Status            uint8
+	Proposer          common.Address
+	MemberVersion     *big.Int
+	RequiredApprovals *big.Int
+	VotedBitmap       *big.Int
+	Approved          *big.Int
+	Rejected          *big.Int
+	CreatedAt         *big.Int
+	ExecutedAt        *big.Int
+	CallData          []byte
+}
+
 func (m Member) ToHash() common.Hash {
 	var result common.Hash
 	if m.IsActive {

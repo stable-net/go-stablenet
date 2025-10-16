@@ -26,6 +26,15 @@ contract GovValidator is GovBase {
     uint256 public constant BLS_PUBLIC_KEY_LENGTH = 48;
     uint256 public constant BLS_SIGNATURE_LENGTH = 96;
 
+    error InvalidValidator();
+    error AlreadyValidatorExists();
+    error NoConfigurationChanging();
+    error InvalidBlsKeyLength();
+    error InvalidSignatureLength();
+    error AlreadyRegisteredBlsKey();
+    error FailedToVerifyBlsKey();
+    error InvalidBlsKey();
+
     // 0x0 ~ 0x31: reserved for GovBase
     address public blsPoP; // 0x32; Precompiled contract address for BLS PoP verification
     EnumerableSet.AddressSet private __validators; // 0x33, 0x34; validator addresses
@@ -46,34 +55,74 @@ contract GovValidator is GovBase {
         return __validators.length();
     }
 
-    function configureValidator(address _newValidator, bytes calldata _blsPK, bytes calldata _blsSig) external onlyMember {
-        require(!__validators.contains(_newValidator), "validator exists");
-        _checkBLSPublicKey(_blsPK, _blsSig);
+    function configureValidator(address _newValidator, bytes calldata _blsKey, bytes calldata _blsSig) external onlyMember {
+        if (_newValidator == address(0)) {
+            revert InvalidValidator();
+        }
+        if (validatorToOperator[_newValidator] != address(0) && validatorToOperator[_newValidator] != msg.sender) {
+            // _newValidator is already registered by other operator
+            revert AlreadyValidatorExists();
+        }
+        _checkBlsKey(_blsKey, _blsSig);
 
         address _oldValidator = operatorToValidator[msg.sender];
-        if (_oldValidator != address(0)) {
-            // already registered validator
-            __validators.remove(_oldValidator);
-            delete validatorToOperator[_oldValidator];
-            delete blsKeyToValidator[validatorToBlsKey[_oldValidator]];
-            delete validatorToBlsKey[_oldValidator];
+        if (blsKeyToValidator[_blsKey] != address(0) && blsKeyToValidator[_blsKey] != _oldValidator) {
+            revert AlreadyRegisteredBlsKey();
         }
+
+        // case 1: register new validator
+        // case 2: change BLS key only
+        // case 3: change validator address with changing BLS key (bls key can be same as old one)
+        if (_oldValidator == address(0)) {
+            // case 1
+            _setValidatorAndBlsKey(_newValidator, _blsKey);
+        } else if (_oldValidator == _newValidator) {
+            // case 2
+            if (blsKeyToValidator[_blsKey] == _oldValidator) {
+                revert NoConfigurationChanging();
+            }
+            _changeBlsKey(_oldValidator, _blsKey);
+        } else {
+            // case 3
+            _changeValidator(_oldValidator, _newValidator, _blsKey);
+        }
+    }
+
+    function _setValidatorAndBlsKey(address _newValidator, bytes calldata _blsKey) internal {
         __validators.add(_newValidator);
         operatorToValidator[msg.sender] = _newValidator;
         validatorToOperator[_newValidator] = msg.sender;
-        validatorToBlsKey[_newValidator] = _blsPK;
-        blsKeyToValidator[_blsPK] = _newValidator;
+        _setBlsKey(_newValidator, _blsKey);
+    }
+
+    function _setBlsKey(address _validator, bytes calldata _blsKey) internal {
+        validatorToBlsKey[_validator] = _blsKey;
+        blsKeyToValidator[_blsKey] = _validator;
+    }
+
+    function _changeBlsKey(address _validator, bytes calldata _blsKey) internal {
+        delete blsKeyToValidator[validatorToBlsKey[_validator]];
+        _setBlsKey(_validator, _blsKey);
+    }
+
+    function _changeValidator(address _oldValidator, address _newValidator, bytes calldata _blsKey) internal {
+        _removeValidator(_oldValidator, msg.sender);
+
+        _setValidatorAndBlsKey(_newValidator, _blsKey);
+    }
+
+    function _removeValidator(address _validator, address _member) internal {
+        __validators.remove(_validator);
+        delete validatorToOperator[_validator];
+        delete operatorToValidator[_member];
+        delete blsKeyToValidator[validatorToBlsKey[_validator]];
+        delete validatorToBlsKey[_validator];
     }
 
     function _onMemberRemoved(address _member) internal override {
         address _validator = operatorToValidator[_member];
         if (_validator != address(0)) {
-            __validators.remove(_validator);
-            delete validatorToOperator[_validator];
-            delete blsKeyToValidator[validatorToBlsKey[_validator]];
-            delete validatorToBlsKey[_validator];
-            delete validatorToBlsKey[_validator];
-            delete operatorToValidator[_member];
+            _removeValidator(_validator, _member);
         }
     }
 
@@ -94,13 +143,20 @@ contract GovValidator is GovBase {
         return true;
     }
 
-    function _checkBLSPublicKey(bytes calldata _blsPK, bytes calldata _blsSig) internal view {
-        require(_blsPK.length == BLS_PUBLIC_KEY_LENGTH, "invalid bls public key length");
-        require(_blsSig.length == BLS_SIGNATURE_LENGTH, "invalid bls signature length");
-        require(blsKeyToValidator[_blsPK] == address(0), "already registered bls public key");
+    function _checkBlsKey(bytes calldata _blsKey, bytes calldata _blsSig) internal view {
+        if (_blsKey.length != BLS_PUBLIC_KEY_LENGTH) {
+            revert InvalidBlsKeyLength();
+        }
+        if (_blsSig.length != BLS_SIGNATURE_LENGTH) {
+            revert InvalidSignatureLength();
+        }
 
-        (bool _success, bytes memory _result) = blsPoP.staticcall(abi.encodePacked(_blsPK, _blsSig));
-        require(_success, "failed to verify bls pop");
-        require(abi.decode(_result, (bool)), "invalid bls public key");
+        (bool _success, bytes memory _result) = blsPoP.staticcall(abi.encodePacked(_blsKey, _blsSig));
+        if (!_success) {
+            revert FailedToVerifyBlsKey();
+        }
+        if (!abi.decode(_result, (bool))) {
+            revert InvalidBlsKey();
+        }
     }
 }

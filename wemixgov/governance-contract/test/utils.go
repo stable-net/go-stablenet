@@ -49,28 +49,6 @@ func commitTx(backend *simulated.WBFTBackend, tx *types.Transaction, txErr error
 	return bind.WaitMined(context.TODO(), backend.Client(), tx)
 }
 
-func expectedOk(backend *simulated.WBFTBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
-	receipt, err := commitTx(backend, tx, txErr)
-	if err != nil {
-		return nil, err
-	} else if receipt.Status != types.ReceiptStatusSuccessful {
-		panic(vm.ErrExecutionReverted)
-	}
-
-	return receipt, nil
-}
-
-func expectedFail(backend *simulated.WBFTBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
-	receipt, err := commitTx(backend, tx, txErr)
-	if err != nil {
-		return nil, err
-	} else if receipt.Status == types.ReceiptStatusSuccessful {
-		panic("execution not reverted")
-	}
-
-	return receipt, nil
-}
-
 func ExpectedRevert(t *testing.T, err error, args ...interface{}) {
 	require.Error(t, err)
 	length := len(args)
@@ -78,7 +56,7 @@ func ExpectedRevert(t *testing.T, err error, args ...interface{}) {
 		if length > 0 {
 			name, ok := args[0].(string)
 			require.True(t, ok)
-			require.Equal(t, revert.ABI.Name, name)
+			require.Equal(t, name, revert.ABI.Name)
 		}
 		if length > 1 {
 			output, ok := revert.Output.([]interface{})

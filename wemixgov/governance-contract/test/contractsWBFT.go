@@ -19,6 +19,8 @@ package test
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/status-im/keycard-go/hexutils"
 	"math/big"
 	"path/filepath"
 	"testing"
@@ -71,73 +73,269 @@ type GovWBFT struct {
 	govValidator *bind.BoundContract
 }
 
+type TestCandidate struct {
+	Validator *EOA
+	Operator  *EOA
+}
+
+func NewTestCandidate() *TestCandidate {
+	return &TestCandidate{
+		Validator: NewEOA(),
+		Operator:  NewEOA(),
+	}
+}
+
+func (s *TestCandidate) GetBLSSecretKey() (bls.SecretKey, error) {
+	blsSecretKey, err := bls.DeriveFromECDSA(s.Validator.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+	return blsSecretKey, nil
+}
+
+func (s *TestCandidate) BLSSign(t *testing.T, msg []byte) bls.Signature {
+	sk, err := s.GetBLSSecretKey()
+	if err != nil {
+		t.Errorf("failed to get bls secret key: %v", err)
+		return nil
+	}
+	return sk.Sign(msg)
+}
+
+func (s *TestCandidate) GetBLSPublicKey(t *testing.T) bls.PublicKey {
+	blsSecretKey, err := s.GetBLSSecretKey()
+	if err != nil {
+		t.Errorf("failed to get bls secret key: %v", err)
+		return nil
+	}
+	return blsSecretKey.PublicKey()
+}
+
+func (s *TestCandidate) GetBLSPoPSignature(t *testing.T) bls.Signature {
+	pk := s.GetBLSPublicKey(t)
+	return s.BLSSign(t, pk.Marshal())
+}
+
 var defaultBlockPeriod time.Duration
 
-func NewGovWBFT(t *testing.T, ncpList []common.Address, alloc types.GenesisAlloc) (*GovWBFT, error) {
+func NewGovWBFT(t *testing.T, customValidators []*TestCandidate, alloc types.GenesisAlloc) (*GovWBFT, error) {
 	owner := getTxOpt(t, "owner")
 
 	if alloc == nil {
 		alloc = make(types.GenesisAlloc)
 	}
 	alloc[owner.From] = types.Account{Balance: MAX_UINT_128}
+	var customEthConf *ethconfig.Config
 	g := &GovWBFT{
 		owner: owner,
 		backend: simulated.NewWBFTBackend(alloc, func(nodeConf *node.Config, ethConf *ethconfig.Config) {
+			customEthConf = ethConf
 			defaultBlockPeriod = time.Duration(ethConf.Genesis.Config.Anzeon.WBFT.BlockPeriodSeconds) * time.Second
 		}),
 	}
-	if len(ncpList) > 0 {
-		g.backend.CommitWithState(&params.SystemContracts{
-			GovValidator: &params.SystemContract{
-				Address: TestGovValidatorAddress,
-				Version: govwbft.SYSTEM_CONTRACT_VERSION_1,
-				Params: map[string]string{
-					"members":       "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697",
-					"memberVersion": "1",
-					"validators":    "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697",
-					"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
-				},
-			},
-		}, nil)
-		g.govValidator = compiledWBFT.GovValidator.New(g.backend.Client(), TestGovValidatorAddress)
+	members := ""
+	validators := ""
+	blsPubKeys := ""
+	if len(customValidators) > 0 {
+		for i, v := range customValidators {
+			if i > 0 {
+				members = members + ","
+				validators = validators + ","
+				blsPubKeys = blsPubKeys + ","
+			}
+			members = members + v.Operator.Address.String()
+			validators = validators + v.Validator.Address.String()
+			blsKey := v.GetBLSPublicKey(t)
+			blsPubKeys = blsPubKeys + hexutils.BytesToHex(blsKey.Marshal())
+		}
+	} else {
+		members = customEthConf.Genesis.Config.Anzeon.Init.Validators[0].String()
+		validators = customEthConf.Genesis.Config.Anzeon.Init.Validators[0].String()
+		blsPubKeys = customEthConf.Genesis.Config.Anzeon.Init.BLSPublicKeys[0]
 	}
+	g.backend.CommitWithState(&params.SystemContracts{
+		GovValidator: &params.SystemContract{
+			Address: TestGovValidatorAddress,
+			Version: govwbft.SYSTEM_CONTRACT_VERSION_1,
+			Params: map[string]string{
+				"members":       members,
+				"quorum":        "2",
+				"expiry":        "604800", // 7 days
+				"memberVersion": "1",
+				"validators":    validators,
+				"blsPublicKeys": blsPubKeys,
+			},
+		},
+	}, nil)
+	g.govValidator = compiledWBFT.GovValidator.New(g.backend.Client(), TestGovValidatorAddress)
 	return g, nil
 }
 
-func (g *GovWBFT) Deploy(address common.Address, tx *types.Transaction, contract *bind.BoundContract, txErr error) (common.Address, *bind.BoundContract, error) {
-	if txErr != nil {
-		return common.Address{}, nil, txErr
-	}
-	_, err := g.ExpectedOk(tx, txErr)
-	return address, contract, err
-}
-
 func (g *GovWBFT) ExpectedOk(tx *types.Transaction, txErr error) (*types.Receipt, error) {
-	return expectedOk(g.backend, tx, txErr)
+	receipt, err := commitTx(g.backend, tx, txErr)
+	if err != nil {
+		return nil, err
+	}
+	return receipt, nil
 }
 
 func (g *GovWBFT) ExpectedFail(tx *types.Transaction, txErr error) error {
-	_, err := expectedFail(g.backend, tx, txErr)
-	return err
+	_, err := commitTx(g.backend, tx, txErr)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // GovBase Contract
+func (g *GovWBFT) BaseQuorum(contract *bind.BoundContract, sender *EOA) (uint32, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "quorum")
+	if err != nil {
+		return 0, err
+	}
+	return result[0].(uint32), nil
+}
+
+func (g *GovWBFT) BaseProposalExpiry(contract *bind.BoundContract, sender *EOA) (*big.Int, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "proposalExpiry")
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) BaseMembers(contract *bind.BoundContract, sender *EOA, member common.Address) (govwbft.Member, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "members", member)
+	if err != nil {
+		return govwbft.Member{}, err
+	}
+	resultMember := govwbft.Member{
+		IsActive: result[0].(bool),
+		JoinedAt: result[1].(uint32),
+	}
+
+	return resultMember, nil
+}
+
+func (g *GovWBFT) BaseVersionedMemberList(contract *bind.BoundContract, sender *EOA, version *big.Int, index *big.Int) (common.Address, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "versionedMemberList", version, index)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return result[0].(common.Address), nil
+}
+
+func (g *GovWBFT) BaseMemberVersion(contract *bind.BoundContract, sender *EOA) (*big.Int, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "memberVersion")
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) BaseGetProposal(contract *bind.BoundContract, sender *EOA) (govwbft.Proposal, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "getProposal")
+	if err != nil {
+		return govwbft.Proposal{}, err
+	}
+	proposal := *abi.ConvertType(result[0], new(govwbft.Proposal)).(*govwbft.Proposal)
+	return proposal, nil
+}
+
+func (g *GovWBFT) BaseTxProposeAddMember(t *testing.T, contract *bind.BoundContract, sender *EOA, newMember common.Address, newQuorum uint32) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "proposeAddMember", newMember, newQuorum)
+}
+
+func (g *GovWBFT) BaseTxApproveProposal(t *testing.T, contract *bind.BoundContract, sender *EOA) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "approveProposal")
+}
 
 // GovValidator Contract
-func (g *GovWBFT) ConfigureValidator(t *testing.T, v *TestStaker[*EOA]) (*types.Transaction, error) {
-	blsPubKey, err := v.GetBLSPublicKey()
+func (g *GovWBFT) ConfigureValidator(t *testing.T, v *TestCandidate) (*types.Transaction, error) {
+	blsPubKey := v.GetBLSPublicKey(t)
+	blsPoPSig := v.GetBLSPoPSignature(t)
+	return g.validatorContractTx(t, "configureValidator", v.Operator, v.Validator.Address, blsPubKey.Marshal(), blsPoPSig.Marshal())
+}
+
+func (g *GovWBFT) ValidatorList(sender *EOA) ([]common.Address, error) {
+	var result []interface{}
+	err := g.validatorCall("validatorList", sender, &result)
 	if err != nil {
 		return nil, err
 	}
-	blsPoPSig, err := v.GetBLSPoPSignature()
+	validators := make([]common.Address, len(result))
+	for i, v := range result {
+		validators[i] = v.(common.Address)
+	}
+	return validators, nil
+}
+
+func (g *GovWBFT) IsValidator(sender *EOA, addr common.Address) (bool, error) {
+	var result []interface{}
+	err := g.validatorCall("isValidator", sender, &result, addr)
+	if err != nil {
+		return false, err
+	}
+	return result[0].(bool), nil
+}
+
+func (g *GovWBFT) ValidatorCount(sender *EOA) (*big.Int, error) {
+	var result []interface{}
+	err := g.validatorCall("validatorCount", sender, &result)
 	if err != nil {
 		return nil, err
 	}
-	return g.validatorContractTx(t, "configureValidator", v.Operator, v.Staker.Address, blsPubKey.Marshal(), blsPoPSig.Marshal())
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) ValidatorToOperator(sender *EOA, addr common.Address) (common.Address, error) {
+	var result []interface{}
+	err := g.validatorCall("validatorToOperator", sender, &result, addr)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return result[0].(common.Address), nil
+}
+
+func (g *GovWBFT) OperatorToValidator(sender *EOA, addr common.Address) (common.Address, error) {
+	var result []interface{}
+	err := g.validatorCall("operatorToValidator", sender, &result, addr)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return result[0].(common.Address), nil
+}
+
+func (g *GovWBFT) ValidatorToBlsKey(sender *EOA, addr common.Address) ([]byte, error) {
+	var result []interface{}
+	err := g.validatorCall("validatorToBlsKey", sender, &result, addr)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].([]byte), nil
+}
+
+func (g *GovWBFT) BlsKeyToValidator(sender *EOA, blsKey []byte) (common.Address, error) {
+	var result []interface{}
+	err := g.validatorCall("blsKeyToValidator", sender, &result, blsKey)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return result[0].(common.Address), nil
 }
 
 func (g *GovWBFT) validatorContractTx(t *testing.T, method string, sender *EOA, params ...interface{}) (*types.Transaction, error) {
 	return g.govValidator.Transact(NewTxOptsWithValue(t, sender, nil), method, params...)
+}
+
+func (g *GovWBFT) validatorCall(method string, sender *EOA, result *[]interface{}, params ...interface{}) error {
+	return g.govValidator.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, result, method, params...)
 }
 
 // General Functions
@@ -151,59 +349,4 @@ func (g *GovWBFT) BalanceAt(t *testing.T, ctx context.Context, addr common.Addre
 func (g *GovWBFT) AdjustTime(adjustment time.Duration) {
 	g.backend.AdjustTime(adjustment)
 	g.backend.AdjustTime(defaultBlockPeriod)
-}
-
-type OperatorType interface {
-	*EOA | *CA
-}
-
-type TestStaker[T OperatorType] struct {
-	Staker   *EOA
-	Operator T
-}
-
-func NewTestStaker() *TestStaker[*EOA] {
-	return &TestStaker[*EOA]{
-		Staker:   NewEOA(),
-		Operator: NewEOA(),
-	}
-}
-
-func NewTestStakerWithOperatorCA(opperator *CA) *TestStaker[*CA] {
-	return &TestStaker[*CA]{
-		Staker:   NewEOA(),
-		Operator: opperator,
-	}
-}
-
-func (s *TestStaker[T]) GetBLSSecretKey() (bls.SecretKey, error) {
-	blsSecretKey, err := bls.DeriveFromECDSA(s.Staker.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-	return blsSecretKey, nil
-}
-
-func (s *TestStaker[T]) BLSSign(msg []byte) (bls.Signature, error) {
-	sk, err := s.GetBLSSecretKey()
-	if err != nil {
-		return nil, err
-	}
-	return sk.Sign(msg), nil
-}
-
-func (s *TestStaker[T]) GetBLSPublicKey() (bls.PublicKey, error) {
-	blsSecretKey, err := s.GetBLSSecretKey()
-	if err != nil {
-		return nil, err
-	}
-	return blsSecretKey.PublicKey(), nil
-}
-
-func (s *TestStaker[T]) GetBLSPoPSignature() (bls.Signature, error) {
-	pk, err := s.GetBLSPublicKey()
-	if err != nil {
-		return nil, err
-	}
-	return s.BLSSign(pk.Marshal())
 }

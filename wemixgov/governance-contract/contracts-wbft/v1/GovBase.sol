@@ -27,6 +27,7 @@ abstract contract GovBase {
     error AlreadyInitialized();
     error InvalidQuorum();
     error InvalidMemberAddress();
+    error InvalidCall();
     error NotAMember();
     error InvalidProposal();
     error ProposalNotInVoting();
@@ -122,6 +123,12 @@ abstract contract GovBase {
         bool success
     );
 
+    event ExecutionFailed(
+        uint256 indexed proposalId,
+        address indexed executor,
+        bytes errorData
+    );
+
     event ProposalExpired(
         uint256 indexed proposalId,
         address indexed executor
@@ -155,6 +162,11 @@ abstract contract GovBase {
     );
 
     // ========== Modifiers ==========
+    modifier onlyMe() {
+        if (msg.sender != address(this)) revert InvalidCall();
+        _;
+    }
+
     modifier onlyMember() {
         if (!members[msg.sender].isActive) revert NotAMember();
         _;
@@ -307,8 +319,9 @@ abstract contract GovBase {
         proposal.executedAt = uint32(block.timestamp);
 
         // Execute the call
+        bytes memory err;
         if (proposal.callData.length > 0) {
-            (success,) = address(this).call(proposal.callData);
+            (success, err) = address(this).call(proposal.callData);
         } else {
             // For internal operations, derived contracts will handle execution
             success = _executeInternalAction(proposal.actionType);
@@ -323,6 +336,7 @@ abstract contract GovBase {
             } else {
                 proposal.status = ProposalStatus.Approved;
             }
+            emit ExecutionFailed(currentProposalId, msg.sender, err);
         }
 
         // If success, status remains Executed
@@ -345,28 +359,26 @@ abstract contract GovBase {
         return type(uint256).max;
     }
 
-    function _addMember(address newMember, uint32 newQuorum) internal {
-        if (members[newMember].isActive) revert AlreadyAMember();
-        if (newMember == address(0)) revert InvalidMemberAddress();
-        if (newQuorum == 0 || newQuorum > versionedMemberList[memberVersion].length + 1) revert InvalidQuorum();
-        members[newMember] = Member({
+    function addMember(address _newMember, uint32 _newQuorum) external onlyMe {
+        if (members[_newMember].isActive) revert AlreadyAMember();
+        if (_newMember == address(0)) revert InvalidMemberAddress();
+        if (_newQuorum == 0 || _newQuorum > versionedMemberList[memberVersion].length + 1) revert InvalidQuorum();
+        members[_newMember] = Member({
             isActive: true,
             joinedAt: uint32(block.timestamp)
         });
 
         _newVersionedMemberList();
-        versionedMemberList[memberVersion+1] = versionedMemberList[memberVersion];
-        versionedMemberList[memberVersion].push(newMember);
 
         // Update quorum
-        uint32 oldQuorum = quorum;
-        quorum = newQuorum;
+        uint32 _oldQuorum = quorum;
+        quorum = _newQuorum;
 
-        emit MemberAdded(newMember, versionedMemberList[memberVersion].length, newQuorum);
-        emit QuorumUpdated(oldQuorum, newQuorum);
+        emit MemberAdded(_newMember, versionedMemberList[memberVersion].length, _newQuorum);
+        emit QuorumUpdated(_oldQuorum, _newQuorum);
 
         // Call hook for derived contracts
-        _onMemberAdded(newMember);
+        _onMemberAdded(_newMember);
     }
 
     function _newVersionedMemberList() internal {
@@ -398,7 +410,7 @@ abstract contract GovBase {
         memberVersion = newVersion;
     }
 
-    function _removeMember(address member, uint32 newQuorum) internal {
+    function removeMember(address member, uint32 newQuorum) external onlyMe {
         if (!members[member].isActive) revert NotAMember();
         if (newQuorum == 0 || newQuorum > versionedMemberList[memberVersion].length - 1) revert InvalidQuorum();
         members[member].isActive = false;
@@ -477,24 +489,26 @@ abstract contract GovBase {
     }
 
     // ========== Member Management ==========
-    function proposeAddMember(address newMember, uint32 newQuorum)
+    function proposeAddMember(address _newMember, uint32 _newQuorum)
     public
     onlyMember
     noActiveProposal
     returns (uint256)
     {
-        bytes memory data = abi.encode(newMember, newQuorum);
-        return _createProposal(keccak256("ADD_MEMBER"), data);
+        bytes4 _selector = this.addMember.selector;
+        bytes memory _encodedParams = abi.encode(_newMember, _newQuorum);
+        return _createProposal(keccak256("ADD_MEMBER"), abi.encodePacked(_selector, _encodedParams));
     }
 
-    function proposeRemoveMember(address member, uint32 newQuorum)
+    function proposeRemoveMember(address _member, uint32 _newQuorum)
     public
     onlyMember
     noActiveProposal
     returns (uint256)
     {
-        bytes memory data = abi.encode(member, newQuorum);
-        return _createProposal(keccak256("REMOVE_MEMBER"), data);
+        bytes4 _selector = this.removeMember.selector;
+        bytes memory _encodedParams = abi.encode(_member, _newQuorum);
+        return _createProposal(keccak256("REMOVE_MEMBER"), abi.encodePacked(_selector, _encodedParams));
     }
 
     function changeMember(address _newMember)
