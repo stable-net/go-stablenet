@@ -309,7 +309,6 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 			return genesis.Config, hash, &GenesisMismatchError{stored, hash}
 		}
 		block, err := genesis.Commit(db, triedb)
-		fmt.Printf("zzzzzz2 genesis block=%v\n", block)
 		if err != nil {
 			return genesis.Config, hash, err
 		}
