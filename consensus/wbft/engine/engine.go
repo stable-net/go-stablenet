@@ -1072,7 +1072,7 @@ func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Hea
 	}
 	for i := range epoch.Candidates {
 		if epoch.Candidates[i].Addr != extra.EpochInfo.Candidates[i].Addr {
-			return fmt.Errorf("WBFT: The two stakers do not match at index %d: expected %v, got %v",
+			return fmt.Errorf("WBFT: The two candidates do not match at index %d: expected %v, got %v",
 				i, extra.EpochInfo.Candidates[i].Addr.Hex(), epoch.Candidates[i].Addr.Hex())
 		}
 		// Validate Diligence matches

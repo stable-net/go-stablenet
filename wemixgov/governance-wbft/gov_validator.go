@@ -26,6 +26,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+// CAUTION: These values must exactly match the storage layout of the Solidity contract.
+// Modifying them requires updating the contract itself!
 const (
 	GOV_VALIDATOR_PARAM_VALIDATORS = "validators"
 	GOV_VALIDATOR_PARAM_BLS_KEYS   = "blsPublicKeys"

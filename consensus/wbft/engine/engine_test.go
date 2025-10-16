@@ -625,9 +625,9 @@ func TestEpochInfo(t *testing.T) {
 
 				// Validate diligences
 				for j, d := range tc.expDiligences[i] {
-					staker := wbftExtra.EpochInfo.Candidates[j]
-					if d != staker.Diligence {
-						t.Errorf("expected diligence mismatch for candidate %d: have %d, want %d", j, staker.Diligence, d)
+					candi := wbftExtra.EpochInfo.Candidates[j]
+					if d != candi.Diligence {
+						t.Errorf("expected diligence mismatch for candidate %d: have %d, want %d", j, candi.Diligence, d)
 					}
 				}
 			}

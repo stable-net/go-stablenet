@@ -216,13 +216,13 @@ func CreateInitialExtraData(config *params.AnzeonConfig) ([]byte, error) {
 
 func CreateInitialEpochInfo(config *params.AnzeonConfig) (*types.EpochInfo, error) {
 	var (
-		stakers       []common.Address
+		candidates    []common.Address
 		blsPublicKeys []string
 		epochInfo     = new(types.EpochInfo)
 	)
-	stakers = append(stakers, config.Init.Validators...)
+	candidates = append(candidates, config.Init.Validators...)
 	blsPublicKeys = append(blsPublicKeys, config.Init.BLSPublicKeys...)
-	for i, addr := range stakers {
+	for i, addr := range candidates {
 		epochInfo.Candidates = append(epochInfo.Candidates, &types.Candidate{
 			Addr:      addr,
 			Diligence: types.DefaultDiligence,
@@ -232,8 +232,8 @@ func CreateInitialEpochInfo(config *params.AnzeonConfig) (*types.EpochInfo, erro
 	}
 
 	log.Trace("WBFT: initial epoch info", "validators", epochInfo.Validators)
-	for i, staker := range epochInfo.Candidates {
-		log.Trace(fmt.Sprintf("WBFT:   - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
+	for i, candi := range epochInfo.Candidates {
+		log.Trace(fmt.Sprintf("WBFT:   - candidates[%d]", i), "addr", candi.Addr, "diligence", candi.Diligence)
 	}
 
 	return epochInfo, nil

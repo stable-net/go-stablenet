@@ -96,8 +96,8 @@ type Candidate struct {
 }
 
 type EpochInfo struct {
-	Candidates    []*Candidate // staker list for next epoch (staker index may be changed for each epoch)
-	Validators    []uint32     // validator list for next epoch (using indices of staker list)
+	Candidates    []*Candidate // candidate list for next epoch (candidate index may be changed for each epoch)
+	Validators    []uint32     // validator list for next epoch (using indices of candidate list)
 	BLSPublicKeys [][]byte     // bls public key list for next epoch
 }
 
@@ -145,8 +145,8 @@ func (ei *EpochInfo) GetCandidates() []common.Address {
 	}
 
 	l := make([]common.Address, len(ei.Candidates))
-	for i, staker := range ei.Candidates {
-		l[i] = staker.Addr
+	for i, candi := range ei.Candidates {
+		l[i] = candi.Addr
 	}
 	return l
 }
@@ -156,9 +156,9 @@ func (ei *EpochInfo) FindValidatorByAddress(addr common.Address) (uint32, *Candi
 		return 0, nil
 	}
 
-	for i, staker := range ei.Candidates {
-		if staker.Addr == addr {
-			return uint32(i), staker
+	for i, candi := range ei.Candidates {
+		if candi.Addr == addr {
+			return uint32(i), candi
 		}
 	}
 
@@ -225,14 +225,14 @@ func (stkr *Candidate) EncodeRLP(w io.Writer) error {
 
 // DecodeRLP implements rlp.Decoder, and load the Candidate fields from a RLP stream.
 func (stkr *Candidate) DecodeRLP(s *rlp.Stream) error {
-	var staker struct {
+	var candi struct {
 		Addr      common.Address
 		Diligence uint64
 	}
-	if err := s.Decode(&staker); err != nil {
+	if err := s.Decode(&candi); err != nil {
 		return err
 	}
-	stkr.Addr, stkr.Diligence = staker.Addr, staker.Diligence
+	stkr.Addr, stkr.Diligence = candi.Addr, candi.Diligence
 	return nil
 }
 
