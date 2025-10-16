@@ -89,7 +89,15 @@ var (
 				NativeCoinAdapter: &SystemContract{
 					Address: DefaultNativeCoinAdapterAddress,
 					Version: DefaultNativeCoinAdapterVersion,
-					// Params:  map[string]string{},
+					Params: map[string]string{
+						"masterMinter":  "",
+						"minters":       "",
+						"minterAllowed": "",
+						"name":          "",
+						"symbol":        "",
+						"decimals":      "",
+						"currency":      "",
+					},
 				},
 			},
 		},

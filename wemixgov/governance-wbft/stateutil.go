@@ -38,7 +38,7 @@ func CalculateMappingSlot(baseSlot common.Hash, key interface{ Bytes() []byte })
 }
 
 func CalculateDynamicSlot(baseSlot interface{ Bytes() []byte }, index *big.Int) common.Hash {
-	// keccak256(baseSlot)으로 배열의 시작 위치를 계산
+	// Calculate the starting position of the array using keccak256(baseSlot)
 	hash := sha3.NewLegacyKeccak256()
 	hash.Write(common.LeftPadBytes(baseSlot.Bytes(), 32))
 	arrayStartSlot := new(big.Int).SetBytes(hash.Sum(nil))
@@ -184,4 +184,54 @@ func VarLenBytesToMultipleHash(data []byte) []common.Hash {
 		hashes[i+1] = chunkHash
 	}
 	return hashes
+}
+
+// EncodeBytesToSlots computes all storage slot-value pairs
+// for a bytes/string variable according to the Solidity storage layout.
+//
+// Returns a map[slotHash] = valueHash including the base slot.
+func EncodeBytesToSlots(baseSlot common.Hash, data []byte) map[common.Hash]common.Hash {
+	slots := make(map[common.Hash]common.Hash)
+
+	// Empty case
+	if len(data) == 0 {
+		slots[baseSlot] = common.Hash{}
+		return slots
+	}
+
+	length := len(data)
+
+	// Case 1: short bytes (<=31)
+	if length <= 31 {
+		slot := make([]byte, 32)
+		copy(slot[:length], data)
+		slot[31] = byte(length << 1) // length * 2, last bit = 0
+		slots[baseSlot] = common.BytesToHash(slot)
+		return slots
+	}
+
+	// Case 2: long bytes (>31)
+	// base slot = (length << 1) | 1
+	lengthBig := big.NewInt(int64(length))
+	baseInt := new(big.Int).Lsh(lengthBig, 1)
+	baseInt.Add(baseInt, big.NewInt(1))
+	slots[baseSlot] = common.BigToHash(baseInt)
+
+	// Dynamic part
+	numChunks := (length + 31) / 32
+	for i := 0; i < numChunks; i++ {
+		start := i * 32
+		end := start + 32
+		if end > length {
+			end = length
+		}
+
+		chunk := make([]byte, 32)
+		copy(chunk, data[start:end])
+
+		currentSlot := CalculateDynamicSlot(baseSlot, big.NewInt(int64(i)))
+		slots[currentSlot] = common.BytesToHash(chunk)
+	}
+
+	return slots
 }
