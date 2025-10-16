@@ -32,8 +32,8 @@ var (
 	DefaultGovValidatorAddress = common.HexToAddress("0x1001")
 	DefaultGovVersion          = "v1"
 
-	DefaultFiatTokenAddress = common.HexToAddress("0xB00003") // 0x0000000000000000000000000000000000B00003
-	DefaultFiatTokenVersion = "v1"
+	DefaultNativeCoinAdapterAddress = common.HexToAddress("0xB00003") // 0x0000000000000000000000000000000000B00003
+	DefaultNativeCoinAdapterVersion = "v1"
 )
 
 var CheckSystemContractVersions func(systemContracts *SystemContracts) error
@@ -89,8 +89,8 @@ func (c *AnzeonConfig) CheckValidity() error {
 	if c.SystemContracts.GovValidator == nil {
 		return errors.New("`anzeon.systemContracts: missing `govValidator`")
 	}
-	if c.SystemContracts.FiatToken == nil {
-		return errors.New("`anzeon.systemContracts: missing `fiatToken`")
+	if c.SystemContracts.NativeCoinAdapter == nil {
+		return errors.New("`anzeon.systemContracts: missing `NativeCoinAdapter`")
 	}
 	if err := CheckSystemContractVersions(c.SystemContracts); err != nil {
 		return fmt.Errorf("`anzeon.systemContracts`: %v", err)
@@ -126,13 +126,13 @@ func (i *Init) String() string {
 }
 
 type SystemContracts struct {
-	GovValidator *SystemContract `json:"govValidator"`
-	FiatToken    *SystemContract `json:"fiatToken"`
+	GovValidator      *SystemContract `json:"govValidator"`
+	NativeCoinAdapter *SystemContract `json:"nativeCoinAdapter"`
 }
 
 func (c *SystemContracts) String() string {
-	return fmt.Sprintf("{GovValidator: %v}, {FiatToken: %v}",
-		c.GovValidator, c.FiatToken,
+	return fmt.Sprintf("{GovValidator: %v}, {NativeCoinAdapter: %v}",
+		c.GovValidator, c.NativeCoinAdapter,
 	)
 }
 
@@ -198,9 +198,9 @@ var DefaultAnzeonConfig = &AnzeonConfig{
 			Address: DefaultGovValidatorAddress,
 			Version: DefaultGovVersion,
 		},
-		FiatToken: &SystemContract{
-			Address: DefaultFiatTokenAddress,
-			Version: DefaultFiatTokenVersion,
+		NativeCoinAdapter: &SystemContract{
+			Address: DefaultNativeCoinAdapterAddress,
+			Version: DefaultNativeCoinAdapterVersion,
 		},
 	},
 	Init: &WBFTInit{},

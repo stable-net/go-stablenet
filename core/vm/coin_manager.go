@@ -102,7 +102,7 @@ func (evm *EVM) checkCoinManagerCall(typ OpCode, caller ContractRef, addr common
 	if !evm.chainRules.IsAnzeon {
 		return false, ErrNotAvailable
 	}
-	if caller.Address() != evm.chainConfig.Anzeon.SystemContracts.FiatToken.Address {
+	if caller.Address() != evm.chainConfig.Anzeon.SystemContracts.NativeCoinAdapter.Address {
 		return false, ErrUnauthorized
 	}
 	return true, nil

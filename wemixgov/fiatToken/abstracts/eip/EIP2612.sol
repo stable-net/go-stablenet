@@ -72,7 +72,7 @@ abstract contract EIP2612 is AbstractFiatToken, EIP712Domain {
      * @param signature  Signature byte array signed by an EOA wallet or a contract wallet
      */
     function _permit(address owner, address spender, uint256 value, uint256 deadline, bytes memory signature) internal {
-        require(deadline == type(uint256).max || deadline >= block.timestamp, "FiatTokenV2: permit is expired");
+        require(deadline == type(uint256).max || deadline >= block.timestamp, "NativeCoinAdapter: permit is expired");
 
         bytes32 typedDataHash = MessageHashUtils.toTypedDataHash(
             _domainSeparator(),

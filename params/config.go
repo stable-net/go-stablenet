@@ -86,9 +86,9 @@ var (
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
 					},
 				},
-				FiatToken: &SystemContract{
-					Address: DefaultFiatTokenAddress,
-					Version: DefaultFiatTokenVersion,
+				NativeCoinAdapter: &SystemContract{
+					Address: DefaultNativeCoinAdapterAddress,
+					Version: DefaultNativeCoinAdapterVersion,
 					// Params:  map[string]string{},
 				},
 			},
@@ -134,9 +134,9 @@ var (
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
 					},
 				},
-				FiatToken: &SystemContract{
-					Address: DefaultFiatTokenAddress,
-					Version: DefaultFiatTokenVersion,
+				NativeCoinAdapter: &SystemContract{
+					Address: DefaultNativeCoinAdapterAddress,
+					Version: DefaultNativeCoinAdapterVersion,
 					// Params:  map[string]string{},
 				},
 			},
@@ -316,9 +316,9 @@ var (
 						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
 					},
 				},
-				FiatToken: &SystemContract{
-					Address: DefaultFiatTokenAddress,
-					Version: DefaultFiatTokenVersion,
+				NativeCoinAdapter: &SystemContract{
+					Address: DefaultNativeCoinAdapterAddress,
+					Version: DefaultNativeCoinAdapterVersion,
 					// Params:  map[string]string{},
 				},
 			},
@@ -475,9 +475,9 @@ var (
 						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
 					},
 				},
-				FiatToken: &SystemContract{
-					Address: DefaultFiatTokenAddress,
-					Version: DefaultFiatTokenVersion,
+				NativeCoinAdapter: &SystemContract{
+					Address: DefaultNativeCoinAdapterAddress,
+					Version: DefaultNativeCoinAdapterVersion,
 					// Params:  map[string]string{},
 				},
 			},
@@ -712,7 +712,7 @@ func (c *ChainConfig) Description() string {
 		if c.Anzeon.SystemContracts != nil {
 			banner += "   - SystemContracts:\n"
 			banner += fmt.Sprintf("     - GovValidator      %-8v\n", c.Anzeon.SystemContracts.GovValidator)
-			banner += fmt.Sprintf("     - FiatToken      %-8v\n", c.Anzeon.SystemContracts.FiatToken)
+			banner += fmt.Sprintf("     - NativeCoinAdapter      %-8v\n", c.Anzeon.SystemContracts.NativeCoinAdapter)
 		}
 	}
 	banner += "\n"

@@ -172,7 +172,7 @@ abstract contract EIP3009 is AbstractFiatToken, EIP712Domain {
         bytes32 nonce,
         bytes memory signature
     ) internal {
-        require(to == msg.sender, "FiatTokenV2: caller must be the payee");
+        require(to == msg.sender, "NativeCoinAdapter: caller must be the payee");
         _requireValidAuthorization(from, nonce, validAfter, validBefore);
         _requireValidSignature(
             from,
@@ -220,7 +220,7 @@ abstract contract EIP3009 is AbstractFiatToken, EIP712Domain {
     function _requireValidSignature(address signer, bytes32 dataHash, bytes memory signature) private view {
         require(
             SignatureChecker.isValidSignatureNow(signer, MessageHashUtils.toTypedDataHash(_domainSeparator(), dataHash), signature),
-            "FiatTokenV2: invalid signature"
+            "NativeCoinAdapter: invalid signature"
         );
     }
 
@@ -230,7 +230,7 @@ abstract contract EIP3009 is AbstractFiatToken, EIP712Domain {
      * @param nonce         Nonce of the authorization
      */
     function _requireUnusedAuthorization(address authorizer, bytes32 nonce) private view {
-        require(!_authorizationStates[authorizer][nonce], "FiatTokenV2: authorization is used or canceled");
+        require(!_authorizationStates[authorizer][nonce], "NativeCoinAdapter: authorization is used or canceled");
     }
 
     /**
@@ -241,8 +241,8 @@ abstract contract EIP3009 is AbstractFiatToken, EIP712Domain {
      * @param validBefore   The time before which this is valid (unix time)
      */
     function _requireValidAuthorization(address authorizer, bytes32 nonce, uint256 validAfter, uint256 validBefore) private view {
-        require(block.timestamp > validAfter, "FiatTokenV2: authorization is not yet valid");
-        require(block.timestamp < validBefore, "FiatTokenV2: authorization is expired");
+        require(block.timestamp > validAfter, "NativeCoinAdapter: authorization is not yet valid");
+        require(block.timestamp < validBefore, "NativeCoinAdapter: authorization is expired");
         _requireUnusedAuthorization(authorizer, nonce);
     }
 

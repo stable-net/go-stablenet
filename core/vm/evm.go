@@ -573,7 +573,7 @@ func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256
 
 	// Add log
 	evm.StateDB.AddLog(&types.Log{
-		Address:     evm.chainConfig.Anzeon.SystemContracts.FiatToken.Address,
+		Address:     evm.chainConfig.Anzeon.SystemContracts.NativeCoinAdapter.Address,
 		Topics:      topics,
 		Data:        data,
 		BlockNumber: evm.Context.BlockNumber.Uint64(),

@@ -40,10 +40,10 @@ import { EIP712 } from "./libraries/EIP712.sol";
 import { ICoinManager } from "./interfaces/ICoinManager.sol";
 
 /**
- * @title FiatToken
+ * @title NativeCoinAdapter
  * @dev ERC20 Token backed by fiat reserves
  */
-contract FiatToken is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP2612 {
+contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP2612 {
     using SafeMath for uint256;
     /**
      * [Mintable]
@@ -112,11 +112,11 @@ contract FiatToken is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP26
      * @return True if the operation was successful.
      */
     function mint(address _to, uint256 _amount) external override onlyMinters notBlacklisted(msg.sender) notBlacklisted(_to) returns (bool) {
-        require(_to != address(0), "FiatToken: mint to the zero address");
-        require(_amount > 0, "FiatToken: mint amount not greater than 0");
+        require(_to != address(0), "NativeCoinAdapter: mint to the zero address");
+        require(_amount > 0, "NativeCoinAdapter: mint amount not greater than 0");
 
         uint256 mintingAllowedAmount = _minterAllowed[msg.sender];
-        require(_amount <= mintingAllowedAmount, "FiatToken: mint amount exceeds minterAllowance");
+        require(_amount <= mintingAllowedAmount, "NativeCoinAdapter: mint amount exceeds minterAllowance");
 
         _minterAllowed[msg.sender] = mintingAllowedAmount.sub(_amount);
 
@@ -137,8 +137,8 @@ contract FiatToken is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP26
      */
     function burn(uint256 _amount) external override onlyMinters notBlacklisted(msg.sender) {
         uint256 balance = _balanceOf(msg.sender);
-        require(_amount > 0, "FiatToken: burn amount not greater than 0");
-        require(balance >= _amount, "FiatToken: burn amount exceeds balance");
+        require(_amount > 0, "NativeCoinAdapter: burn amount not greater than 0");
+        require(balance >= _amount, "NativeCoinAdapter: burn amount exceeds balance");
 
         (bool success, ) = _coinManager.call(abi.encodeWithSelector(ICoinManager.burn.selector, msg.sender, _amount));
         require(success, "burn failed");
