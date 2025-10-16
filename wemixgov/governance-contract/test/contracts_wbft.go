@@ -19,13 +19,12 @@ package test
 
 import (
 	"context"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/status-im/keycard-go/hexutils"
 	"math/big"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -36,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	compile "github.com/ethereum/go-ethereum/wemixgov/governance-contract"
 	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
+	"github.com/status-im/keycard-go/hexutils"
 	"github.com/stretchr/testify/require"
 )
 

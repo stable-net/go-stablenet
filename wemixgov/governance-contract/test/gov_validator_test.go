@@ -1,12 +1,12 @@
 package test
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -153,7 +153,6 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		validator, err = g.BlsKeyToValidator(nonValidator.Operator, nonValidator.GetBLSPublicKey(t).Marshal())
 		require.NoError(t, err)
 		require.Equal(t, common.Address{}, validator)
-
 	})
 
 	t.Run("configureValidator", func(t *testing.T) {
