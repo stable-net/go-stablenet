@@ -808,14 +808,22 @@ func nodeSendCommitMsg(wbftEngine *Backend, node otherNode, sequence, round *big
 }
 
 func TestAddingExtraSeals(t *testing.T) {
-	// assume 3 nodes,
-	// one is myself, two is normal node, three is slow node that sends extraSeals
-	expectedAdditionalPreparedSealCnt := 3
-	expectedAdditionalCommittedSealCnt := 3
+	// Assume 4 validator nodes total:
+	// - nodes[0]: engine (proposer, myself)
+	// - nodes[1]: normalNode1 (normal responding node)
+	// - nodes[2]: normalNode2 (normal responding node)
+	// - nodes[3]: slowNode (late responding node that sends extraSeals)
+	// With n=4, QuorumSize=3 (minimum for consensus)
+	// However, all 4 nodes eventually send messages, so we expect 4 seals total
+	// - 3 seals contribute to consensus (proposer + normalNode1 + normalNode2
+	// - 1 extra seal from slowNode (arrives late after consensus completes
+	expectedAdditionalPreparedSealCnt := 4  // All 4 nodes send PREPARE 3 for consensus and extra 1
+	expectedAdditionalCommittedSealCnt := 4 // All 4 nodes send COMMIT 3 for consensus and extra 1
 
-	chain, engine, nodes := newBlockChain(3)
-	normalNode := nodes[1]
-	slowNode := nodes[2]
+	chain, engine, nodes := newBlockChain(4)
+	normalNode1 := nodes[1]
+	normalNode2 := nodes[2]
+	slowNode := nodes[3]
 
 	parentBlock := chain.Genesis()
 	eventSub := engine.EventMux().Subscribe(wbft.RequestEvent{})
@@ -854,17 +862,23 @@ func TestAddingExtraSeals(t *testing.T) {
 
 			switch consensusState {
 			case wbftcore.StatePreprepared:
-				if err := nodeSendPrepareMsg(engine, normalNode, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
-					t.Errorf("normal node failed to send prepare msg. err :  %v", err)
+				if err := nodeSendPrepareMsg(engine, normalNode1, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
+					t.Errorf("normalNode1 failed to send prepare msg. err :  %v", err)
+				}
+				if err := nodeSendPrepareMsg(engine, normalNode2, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
+					t.Errorf("normalNode2 failed to send prepare msg. err :  %v", err)
 				}
 				executed[consensusState] = true
 			case wbftcore.StatePrepared:
 				// valid extra seal msg
 				if err := nodeSendPrepareMsg(engine, slowNode, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
-					t.Errorf("slow node failed to send prepare msg. err :  %v", err)
+					t.Errorf("slow node failed to send commit msg. err :  %v", err)
 				}
-				if err := nodeSendCommitMsg(engine, normalNode, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
-					t.Errorf("normal node failed to send commit msg. err :  %v", err)
+				if err := nodeSendCommitMsg(engine, normalNode1, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
+					t.Errorf("normalNode1 failed to send commit msg. err :  %v", err)
+				}
+				if err := nodeSendCommitMsg(engine, normalNode2, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
+					t.Errorf("normalNode2 failed to send commit msg. err :  %v", err)
 				}
 				executed[consensusState] = true
 			case wbftcore.StateCommitted:
@@ -875,8 +889,11 @@ func TestAddingExtraSeals(t *testing.T) {
 				executed[consensusState] = true
 			case wbftcore.StateAcceptRequest:
 				// valid extra seal msg
-				if err := nodeSendCommitMsg(engine, normalNode, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
-					t.Errorf("slow node failed to send prepare msg. err :  %v", err)
+				if err := nodeSendCommitMsg(engine, normalNode1, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
+					t.Errorf("normalNode1 failed to send prepare msg. err :  %v", err)
+				}
+				if err := nodeSendCommitMsg(engine, normalNode2, proposedBlock.Number(), big.NewInt(0), proposedBlock); err != nil {
+					t.Errorf("normalNode2 failed to send prepare msg. err :  %v", err)
 				}
 				// invalid extra seal msg - wrong sequence
 				if err := nodeSendPrepareMsg(engine, slowNode, new(big.Int).Add(proposedBlock.Number(), common.Big1), big.NewInt(1), proposedBlock); err != nil {
