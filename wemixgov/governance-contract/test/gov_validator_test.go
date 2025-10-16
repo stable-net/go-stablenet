@@ -2,23 +2,32 @@ package test
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGovValidator_configureValidator(t *testing.T) {
-	customValidators := []*TestCandidate{NewTestCandidate(), NewTestCandidate(), NewTestCandidate()}
+var (
+	g                 *GovWBFT
+	customValidators  []*TestCandidate
+	nonValidator      *TestCandidate
+	newValidator      *TestCandidate
+	anotherValidator  *TestCandidate
+	anotherValidator2 *TestCandidate
+)
 
-	nonValidator := NewTestCandidate()
-	newValidator := NewTestCandidate()
-	anotherValidator := NewTestCandidate()
-	anotherValidator2 := NewTestCandidate()
+func initGov(t *testing.T) {
+	customValidators = []*TestCandidate{NewTestCandidate(), NewTestCandidate(), NewTestCandidate()}
+	nonValidator = NewTestCandidate()
+	newValidator = NewTestCandidate()
+	anotherValidator = NewTestCandidate()
+	anotherValidator2 = NewTestCandidate()
 
-	g, err := NewGovWBFT(t, customValidators, types.GenesisAlloc{
+	var err error
+	g, err = NewGovWBFT(t, customValidators, types.GenesisAlloc{
 		customValidators[0].Operator.Address: {Balance: towei(1_000_000)},
 		customValidators[1].Operator.Address: {Balance: towei(1_000_000)},
 		customValidators[2].Operator.Address: {Balance: towei(1_000_000)},
@@ -28,9 +37,13 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		anotherValidator2.Operator.Address:   {Balance: towei(1_000_000)},
 	})
 	require.NoError(t, err)
-	defer g.backend.Close()
+}
 
+func TestGovValidator_configureValidator(t *testing.T) {
 	t.Run("initial state", func(t *testing.T) {
+		initGov(t)
+		defer g.backend.Close()
+
 		quorum, err := g.BaseQuorum(g.govValidator, nonValidator.Operator)
 		require.NoError(t, err)
 		require.Equal(t, uint32(2), quorum)
@@ -140,9 +153,13 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		validator, err = g.BlsKeyToValidator(nonValidator.Operator, nonValidator.GetBLSPublicKey(t).Marshal())
 		require.NoError(t, err)
 		require.Equal(t, common.Address{}, validator)
+
 	})
 
-	t.Run("configureValidator basic", func(t *testing.T) {
+	t.Run("configureValidator", func(t *testing.T) {
+		initGov(t)
+		defer g.backend.Close()
+
 		// error cases
 		ExpectedRevert(t,
 			g.ExpectedFail(g.validatorContractTx(
@@ -379,6 +396,32 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, anotherValidator2.Validator.Address, val)
 		val, err = g.BlsKeyToValidator(anotherValidator2.Operator, customValidators[2].GetBLSPublicKey(t).Marshal())
+		require.NoError(t, err)
+		require.Equal(t, common.Address{}, val)
+	})
+
+	t.Run("_onMemberChanged", func(t *testing.T) {
+		initGov(t)
+		defer g.backend.Close()
+
+		_, err := g.ExpectedOk(
+			g.BaseTxChangeMember(t, g.govValidator, customValidators[1].Operator, anotherValidator.Operator.Address))
+		require.NoError(t, err)
+
+		// verify
+		member, err := g.BaseMembers(g.govValidator, nonValidator.Operator, customValidators[1].Operator.Address)
+		require.NoError(t, err)
+		require.False(t, member.IsActive)
+		member, err = g.BaseMembers(g.govValidator, nonValidator.Operator, anotherValidator.Operator.Address)
+		require.NoError(t, err)
+		require.True(t, member.IsActive)
+		op, err := g.ValidatorToOperator(nonValidator.Operator, customValidators[1].Validator.Address)
+		require.NoError(t, err)
+		require.Equal(t, anotherValidator.Operator.Address, op)
+		val, err := g.OperatorToValidator(nonValidator.Operator, anotherValidator.Operator.Address)
+		require.NoError(t, err)
+		require.Equal(t, customValidators[1].Validator.Address, val)
+		val, err = g.OperatorToValidator(nonValidator.Operator, customValidators[1].Operator.Address)
 		require.NoError(t, err)
 		require.Equal(t, common.Address{}, val)
 	})

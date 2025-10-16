@@ -213,8 +213,8 @@ func (g *GovWBFT) BaseMembers(contract *bind.BoundContract, sender *EOA, member 
 		return govwbft.Member{}, err
 	}
 	resultMember := govwbft.Member{
-		IsActive: result[0].(bool),
-		JoinedAt: result[1].(uint32),
+		IsActive: *abi.ConvertType(result[0], new(bool)).(*bool),
+		JoinedAt: *abi.ConvertType(result[1], new(uint32)).(*uint32),
 	}
 
 	return resultMember, nil
@@ -254,6 +254,10 @@ func (g *GovWBFT) BaseTxProposeAddMember(t *testing.T, contract *bind.BoundContr
 
 func (g *GovWBFT) BaseTxApproveProposal(t *testing.T, contract *bind.BoundContract, sender *EOA) (*types.Transaction, error) {
 	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "approveProposal")
+}
+
+func (g *GovWBFT) BaseTxChangeMember(t *testing.T, contract *bind.BoundContract, sender *EOA, newMember common.Address) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "changeMember", newMember)
 }
 
 // GovValidator Contract
