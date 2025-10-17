@@ -79,7 +79,7 @@ func NewEngine(cfg *wbft.Config, signer common.Address, sign SignerFn, checkSig 
 }
 
 func mustHavePrevSeals(header *types.Header) bool {
-	return header.Number.Cmp(new(big.Int)) > 0 && header.Number.Cmp(common.Big1) > 0
+	return header.Number.Cmp(common.Big1) > 0
 }
 
 func (e *Engine) Author(header *types.Header) (common.Address, error) {
