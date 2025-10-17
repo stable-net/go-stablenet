@@ -38,18 +38,17 @@ func TestGeneratingGenesisExtra(t *testing.T) {
 		CommittedSeal:     &types.WBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
 		PrevCommittedSeal: &types.WBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
 		EpochInfo: &types.EpochInfo{
-			Stakers: []*types.Staker{
+			Candidates: []*types.Candidate{
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0xa62987A40E094CbE020313f19F71aeeB3E48B86f")), Diligence: types.DefaultDiligence},
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0xE1bD8108149FCa703B9FCD8ea967B6b7e660f13b")), Diligence: types.DefaultDiligence},
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0xd19f9374f4549B2fB182ED766d6b7501494a3634")), Diligence: types.DefaultDiligence},
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0x02cF1E577C79EF0E93947cCd82a4D41E0485Be73")), Diligence: types.DefaultDiligence},
 			},
-			Stabilizing:   true,
 			Validators:    []uint32{0, 1, 2, 3},
 			BLSPublicKeys: [][]byte{{}, {}, {}, {}},
 		},
 	}
-	genesis := GenesisWithSeals(WBFTExtra.EpochInfo.GetStakers(), WBFTExtra.EpochInfo.BLSPublicKeys)
+	genesis := GenesisWithSeals(WBFTExtra.EpochInfo.GetCandidates(), WBFTExtra.EpochInfo.BLSPublicKeys)
 	t.Log("Genesis Extra Data: ", hex.EncodeToString(genesis.ExtraData))
 	wbftExtra := new(types.WBFTExtra)
 	err := rlp.DecodeBytes(genesis.ExtraData[:], wbftExtra)

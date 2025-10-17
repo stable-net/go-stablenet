@@ -147,3 +147,41 @@ func GetBytes(stateDB StateReader, contractAddress common.Address, baseSlot comm
 	// Return the exact length of the data
 	return bytesData[:bytesLength]
 }
+
+func VarLenBytesToMultipleHash(data []byte) []common.Hash {
+	if len(data) == 0 {
+		return []common.Hash{{}}
+	}
+
+	if len(data) <= 31 {
+		var hash common.Hash
+		copy(hash[:], data)
+		hash[31] = byte(len(data) << 1) // Store length in the last byte, shifted left by 1
+		return []common.Hash{hash}
+	}
+
+	// For data longer than 31 bytes, store the length in the first slot
+	length := len(data)
+	var lengthHash common.Hash
+	bigLength := big.NewInt(int64(length))
+	bigLength = bigLength.Lsh(bigLength, 1) // Shift left by 1 to make space for the flag bit
+	copy(lengthHash[:], bigLength.FillBytes(make([]byte, 32)))
+	lengthHash[31] |= 0x01 // Set the least significant bit to indicate long data
+
+	// Split the data into 32-byte chunks and store them in subsequent slots
+	numSlots := (length + 31) / 32 // Calculate the number of slots needed
+	hashes := make([]common.Hash, numSlots+1)
+	hashes[0] = lengthHash
+
+	for i := 0; i < numSlots; i++ {
+		start := i * 32
+		end := start + 32
+		if end > length {
+			end = length
+		}
+		var chunkHash common.Hash
+		copy(chunkHash[:], data[start:end])
+		hashes[i+1] = chunkHash
+	}
+	return hashes
+}

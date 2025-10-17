@@ -71,7 +71,7 @@ func MakeMultiEngineTestEnv(n int) (env *testEnv) {
 	config := new(wbft.Config)
 	wbft.SetConfigFromChainConfig(config, genesis.Config)
 	config.BlockPeriod = 1
-	config.Epoch = 4
+	config.Epoch = 100
 	config.RequestTimeout = 2000
 	config.MaxRequestTimeoutSeconds = 2
 	config.AllowedFutureBlockTime = 100000000 // to skip future block check; this makes block creation time to be very short

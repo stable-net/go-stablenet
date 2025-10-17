@@ -254,7 +254,7 @@ func (st *StateTransition) buyGas() error {
 	mgval.Mul(mgval, st.msg.GasPrice)
 
 	feeCheck := new(big.Int).Set(mgval)
-	if !st.evm.ChainConfig().CroissantEnabled() || st.evm.ChainConfig().IsCroissant(st.evm.Context.BlockNumber) || !isFeeDelegation {
+	if !st.evm.ChainConfig().AnzeonEnabled() || !isFeeDelegation {
 		if st.msg.GasFeeCap != nil {
 			feeCheck.SetUint64(st.msg.GasLimit)
 			feeCheck.Mul(feeCheck, st.msg.GasFeeCap)
@@ -495,25 +495,20 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		gasRefund = st.refundGas(params.RefundQuotientEIP3529)
 	}
 
-	// WEMIX
-	// In Wemix 3.0, effective tip is added to feeCollector (default: maintenance)
-	// In WBFT chain, effective tip is added to coinbase same as Ethereum.
-	if st.evm.ChainConfig().CroissantBlock == nil || st.evm.ChainConfig().IsCroissant(st.evm.Context.BlockNumber) {
-		effectiveTip := msg.GasPrice
-		if rules.IsLondon {
-			effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
-		}
-		effectiveTipU256, _ := uint256.FromBig(effectiveTip)
+	effectiveTip := msg.GasPrice
+	if rules.IsLondon {
+		effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
+	}
+	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
-		if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
-			// Skip fee payment when NoBaseFee is set and the fee fields
-			// are 0. This avoids a negative effectiveTip being applied to
-			// the coinbase when simulating calls.
-		} else {
-			fee := new(uint256.Int).SetUint64(st.gasUsed())
-			fee.Mul(fee, effectiveTipU256)
-			st.state.AddBalance(st.evm.Context.Coinbase, fee)
-		}
+	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
+		// Skip fee payment when NoBaseFee is set and the fee fields
+		// are 0. This avoids a negative effectiveTip being applied to
+		// the coinbase when simulating calls.
+	} else {
+		fee := new(uint256.Int).SetUint64(st.gasUsed())
+		fee.Mul(fee, effectiveTipU256)
+		st.state.AddBalance(st.evm.Context.Coinbase, fee)
 	}
 
 	return &ExecutionResult{

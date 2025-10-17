@@ -221,8 +221,8 @@ func initGenesis(ctx *cli.Context) error {
 	}
 
 	// Check sanity for WBFT.
-	if genesis.Config.CroissantEnabled() {
-		if err := genesis.Config.Croissant.CheckValidity(); err != nil {
+	if genesis.Config.AnzeonEnabled() {
+		if err := genesis.Config.Anzeon.CheckValidity(); err != nil {
 			utils.Fatalf("Invalid genesis config: %v", err)
 		}
 		if err := checkAllocAddress(genesis); err != nil {
@@ -250,14 +250,9 @@ func initGenesis(ctx *cli.Context) error {
 }
 
 func checkAllocAddress(genesis *core.Genesis) error {
-	if genesis.Alloc != nil && genesis.Config.CroissantEnabled() {
+	if genesis.Alloc != nil && genesis.Config.AnzeonEnabled() {
 		forbidden := []common.Address{
-			genesis.Config.Croissant.GovContracts.GovConfig.Address,
-			genesis.Config.Croissant.GovContracts.GovStaking.Address,
-			genesis.Config.Croissant.GovContracts.GovRewardeeImp.Address,
-		}
-		if genesis.Config.Croissant.GovContracts.GovNCP != nil {
-			forbidden = append(forbidden, genesis.Config.Croissant.GovContracts.GovNCP.Address)
+			genesis.Config.Anzeon.SystemContracts.GovValidator.Address,
 		}
 		for _, addr := range forbidden {
 			if _, exists := genesis.Alloc[addr]; exists {

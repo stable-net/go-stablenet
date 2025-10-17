@@ -1819,12 +1819,11 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 func genExtraData(validatorPrvKey *ecdsa.PrivateKey) []byte {
 	blsKey, _ := bls.DeriveFromECDSA(validatorPrvKey)
 	sampleExtra := &types.WBFTExtra{
-		VanityData: []byte("WEMIX Croissant chain block"),
+		VanityData: []byte("WEMIX Anzeon chain block"),
 		EpochInfo: &types.EpochInfo{
-			Stakers: []*types.Staker{
+			Candidates: []*types.Candidate{
 				{Addr: crypto.PubkeyToAddress(validatorPrvKey.PublicKey), Diligence: types.DefaultDiligence},
 			},
-			Stabilizing:   true,
 			Validators:    []uint32{0},
 			BLSPublicKeys: [][]byte{blsKey.PublicKey().Marshal()},
 		},

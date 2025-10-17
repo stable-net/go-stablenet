@@ -40,35 +40,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func commitTx(backend *simulated.WbftBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
+func commitTx(backend *simulated.WBFTBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
 	backend.Commit()
 	if txErr != nil {
 		return nil, NewRevertError(txErr)
 	}
 
 	return bind.WaitMined(context.TODO(), backend.Client(), tx)
-}
-
-func expectedOk(backend *simulated.WbftBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
-	receipt, err := commitTx(backend, tx, txErr)
-	if err != nil {
-		return nil, err
-	} else if receipt.Status != types.ReceiptStatusSuccessful {
-		panic(vm.ErrExecutionReverted)
-	}
-
-	return receipt, nil
-}
-
-func expectedFail(backend *simulated.WbftBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
-	receipt, err := commitTx(backend, tx, txErr)
-	if err != nil {
-		return nil, err
-	} else if receipt.Status == types.ReceiptStatusSuccessful {
-		panic("execution not reverted")
-	}
-
-	return receipt, nil
 }
 
 func ExpectedRevert(t *testing.T, err error, args ...interface{}) {
@@ -78,7 +56,7 @@ func ExpectedRevert(t *testing.T, err error, args ...interface{}) {
 		if length > 0 {
 			name, ok := args[0].(string)
 			require.True(t, ok)
-			require.Equal(t, revert.ABI.Name, name)
+			require.Equal(t, name, revert.ABI.Name)
 		}
 		if length > 1 {
 			output, ok := revert.Output.([]interface{})
@@ -278,47 +256,6 @@ func collectEvent(abi *abi.ABI) error {
 	return nil
 }
 
-func findEvent(name string, logs []*types.Log) map[string]interface{} {
-	result := findEvents(name, logs)
-	if len(result) > 0 {
-		return result[0]
-	}
-	return nil
-}
-
-func findEvents(name string, logs []*types.Log) []map[string]interface{} {
-	events := make([]map[string]interface{}, 0)
-	eventTy, ok := allEvents[name]
-	if !ok {
-		return nil
-	}
-
-	for _, log := range logs {
-		if len(log.Topics) == 0 || log.Topics[0] != eventTy.ID {
-			continue
-		}
-
-		event := make(map[string]interface{})
-
-		if err := eventTy.Inputs.UnpackIntoMap(event, log.Data); err != nil {
-			continue
-		} else {
-			var indexed abi.Arguments
-			for _, arg := range eventTy.Inputs {
-				if arg.Indexed {
-					indexed = append(indexed, arg)
-				}
-			}
-			if err := abi.ParseTopicsIntoMap(event, indexed, log.Topics[1:]); err != nil {
-				continue
-			}
-			events = append(events, event)
-		}
-	}
-
-	return events
-}
-
 // error_unpack
 type allErrorsType map[[4]byte]abi.Error
 
@@ -389,18 +326,4 @@ func UnpackError(result []byte) (error, bool) {
 	} else {
 		return &RevertError{errABI, output}, true
 	}
-}
-
-// gas used * gas price
-func calcTxGasCost(receipt *types.Receipt) *big.Int {
-	return new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice)
-}
-
-// Helper function to parse ABI types
-func mustParseType(typeString string) abi.Type {
-	typ, err := abi.NewType(typeString, "", nil)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to parse type: %v", err))
-	}
-	return typ
 }

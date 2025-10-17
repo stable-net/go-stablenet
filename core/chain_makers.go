@@ -426,9 +426,9 @@ func GenerateChainWithGenesis(genesis *Genesis, engine consensus.Engine, n int, 
 	db := rawdb.NewMemoryDatabase()
 	triedb := triedb.NewDatabase(db, triedb.HashDefaults)
 	defer triedb.Close()
-	// before committing genesis, generate contract allocation and extraData for croissant config
-	if genesis.Config.CroissantEnabled() && genesis.Config.CroissantBlock.Sign() == 0 {
-		genesis.ExtraData, _ = wbft.CreateInitialExtraData(genesis.Config.Croissant)
+	// before committing genesis, generate contract allocation and extraData for anzeon config
+	if genesis.Config.AnzeonEnabled() {
+		genesis.ExtraData, _ = wbft.CreateInitialExtraData(genesis.Config.Anzeon)
 
 		_ = InjectContracts(genesis, genesis.Config)
 	}
