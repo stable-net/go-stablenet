@@ -1,4 +1,9 @@
-## WBFT Protocol Specification (WEMIX 4.0)
+## Stable One Specification
+This is the official Go implementation of the Stable One protocol, a fork of the WEMIX 4.0 protocol(https://github.com/wemixarchive/go-wemix-wbft).
+
+### Design Philosophy
+
+## WBFT Protocol Specification (from WEMIX 4.0, and revised)
 
 WBFT(WEMIX Byzantine Fault Tolerant) is a consensus algorithm that emphasizes decentralization, adapting Istanbul BFT(https://github.com/ethereum/EIPs/issues/650) and QBFT(https://github.com/Consensys/qbft-formal-spec-and-verification) for use in public blockchains. The following improvements have been implemented:
 
