@@ -85,7 +85,7 @@ func (g *genesisGenerator) run() {
 func (g *genesisGenerator) makeGenesis() {
 	// Figure out which consensus engine to choose
 	fmt.Println()
-	fmt.Println("Which consensus engine to use? (default = Wbft)")
+	fmt.Println("Which consensus engine to use? (default = WBFT)")
 	fmt.Println(" 1. WBFT (wemix-byzantine-fault-tolerance)")
 	fmt.Println(" 2. Ethash (proof-of-work)")
 	fmt.Println(" 3. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)")
@@ -170,14 +170,23 @@ func (g *genesisGenerator) wbftChainConfig() {
 		}
 	}
 
-	g.Genesis.Config.CroissantBlock = new(big.Int).SetUint64(0)
-	g.Genesis.Config.Croissant = params.DefaultCroissantConfig
-
+	g.Genesis.Config.Anzeon = params.DefaultAnzeonConfig
+	var vals, blsKeys string
 	for i, val := range validators {
-		g.Genesis.Config.Croissant.Init.Validators = append(g.Genesis.Config.Croissant.Init.Validators, val)
-		g.Genesis.Config.Croissant.Init.BLSPublicKeys = append(g.Genesis.Config.Croissant.Init.BLSPublicKeys, blsPublicKeys[i])
+		g.Genesis.Config.Anzeon.Init.Validators = append(g.Genesis.Config.Anzeon.Init.Validators, val)
+		g.Genesis.Config.Anzeon.Init.BLSPublicKeys = append(g.Genesis.Config.Anzeon.Init.BLSPublicKeys, blsPublicKeys[i])
+		vals += val.String() + ","
+		blsKeys += blsPublicKeys[i] + ","
 	}
-
+	vals = strings.TrimRight(vals, ",")
+	blsKeys = strings.TrimRight(blsKeys, ",")
+	g.Genesis.Config.Anzeon.SystemContracts.GovValidator.Params = map[string]string{
+		"members":       vals,
+		"quorum":        "1",
+		"memberVersion": "1",
+		"validators":    vals,
+		"blsPublicKeys": blsKeys,
+	}
 	// you can add config file for static nodes if you want
 	fmt.Println()
 	fmt.Println("Want to generate config.toml file to configure static nodes to connect?")

@@ -103,59 +103,45 @@ func (p *ProposerPolicy) Use(v ValidatorSortByFunc) {
 }
 
 type Config struct {
-	RequestTimeout              uint64          `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
-	BlockPeriod                 uint64          `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
-	ProposerPolicy              *ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
-	Epoch                       uint64          `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
-	AllowedFutureBlockTime      uint64          `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
-	TargetValidators            uint64          `toml:",omitempty"`
-	MaxRequestTimeoutSeconds    uint64          `toml:",omitempty"`
-	StabilizingStakersThreshold uint64          `toml:",omitempty"`
-	UseNCP                      bool            `toml:",omitempty"` // Use NCP or not
-	Transitions                 []params.Transition
-	GovContractUpgrades         []params.Upgrade
+	RequestTimeout           uint64          `toml:",omitempty"` // The timeout for each Istanbul round in milliseconds.
+	BlockPeriod              uint64          `toml:",omitempty"` // Default minimum difference between two consecutive block's timestamps in second
+	ProposerPolicy           *ProposerPolicy `toml:",omitempty"` // The policy for proposer selection
+	Epoch                    uint64          `toml:",omitempty"` // The number of blocks after which to checkpoint and reset the pending votes
+	AllowedFutureBlockTime   uint64          `toml:",omitempty"` // Max time (in seconds) from current time allowed for blocks, before they're considered future blocks
+	MaxRequestTimeoutSeconds uint64          `toml:",omitempty"`
+	Transitions              []params.Transition
+	SystemContractUpgrades   []params.Upgrade
 }
 
 var DefaultConfig = &Config{
-	RequestTimeout:              1000,
-	BlockPeriod:                 1,
-	ProposerPolicy:              NewRoundRobinProposerPolicy(),
-	Epoch:                       10,
-	AllowedFutureBlockTime:      0,
-	StabilizingStakersThreshold: 1,
-	UseNCP:                      false,
+	RequestTimeout:         1000,
+	BlockPeriod:            1,
+	ProposerPolicy:         NewRoundRobinProposerPolicy(),
+	Epoch:                  10,
+	AllowedFutureBlockTime: 0,
 }
 
-func (c *Config) GetGovContracts(blockNumber *big.Int, chainConfig *params.ChainConfig) params.GovContracts {
-	gc := params.GovContracts{}
+func (c *Config) GetSystemContracts(blockNumber *big.Int, chainConfig *params.ChainConfig) params.SystemContracts {
+	gc := params.SystemContracts{}
 
-	if c.GovContractUpgrades != nil && len(c.GovContractUpgrades) > 0 {
-		c.getGovContractsValue(blockNumber, func(upgrade params.Upgrade) {
-			if upgrade.GovStaking != nil {
-				gc.GovStaking = upgrade.GovStaking
-			}
-			if upgrade.GovConfig != nil {
-				gc.GovConfig = upgrade.GovConfig
-			}
-			if upgrade.GovRewardeeImp != nil {
-				gc.GovRewardeeImp = upgrade.GovRewardeeImp
-			}
-			if upgrade.GovNCP != nil {
-				gc.GovNCP = upgrade.GovNCP
+	if c.SystemContractUpgrades != nil && len(c.SystemContractUpgrades) > 0 {
+		c.getSystemContractsValue(blockNumber, func(upgrade params.Upgrade) {
+			if upgrade.GovValidator != nil {
+				gc.GovValidator = upgrade.GovValidator
 			}
 		})
 	} else {
-		// Normally unreachable since c.GovContractsUpgrades is set when wbft engine is created,
+		// Normally unreachable since c.SystemContractsUpgrades is set when wbft engine is created,
 		// but used in few tests where wbft.Config isn't properly initialized — fallback to Montblanc chain config.
-		gc = *chainConfig.Croissant.GovContracts
+		gc = *chainConfig.Anzeon.SystemContracts
 	}
 	return gc
 }
 
-func (c *Config) getGovContractsValue(num *big.Int, callback func(govContracts params.Upgrade)) {
+func (c *Config) getSystemContractsValue(num *big.Int, callback func(systemContracts params.Upgrade)) {
 	if c != nil && num != nil {
-		for i := 0; i < len(c.GovContractUpgrades) && c.GovContractUpgrades[i].Block.Cmp(num) <= 0; i++ {
-			callback(c.GovContractUpgrades[i])
+		for i := 0; i < len(c.SystemContractUpgrades) && c.SystemContractUpgrades[i].Block.Cmp(num) <= 0; i++ {
+			callback(c.SystemContractUpgrades[i])
 		}
 	}
 }
@@ -177,17 +163,8 @@ func (c Config) GetConfig(blockNumber *big.Int) Config {
 			if transition.ProposerPolicy != nil {
 				newConfig.ProposerPolicy = NewProposerPolicy(ProposerPolicyId(*transition.ProposerPolicy))
 			}
-			if transition.TargetValidators != nil {
-				newConfig.TargetValidators = *transition.TargetValidators
-			}
 			if transition.MaxRequestTimeoutSeconds != nil {
 				newConfig.MaxRequestTimeoutSeconds = *transition.MaxRequestTimeoutSeconds
-			}
-			if transition.StabilizingStakersThreshold != nil {
-				newConfig.StabilizingStakersThreshold = *transition.StabilizingStakersThreshold
-			}
-			if transition.UseNCP != nil {
-				newConfig.UseNCP = *transition.UseNCP
 			}
 		})
 	}
@@ -207,11 +184,11 @@ func (c *Config) String() string {
 	return "wbft"
 }
 
-// GetGovContractsStateTransition is used when for gov contracts needs to be set in the middle of the chain processing
-func GetGovContractsStateTransition(wbftCfg *Config, num *big.Int) (*params.StateTransition, error) {
-	for _, upgrade := range wbftCfg.GovContractUpgrades {
+// GetSystemContractsStateTransition is used when for gov contracts needs to be set in the middle of the chain processing
+func GetSystemContractsStateTransition(wbftCfg *Config, num *big.Int) (*params.StateTransition, error) {
+	for _, upgrade := range wbftCfg.SystemContractUpgrades {
 		if num.Cmp(upgrade.Block) == 0 {
-			return govwbft.GetGovContractsTransition(upgrade.GovContracts)
+			return govwbft.GetSystemContractsTransition(upgrade.SystemContracts)
 		} else if num.Cmp(upgrade.Block) < 0 {
 			break
 		}
@@ -219,7 +196,7 @@ func GetGovContractsStateTransition(wbftCfg *Config, num *big.Int) (*params.Stat
 	return nil, nil
 }
 
-func CreateInitialExtraData(config *params.CroissantConfig) ([]byte, error) {
+func CreateInitialExtraData(config *params.AnzeonConfig) ([]byte, error) {
 	epochInfo, err := CreateInitialEpochInfo(config)
 	if err != nil {
 		return nil, err
@@ -237,27 +214,26 @@ func CreateInitialExtraData(config *params.CroissantConfig) ([]byte, error) {
 	return extraDataBytes, nil
 }
 
-func CreateInitialEpochInfo(config *params.CroissantConfig) (*types.EpochInfo, error) {
+func CreateInitialEpochInfo(config *params.AnzeonConfig) (*types.EpochInfo, error) {
 	var (
-		stakers       []common.Address
+		candidates    []common.Address
 		blsPublicKeys []string
 		epochInfo     = new(types.EpochInfo)
 	)
-	stakers = append(stakers, config.Init.Validators...)
+	candidates = append(candidates, config.Init.Validators...)
 	blsPublicKeys = append(blsPublicKeys, config.Init.BLSPublicKeys...)
-	for i, addr := range stakers {
-		epochInfo.Stakers = append(epochInfo.Stakers, &types.Staker{
+	for i, addr := range candidates {
+		epochInfo.Candidates = append(epochInfo.Candidates, &types.Candidate{
 			Addr:      addr,
 			Diligence: types.DefaultDiligence,
 		})
 		epochInfo.Validators = append(epochInfo.Validators, uint32(i))
 		epochInfo.BLSPublicKeys = append(epochInfo.BLSPublicKeys, hexutil.MustDecode(blsPublicKeys[i]))
-		epochInfo.Stabilizing = true
 	}
 
 	log.Trace("WBFT: initial epoch info", "validators", epochInfo.Validators)
-	for i, staker := range epochInfo.Stakers {
-		log.Trace(fmt.Sprintf("WBFT:   - stakers[%d]", i), "addr", staker.Addr, "diligence", staker.Diligence)
+	for i, candi := range epochInfo.Candidates {
+		log.Trace(fmt.Sprintf("WBFT:   - candidates[%d]", i), "addr", candi.Addr, "diligence", candi.Diligence)
 	}
 
 	return epochInfo, nil

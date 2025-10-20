@@ -86,29 +86,26 @@ func init() {
 	testTxPoolConfig.Journal = ""
 	ethashChainConfig = new(params.ChainConfig)
 	*ethashChainConfig = *params.TestChainConfig
-	ethashChainConfig.CroissantBlock = nil
-	ethashChainConfig.Croissant = nil
+	ethashChainConfig.Anzeon = nil
 	cliqueChainConfig = new(params.ChainConfig)
 	*cliqueChainConfig = *params.TestChainConfig
-	cliqueChainConfig.CroissantBlock = nil
-	cliqueChainConfig.Croissant = nil
+	cliqueChainConfig.Anzeon = nil
 	cliqueChainConfig.Clique = &params.CliqueConfig{
 		Period: 10,
 		Epoch:  30000,
 	}
 	wbftChainConfig = new(params.ChainConfig)
 	*wbftChainConfig = *params.TestWBFTChainConfig
-	wbftChainConfig.Croissant.Init.Validators = []common.Address{testBankAddress}
-	wbftChainConfig.Croissant.Init.BLSPublicKeys = []string{hexutil.Encode(testBlsKey.PublicKey().Marshal())}
+	wbftChainConfig.Anzeon.Init.Validators = []common.Address{testBankAddress}
+	wbftChainConfig.Anzeon.Init.BLSPublicKeys = []string{hexutil.Encode(testBlsKey.PublicKey().Marshal())}
 	wbftChainConfig.Ethash = nil
 
 	wbftConfig = new(wbft.Config)
-	wbftConfig.BlockPeriod = wbftChainConfig.Croissant.WBFT.BlockPeriodSeconds
-	wbftConfig.RequestTimeout = wbftChainConfig.Croissant.WBFT.RequestTimeoutSeconds * 1000
-	wbftConfig.Epoch = wbftChainConfig.Croissant.WBFT.EpochLength
-	wbftConfig.ProposerPolicy = wbft.NewProposerPolicy(wbft.ProposerPolicyId(*wbftChainConfig.Croissant.WBFT.ProposerPolicy))
-	wbftConfig.TargetValidators = *wbftChainConfig.Croissant.WBFT.TargetValidators
-	wbftConfig.MaxRequestTimeoutSeconds = *wbftChainConfig.Croissant.WBFT.MaxRequestTimeoutSeconds
+	wbftConfig.BlockPeriod = wbftChainConfig.Anzeon.WBFT.BlockPeriodSeconds
+	wbftConfig.RequestTimeout = wbftChainConfig.Anzeon.WBFT.RequestTimeoutSeconds * 1000
+	wbftConfig.Epoch = wbftChainConfig.Anzeon.WBFT.EpochLength
+	wbftConfig.ProposerPolicy = wbft.NewProposerPolicy(wbft.ProposerPolicyId(*wbftChainConfig.Anzeon.WBFT.ProposerPolicy))
+	wbftConfig.MaxRequestTimeoutSeconds = *wbftChainConfig.Anzeon.WBFT.MaxRequestTimeoutSeconds
 
 	signer := types.LatestSigner(params.TestChainConfig)
 	tx1 := types.MustSignNewTx(testBankKey, signer, &types.AccessListTx{
@@ -157,13 +154,12 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 		testBankBlsKey, _ := bls.DeriveFromECDSA(testBankKey)
 		testBankBlsPubKey := testBankBlsKey.PublicKey()
 		sampleExtra := &types.WBFTExtra{
-			VanityData: []byte("WEMIX Croissant chain block"),
+			VanityData: []byte("WEMIX Anzeon chain block"),
 			Round:      0,
 			EpochInfo: &types.EpochInfo{
-				Stakers: []*types.Staker{
+				Candidates: []*types.Candidate{
 					{Addr: testBankAddress, Diligence: types.DefaultDiligence},
 				},
-				Stabilizing:   true,
 				Validators:    []uint32{0},
 				BLSPublicKeys: [][]byte{testBankBlsPubKey.Marshal()},
 			},
@@ -446,8 +442,8 @@ func testGetSealingWork(t *testing.T, chainConfig *params.ChainConfig, engine co
 			t.Logf("Invalid timestamp, want %d, get %d", timestamp, block.Time())
 		}
 		_, isClique := engine.(*clique.Clique)
-		_, isWbft := engine.(*wbftBackend.Backend)
-		if !isClique && !isWbft {
+		_, isWBFT := engine.(*wbftBackend.Backend)
+		if !isClique && !isWBFT {
 			if len(block.Extra()) != 2 {
 				t.Error("Unexpected extra field")
 			}

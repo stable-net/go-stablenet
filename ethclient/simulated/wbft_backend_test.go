@@ -14,8 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-func simTestWbftBackend(testAddr common.Address) *WbftBackend {
-	return NewWbftBackend(
+func simTestWbftBackend(testAddr common.Address) *WBFTBackend {
+	return NewWBFTBackend(
 		types.GenesisAlloc{
 			testAddr: {Balance: big.NewInt(10000000000000000)},
 		},
@@ -23,7 +23,7 @@ func simTestWbftBackend(testAddr common.Address) *WbftBackend {
 }
 
 func TestNewWbftBackend(t *testing.T) {
-	sim := NewWbftBackend(types.GenesisAlloc{})
+	sim := NewWBFTBackend(types.GenesisAlloc{})
 	defer sim.Close()
 
 	client := sim.Client()
@@ -63,7 +63,7 @@ func TestNewWbftBackend(t *testing.T) {
 }
 
 func TestWbftAdjustTime(t *testing.T) {
-	sim := NewWbftBackend(types.GenesisAlloc{})
+	sim := NewWBFTBackend(types.GenesisAlloc{})
 	defer sim.Close()
 
 	client := sim.Client()
@@ -111,7 +111,7 @@ func TestWbftSendTransaction(t *testing.T) {
 // and that it keeps the same target value.
 func TestWbftWithBlockGasLimitOption(t *testing.T) {
 	// Construct a simulator, targeting a different gas limit
-	sim := NewWbftBackend(types.GenesisAlloc{}, WithBlockGasLimit(12_345_678))
+	sim := NewWBFTBackend(types.GenesisAlloc{}, WithBlockGasLimit(12_345_678))
 	defer sim.Close()
 
 	client := sim.Client()
@@ -136,7 +136,7 @@ func TestWbftWithBlockGasLimitOption(t *testing.T) {
 // Tests that the simulator honors the RPC call caps set by the options.
 func TestWbftWithCallGasLimitOption(t *testing.T) {
 	// Construct a simulator, targeting a different gas limit
-	sim := NewWbftBackend(types.GenesisAlloc{
+	sim := NewWBFTBackend(types.GenesisAlloc{
 		testAddr: {Balance: big.NewInt(10000000000000000)},
 	}, WithCallGasLimit(params.TxGas-1))
 	defer sim.Close()

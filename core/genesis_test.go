@@ -326,3 +326,28 @@ func TestVerkleGenesisCommit(t *testing.T) {
 		t.Fatal("could not find node")
 	}
 }
+
+func TestGenerateStableOneGenesisJson(t *testing.T) {
+	genesis := &Genesis{
+		BaseFee:    big.NewInt(params.InitialBaseFee),
+		Config:     params.StableOneMainnetChainConfig,
+		Timestamp:  0,
+		Difficulty: big.NewInt(0),
+	}
+
+	db := rawdb.NewMemoryDatabase()
+	SetupGenesisBlock(db, triedb.NewDatabase(db, triedb.HashDefaults), genesis)
+	genesisJson, _ := genesis.MarshalJSON()
+	t.Logf("StableOne Mainnet genesis json: %s", genesisJson)
+
+	genesis = &Genesis{
+		BaseFee:    big.NewInt(params.InitialBaseFee),
+		Config:     params.StableOneTestnetChainConfig,
+		Timestamp:  0,
+		Difficulty: big.NewInt(0),
+	}
+	db = rawdb.NewMemoryDatabase()
+	SetupGenesisBlock(db, triedb.NewDatabase(db, triedb.HashDefaults), genesis)
+	genesisJson, _ = genesis.MarshalJSON()
+	t.Logf("StableOne Testnet genesis json: %s", genesisJson)
+}

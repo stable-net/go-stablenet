@@ -111,7 +111,7 @@ func MakeProtocols(backend Backend, network uint64, dnsdisc enode.Iterator) []p2
 				// Create a copy of the node info to avoid data sharing
 				eth_nodeInfo := nodeInfo(backend.Chain(), network)
 				copied := *eth_nodeInfo.Config
-				copied.Croissant = nil
+				copied.Anzeon = nil
 				eth_nodeInfo.Config = &copied
 
 				return eth_nodeInfo

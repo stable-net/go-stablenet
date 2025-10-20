@@ -63,8 +63,8 @@ func NewEVMInterpreter(evm *EVM) *EVMInterpreter {
 		table = &shanghaiInstructionSet
 	case evm.chainRules.IsMerge:
 		table = &mergeInstructionSet
-	case evm.chainRules.IsCroissant:
-		table = &croissantInstructionSet
+	case evm.chainRules.IsAnzeon:
+		table = &anzeonInstructionSet
 	case evm.chainRules.IsLondon:
 		table = &londonInstructionSet
 	case evm.chainRules.IsBerlin:

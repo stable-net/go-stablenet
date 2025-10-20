@@ -249,11 +249,11 @@ func epochForJSON(epoch *types.EpochInfo) map[string]interface{} {
 	if epoch == nil {
 		return nil
 	}
-	// Stakers
-	stakers := make([]map[string]interface{}, 0, len(epoch.Stakers))
+	// Candidates
+	candidates := make([]map[string]interface{}, 0, len(epoch.Candidates))
 
-	for _, s := range epoch.Stakers {
-		stakers = append(stakers, map[string]interface{}{
+	for _, s := range epoch.Candidates {
+		candidates = append(candidates, map[string]interface{}{
 			"addr":      s.Addr.Hex(),
 			"diligence": fmt.Sprintf("0x%x", s.Diligence),
 		})
@@ -264,15 +264,14 @@ func epochForJSON(epoch *types.EpochInfo) map[string]interface{} {
 	for i, idx := range epoch.Validators {
 		validators = append(validators, map[string]interface{}{
 			"index": fmt.Sprintf("0x%x", idx),
-			"addr":  epoch.GetValidator(idx).Hex(),
+			"addr":  epoch.GetCandidate(idx).Hex(),
 			"bls":   "0x" + hex.EncodeToString(epoch.BLSPublicKeys[i]),
 		})
 	}
 
 	return map[string]interface{}{
-		"stabilizing": epoch.Stabilizing,
-		"stakers":     stakers,
-		"validators":  validators,
+		"candidates": candidates,
+		"validators": validators,
 	}
 }
 
@@ -304,7 +303,7 @@ func DecodeVanityData(vanity []byte) string {
 func (api *API) GetWbftExtraInfo(number rpc.BlockNumber) (map[string]interface{}, error) {
 	bNumber := big.NewInt(int64(number))
 
-	if !api.chain.Config().IsCroissant(bNumber) {
+	if !api.chain.Config().AnzeonEnabled() {
 		return nil, wbftcommon.ErrIsNotWBFTBlock
 	}
 
