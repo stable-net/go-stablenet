@@ -19,7 +19,6 @@ package compile
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -30,34 +29,32 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common/compiler"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/fabelx/go-solc-select/pkg/config"
-	"github.com/fabelx/go-solc-select/pkg/installer"
-	"github.com/fabelx/go-solc-select/pkg/versions"
+	"github.com/ethereum/go-ethereum/systemcontracts/compile/solcdownloader"
 	"github.com/pkg/errors"
 )
 
 var (
 	solcVersion string = "0.8.14"
-	solcCmd     string = fmt.Sprintf("solc-%s", solcVersion)
 )
 
-func Compile(root string, sourceFiles ...string) (compiledTy, error) {
-	if err := installSolc(); err != nil {
+func Compile(openzeppelinPath string, sourceFiles ...string) (compiledTy, error) {
+	solcPath, err := solcdownloader.GetSolcBin(solcVersion)
+	if err != nil {
 		return nil, err
 	}
-	if root == "" {
-		root = "../contracts"
+	if openzeppelinPath == "" {
+		openzeppelinPath = "../solidity/openzeppelin"
 	}
 	args := []string{
 		"--combined-json", "bin,bin-runtime,srcmap,srcmap-runtime,abi,userdoc,devdoc,metadata,hashes",
 		"--optimize",                // code optimizer switched on
 		"--allow-paths", ".,./,../", //default to support relative path： ./  ../  .
-		fmt.Sprintf("@openzeppelin/contracts/=%s/openzeppelin/contracts/contracts/", root),
-		fmt.Sprintf("@openzeppelin/contracts-upgradeable/=%s/openzeppelin/contracts-upgradeable/contracts/", root),
+		fmt.Sprintf("@openzeppelin/contracts/=%s/contracts/contracts/", openzeppelinPath),
+		fmt.Sprintf("@openzeppelin/contracts-upgradeable/=%s/contracts-upgradeable/contracts/", openzeppelinPath),
 		"--",
 	}
-	// ~/.gsolc-select/artifacts/solc-0.8.14/0.8.14
-	cmd := exec.Command(filepath.Join(config.SolcArtifacts, solcCmd, solcCmd), append(args, sourceFiles...)...)
+	// ~/.solc-bin/solc-0.8.14
+	cmd := exec.Command(solcPath, append(args, sourceFiles...)...)
 
 	var stderr, stdout bytes.Buffer
 	cmd.Stderr, cmd.Stdout = &stderr, &stdout
@@ -86,29 +83,6 @@ func Compile(root string, sourceFiles ...string) (compiledTy, error) {
 		}
 		return out, nil
 	}
-}
-
-func installSolc() error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	// check already installed
-	installedVersions := versions.GetInstalled()
-	if installedVersions[solcVersion] != "" {
-		return nil
-	}
-
-	// install solc-0.8.14
-	installed, _, err := installer.InstallSolcs(ctx, []string{solcVersion})
-	if err != nil {
-		return err
-	}
-
-	for _, v := range installed {
-		if v == solcVersion {
-			return nil
-		}
-	}
-	return fmt.Errorf("failed to install version %s", solcVersion)
 }
 
 type compiledTy map[string]*compiler.Contract
