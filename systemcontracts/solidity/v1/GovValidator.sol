@@ -18,7 +18,7 @@
 pragma solidity ^0.8.14;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {GovBase} from "./GovBase.sol";
+import { GovBase } from "../abstracts/GovBase.sol";
 
 contract GovValidator is GovBase {
     using EnumerableSet for EnumerableSet.AddressSet;
