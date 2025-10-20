@@ -90,13 +90,13 @@ var (
 					Address: DefaultNativeCoinAdapterAddress,
 					Version: DefaultNativeCoinAdapterVersion,
 					Params: map[string]string{
-						"masterMinter":  "",
-						"minters":       "",
-						"minterAllowed": "",
-						"name":          "",
-						"symbol":        "",
-						"decimals":      "",
-						"currency":      "",
+						"masterMinter":  "0x0000000000000000000000000000000000B00004",
+						"minters":       "0x0000000000000000000000000000000000B00005",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"name":          "KRC1",
+						"symbol":        "KRC1",
+						"decimals":      "18",
+						"currency":      "KRW",
 					},
 				},
 			},
@@ -145,7 +145,15 @@ var (
 				NativeCoinAdapter: &SystemContract{
 					Address: DefaultNativeCoinAdapterAddress,
 					Version: DefaultNativeCoinAdapterVersion,
-					// Params:  map[string]string{},
+					Params: map[string]string{
+						"masterMinter":  "0x0000000000000000000000000000000000B00004",
+						"minters":       "0x0000000000000000000000000000000000B00005",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"name":          "KRC1",
+						"symbol":        "KRC1",
+						"decimals":      "18",
+						"currency":      "KRW",
+					},
 				},
 			},
 		},
@@ -327,7 +335,15 @@ var (
 				NativeCoinAdapter: &SystemContract{
 					Address: DefaultNativeCoinAdapterAddress,
 					Version: DefaultNativeCoinAdapterVersion,
-					// Params:  map[string]string{},
+					Params: map[string]string{
+						"masterMinter":  "0x0000000000000000000000000000000000B00004",
+						"minters":       "0x0000000000000000000000000000000000B00005",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"name":          "KRC1",
+						"symbol":        "KRC1",
+						"decimals":      "18",
+						"currency":      "KRW",
+					},
 				},
 			},
 		},
@@ -486,7 +502,15 @@ var (
 				NativeCoinAdapter: &SystemContract{
 					Address: DefaultNativeCoinAdapterAddress,
 					Version: DefaultNativeCoinAdapterVersion,
-					// Params:  map[string]string{},
+					Params: map[string]string{
+						"masterMinter":  "0x0000000000000000000000000000000000B00004",
+						"minters":       "0x0000000000000000000000000000000000B00005",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"name":          "KRC1",
+						"symbol":        "KRC1",
+						"decimals":      "18",
+						"currency":      "KRW",
+					},
 				},
 			},
 		},

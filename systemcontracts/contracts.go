@@ -27,11 +27,15 @@ const (
 	SYSTEM_CONTRACT_VERSION_2 = "v2"
 
 	CONTRACT_GOV_VALIDATOR = "GovValidator"
+	CONTRACT_COIN_ADAPTER  = "NativeCoinAdapter"
 )
 
 var (
 	//go:embed artifacts/v1/GovValidator
 	GovValidatorContractV1 string
+
+	//go:embed artifacts/v1/NativeCoinAdapter
+	CoinAdapterContractV1 string
 
 	SystemContractCodes map[string]map[string]string
 )
@@ -41,4 +45,7 @@ func init() {
 
 	SystemContractCodes[CONTRACT_GOV_VALIDATOR] = make(map[string]string)
 	SystemContractCodes[CONTRACT_GOV_VALIDATOR][SYSTEM_CONTRACT_VERSION_1] = GovValidatorContractV1
+
+	SystemContractCodes[CONTRACT_COIN_ADAPTER] = make(map[string]string)
+	SystemContractCodes[CONTRACT_COIN_ADAPTER][SYSTEM_CONTRACT_VERSION_1] = CoinAdapterContractV1
 }

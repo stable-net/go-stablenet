@@ -659,7 +659,7 @@ func TestGenesisBlock() *Genesis {
 
 // InjectContracts sets WBFT SystemContracts to genesis
 func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
-	transition, err := systemcontracts.GetSystemContractsTransition(config.Anzeon.SystemContracts)
+	transition, err := systemcontracts.GetSystemContractsTransition(config.Anzeon.SystemContracts, &genesis.Alloc)
 	if err != nil {
 		return err
 	}

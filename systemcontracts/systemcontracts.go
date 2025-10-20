@@ -19,6 +19,7 @@
 package systemcontracts
 
 import (
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
 	"fmt"
@@ -33,15 +34,28 @@ func checkSystemContractVersions(systemContracts *params.SystemContracts) error 
 	if SystemContractCodes[CONTRACT_GOV_VALIDATOR][systemContracts.GovValidator.Version] == "" {
 		return fmt.Errorf("`systemContracts.govValidator`: unsupported version %s", systemContracts.GovValidator.Version)
 	}
+
+	if SystemContractCodes[CONTRACT_COIN_ADAPTER][systemContracts.NativeCoinAdapter.Version] == "" {
+		return fmt.Errorf("`systemContracts.nativeCoinAdapter`: unsupported version %s", systemContracts.NativeCoinAdapter.Version)
+	}
 	return nil
 }
 
-func GetSystemContractsTransition(systemContracts *params.SystemContracts) (*params.StateTransition, error) {
+func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc *types.GenesisAlloc) (*params.StateTransition, error) {
 	st := &params.StateTransition{}
 
 	if systemContracts.GovValidator != nil {
 		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovValidator.Address, Code: SystemContractCodes[CONTRACT_GOV_VALIDATOR][systemContracts.GovValidator.Version]})
 		sp, err := initializeValidator(systemContracts.GovValidator.Address, systemContracts.GovValidator.Params)
+		if err != nil {
+			return nil, err
+		}
+		st.States = append(st.States, sp...)
+	}
+
+	if systemContracts.NativeCoinAdapter != nil {
+		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.NativeCoinAdapter.Address, Code: SystemContractCodes[CONTRACT_COIN_ADAPTER][systemContracts.NativeCoinAdapter.Version]})
+		sp, err := InitializeCoinAdatper(systemContracts.NativeCoinAdapter.Address, systemContracts.NativeCoinAdapter.Params, alloc)
 		if err != nil {
 			return nil, err
 		}

@@ -129,6 +129,9 @@ func (c *Config) GetSystemContracts(blockNumber *big.Int, chainConfig *params.Ch
 			if upgrade.GovValidator != nil {
 				gc.GovValidator = upgrade.GovValidator
 			}
+			if upgrade.NativeCoinAdapter != nil {
+				gc.NativeCoinAdapter = upgrade.NativeCoinAdapter
+			}
 		})
 	} else {
 		// Normally unreachable since c.SystemContractsUpgrades is set when wbft engine is created,
@@ -188,7 +191,7 @@ func (c *Config) String() string {
 func GetSystemContractsStateTransition(wbftCfg *Config, num *big.Int) (*params.StateTransition, error) {
 	for _, upgrade := range wbftCfg.SystemContractUpgrades {
 		if num.Cmp(upgrade.Block) == 0 {
-			return systemcontracts.GetSystemContractsTransition(upgrade.SystemContracts)
+			return systemcontracts.GetSystemContractsTransition(upgrade.SystemContracts, nil)
 		} else if num.Cmp(upgrade.Block) < 0 {
 			break
 		}

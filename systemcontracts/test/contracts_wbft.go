@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -36,12 +37,12 @@ import (
 	sc "github.com/ethereum/go-ethereum/systemcontracts"
 
 	compile "github.com/ethereum/go-ethereum/systemcontracts/compile/compiler"
-	"github.com/status-im/keycard-go/hexutils"
 	"github.com/stretchr/testify/require"
 )
 
 var (
 	TestGovValidatorAddress = params.DefaultGovValidatorAddress
+	TestCoinAdapterAddress  = params.DefaultNativeCoinAdapterAddress
 )
 
 var (
@@ -54,15 +55,20 @@ func init() {
 
 type compiledContractWBFT struct {
 	GovValidator *bindContract
+	CoinAdapter  *bindContract
 }
 
 func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 	if contracts, err := compile.Compile(openzeppelinPath,
 		filepath.Join(root, "GovValidator.sol"),
+		filepath.Join(root, "NativeCoinAdapter.sol"),
 	); err != nil {
 		panic(err)
 	} else {
 		if c.GovValidator, err = newBindContract(contracts["GovValidator"]); err != nil {
+			panic(err)
+		}
+		if c.CoinAdapter, err = newBindContract(contracts["NativeCoinAdapter"]); err != nil {
 			panic(err)
 		}
 	}
@@ -72,6 +78,7 @@ type GovWBFT struct {
 	backend      *simulated.WBFTBackend
 	owner        *bind.TransactOpts
 	govValidator *bind.BoundContract
+	coinAdapter  *bind.BoundContract
 }
 
 type TestCandidate struct {
@@ -126,49 +133,42 @@ func NewGovWBFT(t *testing.T, customValidators []*TestCandidate, alloc types.Gen
 		alloc = make(types.GenesisAlloc)
 	}
 	alloc[owner.From] = types.Account{Balance: MAX_UINT_128}
-	var customEthConf *ethconfig.Config
 	g := &GovWBFT{
 		owner: owner,
 		backend: simulated.NewWBFTBackend(alloc, func(nodeConf *node.Config, ethConf *ethconfig.Config) {
-			customEthConf = ethConf
-			defaultBlockPeriod = time.Duration(ethConf.Genesis.Config.Anzeon.WBFT.BlockPeriodSeconds) * time.Second
-		}),
-	}
-	members := ""
-	validators := ""
-	blsPubKeys := ""
-	if len(customValidators) > 0 {
-		for i, v := range customValidators {
-			if i > 0 {
-				members = members + ","
-				validators = validators + ","
-				blsPubKeys = blsPubKeys + ","
+			anzeonConfig := ethConf.Genesis.Config.Anzeon
+			defaultBlockPeriod = time.Duration(anzeonConfig.WBFT.BlockPeriodSeconds) * time.Second
+
+			var members, validators, blsPubKeys string
+			if len(customValidators) > 0 {
+				for i, v := range customValidators {
+					if i > 0 {
+						members = members + ","
+						validators = validators + ","
+						blsPubKeys = blsPubKeys + ","
+					}
+					members = members + v.Operator.Address.String()
+					validators = validators + v.Validator.Address.String()
+					blsPubKeys = blsPubKeys + hexutil.Encode(v.GetBLSPublicKey(t).Marshal())
+				}
+			} else {
+				members = anzeonConfig.Init.Validators[0].String()
+				validators = anzeonConfig.Init.Validators[0].String()
+				blsPubKeys = anzeonConfig.Init.BLSPublicKeys[0]
 			}
-			members = members + v.Operator.Address.String()
-			validators = validators + v.Validator.Address.String()
-			blsKey := v.GetBLSPublicKey(t)
-			blsPubKeys = blsPubKeys + hexutils.BytesToHex(blsKey.Marshal())
-		}
-	} else {
-		members = customEthConf.Genesis.Config.Anzeon.Init.Validators[0].String()
-		validators = customEthConf.Genesis.Config.Anzeon.Init.Validators[0].String()
-		blsPubKeys = customEthConf.Genesis.Config.Anzeon.Init.BLSPublicKeys[0]
-	}
-	g.backend.CommitWithState(&params.SystemContracts{
-		GovValidator: &params.SystemContract{
-			Address: TestGovValidatorAddress,
-			Version: sc.SYSTEM_CONTRACT_VERSION_1,
-			Params: map[string]string{
+			anzeonConfig.SystemContracts.GovValidator.Address = TestGovValidatorAddress
+			anzeonConfig.SystemContracts.GovValidator.Params = map[string]string{
 				"members":       members,
 				"quorum":        "2",
 				"expiry":        "604800", // 7 days
 				"memberVersion": "1",
 				"validators":    validators,
 				"blsPublicKeys": blsPubKeys,
-			},
-		},
-	}, nil)
+			}
+		}),
+	}
 	g.govValidator = compiledWBFT.GovValidator.New(g.backend.Client(), TestGovValidatorAddress)
+	g.coinAdapter = compiledWBFT.CoinAdapter.New(g.backend.Client(), TestCoinAdapterAddress)
 	return g, nil
 }
 
