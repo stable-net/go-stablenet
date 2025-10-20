@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 )
 
 const (
@@ -69,14 +68,14 @@ func InitializeCoinAdatper(coinAdapterAddress common.Address, param map[string]s
 			minterAddress := common.HexToAddress(minter)
 			sp = append(sp, params.StateParam{
 				Address: coinAdapterAddress,
-				Key:     govwbft.CalculateMappingSlot(mintersSlot, minterAddress),
+				Key:     CalculateMappingSlot(mintersSlot, minterAddress),
 				Value:   common.BytesToHash([]byte{1}), // == true
 			})
 
 			if minterAllowedAmounts[i] != nil {
 				sp = append(sp, params.StateParam{
 					Address: coinAdapterAddress,
-					Key:     govwbft.CalculateMappingSlot(minterAllowedSlot, minterAddress),
+					Key:     CalculateMappingSlot(minterAllowedSlot, minterAddress),
 					Value:   common.BigToHash(minterAllowedAmounts[i]),
 				})
 			}
@@ -95,7 +94,7 @@ func InitializeCoinAdatper(coinAdapterAddress common.Address, param map[string]s
 	if !ok || len(coinName) == 0 {
 		return nil, fmt.Errorf("`systemContracts.nativeCoinAdapter.params`: missing parameter: %s", COIN_ADAPTER_PARAM_NAME)
 	}
-	for slot, value := range govwbft.EncodeBytesToSlots(common.HexToHash(SLOT_COIN_ADAPTER_NAME), []byte(coinName)) {
+	for slot, value := range EncodeBytesToSlots(common.HexToHash(SLOT_COIN_ADAPTER_NAME), []byte(coinName)) {
 		sp = append(sp, params.StateParam{
 			Address: coinAdapterAddress,
 			Key:     slot,
@@ -108,7 +107,7 @@ func InitializeCoinAdatper(coinAdapterAddress common.Address, param map[string]s
 	if !ok || len(symbol) == 0 {
 		return nil, fmt.Errorf("`systemContracts.nativeCoinAdapter.params`: missing parameter: %s", COIN_ADAPTER_PARAM_SYMBOL)
 	}
-	for slot, value := range govwbft.EncodeBytesToSlots(common.HexToHash(SLOT_COIN_ADAPTER_NAME), []byte(symbol)) {
+	for slot, value := range EncodeBytesToSlots(common.HexToHash(SLOT_COIN_ADAPTER_NAME), []byte(symbol)) {
 		sp = append(sp, params.StateParam{
 			Address: coinAdapterAddress,
 			Key:     slot,
@@ -136,7 +135,7 @@ func InitializeCoinAdatper(coinAdapterAddress common.Address, param map[string]s
 	if !ok || len(currency) == 0 {
 		return nil, fmt.Errorf("`systemContracts.nativeCoinAdapter.params`: missing parameter: %s", COIN_ADAPTER_PARAM_CURRENCY)
 	}
-	for slot, value := range govwbft.EncodeBytesToSlots(common.HexToHash(SLOT_COIN_ADAPTER_NAME), []byte(currency)) {
+	for slot, value := range EncodeBytesToSlots(common.HexToHash(SLOT_COIN_ADAPTER_NAME), []byte(currency)) {
 		sp = append(sp, params.StateParam{
 			Address: coinAdapterAddress,
 			Key:     slot,

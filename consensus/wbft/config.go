@@ -30,7 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
+	"github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/naoina/toml"
 )
 
@@ -188,7 +188,7 @@ func (c *Config) String() string {
 func GetSystemContractsStateTransition(wbftCfg *Config, num *big.Int) (*params.StateTransition, error) {
 	for _, upgrade := range wbftCfg.SystemContractUpgrades {
 		if num.Cmp(upgrade.Block) == 0 {
-			return govwbft.GetSystemContractsTransition(upgrade.SystemContracts)
+			return systemcontracts.GetSystemContractsTransition(upgrade.SystemContracts)
 		} else if num.Cmp(upgrade.Block) < 0 {
 			break
 		}

@@ -33,8 +33,9 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient/simulated"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
-	compile "github.com/ethereum/go-ethereum/wemixgov/governance-contract"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
+	sc "github.com/ethereum/go-ethereum/systemcontracts"
+
+	compile "github.com/ethereum/go-ethereum/systemcontracts/compile/compiler"
 	"github.com/status-im/keycard-go/hexutils"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +49,7 @@ var (
 )
 
 func init() {
-	compiledWBFT.Compile("../contracts-wbft/v1", "../contracts")
+	compiledWBFT.Compile("../solidity/v1", "../solidity/openzeppelin")
 }
 
 type compiledContractWBFT struct {
@@ -156,7 +157,7 @@ func NewGovWBFT(t *testing.T, customValidators []*TestCandidate, alloc types.Gen
 	g.backend.CommitWithState(&params.SystemContracts{
 		GovValidator: &params.SystemContract{
 			Address: TestGovValidatorAddress,
-			Version: govwbft.SYSTEM_CONTRACT_VERSION_1,
+			Version: sc.SYSTEM_CONTRACT_VERSION_1,
 			Params: map[string]string{
 				"members":       members,
 				"quorum":        "2",
@@ -206,13 +207,13 @@ func (g *GovWBFT) BaseProposalExpiry(contract *bind.BoundContract, sender *EOA) 
 	return result[0].(*big.Int), nil
 }
 
-func (g *GovWBFT) BaseMembers(contract *bind.BoundContract, sender *EOA, member common.Address) (govwbft.Member, error) {
+func (g *GovWBFT) BaseMembers(contract *bind.BoundContract, sender *EOA, member common.Address) (sc.Member, error) {
 	var result []interface{}
 	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "members", member)
 	if err != nil {
-		return govwbft.Member{}, err
+		return sc.Member{}, err
 	}
-	resultMember := govwbft.Member{
+	resultMember := sc.Member{
 		IsActive: *abi.ConvertType(result[0], new(bool)).(*bool),
 		JoinedAt: *abi.ConvertType(result[1], new(uint32)).(*uint32),
 	}
@@ -238,13 +239,13 @@ func (g *GovWBFT) BaseMemberVersion(contract *bind.BoundContract, sender *EOA) (
 	return result[0].(*big.Int), nil
 }
 
-func (g *GovWBFT) BaseGetProposal(contract *bind.BoundContract, sender *EOA) (govwbft.Proposal, error) {
+func (g *GovWBFT) BaseGetProposal(contract *bind.BoundContract, sender *EOA) (sc.Proposal, error) {
 	var result []interface{}
 	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "getProposal")
 	if err != nil {
-		return govwbft.Proposal{}, err
+		return sc.Proposal{}, err
 	}
-	proposal := *abi.ConvertType(result[0], new(govwbft.Proposal)).(*govwbft.Proposal)
+	proposal := *abi.ConvertType(result[0], new(sc.Proposal)).(*sc.Proposal)
 	return proposal, nil
 }
 

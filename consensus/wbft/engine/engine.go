@@ -44,8 +44,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/ethereum/go-ethereum/trie"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -556,11 +556,11 @@ func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyWBFTExtra {
 }
 
 // GetGovCandidates retrieves the list of current validators from the GovValidator contract.
-func (e *Engine) GetGovCandidates(config *params.ChainConfig, state govwbft.StateReader, num *big.Int) []common.Address {
+func (e *Engine) GetGovCandidates(config *params.ChainConfig, state systemcontracts.StateReader, num *big.Int) []common.Address {
 	systemContracts := e.cfg.GetSystemContracts(num, config)
 	govValidatorAddress := systemContracts.GovValidator.Address
 
-	return govwbft.ValidatorList(govValidatorAddress, state)
+	return systemcontracts.ValidatorList(govValidatorAddress, state)
 }
 
 type candidateInfo struct {
@@ -570,7 +570,7 @@ type candidateInfo struct {
 }
 
 // verifyHeader() must catch inconsistent seals before calling this.
-func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) (*types.EpochInfo, error) {
+func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types.Header, state systemcontracts.StateReader) (*types.EpochInfo, error) {
 	var newEpoch types.EpochInfo
 
 	config := chain.Config()
@@ -816,7 +816,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 	newEpoch.BLSPublicKeys = make([][]byte, 0)
 	for _, newVal := range newValidators {
 		addr := newEpoch.Candidates[newVal].Addr
-		pk := govwbft.GetBLSPublicKey(govValidatorAddress, state, addr)
+		pk := systemcontracts.GetBLSPublicKey(govValidatorAddress, state, addr)
 		if len(pk) == 0 {
 			log.Warn("WBFT: no BLS public key for the validator", "validator", addr)
 			// Although a specific validator's BLS key should not be missing from the GovValidator (due to potential bugs),
@@ -851,7 +851,7 @@ func (e *Engine) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 //   - epochHandler: A function that is executed when the block is an EpochBlock.
 //     It processes actions specific to the EpochBlock, which records the ValidatorList for the next Epoch,
 //     and is the last block of the (N-1)th Epoch for the (N)th Epoch.
-func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, epochHandler func(*Engine, consensus.ChainHeaderReader, *types.Header, govwbft.StateReader) error) error {
+func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, epochHandler func(*Engine, consensus.ChainHeaderReader, *types.Header, systemcontracts.StateReader) error) error {
 	if st, err := wbft.GetSystemContractsStateTransition(e.cfg, header.Number); err != nil {
 		return err
 	} else if st != nil {
@@ -1033,7 +1033,7 @@ func setExtra(h *types.Header, wbftExtra *types.WBFTExtra) error {
 	return nil
 }
 
-func writeEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) error {
+func writeEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state systemcontracts.StateReader) error {
 	if valSet, err := e.GetValidators(chain, header.Number, header.ParentHash, nil); err != nil {
 		return err
 	} else if idx, _ := valSet.GetByAddress(e.Address()); idx < 0 {
@@ -1052,7 +1052,7 @@ func writeEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Head
 // verifyEpoch is a handler that performs default actions when the block is an EpochBlock,
 // and is called during the Finalize process.
 // It validates the validity of the ValidatorList associated with the EpochBlock.
-func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state govwbft.StateReader) error {
+func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Header, state systemcontracts.StateReader) error {
 	bHeader := types.CopyHeader(header)
 	epoch, err := e.buildEpochInfo(chain, bHeader, state)
 	if err != nil {

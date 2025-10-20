@@ -28,16 +28,16 @@ pragma solidity 0.8.14;
 
 import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-import { AbstractFiatToken } from "./abstracts/AbstractFiatToken.sol";
-import { Blacklistable } from "./abstracts/Blacklistable.sol";
-import { Mintable } from "./abstracts/Mintable.sol";
+import { AbstractFiatToken } from "../abstracts/AbstractFiatToken.sol";
+import { Blacklistable } from "../abstracts/Blacklistable.sol";
+import { Mintable } from "../abstracts/Mintable.sol";
 
-import { EIP712Domain } from "./abstracts/eip/EIP712Domain.sol";
-import { EIP3009 } from "./abstracts/eip/EIP3009.sol";
-import { EIP2612 } from "./abstracts/eip/EIP2612.sol";
-import { EIP712 } from "./libraries/EIP712.sol";
+import { EIP712Domain } from "../abstracts/eip/EIP712Domain.sol";
+import { EIP3009 } from "../abstracts/eip/EIP3009.sol";
+import { EIP2612 } from "../abstracts/eip/EIP2612.sol";
+import { EIP712 } from "../libraries/EIP712.sol";
 
-import { ICoinManager } from "./interfaces/ICoinManager.sol";
+import { ICoinManager } from "../interfaces/ICoinManager.sol";
 
 /**
  * @title NativeCoinAdapter

@@ -22,19 +22,19 @@ import (
 	"fmt"
 	"path/filepath"
 
-	compile "github.com/ethereum/go-ethereum/wemixgov/governance-contract"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
+	sc "github.com/ethereum/go-ethereum/systemcontracts"
+	compile "github.com/ethereum/go-ethereum/systemcontracts/compile/compiler"
 )
 
 var (
-	rootFlag         = flag.String("root", "../contracts-wbft", "")
-	openZeppelinFlag = flag.String("openZeppelin", "../contracts", "")
+	rootFlag         = flag.String("root", "../solidity", "")
+	openZeppelinFlag = flag.String("openZeppelin", "../solidity/openzeppelin", "")
 )
 
 func main() {
 	flag.Parse()
 	root := *rootFlag
-	versions := []string{govwbft.SYSTEM_CONTRACT_VERSION_1, govwbft.SYSTEM_CONTRACT_VERSION_2}
+	versions := []string{sc.SYSTEM_CONTRACT_VERSION_1, sc.SYSTEM_CONTRACT_VERSION_2}
 	srcFiles := [][]string{
 		{ // v1
 			filepath.Join(filepath.Join(root, versions[0]), "GovValidator.sol"),
@@ -45,18 +45,17 @@ func main() {
 	}
 	contractBins := [][]string{
 		{ // v1
-			govwbft.CONTRACT_GOV_VALIDATOR,
+			sc.CONTRACT_GOV_VALIDATOR,
 		},
 		{ // v2
-			govwbft.CONTRACT_GOV_VALIDATOR,
+			sc.CONTRACT_GOV_VALIDATOR,
 		},
 	}
 	openZeppelin := *openZeppelinFlag
 
 	for i, version := range versions {
-		codeDir := filepath.Join(root, "../../governance-wbft/govcontracts/"+version)
-		if compiledContracts, err := compile.Compile(openZeppelin, srcFiles[i]...,
-		); err != nil {
+		codeDir := filepath.Join(root, "../artifacts/"+version)
+		if compiledContracts, err := compile.Compile(openZeppelin, srcFiles[i]...); err != nil {
 			panic(err)
 		} else if err := compiledContracts.ExportContractCode(codeDir, contractBins[i]); err != nil {
 			panic(err)
