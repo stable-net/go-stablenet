@@ -1,223 +1,119 @@
 ## Stable One Specification
 This is the official Go implementation of the Stable One protocol, a fork of the WEMIX 4.0 protocol(https://github.com/wemixarchive/go-wemix-wbft).
 
-### Design Philosophy
+Stable One is a Chain Protocol with a Proof-of-Authority (PoA) architecture underpinned by a BFT consensus algorithm tailored for stablecoins. Our BFT implementation leverages the WBFT engine, an enhanced version of QBFT, designed for more practical applications. (For an in-depth understanding of WBFT, please refer to: https://github.com/wemixarchive/go-wemix-wbft?tab=readme-ov-file#wbft-protocol-specification-wemix-40)
 
-## WBFT Protocol Specification (from WEMIX 4.0, and revised)
+The core innovation of the Stable One protocol lies in its ability to facilitate gas fee payments using stable tokens. To achieve this, we have implemented the following key features:
 
-WBFT(WEMIX Byzantine Fault Tolerant) is a consensus algorithm that emphasizes decentralization, adapting Istanbul BFT(https://github.com/ethereum/EIPs/issues/650) and QBFT(https://github.com/Consensys/qbft-formal-spec-and-verification) for use in public blockchains. The following improvements have been implemented:
+- Base Coin Policy for Stablecoins: A novel approach to managing the chain's native currency.
+- Comprehensive Governance System: Establishing robust oversight for validators, minters, and master minters.
+- NativeCoinAdapter: A built-in system contract enabling stablecoins to function seamlessly as ERC20 tokens.
+- Optimized Gas Fee Policy: A carefully calibrated gas fee structure designed specifically for the stablecoin ecosystem.
 
-- Adoption of DPoS(Delegated Proof of Stake): Allows anyone to participate as a validator through staking.
-- Validator selection: Chosen via randao(randomness dao) based on staking amount and validation diligence. (to do in v4.5)
-- Reward system and diligence metrics.
-- Concept of epoch: Defines a unit where the validator set changes.
-- Inclusion of consensus proof in the agreement process.
-- Apply BLS signature aggregation at the consensus proof to reduce the size of the seals.
-- Simple and fully-trustless built-in governance contract system.
-- Improved miner worker operations.
-- Enhanced block header verification.
-- Improved defences against malicious validators for more powerful byzantine tolerance.
+Furthermore, we are actively researching and developing the following advanced features:
+- High TPS for Real-World Payments: Aiming for exceptionally high transaction throughput to support everyday commercial transactions.
+- Prioritized Mempool Policy for Minters: A sophisticated mempool mechanism designed to give precedence to minter transactions.
+- Private Bank Functionality: A feature allowing users to obscure transaction amounts while maintaining transparency for financial regulatory bodies.
 
-### Terminology
-- `Staker`: A participant who stakes an amount exceeding the minimum staking threshold. Candidates for validators during an epoch.
-- `Validator`: Block validation participant(Same as Validator in IBFT). Must be a staker to become a validator.
-- `Proposer`: A block validation participant that is chosen to propose block in a consensus round(Same as Proposer in IBFT).
-- `Epoch`: The duration during which a fixed validator set remains active, represented in the number of blocks.
-- `Epoch block`: The last block of an epoch. It records cumulative diligence for all stakers and defines the validator set for the next epoch.
-- `Sequence`: Sequence number of a proposal. A sequence number should be greater than all previous sequence numbers. Currently each proposed block height is its associated sequence number(Same as Sequence in IBFT).
-- `Round`: Consensus round. A round starts with the proposer creating a block proposal and ends with a block commitment or round change(Same as Round in IBFT).
-- `Diligence`: Measures validation activity based on the total number of previous seals (previous prepare and commit seals) recorded in the epoch block during an epoch
-- `Round state`: Consensus messages of a specific sequence and round, including pre-prepare message, prepare message, and commit message(Same as Round state in IBFT).
-- `Backlog`: The storage to keep future consensus messages(Same as Backlog in IBFT).
-- `Consensus proof`: The commitment signatures of a block that can prove the block has gone through the consensus process in IBFT. Unlike IBFT, which only had commit seals, WBFT includes prepare seals and seals for previous block verification. Previous seals are part of the consensus process.
+### A Pioneering Base Coin Policy for Stablecoins
 
-Removed from IBFT
-- `Snapshot`
-- `Validator voting`
+Traditional blockchain protocols have been largely confined to a model where the base coin, used for gas fees, is pre-minted during the genesis phase. This structure often leads to a scenario where, with increasing adoption and successful DApps on the chain, the base coin's value appreciates, significantly enriching the initial genesis allocation wallet holders. This economic design, born from the powerful financial incentives of chain developers, has been widely adopted by many protocols without critical examination, often overlooking the inherent costs borne by users.
 
-### Adoption of DPoS(Delegated Proof of Stake)
-In IBFT or QBFT, new validators could be added or removed via validator set voting, which is suitable for PoA chains but not for public blockchains. WBFT allows anyone to participate as a validator through staking. By staking at least the minimum amount, one can become a staker. Stakers have the following attributes:
+When a gas token, initially low in price, gains popularity and its value soars, users are compelled to pay higher transaction fees. The volatile nature of such tokens subjects holders to constant anxiety, making it impossible to separate coin ownership from investment speculation. This describes an optimistic scenario. Conversely, if a chain fails to gain market traction, the gas token's value plummets, leading to reduced profitability and the eventual departure of validators, undermining the chain's economic viability. In either case, whether a chain flourishes or becomes a relic, user convenience is often compromised.
 
-- `Staker node address`: The nodekey address used in consensus if selected as a validator.
-- `Staker BLS public key`: The BLS public key used in verifing WBFT seal by others.
-- `Staker operator address`: The wallet address for performing stake/unstake operations.
-- `Staker rewardee address`: The address of the GovRewardee contract for receiving block rewards.
-- `Staker fee recipient`: The address for receiving fees from delegators.
-- `Staker fee rate`: The fee rate for delegators.
-- `BLS public key`: The BLS public key used in verifying WBFT seals.
-- `Staking amount`: The amount staked, which must exceed the minimum staking amount.
-- `Delegated amount`: The amount received from delegations.
+This fundamental challenge underscores the necessity of a stablecoin chain.
 
-Rules related to staking:
-- Staking/Unstaking
-  - First staking must exceed the minimum staking threshold and then it becomes a staker.
-  - No restrictions on amounts for additional staking.
-  - Staking amount is staker's own staking amount + delegated amount.
-  - Staker's own staking amount should be greater than or equal to the minimum staking threshold.
-  - When unstaking, if the remaining staking amount falls below the minimum threshold and is not zero, the unstaking will fail.  
-  - If the own staking amount reaches under minimum staking threshold by unstaking or slashing, it is removed from staker set.
-  - If a staker is removed from staker set, its remaining own staking amounts are unstaked but its delegated amounts are remained as dangling delegated.
-  - Unstaked funds can be claimed by the _staker operator address_ after the unbonding period (1 weeks).
-- Slashing (to do in v4.5)
-  - Stakers considered as malicious may be slashed, paying their some own staked amounts to WEMIX ecosystem.
-  - Funds in the unbonding state can still be slashed.
-- Delegation
-  - Anyone can delegate funds to the staker with no amount limit.
-  - Delegated amounts are credited to the recipient staker's staking amount.
-  - Undelegated funds can be claimed by the _delegator address_ after the unbonding period (72 hours).
-  - The delegation rewards are not accumulating for the dangling delegated amounts.
-  - Delegator can undelegate dangling delegated amount at any time and claim some accumulated rewards before being dangled. 
+Users desire stable and predictable transaction fees when interacting with DApps on a chain. They should be able to forecast their monthly fee expenditures based on their usage frequency. The ability to hold an easily usable base coin without concerns about price volatility is paramount. Furthermore, users should have the flexibility to redeem their stablecoins for fiat currency at any desired moment. Once a chain offers such capabilities, it opens the door for services catering to everyday individuals unfamiliar with blockchain technology – imagine seamlessly paying for a Starbucks coffee.
 
-### Validator Selection
-In WBFT, the proposer of the last block in an epoch (referred to as the epoch block) selects the validator set for the next epoch and records it in the block. Validator selection rules:
-- Stabilization stage
-  - The stabilization stage is the period from the first epoch until just before the first epoch when the number of stakers reaches the minimum(`stabilizingStakersThreshold`) required.
-  - If current epoch is in a stabilization stage and the number of stakers is below the minimum stakers in last block of an epoch, next epoch will be in a stabilization stage.
-  - An epoch in a stabilization stage has the validator set which is same to the previous epoch.
-  - The very first validator set is defined in genesis.json, and validators in the genesis block initially have a staking amount of zero.
-- After stabilization stage, validator selection follows below rules
-  - `minimum stakers <= number of stakers <= target validators`: every stakers become validators.
-  - `number of stakers > target validators`: 
-    - (in v4.0) top `target validators` stakers are selected as validators based on their staking amount.
-    - (in v4.5) validators are selected using randao, considering staking amount and diligence.
-  - `number of stakers < minimum stakers`: all remaining stakers become validators, which should not occur in a public network after stabilization stage for the sake of network security.
+While existing blockchains have launched numerous financial services under the guise of "financial innovation," their deepest ambition often remains rooted in the desire for explosive coin price surges. As long as this ambition persists, blockchain's potential for genuine, real-world utility remains constrained. It is now time for the blockchain industry to acknowledge that shedding this ambition is crucial for blockchain to truly integrate into our daily lives.
 
-Validators are selected to act as proposers in a round-robin manner and the order is _shuffled_ at every epoch.
+The Stable One protocol has adopted the following policies to utilize stablecoins as its base coin:
+- Minimal Genesis Pre-issuance: Only the minimum funds required for initial chain operation are pre-issued at genesis.
+- Dynamic Token Management: Authorized Minters can issue and burn gas tokens throughout the chain's operation.
+- Minter as Financial Oracle: Minters function as a form of oracle, verifying traditional financial systems. They are obligated to issue tokens only upon fiat currency deposits and to return fiat currency in proportion to burned tokens.
+- Inflation-Free Model: The absence of a block minting system for validator rewards ensures an inflation-free environment.
+- Regulatory Responsiveness and Stability: We have adopted a PoA structure to actively respond to government regulations and to move beyond profit-driven consortiums, fostering a more stable chain operation.
+- Transparent Token Supply: The total issuance of all gas tokens on the chain is easily auditable. (It's surprisingly remarkable that such a fundamental feature is often absent in conventional chain protocols.)
+  - This value remains constant unless mint/burn activities occur.
 
-### Randao system
-WBFT uses a randao system to select validators and to order them based on their staking amount and diligence. The randao system is designed to be secure against manipulation by validators, ensuring that the selection process is fair and transparent.
-WBFT blocks include a `RandaoReveal` fields in the extra data and use a legacy field `MixDigest` of the header as the randao mix, which is used to generate a random value for validator selection and shuffled ordering.
-- `MixDigest`: a xor value of the previous block header's `MixDigest` and the current block's `RandaoReveal`
-- `RandaoReveal`: is a ECDSA signature of the proposer on some data(chainId, hard fork version, block height) using big-endian encoding.
+### A Refined Governance System for Validators, Minters, and Master Minters
+In conventional public blockchains, token holders traditionally constituted the governance. While governance activities typically occur off-chain, the outcomes of these decisions are ultimately reflected in the chain node's code. The decentralized ethos of blockchain is indeed profound, yet its application to many existing systems of human economic activity can sometimes compromise efficiency. Particularly, when leveraging fiat currency deposit and withdrawal certifications as on-chain data, the immutable assumption is that someone must act as an oracle. While this oracle role can and should be distributed among multiple entities, it cannot be open to all participants.
 
-(Note: The randao system is implemented in v4.0, but selection of validators using randao system will be added in v4.5.)
+This forms the basis for the necessity of governance within our chain. Without compromising the decentralized philosophy of blockchain, we have introduced a minimal yet effective governance structure for stablecoins, comprising:
+- Validator Governance:
+  - This collective operates the chain nodes and acts as the miner group.
+  - They can register and remove new validators through consensus (voting).
+  - Initially, transaction fees serve as the sole source of income; however, if insufficient, mechanisms like taxation will be introduced to ensure profitability.
+  - Adopting the WBFT consensus algorithm, malicious Byzantine attacks are prevented unless more than 1/3 of the group is compromised.
+  - A single validator is constituted by three distinct components: an operator wallet used for voting and governance management, a validator key for block generation, and a BLS key for signing WBFT consensus messages.
+- Minter Governance:
+  - This group is authorized to mint and burn the base coin.
+  - They act as oracles for fiat currency deposits and withdrawals at banks.
+  - They are strictly obligated to mint coins only in proportion to the deposited fiat currency and to withdraw fiat currency equivalent to the burned amount.
+  - Minting and burning can only occur through the collective vote of all minters. (No single minter can unilaterally issue or burn tokens. However, in the future, minters following on-chain protocols like a native bridge might be able to act unilaterally.)
+  - Minter admission and departure are also determined by minter votes.
+- Master Minter Governance:
+  - From the perspective of the base coin, Minter Governance is simply one type of minter. Another potential minter could be a native bridge.
+  - The group responsible for managing the registration and removal of such base coin minters is termed Master Minter Governance.
+  - This concept mirrors the master minter role in existing FiatToken implementations.
+  - While Minter Governance membership (joining/leaving) is decided by its members' votes, the registration/removal of minters for the base coin is determined by Master Minter Governance.
 
-### Reward System and Diligence Metrics
-WBFT rewards consist of two types:
-- `Transaction Gas Fees`: Granted to the block proposer.
-- `Block Minting Rewards`: Distributed to validators proportionally to their staking power.
-  - The minting amount is defined in the WBFT configuration.
-  - After the "brioche" hard fork, block minting rewards follow a halving cycle.
+The governance system is realized through the GovValidator, GovMinter, and GovMasterMinter contracts, which are deployed by the system at genesis without an owner. Upgrades are exclusively possible through hard forks, a testament to Stable One's unwavering commitment to the philosophy of decentralization.
 
-Diligence influences validator selection directly, encouraging validators to perform their roles sincerely.
-Block minting rewards play an important role in BFT. In public network BFTs, if validators do not faithfully 
-perform block validation, round changes can occur, leading to longer block generation times. Therefore, it is necessary 
-to provide rewards for the validation role as well. However, direct coin rewards based on validation actions are avoided 
-due to potential misuse (e.g., block proposers deliberately omitting a specific validator's consensus proof). 
-Instead, validation rewards are indirectly tied to validator selection. Validators who diligently perform their 
-validation duties have a better chance of being selected and can earn greater rewards in this structure.
+### NativeCoinAdapter: Enabling ERC20 Compatibility for the Base Coin via a Built-in System Contract
+One of Stable One's most distinctive features, unparalleled in any other chain, is its NativeCoinAdapter. Historically, blockchains have maintained separate APIs for interacting with their base coin and ERC20 tokens. Many established stablecoin services are built on the premise that stablecoins will inherently possess an ERC20 interface. While the concept of using a stablecoin as a base coin is not new and has been implemented by various projects, few have earnestly considered compatibility with legacy services that rely on this ERC20 assumption.
 
-Diligence is calculated at the end of each epoch:
-- Let `e` be the number of blocks in the epoch.
-- Let `v` be the number of validators.
-- Let `w` be the number of times a validator is selected as a proposer during an epoch(including times by round change).
-- Let `p` be the total seals (prepare and commit) included in the proposed blocks by a validator.
-  - p can be equal to `2*v*w` at most. (prepare seal and commit seal for each block)
-- Let `s` be the seals submitted by the validator during the epoch.
-  - s can be equal to `2*e` at most.
-- Diligence `d = p / (2*v*w) + s / (2*e)`.
-  - The maximum value of `d` is 2.
-  - The minimum value of `d` is 0 (no proposals or seals).
-- ex) if `e=200, v=20, w=10` then `d = p / 400 + s / 400`.
+To avoid disrupting these legacy assumptions, we sought a method to transmit and query the base coin via an ERC20 interface. Our solution is to use the base coin through an ERC20 wrapper contract, which we call NativeCoinAdapter.
 
-When a proposer writes the diligence in a epoch block, it uses cumulative diligence for each staker.
+The specifications of this contract are as follows:
+- Genesis System Contract: It is a system contract deployed at genesis.
+- ERC20 Standard Compliance: The NativeCoinAdapter adheres to the ERC20 contract standard and fully supports the functionalities of FiatTokenV2_2 (https://github.com/circlefin/stablecoin-evm) implemented by Circle.
+- Base Coin Wrapper: The NativeCoinAdapter acts as an ERC20-formulated wrapper for the base coin. This concept differs from the wrapped tokens for ETH commonly found in L2 solutions.
+- Seamless Base Coin Transfer: Transfers executed via NativeCoinAdapter.transfer have the exact same effect as directly sending the base coin.
+- Comprehensive Event Logging: All base coin transfers, even those for gas fee payments, generate a NativeCoinAdapter.Transfer event.
+- Unified Balance Representation: An account's native balance and NativeCoinAdapter.balanceOf will always return identical values.
+- Direct Base Coin Reference: This wrapper contract does not utilize its own storage for balances; instead, it directly references the account's base coin balance.
+- Exclusive Mint/Burn Mechanism: The minting and burning of the base coin are exclusively performed through the mint and burn functions of the NativeCoinAdapter.
+- Allowance Management: The allowance amount for NativeCoinAdapter.approve() is stored in the contract's storage, and precompile code is used to manage the approved account's base coin usage.
+- Full ERC20 Compatibility and Traceability: Consequently, all existing ERC20 functions for stable token usage are fully compatible, with the added benefit of being able to track all base coin movements via Transfer events.
 
-Cumulative diligence `D(n) = D(n-1) * 0.9 + d(n) * 0.1`.
-- `D(n)` is the cumulative diligence until the n-th epoch.
-- `d(n)` is the diligence of the n-th epoch.
-- `D(n-1)` is the cumulative diligence until the (n-1)th epoch. If it becomes a staker at first, its `D(n-1) = 1.9` (default. 95% of the maximum value of diligence).
-  - If the default value is too low, the probability of being selected as a validator when first becoming a staker will be low. Conversely, if it is too high, it may be advantageous to become a new staker again after even minor mistakes. Therefore, an appropriate value is necessary.
+### A Gas Fee Policy Optimized for Stablecoin Environments
+Ethereum-based blockchains commonly incorporate two primary components in their transaction gas fees: base fee and priority fee. These two fees serve distinct purposes. The base fee is designed to mitigate excessive transaction requests that exceed the blockchain's capacity. It dynamically adjusts with block congestion, serving as a defense mechanism against attacks like DDoS. Reflecting this public utility, the base fee is burned by the chain rather than being paid to miners. The priority fee, conversely, is paid to miners and functions as a 'tip' for users to request faster processing of their transactions.
 
-Exception rules:
-- `w` is not counted for the first block(this may not have any previous seals).
-- In the case where it was not a validator in the previous epoch but is a validator in the current epoch:
-  - `d = p / (2*v*w) + s / (2*(e-1))`
-  - `D(n) = D(n-1) * (9*e+1)/(10*e) + d(n) * (e-1)/(10*e)`
-- In the case where it was a validator in the previous epoch but is not a validator in the current epoch:
-  - `d = p / (2*v*w) + s / 2`
-  - `D(n) = D(n-1) * (10*e-1)/(10*e) + d(n) * 1/(10*e)`
+These two fee policies necessitate modifications within a stablecoin chain. Firstly, due to the fundamental premise that stablecoins should never be burned without fiat currency redemption, the base fee cannot be incinerated. While an increased base fee, even when generated for public utility according to a defined protocol, could reasonably be paid to validators, it is not inherently irrational. In an inflation-free chain, allocating the base fee to miners might be more appropriate. Of course, there's a possibility that the base fee increase formula could be manipulated by validator collusion to be more sensitive to block congestion. However, under the assumption of a PoA consensus body, such adjustments would not be easily made if they compromise the chain's success. We have modified the existing Ethereum implementation, where the base fee began to rise when block capacity exceeded half, to now increase only when the block is nearly full (at 90%). The gradient of this increase has also been adjusted to reflect realistic usage. (Todo: Document the specific formula)
 
-### Concept of Epoch
-The WBFT configuration allows defining the size of an epoch. An epoch represents the period (in terms of block count) during which a predetermined validator set remains active. The last block of an epoch is referred to as an epoch block. The genesis block is considered an epoch block; hence, the first epoch starts from block 1. When the proposer suggests a block that is an epoch block, the following steps are performed:
+The concept of the priority fee is fundamentally misaligned with stablecoins, thus requiring a complete re-evaluation. While in traditional systems miners could freely set maxPriorityFeePerGas, Stable One replaces this with a value determined by validator governance, forcing all miners to use the collectively voted-upon value. This means validators, through consensus and voting, determine the priority fee, and once set, it applies uniformly to all miners, precluding individual maxPriorityFeePerGas settings. Users can still employ EIP-1559 dynamic fee transactions, but any value higher than the set priority fee will be disregarded, and only the mandated fee price will be deducted. Conversely, setting a value lower than the determined fee will result in transaction rejection. Therefore, providing a higher priority fee does not entitle a user to prioritized transaction processing. However, a higher priority fee can be used to replace a previously sent transaction with the same nonce. Stable One has increased the maximum block gas limit to 105,000,000, allowing for approximately 5,000 basic transaction types per block. We assume that, unlike Ethereum, transactions rarely remain in a pending state within the mempool. Given this assumption, the concept of a 'tip' for priority processing is deemed invalid. Should blocks consistently fill with 5,000 transactions, the base fee would continuously rise, leading to a decrease in demand due to increased transaction costs. Nevertheless, we will continue to explore transaction prioritization in a manner suitable for a stable chain, seeking methods to prioritize transactions from a public utility perspective rather than solely through priority fees.
 
-- Reflect the diligence shown by the current staker set during this epoch in their cumulative diligence and record it in the extra field of the block header (if an staker was not part of the validator set during this epoch, its cumulative diligence is not updated).
-- Select a new validator set and record it in the extra field:
-  - Retrieve stakers from the GovStaking contract.
-  - Select validators based on their staking power and diligence.
+### Anzeon WBFT Engine: A Tailored Evolution of WBFT for Stable One
+The Anzeon WBFT Engine is a specially adapted version of the WEMIX Byzantine Fault Tolerance (WBFT) engine, meticulously modified to suit the unique requirements of the Stable One blockchain.
 
-#### Epoch Rule:
+The original Byzantine Fault Tolerance (QBFT) engine was inherently limited to Proof-of-Authority (PoA) based systems, as validator participation was restricted to permissioned members. For WEMIX 4.0, the WBFT engine was developed as an evolution of QBFT, introducing concepts such as diligence, staking, and slashing. These additions were crucial for its application in a fully public blockchain environment. Furthermore, WBFT was designed with the versatility to facilitate a seamless transition from existing legacy consensus engines (like PoW or WEMIX 3.0's non-BFT algorithms) to the WBFT engine via a hard fork at a specific block height. The Anzeon WBFT engine refines this general-purpose WBFT for the specific context of the Stable One chain.
 
-- Genesis block is an epoch block
-- Starting from the genesis, every `EpochLength` of WBFT config is an epoch block.
-- A block defining `EpochLength` transition is an epoch block.
+Given Stable One's emphasis on public utility over pure commercial viability, a Proof-of-Authority (PoA) structure remains essential. Consequently, certain features vital for public blockchains, such as staking and diligence, are not strictly mandatory. Nevertheless, WBFT was chosen over QBFT due to its enhanced Byzantine fault tolerance and the robust framework of its built-in governance contracts. Even if not directly utilized for validator selection, the diligence mechanism can still serve as a valuable monitoring tool for assessing validator operational status.
 
-### Inclusion of Consensus Proof in the Consensus Process
-Traditional IBFT and QBFT protocols only included and stored the minimum necessary consensus proof (commit seal) collected locally by each validator for the finalized block. Since these commit seals could vary by validator, they were not part of the block hash. However, to select validators based on consensus proof, it must be included in the consensus process. The consensus proofs included in WBFT blocks are as follows:
+Let's delve into the specific modifications implemented in the Anzeon WBFT engine:
 
-- `Previous Prepare Seal`: The prepare seal for the previous block. It is included in the block hash and consensus.
-- `Previous Commit Seal`: The commit seal for the previous block. It is included in the block hash and consensus.
-- `Prepare Seal`: The prepare seal for the current block. It is included neither in the block hash nor in the consensus.
-- `Commit Seal`: The commit seal for the current block. It is included neither in the block hash nor in the consensus.
+The most significant change is the elimination of the Staking mechanism. While staking is a prerequisite for WBFT validator eligibility in a public blockchain, it has been removed from Anzeon WBFT. This decision was driven by several factors, including the contract-based nature of the validator set and the inability to introduce inflation to compensate for staking interest. The BLS key information, previously housed within GovStaking, has been migrated to GovValidator.
 
-When a validator becomes the proposer, they create the current block by combining the prepare and commit seals stored in the previous block with any additional prepare and commit messages received. These are recorded in the current block as the `Previous Prepare Seal` and `Previous Commit Seal`.
+Further changes include:
+- Removal of WPoA (WEMIX 3.0 legacy engine).
+- Elimination of Block Rewards (including the associated Brioche hard fork logic).
+- Overhaul of the Governance System:
+  - Deprecated existing contracts: GovStaking, GovConfig, GovNCP, GovRewardeeImp.
+  - Introduced new governance contracts: GovValidator, GovMinter, GovMasterMinter.
+- Transition from Croissant config to Anzeon config:
+  - The Croissant configuration could be activated via a hard fork at a specific block; the Anzeon configuration is applied from genesis.
+- Removal of specific properties: stabilizingStakersThreshold, targetValidators, and useNCP.
 
-The prepare and commit seals stored in the previous block are messages collected from peers just before the block is finalized. However, before the next block is created, the block period allows additional prepare and commit messages to be received. WBFT improves upon IBFT/QBFT by aiming to collect as many of these messages as possible, rather than stopping at just two-third.
-
-This approach incentivizes proposers to include as many previous seals as possible in the block, which enhances their diligence score. It also encourages sealers whose seals are included to improve their diligence scores.
-
-Since each seal is 65 bytes in size and seals are recorded for all validators, block headers could become excessively large. To address this issue, BLS signature aggregation is utilized to reduce the size of the seals.
-
-### Improved Miner Worker Operations
-The existing miner worker is designed to be fit to the ethash algorithm. When a new block is received, the worker starts new work and enters a loop to find the nonce. After a certain time (recommit time), it starts new work to include newly in-came transactions in the block. However, this behavior is not suitable for the IBFT algorithm. While it is correct to start work when a new block is received, starting new work at each recommit time is inefficient. Instead, it is more appropriate to start new work when a new round begins. In IBFT, there are cases where consensus fails in a round, and in such cases, a new proposer must start new work. The timing for this should be determined by a round change, not by recommit time. Therefore, in WBFT, the worker is modified to start work at the beginning of each round. The following protocol is applied:
-- When the worker receives a new block, it notifies the WBFT engine to perform the final commit (Same to IBFT).
-- The WBFT engine notifies the worker to start new work whenever a new round starts.
-- The WBFT engine waits for the block period before notifying the worker(In the existing IBFT, the block period was waited for when sealing the block).
-- When new work starts, the worker begins the process of preparing the block.
-
-### Croissant hard fork
-WBFT is not only implemented to run a WBFT chain from genesis but is also designed and implemented to enable a hard fork from a legacy chain to the WBFT chain. This hard fork is named the `Croissant` hard fork.
-You should define the Croissant hard fork in genesis.json to run a WBFT chain. Two chain configs are added for Croissant hard fork; `croissantBlock` and `croissant`.
-- `croissantBlock`: Defines the block height at which the Croissant hard fork occurs. You can set it to zero for the genesis block.
-- `croissant`: Defines the WBFT consensus configuration. It consists of three sections: `wBFT`, `init`, and `upgrades`.
-
-Setting `croissantBlock` to 0 triggers WBFT-related initialization in the genesis block when executing the `geth init` command. Conversely, if `croissantBlock` is set to 1 or greater, WBFT-related initialization occurs when the Croissant block is created and finalized.
-The Croissant hard fork protocols are as follows:
-- WBFT validator nodes just imports blocks from legacy chain miners before Croissant hard fork.
-- WBFT validator nodes supposes that legacy miners would stop block creation when it is time to create the Croissant block (i.e., they create blocks up to just before the Croissant hard fork).
-- WBFT validator nodes recognize the Croissant hard fork and can obtain the validator set from the WBFT config when it is their turn to create this block.
-- WBFT validator nodes can create blocks and proceed with consensus once they can obtain the validator set.
-- The Croissant block is a special block. Validators that receive this block perform additional tasks to deploy and initialize the governance contracts.
-- The Croissant block is the first epoch block of WBFT. Therefore, the first validator set is recorded.
-- The first epoch starts from the block after the Croissant block, during which stakers start staking from zero.
-- If the number of stakers is equal to or greater than the minimum stakers during the first epoch, these stakers become validators from the next epoch.
-- If the number of stakers is less than the minimum stakers during the first epoch, the initial validator set is maintained.
-
-#### Compatibility with Ethereum hard forks
-- Croissant hard fork includes all feature of the `London` hard fork and priors.
-- Croissant hard fork includes new evm instructions of the `Shanghai` and `Cancun` hard forks.
-  - EIP-3855 (PUSH0 opcode)
-  - EIP-3860 (Limit and meter initcode)
-  - EIP-1153 (Transient Storage)
-  - EIP-5656 (MCOPY opcode)
-  - EIP-6780 SELFDESTRUCT only in same transaction
-  - EIP-4339 (PREVRANDAO opcode)
-
-### Modified Structures
-The existing WBFT Config was revised by removing unnecessary fields and adding required ones, resulting in the following structure.
-If you want to use the WBFT consensus, you should use the following chain config in genesis.json.
+Here's a sample code snippet for the Anzeon config:
 ```
-"croissantBlock": 1000000,
-"croissant": {
-  "wBFT": {
+"anzeon": {
+  "wbft": {
     "requestTimeoutSeconds": 2,
     "blockPeriodSeconds": 1,
-    "proposerPolicy": 0,
     "epochLength": 10,
-    "blockReward": "0xde0b6b3a7640000",
-    "targetValidators": 0,
-    "maxRequestTimeoutSeconds": null,
-    "stabilizingStakersThreshold": 1,
-    "useNCP": true
+    "proposerPolicy": 0,
+    "maxRequestTimeoutSeconds": null
   },
   "init": {
     "validators": [
@@ -225,117 +121,37 @@ If you want to use the WBFT consensus, you should use the following chain config
     ],
     "blsPublicKeys": [
       "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
-    ],
-    "govContracts": {
-      "govConfig": {
-        "address": "0x0000000000000000000000000000000000001000",
-        "version": "v1",
-        "params": {
-          "changeFeeDelay": "604800",
-          "feePrecision": "10000",
-          "maximumStaking": "100000000000000000000000000",
-          "minimumStaking": "10000000000000000000000000",
-          "unbondingPeriodDelegator": "259200",
-          "unbondingPeriodStaker": "604800",
-          "govCouncil": "0x0000000000000000000000000000000000001003"
-        }
-      },
-      "govStaking": {
-        "address": "0x0000000000000000000000000000000000001001",
-        "version": "v1",
-        "params": null
-      },
-      "govRewardeeImp": {
-        "address": "0x0000000000000000000000000000000000001002",
-        "version": "v1",
-        "params": null
-      },
-      "govNCP": {
-        "address": "0x0000000000000000000000000000000000001003",
-        "version": "v1",
-        "params": {
-          "ncps": "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697"
-        }
+    ]
+  },
+  "systemContracts": {
+    "govValidator": {
+      "address": "0x0000000000000000000000000000000000001001",
+      "version": "v1",
+      "params": {
+          "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229",
+          "quorum": "1",
+          "expiry": "604800",
+          "memberVersion": "1",
+          "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+          "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
       }
     }
-  },
-  "upgrades": null
+  }
 }
 ```
-- `croissantBlock` defines the block height at which the Croissant hard fork occurs. You can set it to zero for the genesis block.
-- `croissant` defines the WBFT consensus configuration. It consists of three sections: `wBFT`, `init`, and `upgrades`.
-- `wBFT` defines the WBFT consensus engine parameters:
-- `blockRewardBeneficiary` defines the address that will receive the block minting rewards consistently.
-- `targetValidators` should be less than or equals to `epochLength`.
-- `validators` defines initial validator set. order is matter.
-- `blsPublicKeys` defines initial validator's bls key signing BFT messages. order must be same to `validators`.
-- `stabilizingStakersThreshold` defines the minimum number of stakers to quit stabilization stage. It must be greater than or equals to 1.
-- `useNCP` defines whether to use NCP system or not. If it is true, the NCP contract address must be defined in `govNCP` field.
-- `init` defines the initial state of the WBFT chain. It includes the initial validator set, BLS public keys, and the GovContracts.
-```
-type Staker struct {
-    Addr      common.Address
-    Diligence uint64
-}
-type EpochInfo struct {
-    Stakers       []*Staker
-    Validators    []uint32
-	BLSPublicKeys [][]byte
-	Stabilizing   bool 
-}
-type WBFTAggregatedSeal struct {
-	Sealers   SealerSet
-	Signature []byte
-}
-type WBFTExtra struct {
-	VanityData        []byte
-	PrevRound         uint32
-	PrevPreparedSeal  *WBFTAggregatedSeal
-	PrevCommittedSeal *WBFTAggregatedSeal
-	Round             uint32
-	PreparedSeal      *WBFTAggregatedSeal
-	CommittedSeal     *WBFTAggregatedSeal
-	EpochInfo         *EpochInfo
-}
-```
+- The init section specifies the validators that will be active from block 1 through the first epoch.
+- The systemContracts/govValidator section must define the following mandatory parameters. These values are used for the initialization of the GovValidator contract:
+  - members: The addresses of each validator's operation key.
+    - This can be either an EOA (Externally Owned Account) wallet address or a multisig contract address.
+  - validators: The addresses of each validator's validator key.
+    - This is the block signing address and corresponds to the coinbase of each block.
+  - blsPublicKeys: The BLS public key for each validator.
+    - This is used for signing WBFT consensus messages.
+- These three lists must be comma-separated, and keys at the same index across the lists collectively form a single validator.
+- It's important to note that the validator set specified in govValidator will take effect starting from the second epoch.
+  - For the first epoch, the active validators are determined not by the GovValidator's list, but by the init configuration in the genesis block. 
+  - Unless there is a specific reason otherwise, it is recommended to set the govValidator's validator set to be identical to the init configuration.
 
-### Gas Fee Policy
-While the fee policy is not strictly part of the WBFT protocol itself, this section explains the changes compared to the existing WEMIX 3.0 fee structure.
-The previous [WEMIX 3.0 fee policy](https://docs.wemix.com/en/design/eip1559) followed [EIP-1559](https://eips.ethereum.org/EIPS/eip-1559) but included the following unique WEMIX-specific rules:
-- Modified behavior of the eth_maxPriorityFeePerGas API: It returned a fixed value of 100 Gwei.
-- Custom baseFee calculation method: (Refer to the document linked above).
-- Mandatory fixed priorityFee for dynamic fee transactions: When using dynamic fees in transactions, the priorityFee had to be explicitly set to >= 100 Gwei. Otherwise, the transaction would be immediately rejected by the mempool with an error.
-
-In contrast, WEMIX 4.0 and WBFT chains adhere strictly to the original EIP-1559 standard, which is designed to foster a competitive fee market among validators, suitable for a public chain environment.
-
-Consequently:
-- The return value of the eth_maxPriorityFeePerGas API can now vary based on network conditions.
-- The baseFee calculation follows the standard EIP-1559 specification.
-- The original EIP-1559 behavior, where specifying a higher priorityFee prioritizes the transaction for inclusion in the block (mempool), has been restored.
-
-### WEMIX 4.0 features as an intermediate stage toward fully public chain(WEMIX 4.5)
-
-WEMIX 4.0 adopts an intermediate consensus method with some features disabled for a safe transition to WBFT.
-
-#### NCP
-
-Although WBFT is designed and implemented to be used as a public chain, the Wemix chain continues selecting validators from NCPs for a safer transition to a public chain as an intermediate step. NCPs are selected from the existing Wemix 3.0 NCPs and are defined by contract. They have the obligation to run (mining) nodes for maintaining WEMIX 4.0 safely. The addition/removal of NCPs is decided by voting among NCPs, so it can proceed without a separate hard fork. Anyone can know the NCP list by querying the NCP contract. The NCP system is a temporary feature used only in WEMIX 4.0 and will not be used in WEMIX 4.5.
-
-During the WEMIX 4.0 phase, the validator set selection rules are as follows:
-- Retrieve stakers from the GovStaking contract.
-- Among these stakers, nodes that are NCPs are selected for the validator set.
-- Stakers who are not NCPs are not included in the validator set.
-
-The process of obtaining the validator set at any block height is as follows (replacing the snapshot function in the existing IBFT):
-- If the current block is an epoch block, obtain the validator set from the current block.
-- If the current block is not an epoch block, traverse blocks backward from the height - 1 block to find the most recent epoch block and obtain the validator set.
-- It should meet the Croissant hard fork block or the genesis block during traversing, otherwise it is a failure.
-
-Node that NCP system is optional for use of a private chain and can be disabled by setting `useNCP` to false in the genesis.json. If it is set to false, the all stakers can be validators if the number of stakers is less than or equal to the target validators.
-
-#### Not implemented in WEMIX 4.0
-- Slashing: The NCP system is used to ensure the safety of the chain during the transition period, and the slashing mechanism is not necessary.
-- validator random selection based on staking amount and diligence.
 
 ## Building the source
 
@@ -414,40 +230,6 @@ This command will:
    as well as `geth`'s own [management APIs](https://geth.ethereum.org/docs/interacting-with-geth/rpc).
    This tool is optional and if you leave it out you can always attach it to an already running
    `geth` instance with `geth attach`.
-
-### A Full node on the Görli test network
-
-Transitioning towards developers, if you'd like to play around with creating Ethereum
-contracts, you almost certainly would like to do that without any real money involved until
-you get the hang of the entire system. In other words, instead of attaching to the main
-network, you want to join the **test** network with your node, which is fully equivalent to
-the main network, but with play-Ether only.
-
-```shell
-$ geth --goerli console
-```
-
-The `console` subcommand has the same meaning as above and is equally
-useful on the testnet too.
-
-Specifying the `--goerli` flag, however, will reconfigure your `geth` instance a bit:
-
- * Instead of connecting to the main Ethereum network, the client will connect to the Görli
-   test network, which uses different P2P bootnodes, different network IDs and genesis
-   states.
- * Instead of using the default data directory (`~/.ethereum` on Linux for example), `geth`
-   will nest itself one level deeper into a `goerli` subfolder (`~/.ethereum/goerli` on
-   Linux). Note, on OSX and Linux this also means that attaching to a running testnet node
-   requires the use of a custom endpoint since `geth attach` will try to attach to a
-   production node endpoint by default, e.g.,
-   `geth attach <datadir>/goerli/geth.ipc`. Windows users are not affected by
-   this.
-
-*Note: Although some internal protective measures prevent transactions from
-crossing over between the main network and test network, you should always
-use separate accounts for play and real money. Unless you manually move
-accounts, `geth` will by default correctly separate the two networks and will not make any
-accounts available between them.*
 
 ### Configuration
 
@@ -557,7 +339,7 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
 ```json
 {
   "config": {
-    "chainId": 1111,
+    "chainId": 8282,
     "homesteadBlock": 0,
     "eip150Block": 0,
     "eip155Block": 0,
@@ -571,18 +353,13 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
     "londonBlock": 0,
     "arrowGlacierBlock": 0,
     "grayGlacierBlock": 0,
-    "croissantBlock": 0,
-    "croissant": {
-      "wBFT": {
+    "anzeon": {
+      "wbft": {
         "requestTimeoutSeconds": 2,
         "blockPeriodSeconds": 1,
         "epochLength": 10,
-        "blockReward": "0xde0b6b3a7640000",
         "proposerPolicy": 0,
-        "targetValidators": 1,
-        "maxRequestTimeoutSeconds": null,
-        "stabilizingStakersThreshold": 1,
-        "useNCP": false
+        "maxRequestTimeoutSeconds": null
       },
       "init": {
         "validators": [
@@ -592,35 +369,24 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
           "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
         ]
       },
-      "govContracts": {
-        "govConfig": {
-          "address": "0x0000000000000000000000000000000000001000",
-          "version": "v1",
-          "params": {
-            "changeFeeDelay": "604800",
-            "feePrecision": "10000",
-            "maximumStaking": "100000000000000000000000000",
-            "minimumStaking": "10000000000000000000000000",
-            "unbondingPeriodDelegator": "259200",
-            "unbondingPeriodStaker": "604800"
-          }
-        },
-        "govStaking": {
+      "systemContracts": {
+        "govValidator": {
           "address": "0x0000000000000000000000000000000000001001",
           "version": "v1",
-          "params": null
-        },
-        "govRewardeeImp": {
-          "address": "0x0000000000000000000000000000000000001002",
-          "version": "v1",
-          "params": null
-        },
-        "govNCP": null
+          "params": {
+            "members": "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697",
+            "quorum": "1",
+            "expiry": "604800",
+            "memberVersion": "1",
+            "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+            "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
+          }
+        }
       }
     }
   },
   "nonce": "0x0",
-  "timestamp": "0x68535fb8",
+  "timestamp": "0x68c93de9",
   "extraData": "0x",
   "gasLimit": "0x47b760",
   "difficulty": "0x1",
@@ -652,8 +418,8 @@ $ genesis_generator
 
 This will help you generate genesis file by simply choosing the options it gives like below : 
 ``` shell
-Which consensus engine to use? (default = Wbft)
- 1. WBFT (wemix-byzantine-fault-tolerance)
+Which consensus engine to use? (default = Anzeon)
+ 1. Anzeon (WBFT for StableOne)
  2. Ethash (proof-of-work)
  3. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)
  4. Clique (proof-of-authority)
@@ -720,8 +486,8 @@ Note that this setting is not recommended for production.
     ```shell
    Example) 
 
-    Which consensus engine to use? (default = Wbft)
-     1. WBFT (wemix-byzantine-fault-tolerance)
+    Which consensus engine to use? (default = Anzeon)
+     1. Anzeon (WBFT for StableOne)
      2. Ethash (proof-of-work)
      3. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)
      4. Clique (proof-of-authority)
