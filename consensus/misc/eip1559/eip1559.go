@@ -61,6 +61,9 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header) *big.Int {
 	}
 
 	parentGasTarget := parent.GasLimit / config.ElasticityMultiplier()
+	if config.AnzeonEnabled() {
+		parentGasTarget = parent.GasLimit * config.GasTargetPercentage() / 100
+	}
 	// If the parent gasUsed is the same as the target, the baseFee remains unchanged.
 	if parent.GasUsed == parentGasTarget {
 		return new(big.Int).Set(parent.BaseFee)
@@ -73,23 +76,46 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header) *big.Int {
 
 	if parent.GasUsed > parentGasTarget {
 		// If the parent block used more gas than its target, the baseFee should increase.
-		// max(1, parentBaseFee * gasUsedDelta / parentGasTarget / baseFeeChangeDenominator)
+		// Anzeon: min(maxBaseFee, parentBaseFee + max(1, parentBaseFee * gasUsedDelta / parentGasTarget * baseFeeChangeRate / 100))
+		// London: parentBaseFee + max(1, parentBaseFee * gasUsedDelta / parentGasTarget / baseFeeChangeDenominator)
 		num.SetUint64(parent.GasUsed - parentGasTarget)
 		num.Mul(num, parent.BaseFee)
 		num.Div(num, denom.SetUint64(parentGasTarget))
-		num.Div(num, denom.SetUint64(config.BaseFeeChangeDenominator()))
-		baseFeeDelta := math.BigMax(num, common.Big1)
+		if config.AnzeonEnabled() {
+			num.Mul(num, denom.SetUint64(config.BaseFeeChangeRate()))
+			num.Div(num, denom.SetUint64(100))
+			baseFeeDelta := math.BigMax(num, common.Big1)
+			baseFee := num.Add(parent.BaseFee, baseFeeDelta)
 
-		return num.Add(parent.BaseFee, baseFeeDelta)
+			if baseFee.Cmp(config.MaxBaseFee()) > 0 {
+				baseFee = config.MaxBaseFee()
+			}
+			return baseFee
+		} else {
+			num.Div(num, denom.SetUint64(config.BaseFeeChangeDenominator()))
+			baseFeeDelta := math.BigMax(num, common.Big1)
+			baseFee := num.Add(parent.BaseFee, baseFeeDelta)
+
+			return baseFee
+		}
 	} else {
 		// Otherwise if the parent block used less gas than its target, the baseFee should decrease.
-		// max(0, parentBaseFee * gasUsedDelta / parentGasTarget / baseFeeChangeDenominator)
+		// Anzeon: max(minBaseFee, parentBaseFee - parentBaseFee * gasUsedDelta / parentGasTarget * baseFeeChangeRate / 100)
+		// London: max(0, parentBaseFee - parentBaseFee * gasUsedDelta / parentGasTarget / baseFeeChangeDenominator)
 		num.SetUint64(parentGasTarget - parent.GasUsed)
 		num.Mul(num, parent.BaseFee)
 		num.Div(num, denom.SetUint64(parentGasTarget))
-		num.Div(num, denom.SetUint64(config.BaseFeeChangeDenominator()))
-		baseFee := num.Sub(parent.BaseFee, num)
+		if config.AnzeonEnabled() {
+			num.Mul(num, denom.SetUint64(config.BaseFeeChangeRate()))
+			num.Div(num, denom.SetUint64(100))
+			baseFee := num.Sub(parent.BaseFee, num)
 
-		return math.BigMax(baseFee, common.Big0)
+			return math.BigMax(baseFee, config.MinBaseFee())
+		} else {
+			num.Div(num, denom.SetUint64(config.BaseFeeChangeDenominator()))
+			baseFee := num.Sub(parent.BaseFee, num)
+
+			return math.BigMax(baseFee, common.Big0)
+		}
 	}
 }

@@ -129,3 +129,31 @@ func TestCalcBaseFee(t *testing.T) {
 		}
 	}
 }
+
+// TestCalcBaseFeeForAnzeon tests base fee computation according to Anzeon fork policy adjustments.
+func TestCalcBaseFeeForAnzeon(t *testing.T) {
+	config := params.TestWBFTChainConfig
+	tests := []struct {
+		parentBaseFee   *big.Int
+		parentGasLimit  uint64
+		parentGasUsed   uint64
+		expectedBaseFee *big.Int
+	}{
+		{big.NewInt(10000000000000), 20000000, 18000000, big.NewInt(10000000000000)},    // usage == target
+		{big.NewInt(10000000000000), 20000000, 0, big.NewInt(8000000000000)},            // usage below target
+		{big.NewInt(10000000000000), 20000000, 20000000, big.NewInt(10222222222222)},    // usage above target
+		{big.NewInt(1000000000000), 20000000, 0, big.NewInt(1000000000000)},             // usage below target, but base fee hits MinBaseFee
+		{big.NewInt(990000000000000), 20000000, 20000000, big.NewInt(1000000000000000)}, // usage above target, but base fee hits MaxBaseFee
+	}
+	for i, test := range tests {
+		parent := &types.Header{
+			Number:   common.Big32,
+			GasLimit: test.parentGasLimit,
+			GasUsed:  test.parentGasUsed,
+			BaseFee:  test.parentBaseFee,
+		}
+		if have, want := CalcBaseFee(config, parent), test.expectedBaseFee; have.Cmp(want) != 0 {
+			t.Errorf("test %d: have %d  want %d, ", i, have, want)
+		}
+	}
+}

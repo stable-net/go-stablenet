@@ -1162,6 +1162,26 @@ func (c *ChainConfig) ElasticityMultiplier() uint64 {
 	return DefaultElasticityMultiplier
 }
 
+// BaseFeeChangeRate bounds the rate at which the base fee can increase or decrease per block.
+func (c *ChainConfig) BaseFeeChangeRate() uint64 {
+	return BaseFeeChangeRate
+}
+
+// GasTargetPercentage specifies the target gas usage as a percentage of the maximum block gas limit.
+func (c *ChainConfig) GasTargetPercentage() uint64 {
+	return GasTargetPercentage
+}
+
+// MinBaseFee returns the minimum allowed base fee.
+func (c *ChainConfig) MinBaseFee() *big.Int {
+	return MinBaseFee
+}
+
+// MaxBaseFee returns the maximum allowed base fee.
+func (c *ChainConfig) MaxBaseFee() *big.Int {
+	return MaxBaseFee
+}
+
 // LatestFork returns the latest time-based fork that would be active for the given time.
 func (c *ChainConfig) LatestFork(time uint64) forks.Fork {
 	// Assume last non-time-based fork has passed.
