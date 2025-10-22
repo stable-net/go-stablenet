@@ -145,6 +145,57 @@ func TestInitializeValidator(t *testing.T) {
 			expectParam: nil,
 		},
 		{
+			name: "minerTip with invalid format",
+			param: map[string]string{
+				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
+				GOV_BASE_PARAM_MEMBER_VERSION: "1",
+				GOV_VALIDATOR_PARAM_MINER_TIP: "invalid_number",
+			},
+			expectErr:   "`systemContracts.govValidator.params.minerTip`: invalid value: invalid_number",
+			expectParam: nil,
+		},
+		{
+			name: "minerTip with valid value (100 Gwei)",
+			param: map[string]string{
+				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
+				GOV_BASE_PARAM_MEMBER_VERSION: "1",
+				GOV_VALIDATOR_PARAM_MINER_TIP: "100000000000", // 100 Gwei
+			},
+			expectErr: "",
+			expectParam: []params.StateParam{
+				{ // members
+					Address: common.Address{},
+					Key:     derivedKeyHashForMembers,
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // versionedMemberList.members
+					Address: common.Address{},
+					Key:     common.HexToHash("0x2c644dcf44e265ba93879b2da89e1b16ab48fc5eb8e31bc16b0612d6da8463f1"),
+					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+				},
+				{ // versionedMemberList.length
+					Address: common.Address{},
+					Key:     common.HexToHash("0xa15bc60c955c405d20d9149c709e2460f1c2d9a497496a7f46004d1772c3054c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // memberVersion
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // blsPop
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
+				},
+				{ // minerTip
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
+					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
+				},
+			},
+		},
+		{
 			name: "1 member, 1 validator, 1 bls key",
 			param: map[string]string{
 				GOV_BASE_PARAM_MEMBERS:         sampleMemberAddress,
@@ -220,6 +271,94 @@ func TestInitializeValidator(t *testing.T) {
 					Value:   common.HexToHash("0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6f"),
 				},
 				{ // validatorToBlsKey[1] - remaining bytes of BLS key
+					Address: common.Address{},
+					Key:     common.HexToHash("0x704ccd9af691691ff31c7b42662363b6c5d56eb9d93ac624e6cceda3b8b9af78"),
+					Value:   common.HexToHash("0xbe4f4adc21e1e454bc37522eb3478b9b00000000000000000000000000000000"),
+				},
+				{ // blsKeyToValidator
+					Address: common.Address{},
+					Key:     common.HexToHash("0xbe042d13e4dc3c69d08493aab6f511fa8f0029eacc43ede3af636620ce697bc8"),
+					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+				},
+				{ // __validators.length
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000033"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+			},
+		},
+		{
+			name: "1 member, 1 validator, 1 bls key, with minerTip",
+			param: map[string]string{
+				GOV_BASE_PARAM_MEMBERS:         sampleMemberAddress,
+				GOV_BASE_PARAM_MEMBER_VERSION:  "1",
+				GOV_VALIDATOR_PARAM_VALIDATORS: sampleMemberAddress,
+				GOV_VALIDATOR_PARAM_BLS_KEYS:   sampleBlsKey,
+				GOV_VALIDATOR_PARAM_MINER_TIP:  "200000000000", // 200 Gwei
+			},
+			expectErr: "",
+			expectParam: []params.StateParam{
+				{ // members
+					Address: common.Address{},
+					Key:     derivedKeyHashForMembers,
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // versionedMemberList.members
+					Address: common.Address{},
+					Key:     common.HexToHash("0x2c644dcf44e265ba93879b2da89e1b16ab48fc5eb8e31bc16b0612d6da8463f1"),
+					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+				},
+				{ // versionedMemberList.length
+					Address: common.Address{},
+					Key:     common.HexToHash("0xa15bc60c955c405d20d9149c709e2460f1c2d9a497496a7f46004d1772c3054c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // memberVersion
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // blsPop
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
+				},
+				{ // minerTip (200 Gwei = 0x2e90edd000)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000002e90edd000"),
+				},
+				{ // __validators.index
+					Address: common.Address{},
+					Key:     common.HexToHash("0x5d156553fedc0e3ad6b77dfb4190223d769a4e8575263d506d55e35ca385ec4f"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // __validators.value(validator)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x82a75bdeeae8604d839476ae9efd8b0e15aa447e21bfd7f41283bb54e22c9a82"),
+					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+				},
+				{ // validatorToOperator
+					Address: common.Address{},
+					Key:     common.HexToHash("0x72d3e02218551170037da0841c2a16050467f113cb761dcd5ea0d4edd206e3c7"),
+					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+				},
+				{ // operatorToValidator
+					Address: common.Address{},
+					Key:     common.HexToHash("0xb47b937a548fdbc8eeb6153348801b91dd067e9110633c5d95d8fde2c500b131"),
+					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+				},
+				{ // validatorToBlsKey.length | 0x01
+					Address: common.Address{},
+					Key:     common.HexToHash("0x3de6e5bb5ca8d1f2605fc1b641bad3e8725ac54e8e7ef4222ef9361a93df8491"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000061"),
+				},
+				{ // validatorToBlsKey
+					Address: common.Address{},
+					Key:     common.HexToHash("0x704ccd9af691691ff31c7b42662363b6c5d56eb9d93ac624e6cceda3b8b9af77"),
+					Value:   common.HexToHash("0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6f"),
+				},
+				{ // validatorToBlsKey
 					Address: common.Address{},
 					Key:     common.HexToHash("0x704ccd9af691691ff31c7b42662363b6c5d56eb9d93ac624e6cceda3b8b9af78"),
 					Value:   common.HexToHash("0xbe4f4adc21e1e454bc37522eb3478b9b00000000000000000000000000000000"),

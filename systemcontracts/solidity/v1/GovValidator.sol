@@ -34,6 +34,7 @@ contract GovValidator is GovBase {
     error AlreadyRegisteredBlsKey();
     error FailedToVerifyBlsKey();
     error InvalidBlsKey();
+    error InvalidMinerTip();
 
     // 0x0 ~ 0x31: reserved for GovBase
     address public blsPoP; // 0x32; Precompiled contract address for BLS PoP verification
@@ -42,6 +43,7 @@ contract GovValidator is GovBase {
     mapping(address => address) public operatorToValidator; // 0x36
     mapping(address => bytes) public validatorToBlsKey; // 0x37
     mapping(bytes => address) public blsKeyToValidator; // 0x38
+    uint256 public minerTip; // 0x39; Minimum miner tip in wei (e.g., 100 Gwei = 100000000000)
 
     function isValidator(address _validator) external view returns (bool) {
         return __validators.contains(_validator);
@@ -160,5 +162,31 @@ contract GovValidator is GovBase {
         if (!abi.decode(_result, (bool))) {
             revert InvalidBlsKey();
         }
+    }
+
+    // ========== Events ==========
+    event MinerTipUpdated(uint256 oldTip, uint256 newTip, address indexed updater);
+
+    // ========== Fee Policy Management ==========
+    function proposeMinerTip(uint256 _newTip) 
+        external 
+        onlyMember 
+        noActiveProposal 
+        returns (uint256) 
+    {
+        if (_newTip == 0) revert InvalidMinerTip();
+        bytes4 _selector = this.setMinerTip.selector;
+        bytes memory _encodedParams = abi.encode(_newTip);
+        return _createProposal(keccak256("SET_MINER_TIP"), abi.encodePacked(_selector, _encodedParams));
+    }
+
+    function setMinerTip(uint256 _newTip) external onlyMe {
+        uint256 oldTip = minerTip;
+        minerTip = _newTip;
+        emit MinerTipUpdated(oldTip, _newTip, msg.sender);
+    }
+
+    function getMinerTipGwei() external view returns (uint256) {
+        return minerTip / 1e9;
     }
 }

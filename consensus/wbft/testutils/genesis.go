@@ -150,7 +150,7 @@ func setWBFTExtra(genesis *core.Genesis, validators []common.Address, blsPublicK
 		PreparedSeal:  &types.WBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
 		CommittedSeal: &types.WBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
 		EpochInfo:     epochInfo,
-		GovTip:        big.NewInt(100 * params.GWei),
+		MinerTip:      big.NewInt(100 * params.GWei),
 	}
 
 	if withPrev {

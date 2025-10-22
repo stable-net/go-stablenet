@@ -521,7 +521,7 @@ func testStatusFunctions(t *testing.T, client *rpc.Client) {
 
 	// SuggestGasTipCap
 	// Note: Returns the configured miner gas price (100 GWei)
-	// This value is set in miner.DefaultConfig.GasPrice and applied as GovTip
+	// This value is set in miner.DefaultConfig.GasPrice and applied as MinerTip
 	gasTipCap, err := ec.SuggestGasTipCap(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

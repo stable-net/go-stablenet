@@ -104,7 +104,7 @@ func (tx *LegacyTx) value() *big.Int        { return tx.Value }
 func (tx *LegacyTx) nonce() uint64          { return tx.Nonce }
 func (tx *LegacyTx) to() *common.Address    { return tx.To }
 
-func (tx *LegacyTx) effectiveGasPrice(dst *big.Int, baseFee, govTip *big.Int) *big.Int {
+func (tx *LegacyTx) effectiveGasPrice(dst *big.Int, baseFee, minerTip *big.Int) *big.Int {
 	return dst.Set(tx.GasPrice)
 }
 

@@ -76,7 +76,7 @@ func TestExtractToWBFTExtra(t *testing.T) {
 				Round:             0,
 				PreparedSeal:      nil,
 				CommittedSeal:     nil,
-				GovTip:            common.Big0,
+				MinerTip:          common.Big0,
 			},
 			nil,
 		},
@@ -112,7 +112,7 @@ func TestGenerateExtra(t *testing.T) {
 		Round:             0,
 		PreparedSeal:      nil,
 		CommittedSeal:     nil,
-		GovTip:            common.Big0,
+		MinerTip:          common.Big0,
 	}
 
 	b, _ := rlp.EncodeToBytes(sampleExtra)

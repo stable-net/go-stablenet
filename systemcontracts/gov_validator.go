@@ -31,6 +31,7 @@ import (
 const (
 	GOV_VALIDATOR_PARAM_VALIDATORS = "validators"
 	GOV_VALIDATOR_PARAM_BLS_KEYS   = "blsPublicKeys"
+	GOV_VALIDATOR_PARAM_MINER_TIP  = "minerTip"
 
 	SLOT_VALIDATOR_blsPop              = "0x32"
 	SLOT_VALIDATOR_validators          = "0x33"
@@ -38,6 +39,7 @@ const (
 	SLOT_VALIDATOR_operatorToValidator = "0x36"
 	SLOT_VALIDATOR_validatorToBlsKey   = "0x37"
 	SLOT_VALIDATOR_blsKeyToValidator   = "0x38"
+	SLOT_VALIDATOR_minerTip            = "0x39"
 )
 
 type blsWrapper struct {
@@ -59,6 +61,21 @@ func initializeValidator(govValidatorAddress common.Address, param map[string]st
 			Key:     common.HexToHash(SLOT_VALIDATOR_blsPop),
 			Value:   common.BytesToHash(params.BLSPoPPrecompileAddress.Bytes())},
 	)
+
+	// Initialize minerTip if provided
+	if minerTipStr, ok := param[GOV_VALIDATOR_PARAM_MINER_TIP]; ok {
+		minerTip, ok := new(big.Int).SetString(minerTipStr, 10)
+		if !ok {
+			return nil, fmt.Errorf("`systemContracts.govValidator.params.minerTip`: invalid value: %s", minerTipStr)
+		}
+		sp = append(sp,
+			params.StateParam{
+				Address: govValidatorAddress,
+				Key:     common.HexToHash(SLOT_VALIDATOR_minerTip),
+				Value:   common.BigToHash(minerTip),
+			},
+		)
+	}
 
 	if valStr, ok := param[GOV_VALIDATOR_PARAM_VALIDATORS]; ok {
 		if _, ok2 := param[GOV_VALIDATOR_PARAM_BLS_KEYS]; !ok2 {

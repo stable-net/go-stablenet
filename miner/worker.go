@@ -309,11 +309,11 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		worker.simSyncer = newSimSyncer(worker)
 	}
 
-	// apply governance-defined tip (GovTip) to the WBFT engine
+	// apply governance-defined tip (MinerTip) to the WBFT engine
 	if wbftEngine, ok := worker.engine.(*wbftBackend.Backend); ok && worker.config.GasPrice != nil {
-		if res := wbftEngine.CallEngineSpecific("SetGovTip", worker.config.GasPrice); res != nil {
+		if res := wbftEngine.CallEngineSpecific("SetMinerTip", worker.config.GasPrice); res != nil {
 			if err, ok := res.(error); ok {
-				log.Warn("failed to set GovTip via CallEngineSpecific", "err", err)
+				log.Warn("failed to set MinerTip via CallEngineSpecific", "err", err)
 			}
 		}
 	}
@@ -359,11 +359,11 @@ func (w *worker) setGasTip(tip *big.Int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.tip = uint256.MustFromBig(tip)
-	// apply governance-defined tip (GovTip) to the WBFT engine
+	// apply governance-defined tip (MinerTip) to the WBFT engine
 	if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
-		if res := wbftEngine.CallEngineSpecific("SetGovTip", tip); res != nil {
+		if res := wbftEngine.CallEngineSpecific("SetMinerTip", tip); res != nil {
 			if err, ok := res.(error); ok {
-				log.Warn("failed to set new GovTip via CallEngineSpecific", "err", err)
+				log.Warn("failed to set new MinerTip via CallEngineSpecific", "err", err)
 			}
 		}
 	}
@@ -1404,7 +1404,7 @@ func copyReceipts(receipts []*types.Receipt) []*types.Receipt {
 func totalFees(block *types.Block, receipts []*types.Receipt) *big.Int {
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
-		minerFee := tx.EffectiveGasPrice(new(big.Int), block.BaseFee(), block.Header().GovTip())
+		minerFee := tx.EffectiveGasPrice(new(big.Int), block.BaseFee(), block.Header().MinerTip())
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
 	}
 	return feesWei

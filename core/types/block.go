@@ -108,12 +108,12 @@ type headerMarshaling struct {
 	Hash       common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 }
 
-func (h *Header) GovTip() *big.Int {
+func (h *Header) MinerTip() *big.Int {
 	currentExtra, err := ExtractWBFTExtra(h)
 	if err != nil {
 		return nil
 	}
-	return currentExtra.GovTip
+	return currentExtra.MinerTip
 }
 
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
