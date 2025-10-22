@@ -44,6 +44,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
+	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 	"github.com/holiman/uint256"
 )
 
@@ -309,9 +310,30 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		worker.simSyncer = newSimSyncer(worker)
 	}
 
+	// Initialize tip from GovValidator contract if available
+	if chainConfig.Anzeon != nil && chainConfig.Anzeon.SystemContracts != nil {
+		if chainConfig.Anzeon.SystemContracts.GovValidator != nil {
+			header := eth.BlockChain().CurrentHeader()
+			if header != nil {
+				state, err := eth.BlockChain().StateAt(header.Root)
+				if err == nil {
+					govValidatorAddr := chainConfig.Anzeon.SystemContracts.GovValidator.Address
+					minerTip := govwbft.GetMinerTip(govValidatorAddr, state)
+					if minerTip != nil && minerTip.Sign() > 0 {
+						worker.tip = uint256.MustFromBig(minerTip)
+						log.Info("Initialized minerTip from GovValidator contract",
+							"minerTip", minerTip,
+							"minerTipGwei", new(big.Int).Div(minerTip, big.NewInt(1e9)))
+					}
+				}
+			}
+		}
+	}
+
 	// apply governance-defined tip (MinerTip) to the WBFT engine
-	if wbftEngine, ok := worker.engine.(*wbftBackend.Backend); ok && worker.config.GasPrice != nil {
-		if res := wbftEngine.CallEngineSpecific("SetMinerTip", worker.config.GasPrice); res != nil {
+	if wbftEngine, ok := worker.engine.(*wbftBackend.Backend); ok {
+		initialTip := worker.tip.ToBig()
+		if res := wbftEngine.CallEngineSpecific("SetMinerTip", initialTip); res != nil {
 			if err, ok := res.(error); ok {
 				log.Warn("failed to set MinerTip via CallEngineSpecific", "err", err)
 			}
@@ -367,6 +389,12 @@ func (w *worker) setGasTip(tip *big.Int) {
 			}
 		}
 	}
+}
+
+func (w *worker) getGasTip() *big.Int {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.tip.ToBig()
 }
 
 // setRecommitInterval updates the interval for miner sealing work recommitting.
@@ -1160,6 +1188,47 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	return env, nil
 }
 
+// updateMinerTipFromContract reads the current minerTip from GovValidator contract
+// and updates the worker's tip accordingly.
+func (w *worker) updateMinerTipFromContract(env *environment) {
+	// Only update if WBFT is enabled
+	if w.chainConfig.Anzeon == nil || w.chainConfig.Anzeon.SystemContracts == nil {
+		return
+	}
+
+	// Get GovValidator address from system contracts
+	systemContracts := w.chainConfig.Anzeon.SystemContracts
+	if systemContracts.GovValidator == nil {
+		return
+	}
+	govValidatorAddr := systemContracts.GovValidator.Address
+
+	// Read minerTip from contract storage
+	minerTip := govwbft.GetMinerTip(govValidatorAddr, env.state)
+	if minerTip != nil && minerTip.Sign() > 0 {
+		// Update worker's tip
+		w.mu.Lock()
+		oldTip := w.tip.ToBig()
+		w.tip = uint256.MustFromBig(minerTip)
+		w.mu.Unlock()
+
+		// If tip changed, notify WBFT engine
+		if oldTip.Cmp(minerTip) != 0 {
+			if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
+				if res := wbftEngine.CallEngineSpecific("SetMinerTip", minerTip); res != nil {
+					if err, ok := res.(error); ok {
+						log.Warn("failed to set new MinerTip via CallEngineSpecific", "err", err)
+					}
+				}
+			}
+			log.Info("Updated minerTip from GovValidator contract",
+				"oldTip", oldTip,
+				"newTip", minerTip,
+				"newTipGwei", new(big.Int).Div(minerTip, big.NewInt(1e9)))
+		}
+	}
+}
+
 // fillTransactions retrieves the pending transactions from the txpool and fills them
 // into the given sealing block. The transaction selection and ordering strategy can
 // be customized with the plugin in the future.
@@ -1226,7 +1295,11 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 	}
 	defer work.discard()
 
+	// Update minerTip from GovValidator contract before filling transactions
+	w.updateMinerTipFromContract(work)
+
 	if !params.noTxs {
+
 		interrupt := new(atomic.Int32)
 		timer := time.AfterFunc(w.newpayloadTimeout, func() {
 			interrupt.Store(commitInterruptTimeout)
@@ -1275,6 +1348,10 @@ func (w *worker) commitWork(interrupt *atomic.Int32, timestamp int64) {
 		log.Error("Fail to prepare work", "err", err)
 		return
 	}
+
+	// Update minerTip from GovValidator contract before filling transactions
+	w.updateMinerTipFromContract(work)
+
 	// Fill pending transactions from the txpool into the block.
 	err = w.fillTransactions(interrupt, work)
 	switch {

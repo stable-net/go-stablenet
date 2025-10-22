@@ -269,6 +269,11 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		eth.miner.SetEtherbase(eth.etherbase)
 	}
 
+	// Update config.Miner.GasPrice and eth.gasPrice with the actual value from worker (initialized from GovValidator contract)
+	actualGasTip := eth.miner.GetGasTip()
+	config.Miner.GasPrice = actualGasTip
+	eth.gasPrice = actualGasTip
+
 	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, eth, nil}
 	if eth.APIBackend.allowUnprotectedTxs {
 		log.Info("Unprotected transactions allowed")
@@ -437,10 +442,8 @@ func (s *Ethereum) SetEtherbase(etherbase common.Address) {
 func (s *Ethereum) StartMining() error {
 	// If the miner was not running, initialize it
 	if !s.IsMining() {
-		// Propagate the initial price point to the transaction pool
-		s.lock.RLock()
-		price := s.gasPrice
-		s.lock.RUnlock()
+		// Propagate the current gas tip from miner (which reads from GovValidator contract) to the transaction pool
+		price := s.miner.GetGasTip()
 		s.txPool.SetGasTip(price)
 
 		// Configure the local mining address

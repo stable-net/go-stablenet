@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -434,8 +433,8 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 			utils.Fatalf("Ethereum service not running")
 		}
 
-		// DISABLED: Use default gas price instead of CLI flag - miner.gasprice flag is disabled
-		gasprice := ethconfig.Defaults.Miner.GasPrice
+		// Get current gas tip from miner (which reads from GovValidator contract)
+		gasprice := ethBackend.Miner().GetGasTip()
 		ethBackend.TxPool().SetGasTip(gasprice)
 		if err := ethBackend.StartMining(); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)

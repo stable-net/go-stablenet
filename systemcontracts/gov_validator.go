@@ -202,3 +202,8 @@ func ValidatorList(govValidatorAddress common.Address, state StateReader) []comm
 func GetBLSPublicKey(govValidatorAddress common.Address, state StateReader, val common.Address) []byte {
 	return GetBytes(state, govValidatorAddress, CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_validatorToBlsKey), val))
 }
+
+func GetMinerTip(govValidatorAddress common.Address, state StateReader) *big.Int {
+	value := state.GetState(govValidatorAddress, common.HexToHash(SLOT_VALIDATOR_minerTip))
+	return value.Big()
+}
