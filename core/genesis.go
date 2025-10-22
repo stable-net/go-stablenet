@@ -462,11 +462,16 @@ func (g *Genesis) ToBlock() *types.Block {
 	if g.Difficulty == nil && g.Mixhash == (common.Hash{}) {
 		head.Difficulty = params.GenesisDifficulty
 	}
-	if g.Config != nil && g.Config.IsLondon(common.Big0) {
-		if g.BaseFee != nil {
-			head.BaseFee = g.BaseFee
-		} else {
-			head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
+	if conf := g.Config; conf != nil {
+		switch {
+		case conf.AnzeonEnabled():
+			head.BaseFee = params.MinBaseFee
+		case conf.IsLondon(common.Big0):
+			if g.BaseFee != nil {
+				head.BaseFee = g.BaseFee
+			} else {
+				head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
+			}
 		}
 	}
 	var withdrawals []*types.Withdrawal
