@@ -320,7 +320,8 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 					govValidatorAddr := chainConfig.Anzeon.SystemContracts.GovValidator.Address
 					minerTip := govwbft.GetMinerTip(govValidatorAddr, state)
 					if minerTip != nil && minerTip.Sign() > 0 {
-						worker.tip = uint256.MustFromBig(minerTip)
+						// Set worker.tip and txPool during initialization (notifyEngine=false before goroutines start)
+						worker.setGasTip(minerTip, false)
 						log.Info("Initialized minerTip from GovValidator contract",
 							"minerTip", minerTip,
 							"minerTipGwei", new(big.Int).Div(minerTip, big.NewInt(1e9)))
@@ -330,22 +331,11 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		}
 	}
 
-	// apply governance-defined tip (MinerTip) to the WBFT engine
-	if wbftEngine, ok := worker.engine.(*wbftBackend.Backend); ok {
-		initialTip := worker.tip.ToBig()
-		if res := wbftEngine.CallEngineSpecific("SetMinerTip", initialTip); res != nil {
-			if err, ok := res.(error); ok {
-				log.Warn("failed to set MinerTip via CallEngineSpecific", "err", err)
-			}
-		}
-	}
-
 	worker.wg.Add(4)
 	go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
 	go worker.resultLoop()
 	go worker.taskLoop()
-
 	return worker
 }
 
@@ -377,18 +367,31 @@ func (w *worker) setExtra(extra []byte) {
 }
 
 // setGasTip sets the minimum miner tip needed to include a non-local transaction.
-func (w *worker) setGasTip(tip *big.Int) {
+// If notifyEngine is true, it will also notify the WBFT engine.
+// Returns true if the tip was changed.
+func (w *worker) setGasTip(tip *big.Int, notifyEngine bool) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.tip = uint256.MustFromBig(tip)
-	// apply governance-defined tip (MinerTip) to the WBFT engine
-	if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
-		if res := wbftEngine.CallEngineSpecific("SetMinerTip", tip); res != nil {
-			if err, ok := res.(error); ok {
-				log.Warn("failed to set new MinerTip via CallEngineSpecific", "err", err)
+
+	// Apply governance-defined tip (MinerTip) to the WBFT engine first if requested
+	// If this fails, we should not update worker.tip or txPool to maintain consistency
+	if notifyEngine {
+		if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
+			if res := wbftEngine.CallEngineSpecific("SetMinerTip", tip); res != nil {
+				if err, ok := res.(error); ok {
+					log.Warn("failed to set new MinerTip via CallEngineSpecific", "err", err)
+					return false // Don't update if WBFT engine failed
+				}
 			}
 		}
 	}
+
+	w.tip = uint256.MustFromBig(tip)
+
+	// Update txPool's gas tip to filter pending transactions accordingly
+	w.eth.TxPool().SetGasTip(tip)
+
+	return true
 }
 
 func (w *worker) getGasTip() *big.Int {
@@ -1206,25 +1209,9 @@ func (w *worker) updateMinerTipFromContract(env *environment) {
 	// Read minerTip from contract storage
 	minerTip := govwbft.GetMinerTip(govValidatorAddr, env.state)
 	if minerTip != nil && minerTip.Sign() > 0 {
-		// Update worker's tip
-		w.mu.Lock()
-		oldTip := w.tip.ToBig()
-		w.tip = uint256.MustFromBig(minerTip)
-		w.mu.Unlock()
-
-		// If tip changed, notify WBFT engine
-		if oldTip.Cmp(minerTip) != 0 {
-			if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
-				if res := wbftEngine.CallEngineSpecific("SetMinerTip", minerTip); res != nil {
-					if err, ok := res.(error); ok {
-						log.Warn("failed to set new MinerTip via CallEngineSpecific", "err", err)
-					}
-				}
-			}
-			log.Info("Updated minerTip from GovValidator contract",
-				"oldTip", oldTip,
-				"newTip", minerTip,
-				"newTipGwei", new(big.Int).Div(minerTip, big.NewInt(1e9)))
+		// setGasTip checks if changed and updates accordingly (with WBFT engine notification)
+		if w.setGasTip(minerTip, true) {
+			log.Info("Updated minerTip from GovValidator contract", "newTip", minerTip)
 		}
 	}
 }

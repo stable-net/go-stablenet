@@ -211,11 +211,6 @@ func (miner *Miner) SetExtra(extra []byte) error {
 	return nil
 }
 
-func (miner *Miner) SetGasTip(tip *big.Int) error {
-	miner.worker.setGasTip(tip)
-	return nil
-}
-
 func (miner *Miner) GetGasTip() *big.Int {
 	return miner.worker.getGasTip()
 }
