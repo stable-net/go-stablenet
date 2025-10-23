@@ -1174,12 +1174,12 @@ func (c *ChainConfig) GasTargetPercentage() uint64 {
 
 // MinBaseFee returns the minimum allowed base fee.
 func (c *ChainConfig) MinBaseFee() *big.Int {
-	return MinBaseFee
+	return new(big.Int).SetUint64(MinBaseFee)
 }
 
 // MaxBaseFee returns the maximum allowed base fee.
 func (c *ChainConfig) MaxBaseFee() *big.Int {
-	return MaxBaseFee
+	return new(big.Int).SetUint64(MaxBaseFee)
 }
 
 // LatestFork returns the latest time-based fork that would be active for the given time.

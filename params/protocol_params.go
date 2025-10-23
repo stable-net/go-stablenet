@@ -128,8 +128,10 @@ const (
 	DefaultElasticityMultiplier     = 2          // Bounds the maximum gas limit an EIP-1559 block may have.
 	InitialBaseFee                  = 1000000000 // Initial base fee for EIP-1559 blocks.
 
-	GasTargetPercentage uint64 = 90 // Target gas usage as a percentage of the maximum gas limit
-	BaseFeeChangeRate   uint64 = 20 // Percentage rate by which the base fee can change
+	GasTargetPercentage uint64 = 90               // Target gas usage as a percentage of the maximum gas limit
+	BaseFeeChangeRate   uint64 = 20               // Percentage rate by which the base fee can change
+	MinBaseFee          uint64 = 1000000000000    // Minimum base fee allowed
+	MaxBaseFee          uint64 = 1000000000000000 // Maximum base fee allowed
 
 	MaxCodeSize     = 253952          // WEMIX Maximum bytecode to permit for a contract
 	MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions

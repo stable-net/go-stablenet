@@ -465,7 +465,7 @@ func (g *Genesis) ToBlock() *types.Block {
 	if conf := g.Config; conf != nil {
 		switch {
 		case conf.AnzeonEnabled():
-			head.BaseFee = params.MinBaseFee
+			head.BaseFee = new(big.Int).SetUint64(params.MinBaseFee)
 		case conf.IsLondon(common.Big0):
 			if g.BaseFee != nil {
 				head.BaseFee = g.BaseFee
