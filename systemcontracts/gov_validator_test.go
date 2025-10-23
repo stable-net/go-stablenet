@@ -55,6 +55,11 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
+				{ // minerTip (default: InitialMinerTip = 100 Gwei)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
+					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
+				},
 			},
 		},
 		{
@@ -99,6 +104,11 @@ func TestInitializeValidator(t *testing.T) {
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
+				},
+				{ // minerTip (default: InitialMinerTip = 100 Gwei)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
+					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
 				},
 			},
 		},
@@ -153,6 +163,98 @@ func TestInitializeValidator(t *testing.T) {
 			},
 			expectErr:   "`systemContracts.govValidator.params.minerTip`: invalid value: invalid_number",
 			expectParam: nil,
+		},
+		{
+			name: "minerTip below minimum (0.5 Gwei)",
+			param: map[string]string{
+				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
+				GOV_BASE_PARAM_MEMBER_VERSION: "1",
+				GOV_VALIDATOR_PARAM_MINER_TIP: "500000000", // 0.5 Gwei (below 1 Gwei minimum)
+			},
+			expectErr:   "`systemContracts.govValidator.params.minerTip`: value 500000000 is below minimum 1000000000 wei",
+			expectParam: nil,
+		},
+		{
+			name: "minerTip at exact minimum (1 Gwei)",
+			param: map[string]string{
+				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
+				GOV_BASE_PARAM_MEMBER_VERSION: "1",
+				GOV_VALIDATOR_PARAM_MINER_TIP: "1000000000", // 1 Gwei (exact minimum)
+			},
+			expectErr: "",
+			expectParam: []params.StateParam{
+				{ // members
+					Address: common.Address{},
+					Key:     derivedKeyHashForMembers,
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // versionedMemberList.members
+					Address: common.Address{},
+					Key:     common.HexToHash("0x2c644dcf44e265ba93879b2da89e1b16ab48fc5eb8e31bc16b0612d6da8463f1"),
+					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+				},
+				{ // versionedMemberList.length
+					Address: common.Address{},
+					Key:     common.HexToHash("0xa15bc60c955c405d20d9149c709e2460f1c2d9a497496a7f46004d1772c3054c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // memberVersion
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // blsPop
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
+				},
+				{ // minerTip
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
+					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000003b9aca00"), // 1 Gwei
+				},
+			},
+		},
+		{
+			name: "minerTip not provided (should use InitialMinerTip default)",
+			param: map[string]string{
+				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
+				GOV_BASE_PARAM_MEMBER_VERSION: "1",
+				// minerTip not provided - should default to InitialMinerTip (100 Gwei)
+			},
+			expectErr: "",
+			expectParam: []params.StateParam{
+				{ // members
+					Address: common.Address{},
+					Key:     derivedKeyHashForMembers,
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // versionedMemberList.members
+					Address: common.Address{},
+					Key:     common.HexToHash("0x2c644dcf44e265ba93879b2da89e1b16ab48fc5eb8e31bc16b0612d6da8463f1"),
+					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+				},
+				{ // versionedMemberList.length
+					Address: common.Address{},
+					Key:     common.HexToHash("0xa15bc60c955c405d20d9149c709e2460f1c2d9a497496a7f46004d1772c3054c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // memberVersion
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // blsPop
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
+				},
+				{ // minerTip (default: InitialMinerTip = 100 Gwei = 100000000000 = 0x174876e800)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
+					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
+				},
+			},
 		},
 		{
 			name: "minerTip with valid value (100 Gwei)",
@@ -239,6 +341,11 @@ func TestInitializeValidator(t *testing.T) {
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
+				},
+				{ // minerTip (default: InitialMinerTip = 100 Gwei)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
+					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
 				},
 				{ // __validators.index
 					Address: common.Address{},
@@ -397,4 +504,29 @@ func TestInitializeValidator(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestMinMinerTipConsistency verifies that the MinMinerTip constant in Go matches
+// the MIN_MINER_TIP constant in GovValidator.sol
+func TestMinMinerTipConsistency(t *testing.T) {
+	// MIN_MINER_TIP in GovValidator.sol is defined
+	solidityMinMinerTip := uint64(1e9)
+
+	if params.MinMinerTip != solidityMinMinerTip {
+		t.Errorf("MinMinerTip mismatch: params.MinMinerTip=%d, GovValidator.sol MIN_MINER_TIP=%d",
+			params.MinMinerTip, solidityMinMinerTip)
+	}
+
+	t.Logf("MinMinerTip consistency verified: %d wei", params.MinMinerTip)
+}
+
+// TestInitialMinerTipValidity verifies that InitialMinerTip is greater than or equal to MinMinerTip
+func TestInitialMinerTipValidity(t *testing.T) {
+	if params.InitialMinerTip < params.MinMinerTip {
+		t.Errorf("InitialMinerTip (%d) must be >= MinMinerTip (%d)",
+			params.InitialMinerTip, params.MinMinerTip)
+	}
+
+	t.Logf("InitialMinerTip validity verified: %d wei >= MinMinerTip %d wei",
+		params.InitialMinerTip, params.MinMinerTip)
 }

@@ -310,27 +310,6 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		worker.simSyncer = newSimSyncer(worker)
 	}
 
-	// Initialize tip from GovValidator contract if available
-	if chainConfig.Anzeon != nil && chainConfig.Anzeon.SystemContracts != nil {
-		if chainConfig.Anzeon.SystemContracts.GovValidator != nil {
-			header := eth.BlockChain().CurrentHeader()
-			if header != nil {
-				state, err := eth.BlockChain().StateAt(header.Root)
-				if err == nil {
-					govValidatorAddr := chainConfig.Anzeon.SystemContracts.GovValidator.Address
-					minerTip := govwbft.GetMinerTip(govValidatorAddr, state)
-					if minerTip != nil && minerTip.Sign() > 0 {
-						// Set worker.tip and txPool during initialization (notifyEngine=false before goroutines start)
-						worker.setGasTip(minerTip, false)
-						log.Info("Initialized minerTip from GovValidator contract",
-							"minerTip", minerTip,
-							"minerTipGwei", new(big.Int).Div(minerTip, big.NewInt(1e9)))
-					}
-				}
-			}
-		}
-	}
-
 	worker.wg.Add(4)
 	go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
@@ -367,21 +346,18 @@ func (w *worker) setExtra(extra []byte) {
 }
 
 // setGasTip sets the minimum miner tip needed to include a non-local transaction.
-// If notifyEngine is true, it will also notify the WBFT engine.
 // Returns true if the tip was changed.
-func (w *worker) setGasTip(tip *big.Int, notifyEngine bool) bool {
+func (w *worker) setGasTip(tip *big.Int) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	// Apply governance-defined tip (MinerTip) to the WBFT engine first if requested
+	// Apply governance-defined tip (MinerTip) to the WBFT engine
 	// If this fails, we should not update worker.tip or txPool to maintain consistency
-	if notifyEngine {
-		if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
-			if res := wbftEngine.CallEngineSpecific("SetMinerTip", tip); res != nil {
-				if err, ok := res.(error); ok {
-					log.Warn("failed to set new MinerTip via CallEngineSpecific", "err", err)
-					return false // Don't update if WBFT engine failed
-				}
+	if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
+		if res := wbftEngine.CallEngineSpecific("SetMinerTip", tip); res != nil {
+			if err, ok := res.(error); ok {
+				log.Warn("failed to set new MinerTip via CallEngineSpecific", "err", err)
+				return false // Don't update if WBFT engine failed
 			}
 		}
 	}
@@ -1193,27 +1169,39 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 
 // updateMinerTipFromContract reads the current minerTip from GovValidator contract
 // and updates the worker's tip accordingly.
-func (w *worker) updateMinerTipFromContract(env *environment) {
+func (w *worker) updateMinerTipFromContract(env *environment) error {
 	// Only update if WBFT is enabled
 	if w.chainConfig.Anzeon == nil || w.chainConfig.Anzeon.SystemContracts == nil {
-		return
+		return nil
 	}
 
 	// Get GovValidator address from system contracts
 	systemContracts := w.chainConfig.Anzeon.SystemContracts
 	if systemContracts.GovValidator == nil {
-		return
+		return nil
 	}
 	govValidatorAddr := systemContracts.GovValidator.Address
 
 	// Read minerTip from contract storage
 	minerTip := govwbft.GetMinerTip(govValidatorAddr, env.state)
-	if minerTip != nil && minerTip.Sign() > 0 {
-		// setGasTip checks if changed and updates accordingly (with WBFT engine notification)
-		if w.setGasTip(minerTip, true) {
-			log.Info("Updated minerTip from GovValidator contract", "newTip", minerTip)
-		}
+	if minerTip == nil {
+		return fmt.Errorf("failed to read minerTip from GovValidator contract at %s", govValidatorAddr.Hex())
 	}
+
+	if minerTip.Sign() <= 0 {
+		return fmt.Errorf("invalid minerTip value from contract: %s", minerTip.String())
+	}
+
+	if minerTip.Uint64() < params.MinMinerTip {
+		return fmt.Errorf("minerTip %s is below minimum %d", minerTip.String(), params.MinMinerTip)
+	}
+
+	// setGasTip checks if changed and updates accordingly (with WBFT engine notification)
+	if w.setGasTip(minerTip) {
+		log.Trace("Updated minerTip from GovValidator contract", "newTip", minerTip)
+	}
+
+	return nil
 }
 
 // fillTransactions retrieves the pending transactions from the txpool and fills them
@@ -1282,8 +1270,10 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 	}
 	defer work.discard()
 
-	// Update minerTip from GovValidator contract before filling transactions
-	w.updateMinerTipFromContract(work)
+	// Update minerTip from GovValidator contract
+	if err := w.updateMinerTipFromContract(work); err != nil {
+		return &newPayloadResult{err: fmt.Errorf("failed to update minerTip: %w", err)}
+	}
 
 	if !params.noTxs {
 
@@ -1337,7 +1327,10 @@ func (w *worker) commitWork(interrupt *atomic.Int32, timestamp int64) {
 	}
 
 	// Update minerTip from GovValidator contract before filling transactions
-	w.updateMinerTipFromContract(work)
+	if err := w.updateMinerTipFromContract(work); err != nil {
+		log.Error("Failed to update minerTip", "err", err)
+		return
+	}
 
 	// Fill pending transactions from the txpool into the block.
 	err = w.fillTransactions(interrupt, work)

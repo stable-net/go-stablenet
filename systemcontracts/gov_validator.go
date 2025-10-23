@@ -62,20 +62,34 @@ func initializeValidator(govValidatorAddress common.Address, param map[string]st
 			Value:   common.BytesToHash(params.BLSPoPPrecompileAddress.Bytes())},
 	)
 
-	// Initialize minerTip if provided
+	// Initialize minerTip: use provided value or default to InitialMinerTip
+	var minerTip *big.Int
 	if minerTipStr, ok := param[GOV_VALIDATOR_PARAM_MINER_TIP]; ok {
-		minerTip, ok := new(big.Int).SetString(minerTipStr, 10)
-		if !ok {
+		var parseOk bool
+		minerTip, parseOk = new(big.Int).SetString(minerTipStr, 10)
+		if !parseOk {
 			return nil, fmt.Errorf("`systemContracts.govValidator.params.minerTip`: invalid value: %s", minerTipStr)
 		}
-		sp = append(sp,
-			params.StateParam{
-				Address: govValidatorAddress,
-				Key:     common.HexToHash(SLOT_VALIDATOR_minerTip),
-				Value:   common.BigToHash(minerTip),
-			},
-		)
+	} else {
+		// Use InitialMinerTip as default if not provided
+		minerTip = new(big.Int).SetUint64(params.InitialMinerTip)
 	}
+
+	// Validate minerTip meets minimum requirement
+	minMinerTip := new(big.Int).SetUint64(params.MinMinerTip)
+	if minerTip.Cmp(minMinerTip) < 0 {
+		return nil, fmt.Errorf("`systemContracts.govValidator.params.minerTip`: value %s is below minimum %s wei",
+			minerTip.String(), minMinerTip.String())
+	}
+
+	// Set minerTip in contract storage
+	sp = append(sp,
+		params.StateParam{
+			Address: govValidatorAddress,
+			Key:     common.HexToHash(SLOT_VALIDATOR_minerTip),
+			Value:   common.BigToHash(minerTip),
+		},
+	)
 
 	if valStr, ok := param[GOV_VALIDATOR_PARAM_VALIDATORS]; ok {
 		if _, ok2 := param[GOV_VALIDATOR_PARAM_BLS_KEYS]; !ok2 {

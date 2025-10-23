@@ -133,6 +133,10 @@ const (
 	MinBaseFee          uint64 = 1000000000000    // Minimum base fee allowed
 	MaxBaseFee          uint64 = 1000000000000000 // Maximum base fee allowed
 
+	// Must match MIN_MINER_TIP in GovValidator.sol
+	MinMinerTip     uint64 = 1000000000   // Minimum miner tip allowed
+	InitialMinerTip uint64 = 100000000000 // Initial miner tip
+
 	MaxCodeSize     = 253952          // WEMIX Maximum bytecode to permit for a contract
 	MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
 
