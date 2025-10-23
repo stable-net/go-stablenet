@@ -620,7 +620,7 @@ func DeveloperGenesisBlock(gasLimit uint64, faucet *common.Address) *Genesis {
 	genesis := &Genesis{
 		Config:     &config,
 		GasLimit:   gasLimit,
-		BaseFee:    big.NewInt(params.InitialBaseFee),
+		BaseFee:    new(big.Int).SetUint64(params.MinBaseFee),
 		Difficulty: big.NewInt(1),
 		Alloc: map[common.Address]types.Account{
 			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
