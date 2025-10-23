@@ -189,17 +189,19 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 	p, isPrecompile := evm.precompile(addr)
 	if !value.IsZero() {
-		// Fail if transferring value to zero address
-		if addr == (common.Address{}) {
-			return nil, gas, ErrZeroAddressTransfer
-		}
 		// Fail if we're trying to transfer more than the available balance
 		if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
 			return nil, gas, ErrInsufficientBalance
 		}
-		// Fail if transferring value to a precompiled contract
-		if isCoinManager || isPrecompile {
-			return nil, gas, ErrPrecompileValueTransfer
+		if !evm.chainConfig.AnzeonEnabled() {
+			// Fail if transferring value to zero address
+			if addr == (common.Address{}) {
+				return nil, gas, ErrZeroAddressTransfer
+			}
+			// Fail if transferring value to a precompiled contract
+			if isCoinManager || isPrecompile {
+				return nil, gas, ErrPrecompileValueTransfer
+			}
 		}
 	}
 	snapshot := evm.StateDB.Snapshot()
@@ -222,7 +224,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		evm.StateDB.CreateAccount(addr)
 	}
 	evm.Context.Transfer(evm.StateDB, caller.Address(), addr, value)
-	evm.AddTransferLog(caller.Address(), addr, value)
+	if !value.IsZero() {
+		evm.AddTransferLog(caller.Address(), addr, value)
+	}
 
 	// Capture the tracer start/end events in debug mode
 	if debug {
@@ -477,7 +481,9 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		evm.StateDB.SetNonce(address, 1)
 	}
 	evm.Context.Transfer(evm.StateDB, caller.Address(), address, value)
-	evm.AddTransferLog(caller.Address(), address, value)
+	if !value.IsZero() {
+		evm.AddTransferLog(caller.Address(), address, value)
+	}
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
@@ -558,7 +564,7 @@ func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 // emit Transfer event for native coin
 func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256.Int) {
-	if !evm.chainRules.IsAnzeon || amount.IsZero() {
+	if !evm.chainConfig.AnzeonEnabled() {
 		return
 	}
 

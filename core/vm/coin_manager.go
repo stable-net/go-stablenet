@@ -96,11 +96,11 @@ func (evm *EVM) checkCoinManagerCall(typ OpCode, caller ContractRef, addr common
 	if addr != params.NativeCoinManagerAddress {
 		return false, nil
 	}
-	if typ != CALL {
-		return false, ErrInvalidCallContext
-	}
 	if !evm.chainRules.IsAnzeon {
 		return false, ErrNotAvailable
+	}
+	if typ != CALL {
+		return false, ErrInvalidCallContext
 	}
 	if caller.Address() != evm.chainConfig.Anzeon.SystemContracts.NativeCoinAdapter.Address {
 		return false, ErrUnauthorized
@@ -202,5 +202,11 @@ func (c *coinManagerTransfer) Run(evm *EVM, data []byte, suppliedGas uint64) ([]
 	// Note: evm.depth is not incremented for coin_manager calls because
 	// it is already increased when the coin_manager itself is invoked.
 	// No further increment is needed here.
-	return evm.Call(AccountRef(from), to, nil, suppliedGas, amount)
+	ret, leftOverGas, err := evm.Call(AccountRef(from), to, nil, suppliedGas, amount)
+
+	// Transfer event emission for 0-value transfer (ERC20)
+	if err == nil && amount.Sign() == 0 {
+		evm.AddTransferLog(from, to, amount)
+	}
+	return ret, leftOverGas, err
 }
