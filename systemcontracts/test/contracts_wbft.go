@@ -27,7 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -126,7 +125,7 @@ func (s *TestCandidate) GetBLSPoPSignature(t *testing.T) bls.Signature {
 
 var defaultBlockPeriod time.Duration
 
-func NewGovWBFT(t *testing.T, customValidators []*TestCandidate, alloc types.GenesisAlloc) (*GovWBFT, error) {
+func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapterOption func(*params.SystemContract)) (*GovWBFT, error) {
 	owner := getTxOpt(t, "owner")
 
 	if alloc == nil {
@@ -139,31 +138,14 @@ func NewGovWBFT(t *testing.T, customValidators []*TestCandidate, alloc types.Gen
 			anzeonConfig := ethConf.Genesis.Config.Anzeon
 			defaultBlockPeriod = time.Duration(anzeonConfig.WBFT.BlockPeriodSeconds) * time.Second
 
-			var members, validators, blsPubKeys string
-			if len(customValidators) > 0 {
-				for i, v := range customValidators {
-					if i > 0 {
-						members = members + ","
-						validators = validators + ","
-						blsPubKeys = blsPubKeys + ","
-					}
-					members = members + v.Operator.Address.String()
-					validators = validators + v.Validator.Address.String()
-					blsPubKeys = blsPubKeys + hexutil.Encode(v.GetBLSPublicKey(t).Marshal())
-				}
-			} else {
-				members = anzeonConfig.Init.Validators[0].String()
-				validators = anzeonConfig.Init.Validators[0].String()
-				blsPubKeys = anzeonConfig.Init.BLSPublicKeys[0]
-			}
 			anzeonConfig.SystemContracts.GovValidator.Address = TestGovValidatorAddress
-			anzeonConfig.SystemContracts.GovValidator.Params = map[string]string{
-				"members":       members,
-				"quorum":        "2",
-				"expiry":        "604800", // 7 days
-				"memberVersion": "1",
-				"validators":    validators,
-				"blsPublicKeys": blsPubKeys,
+			if validatorOption != nil {
+				validatorOption(anzeonConfig.SystemContracts.GovValidator)
+			}
+
+			anzeonConfig.SystemContracts.NativeCoinAdapter.Address = TestCoinAdapterAddress
+			if adapterOption != nil {
+				adapterOption(anzeonConfig.SystemContracts.NativeCoinAdapter)
 			}
 		}),
 	}

@@ -35,6 +35,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func contractCall(t *testing.T, contract *bind.BoundContract, method string, args ...interface{}) (result []interface{}) {
+	require.NoError(t, contract.Call(&bind.CallOpts{}, &result, method, args...))
+	return
+}
+
 func commitTx(backend *simulated.WBFTBackend, tx *types.Transaction, txErr error) (*types.Receipt, error) {
 	backend.Commit()
 	if txErr != nil {
@@ -200,6 +205,11 @@ func NewTxOptsWithValue(t *testing.T, eoa *EOA, value *big.Int) *bind.TransactOp
 
 func towei(x int64) *big.Int {
 	return new(big.Int).Mul(big.NewInt(x), big.NewInt(params.Ether))
+}
+
+func toWeiN(x int64, decimals uint8) *big.Int {
+	mul := new(big.Int).Exp(big.NewInt(10), new(big.Int).SetUint64(uint64(decimals)), nil)
+	return new(big.Int).Mul(big.NewInt(x), mul)
 }
 
 func toGwei(x int64) *big.Int {

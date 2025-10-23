@@ -5,8 +5,10 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +29,7 @@ func initGov(t *testing.T) {
 	anotherValidator2 = NewTestCandidate()
 
 	var err error
-	g, err = NewGovWBFT(t, customValidators, types.GenesisAlloc{
+	g, err = NewGovWBFT(t, types.GenesisAlloc{
 		customValidators[0].Operator.Address: {Balance: towei(1_000_000)},
 		customValidators[1].Operator.Address: {Balance: towei(1_000_000)},
 		customValidators[2].Operator.Address: {Balance: towei(1_000_000)},
@@ -35,7 +37,29 @@ func initGov(t *testing.T) {
 		newValidator.Operator.Address:        {Balance: towei(1_000_000)},
 		anotherValidator.Operator.Address:    {Balance: towei(1_000_000)},
 		anotherValidator2.Operator.Address:   {Balance: towei(1_000_000)},
-	})
+	}, func(govValidator *params.SystemContract) {
+		var members, validators, blsPubKeys string
+		if len(customValidators) > 0 {
+			for i, v := range customValidators {
+				if i > 0 {
+					members = members + ","
+					validators = validators + ","
+					blsPubKeys = blsPubKeys + ","
+				}
+				members = members + v.Operator.Address.String()
+				validators = validators + v.Validator.Address.String()
+				blsPubKeys = blsPubKeys + hexutil.Encode(v.GetBLSPublicKey(t).Marshal())
+			}
+			govValidator.Params = map[string]string{
+				"members":       members,
+				"quorum":        "2",
+				"expiry":        "604800", // 7 days
+				"memberVersion": "1",
+				"validators":    validators,
+				"blsPublicKeys": blsPubKeys,
+			}
+		}
+	}, nil)
 	require.NoError(t, err)
 }
 
