@@ -270,10 +270,13 @@ func TestGetConfig(t *testing.T) {
 func getSystemContracts(blockNumber *big.Int, wbftCfg *Config) params.SystemContracts {
 	gc := params.SystemContracts{}
 
-	if wbftCfg.SystemContractUpgrades != nil && len(wbftCfg.SystemContractUpgrades) > 0 {
+	if len(wbftCfg.SystemContractUpgrades) > 0 {
 		wbftCfg.getSystemContractsValue(blockNumber, func(upgrade params.Upgrade) {
 			if upgrade.GovValidator != nil {
 				gc.GovValidator = upgrade.GovValidator
+			}
+			if upgrade.NativeCoinAdapter != nil {
+				gc.NativeCoinAdapter = upgrade.NativeCoinAdapter
 			}
 		})
 	}

@@ -37,6 +37,9 @@ func combineSystemContracts(source *params.SystemContracts, target *params.Syste
 	if target.GovValidator != nil {
 		source.GovValidator = target.GovValidator
 	}
+	if target.NativeCoinAdapter != nil {
+		source.NativeCoinAdapter = target.NativeCoinAdapter
+	}
 }
 
 func (ss *simSyncer) Apply(chainConfig *params.ChainConfig, config *wbft.Config, num *big.Int) {

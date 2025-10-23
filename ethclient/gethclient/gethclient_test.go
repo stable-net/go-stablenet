@@ -164,10 +164,11 @@ func TestGethClient(t *testing.T) {
 
 func testAccessList(t *testing.T, client *rpc.Client) {
 	ec := New(client)
+	to := crypto.CreateAddress(common.Address{}, 1)
 	// Test transfer
 	msg := ethereum.CallMsg{
 		From:     testAddr,
-		To:       &common.Address{},
+		To:       &to,
 		Gas:      21000,
 		GasPrice: big.NewInt(875000000),
 		Value:    big.NewInt(1),
@@ -425,9 +426,10 @@ func testSubscribeFullPendingTransactions(t *testing.T, client *rpc.Client) {
 
 func testCallContract(t *testing.T, client *rpc.Client) {
 	ec := New(client)
+	to := crypto.CreateAddress(common.Address{}, 1)
 	msg := ethereum.CallMsg{
 		From:     testAddr,
-		To:       &common.Address{},
+		To:       &to,
 		Gas:      21000,
 		GasPrice: big.NewInt(1000000000),
 		Value:    big.NewInt(1),
@@ -535,9 +537,10 @@ func TestBlockOverridesMarshal(t *testing.T) {
 
 func testCallContractWithBlockOverrides(t *testing.T, client *rpc.Client) {
 	ec := New(client)
+	to := crypto.CreateAddress(common.Address{}, 1)
 	msg := ethereum.CallMsg{
 		From:     testAddr,
-		To:       &common.Address{},
+		To:       &to,
 		Gas:      50000,
 		GasPrice: big.NewInt(1000000000),
 		Value:    big.NewInt(1),
@@ -547,7 +550,7 @@ func testCallContractWithBlockOverrides(t *testing.T, client *rpc.Client) {
 		Code: common.FromHex("0x41806000526014600cf3"),
 	}
 	mapAcc := make(map[common.Address]OverrideAccount)
-	mapAcc[common.Address{}] = override
+	mapAcc[to] = override
 	res, err := ec.CallContract(context.Background(), msg, big.NewInt(0), &mapAcc)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
