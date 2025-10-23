@@ -87,8 +87,10 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header) *big.Int {
 			baseFeeDelta := math.BigMax(num, common.Big1)
 			baseFee := num.Add(parent.BaseFee, baseFeeDelta)
 
-			if baseFee.Cmp(config.MaxBaseFee()) > 0 {
-				baseFee = config.MaxBaseFee()
+			// Cap the base fee at MaxBaseFee if the limit is enabled (i.e., non-zero)
+			maxBaseFee := config.MaxBaseFee()
+			if maxBaseFee.Cmp(common.Big0) != 0 && baseFee.Cmp(maxBaseFee) > 0 {
+				baseFee.Set(maxBaseFee)
 			}
 			return baseFee
 		} else {
