@@ -373,3 +373,43 @@ func TestGenerateStableNetGenesisJson(t *testing.T) {
 	genesisJson, _ = genesis.MarshalJSON()
 	t.Logf("StableNet Testnet genesis json: %s", genesisJson)
 }
+
+func TestSetGenesisBlockBaseFee(t *testing.T) {
+	var tests = []struct {
+		baseFee  *big.Int
+		config   *params.ChainConfig
+		expected *big.Int
+	}{
+		{
+			baseFee:  big.NewInt(2 * params.InitialBaseFee),
+			config:   params.TestChainConfig,
+			expected: big.NewInt(2 * params.InitialBaseFee),
+		},
+		{
+			baseFee:  nil,
+			config:   params.TestChainConfig,
+			expected: big.NewInt(params.InitialBaseFee),
+		},
+		{
+			baseFee:  big.NewInt(params.InitialBaseFee),
+			config:   params.StableOneMainnetChainConfig,
+			expected: new(big.Int).SetUint64(params.MinBaseFee),
+		},
+		{
+			baseFee:  nil,
+			config:   params.StableOneMainnetChainConfig,
+			expected: new(big.Int).SetUint64(params.MinBaseFee),
+		},
+	}
+
+	for i, test := range tests {
+		genesis := &Genesis{
+			BaseFee: test.baseFee,
+			Config:  test.config,
+		}
+		block := genesis.ToBlock()
+		if block.BaseFee().Cmp(test.expected) != 0 {
+			t.Fatalf("invalid genesis block BaseFee, test: %d expected %v got %v", i, test.expected, block.BaseFee())
+		}
+	}
+}
