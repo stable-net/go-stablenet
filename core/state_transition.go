@@ -501,6 +501,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	effectiveTip := msg.GasPrice
+	if rules.IsAnzeon {
+		// Base fee burn is removed under Anzeon, so gasPrice is treated as the full tip.
+	} else if rules.IsLondon {
+		effectiveTip = new(big.Int).Sub(msg.GasPrice, st.evm.Context.BaseFee)
+	}
 	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
 	if st.evm.Config.NoBaseFee && msg.GasFeeCap.Sign() == 0 && msg.GasTipCap.Sign() == 0 {
