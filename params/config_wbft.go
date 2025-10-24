@@ -29,11 +29,11 @@ import (
 )
 
 var (
+	DefaultNativeCoinAdapterAddress = common.HexToAddress("0x1000")
+	DefaultNativeCoinAdapterVersion = "v1"
+
 	DefaultGovValidatorAddress = common.HexToAddress("0x1001")
 	DefaultGovVersion          = "v1"
-
-	DefaultNativeCoinAdapterAddress = common.HexToAddress("0xB00003") // 0x0000000000000000000000000000000000B00003
-	DefaultNativeCoinAdapterVersion = "v1"
 )
 
 var CheckSystemContractVersions func(systemContracts *SystemContracts) error

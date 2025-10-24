@@ -212,10 +212,6 @@ func toWeiN(x int64, decimals uint8) *big.Int {
 	return new(big.Int).Mul(big.NewInt(x), mul)
 }
 
-func toGwei(x int64) *big.Int {
-	return new(big.Int).Mul(big.NewInt(x), big.NewInt(params.GWei))
-}
-
 func ToBytes32(str string) [32]byte {
 	bytes := []byte(str)
 	if len(bytes) > 32 {

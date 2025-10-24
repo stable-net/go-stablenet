@@ -36,7 +36,7 @@ var (
 )
 
 var (
-	ErrNotAvailable          = errors.New("CoinManager: not available before Anzeon")
+	ErrNotAvailable          = errors.New("CoinManager: Anzeon is not enabled")
 	ErrUnauthorized          = errors.New("CoinManager: caller is not authorized")
 	ErrInvalidCallContext    = errors.New("CoinManager: invalid call context (CALL required)")
 	ErrInvalidSelectorLength = errors.New("CoinManager: invalid method selector length")
@@ -154,6 +154,10 @@ func (c *coinManagerMint) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte
 	// Note: evm.depth is not incremented for coin_manager calls because
 	// it is already increased when the coin_manager itself is invoked.
 	// No further increment is needed here.
+	//
+	// evm.Call is used so that when transferring to a contract address,
+	// its receive() or fallback() function is properly invoked instead of
+	// just updating balances directly.
 	return evm.Call(AccountRef(zeroAddress), to, nil, suppliedGas, amount)
 }
 
@@ -202,6 +206,10 @@ func (c *coinManagerTransfer) Run(evm *EVM, data []byte, suppliedGas uint64) ([]
 	// Note: evm.depth is not incremented for coin_manager calls because
 	// it is already increased when the coin_manager itself is invoked.
 	// No further increment is needed here.
+	//
+	// evm.Call is used so that when transferring to a contract address,
+	// its receive() or fallback() function is properly invoked instead of
+	// just updating balances directly.
 	ret, leftOverGas, err := evm.Call(AccountRef(from), to, nil, suppliedGas, amount)
 
 	// Transfer event emission for 0-value transfer (ERC20)

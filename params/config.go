@@ -28,8 +28,8 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableOneMainnetGenesisHash = common.HexToHash("0x4daf106f5da1820f3aad9150460629e3e3db777efb6e06508bdfdfd543a6ae11")
-	StableOneTestnetGenesisHash = common.HexToHash("0x4daf106f5da1820f3aad9150460629e3e3db777efb6e06508bdfdfd543a6ae11")
+	StableOneMainnetGenesisHash = common.HexToHash("0xaa415b8ad30c537b0c85810da3f3952248bc14fa78fada9605579806c15435b2")
+	StableOneTestnetGenesisHash = common.HexToHash("0xaa415b8ad30c537b0c85810da3f3952248bc14fa78fada9605579806c15435b2")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash          = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
@@ -90,8 +90,8 @@ var (
 					Address: DefaultNativeCoinAdapterAddress,
 					Version: DefaultNativeCoinAdapterVersion,
 					Params: map[string]string{
-						"masterMinter":  "0x0000000000000000000000000000000000B00004",
-						"minters":       "0x0000000000000000000000000000000000B00005",
+						"masterMinter":  "0x0000000000000000000000000000000000001002",
+						"minters":       "0x0000000000000000000000000000000000001003",
 						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
 						"name":          "KRC1",
 						"symbol":        "KRC1",
@@ -146,8 +146,8 @@ var (
 					Address: DefaultNativeCoinAdapterAddress,
 					Version: DefaultNativeCoinAdapterVersion,
 					Params: map[string]string{
-						"masterMinter":  "0x0000000000000000000000000000000000B00004",
-						"minters":       "0x0000000000000000000000000000000000B00005",
+						"masterMinter":  "0x0000000000000000000000000000000000001002",
+						"minters":       "0x0000000000000000000000000000000000001003",
 						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
 						"name":          "KRC1",
 						"symbol":        "KRC1",
@@ -336,8 +336,8 @@ var (
 					Address: DefaultNativeCoinAdapterAddress,
 					Version: DefaultNativeCoinAdapterVersion,
 					Params: map[string]string{
-						"masterMinter":  "0x0000000000000000000000000000000000B00004",
-						"minters":       "0x0000000000000000000000000000000000B00005",
+						"masterMinter":  "0x0000000000000000000000000000000000001002",
+						"minters":       "0x0000000000000000000000000000000000001003",
 						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
 						"name":          "KRC1",
 						"symbol":        "KRC1",
@@ -503,8 +503,8 @@ var (
 					Address: DefaultNativeCoinAdapterAddress,
 					Version: DefaultNativeCoinAdapterVersion,
 					Params: map[string]string{
-						"masterMinter":  "0x0000000000000000000000000000000000B00004",
-						"minters":       "0x0000000000000000000000000000000000B00005",
+						"masterMinter":  "0x0000000000000000000000000000000000001002",
+						"minters":       "0x0000000000000000000000000000000000001003",
 						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
 						"name":          "KRC1",
 						"symbol":        "KRC1",
