@@ -1294,7 +1294,7 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 	}
 	return &newPayloadResult{
 		block:    block,
-		fees:     totalFees(block, work.receipts),
+		fees:     totalFees(w.chainConfig, block, work.receipts),
 		sidecars: work.sidecars,
 	}
 }
@@ -1397,7 +1397,7 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		if !w.isTTDReached(block.Header()) {
 			select {
 			case w.taskCh <- &task{receipts: env.receipts, state: env.state, block: block, createdAt: time.Now()}:
-				fees := totalFees(block, env.receipts)
+				fees := totalFees(w.chainConfig, block, env.receipts)
 				feesInEther := new(big.Float).Quo(new(big.Float).SetInt(fees), big.NewFloat(params.Ether))
 				log.Info("Commit new sealing work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 					"txs", env.tcount, "gas", block.GasUsed(), "fees", feesInEther,
@@ -1458,10 +1458,15 @@ func copyReceipts(receipts []*types.Receipt) []*types.Receipt {
 }
 
 // totalFees computes total consumed miner fees in Wei. Block transactions and receipts have to have the same order.
-func totalFees(block *types.Block, receipts []*types.Receipt) *big.Int {
+func totalFees(c *params.ChainConfig, block *types.Block, receipts []*types.Receipt) *big.Int {
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
-		minerFee := tx.EffectiveGasPrice(new(big.Int), block.BaseFee(), block.Header().MinerTip())
+		var minerFee *big.Int
+		if c.AnzeonEnabled() {
+			minerFee = tx.EffectiveGasPrice(new(big.Int), block.BaseFee(), block.Header().MinerTip())
+		} else {
+			minerFee, _ = tx.EffectiveGasTip(block.BaseFee())
+		}
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
 	}
 	return feesWei
