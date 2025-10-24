@@ -60,9 +60,11 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header) *big.Int {
 		return new(big.Int).SetUint64(params.InitialBaseFee)
 	}
 
-	parentGasTarget := parent.GasLimit / config.ElasticityMultiplier()
+	var parentGasTarget uint64
 	if config.AnzeonEnabled() {
 		parentGasTarget = parent.GasLimit * config.GasTargetPercentage() / 100
+	} else {
+		parentGasTarget = parent.GasLimit / config.ElasticityMultiplier()
 	}
 	// If the parent gasUsed is the same as the target, the baseFee remains unchanged.
 	if parent.GasUsed == parentGasTarget {
