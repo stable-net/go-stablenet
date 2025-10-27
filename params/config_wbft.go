@@ -35,14 +35,11 @@ var (
 	DefaultGovValidatorAddress = common.HexToAddress("0x1001")
 	DefaultGovVersion          = "v1"
 
-	DefaultNativeCoinAdapterAddress = common.HexToAddress("0xB00003") // 0x0000000000000000000000000000000000B00003
-	DefaultNativeCoinAdapterVersion = "v1"
-
-	DefaultGovMinterAddress = common.HexToAddress("0xB00004") // 0x0000000000000000000000000000000000B00004
-	DefaultGovMinterVersion = "v1"
-
-	DefaultGovMasterMinterAddress = common.HexToAddress("0xB00005") // 0x0000000000000000000000000000000000B00005
+	DefaultGovMasterMinterAddress = common.HexToAddress("0x1002")
 	DefaultGovMasterMinterVersion = "v1"
+
+	DefaultGovMinterAddress = common.HexToAddress("0x1003")
+	DefaultGovMinterVersion = "v1"
 )
 
 var CheckSystemContractVersions func(systemContracts *SystemContracts) error
@@ -100,6 +97,12 @@ func (c *AnzeonConfig) CheckValidity() error {
 	}
 	if c.SystemContracts.NativeCoinAdapter == nil {
 		return errors.New("`anzeon.systemContracts: missing `NativeCoinAdapter`")
+	}
+	if c.SystemContracts.GovMasterMinter == nil {
+		return errors.New("`anzeon.systemContracts: missing `GovMasterMinter`")
+	}
+	if c.SystemContracts.GovMinter == nil {
+		return errors.New("`anzeon.systemContracts: missing `GovMinter`")
 	}
 	if err := CheckSystemContractVersions(c.SystemContracts); err != nil {
 		return fmt.Errorf("`anzeon.systemContracts`: %v", err)

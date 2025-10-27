@@ -132,6 +132,12 @@ func (c *Config) GetSystemContracts(blockNumber *big.Int, chainConfig *params.Ch
 			if upgrade.NativeCoinAdapter != nil {
 				gc.NativeCoinAdapter = upgrade.NativeCoinAdapter
 			}
+			if upgrade.GovMinter != nil {
+				gc.GovMinter = upgrade.GovMinter
+			}
+			if upgrade.GovMasterMinter != nil {
+				gc.GovMasterMinter = upgrade.GovMasterMinter
+			}
 		})
 	} else {
 		// Normally unreachable since c.SystemContractsUpgrades is set when wbft engine is created,

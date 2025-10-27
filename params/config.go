@@ -99,6 +99,30 @@ var (
 						"currency":      "KRW",
 					},
 				},
+				GovMasterMinter: &SystemContract{
+					Address: DefaultGovMasterMinterAddress,
+					Version: DefaultGovMasterMinterVersion,
+					Params: map[string]string{
+						"quorum":             "1",
+						"expiry":             "604800", // 7 days
+						"members":            "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion":      "1",
+						"fiatToken":          "0x0000000000000000000000000000000000001000",
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+					},
+				},
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: DefaultGovMinterVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"fiatToken":     "0x0000000000000000000000000000000000001000",
+						"beneficiaries": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697", // minted token received address by each member
+					},
+				},
 			},
 		},
 	}
@@ -153,6 +177,30 @@ var (
 						"symbol":        "KRC1",
 						"decimals":      "18",
 						"currency":      "KRW",
+					},
+				},
+				GovMasterMinter: &SystemContract{
+					Address: DefaultGovMasterMinterAddress,
+					Version: DefaultGovMasterMinterVersion,
+					Params: map[string]string{
+						"quorum":             "1",
+						"expiry":             "604800", // 7 days
+						"members":            "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion":      "1",
+						"fiatToken":          "0x0000000000000000000000000000000000001000",
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+					},
+				},
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: DefaultGovMinterVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"fiatToken":     "0x0000000000000000000000000000000000001000",
+						"beneficiaries": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697", // minted token received address by each member
 					},
 				},
 			},
@@ -345,6 +393,30 @@ var (
 						"currency":      "KRW",
 					},
 				},
+				GovMasterMinter: &SystemContract{
+					Address: DefaultGovMasterMinterAddress,
+					Version: DefaultGovMasterMinterVersion,
+					Params: map[string]string{
+						"quorum":             "1",
+						"expiry":             "604800", // 7 days
+						"members":            "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion":      "1",
+						"fiatToken":          "0x0000000000000000000000000000000000001000",
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+					},
+				},
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: DefaultGovMinterVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"fiatToken":     "0x0000000000000000000000000000000000001000",
+						"beneficiaries": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697", // minted token received address by each member
+					},
+				},
 			},
 		},
 	}
@@ -510,6 +582,30 @@ var (
 						"symbol":        "KRC1",
 						"decimals":      "18",
 						"currency":      "KRW",
+					},
+				},
+				GovMasterMinter: &SystemContract{
+					Address: DefaultGovMasterMinterAddress,
+					Version: DefaultGovMasterMinterVersion,
+					Params: map[string]string{
+						"quorum":             "1",
+						"expiry":             "604800", // 7 days
+						"members":            "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion":      "1",
+						"fiatToken":          "0x0000000000000000000000000000000000001000",
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+					},
+				},
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: DefaultGovMinterVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"fiatToken":     "0x0000000000000000000000000000000000001000",
+						"beneficiaries": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697", // minted token received address by each member
 					},
 				},
 			},
