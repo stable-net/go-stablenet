@@ -216,6 +216,14 @@ var DefaultAnzeonConfig = &AnzeonConfig{
 			Address: DefaultNativeCoinAdapterAddress,
 			Version: DefaultNativeCoinAdapterVersion,
 		},
+		GovMasterMinter: &SystemContract{
+			Address: DefaultGovMasterMinterAddress,
+			Version: DefaultGovMasterMinterVersion,
+		},
+		GovMinter: &SystemContract{
+			Address: DefaultGovMinterAddress,
+			Version: DefaultGovMinterVersion,
+		},
 	},
 	Init: &WBFTInit{},
 }
