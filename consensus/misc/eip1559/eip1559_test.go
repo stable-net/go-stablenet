@@ -139,11 +139,11 @@ func TestCalcBaseFeeForAnzeon(t *testing.T) {
 		parentGasUsed   uint64
 		expectedBaseFee *big.Int
 	}{
-		{big.NewInt(10000000000000), 20000000, 18000000, big.NewInt(10000000000000)},    // usage == target
-		{big.NewInt(10000000000000), 20000000, 0, big.NewInt(8000000000000)},            // usage below target
-		{big.NewInt(10000000000000), 20000000, 20000000, big.NewInt(10222222222222)},    // usage above target
-		{big.NewInt(1000000000000), 20000000, 0, big.NewInt(1000000000000)},             // usage below target, but base fee hits MinBaseFee
-		{big.NewInt(990000000000000), 20000000, 20000000, big.NewInt(1000000000000000)}, // usage above target, but base fee hits MaxBaseFee
+		{new(big.Int).SetUint64(2 * params.MinBaseFee), 20000000, 18000000, new(big.Int).SetUint64(2 * params.MinBaseFee)}, // usage == target
+		{new(big.Int).SetUint64(2 * params.MinBaseFee), 20000000, 0, big.NewInt(8500000000000)},                            // usage below target
+		{new(big.Int).SetUint64(2 * params.MinBaseFee), 20000000, 20000000, big.NewInt(10166666666666)},                    // usage above target
+		{new(big.Int).SetUint64(params.MinBaseFee), 20000000, 0, new(big.Int).SetUint64(params.MinBaseFee)},                // usage below target, but base fee hits MinBaseFee
+		{new(big.Int).SetUint64(params.MaxBaseFee), 20000000, 20000000, new(big.Int).SetUint64(params.MaxBaseFee)},         // usage above target, but base fee hits MaxBaseFee
 	}
 	for i, test := range tests {
 		parent := &types.Header{

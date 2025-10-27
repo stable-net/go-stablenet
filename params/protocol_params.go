@@ -129,9 +129,9 @@ const (
 	InitialBaseFee                  = 1000000000 // Initial base fee for EIP-1559 blocks.
 
 	GasTargetPercentage uint64 = 90               // Target gas usage as a percentage of the maximum gas limit
-	BaseFeeChangeRate   uint64 = 20               // Percentage rate by which the base fee can change
-	MinBaseFee          uint64 = 1000000000000    // Minimum base fee allowed
-	MaxBaseFee          uint64 = 1000000000000000 // Maximum base fee allowed. If set to 0, this limit is disabled.
+	BaseFeeChangeRate   uint64 = 15               // Percentage rate by which the base fee can change
+	MinBaseFee          uint64 = 5000000000000    // Minimum base fee
+	MaxBaseFee          uint64 = 5000000000000000 // Maximum base fee. If set to 0, this limit is disabled.
 
 	InitialMinerTip uint64 = 100000000000 // Initial miner tip
 
