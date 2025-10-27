@@ -195,29 +195,8 @@ func TestInitializeMasterMinter(t *testing.T) {
 	})
 }
 
-func TestGetMinterAllowance(t *testing.T) {
-	govMasterMinterAddr := common.HexToAddress("0x9876543210987654321098765432109876543210")
-	minter := common.HexToAddress("0x1111111111111111111111111111111111111111")
-	allowance := big.NewInt(1000000000)
-
-	t.Run("get existing allowance", func(t *testing.T) {
-		mockState := newMockStateReader()
-
-		// Set minter allowance
-		key := CalculateMappingSlot(common.HexToHash(SLOT_GOV_MASTER_MINTER_minterAllowances), minter)
-		mockState.SetState(govMasterMinterAddr, key, common.BigToHash(allowance))
-
-		result := GetMinterAllowance(govMasterMinterAddr, mockState, minter)
-		require.Equal(t, allowance, result)
-	})
-
-	t.Run("get zero allowance", func(t *testing.T) {
-		mockState := newMockStateReader()
-
-		result := GetMinterAllowance(govMasterMinterAddr, mockState, minter)
-		require.Equal(t, 0, result.Cmp(big.NewInt(0)))
-	})
-}
+// Note: TestGetMinterAllowance removed - allowances managed by FiatToken, not GovMasterMinter
+// Query FiatToken.minterAllowance() directly to get minter allowances
 
 func TestIsMinter(t *testing.T) {
 	govMasterMinterAddr := common.HexToAddress("0x9876543210987654321098765432109876543210")
@@ -312,28 +291,8 @@ func TestGetMinterAt(t *testing.T) {
 	})
 }
 
-func TestGetTotalMinterAllowance(t *testing.T) {
-	govMasterMinterAddr := common.HexToAddress("0x9876543210987654321098765432109876543210")
-	totalAllowance := big.NewInt(5000000000)
-
-	t.Run("get total minter allowance", func(t *testing.T) {
-		mockState := newMockStateReader()
-
-		// Set total minter allowance
-		totalMinterAllowanceSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_totalMinterAllowance)
-		mockState.SetState(govMasterMinterAddr, totalMinterAllowanceSlot, common.BigToHash(totalAllowance))
-
-		result := GetTotalMinterAllowance(govMasterMinterAddr, mockState)
-		require.Equal(t, totalAllowance, result)
-	})
-
-	t.Run("get zero total allowance", func(t *testing.T) {
-		mockState := newMockStateReader()
-
-		result := GetTotalMinterAllowance(govMasterMinterAddr, mockState)
-		require.Equal(t, 0, result.Cmp(big.NewInt(0)))
-	})
-}
+// Note: TestGetTotalMinterAllowance removed - total allowance computed on-demand
+// Use getMinterStats() view function which queries FiatToken for each minter
 
 func TestGetMaxMinterAllowance(t *testing.T) {
 	govMasterMinterAddr := common.HexToAddress("0x9876543210987654321098765432109876543210")

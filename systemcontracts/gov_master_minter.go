@@ -32,22 +32,19 @@ const (
 	// GovMasterMinter Storage Layout (extends GovBaseV2):
 	// Slots 0x0-0xb: GovBaseV2 base storage
 	// Slots 0xc-0x31: __gap (reserved)
-	// Slot 0x32: fiatToken (address)
-	// Slot 0x33: minterAllowances (mapping(address => uint256))
-	// Slot 0x34: isMinter (mapping(address => bool))
-	// Slot 0x35: minterList (address[])
-	// Slot 0x36: minterIndex (mapping(address => uint256))
-	// Slot 0x37: totalMinterAllowance (uint256)
-	// Slot 0x38: maxMinterAllowance (uint256)
-	// Slot 0x39: emergencyPaused (bool)
-	SLOT_GOV_MASTER_MINTER_fiatToken            = "0x32"
-	SLOT_GOV_MASTER_MINTER_minterAllowances     = "0x33"
-	SLOT_GOV_MASTER_MINTER_isMinter             = "0x34"
-	SLOT_GOV_MASTER_MINTER_minterList           = "0x35"
-	SLOT_GOV_MASTER_MINTER_minterIndex          = "0x36"
-	SLOT_GOV_MASTER_MINTER_totalMinterAllowance = "0x37"
-	SLOT_GOV_MASTER_MINTER_maxMinterAllowance   = "0x38"
-	SLOT_GOV_MASTER_MINTER_emergencyPaused      = "0x39"
+	// Slot 0x32: fiatToken (address, 20 bytes)
+	// Slot 0x33: emergencyPaused (bool, 1 byte)
+	// Slot 0x34: maxMinterAllowance (uint256, 32 bytes)
+	// Slot 0x35: isMinter (mapping(address => bool))
+	// Slot 0x36: minterList (address[])
+	// Slot 0x37: minterIndex (mapping(address => uint256))
+	// Note: minterAllowances and totalMinterAllowance removed - FiatToken is source of truth
+	SLOT_GOV_MASTER_MINTER_fiatToken          = "0x32"
+	SLOT_GOV_MASTER_MINTER_emergencyPaused    = "0x33"
+	SLOT_GOV_MASTER_MINTER_maxMinterAllowance = "0x34"
+	SLOT_GOV_MASTER_MINTER_isMinter           = "0x35"
+	SLOT_GOV_MASTER_MINTER_minterList         = "0x36"
+	SLOT_GOV_MASTER_MINTER_minterIndex        = "0x37"
 )
 
 // Default maxMinterAllowance: 10B tokens (10000000000 * 10^18)
@@ -58,6 +55,8 @@ var DefaultMaxMinterAllowance = new(big.Int).Mul(
 
 // initializeMasterMinter initializes the GovMasterMinter contract storage
 func initializeMasterMinter(govMasterMinterAddress common.Address, param map[string]string) ([]params.StateParam, error) {
+	fmt.Printf("DEBUG: initializeMasterMinter called with params: %+v\n", param)
+
 	// Initialize GovBase first
 	sp, err := initializeBase(govMasterMinterAddress, param)
 	if err != nil {
@@ -99,20 +98,14 @@ func initializeMasterMinter(govMasterMinterAddress common.Address, param map[str
 		Value:   common.BigToHash(maxMinterAllowance),
 	})
 
-	// totalMinterAllowance defaults to 0 (no initialization needed)
-	// emergencyPaused defaults to false (no initialization needed)
+	// emergencyPaused defaults to false in slot 0x33 (no initialization needed)
 	// minterList defaults to empty array (no initialization needed)
 
 	return sp, nil
 }
 
-// GetMinterAllowance returns the allowance for a given minter
-func GetMinterAllowance(govMasterMinterAddress common.Address, state StateReader, minter common.Address) *big.Int {
-	minterAllowancesSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_minterAllowances)
-	key := CalculateMappingSlot(minterAllowancesSlot, minter)
-	value := state.GetState(govMasterMinterAddress, key)
-	return value.Big()
-}
+// Note: GetMinterAllowance removed - query FiatToken directly for minter allowances
+// Allowances are managed by FiatToken contract, not GovMasterMinter
 
 // IsMinter checks if an address is registered as a minter
 func IsMinter(govMasterMinterAddress common.Address, state StateReader, minter common.Address) bool {
@@ -137,12 +130,8 @@ func GetMinterAt(govMasterMinterAddress common.Address, state StateReader, index
 	return common.BytesToAddress(value.Bytes())
 }
 
-// GetTotalMinterAllowance returns the sum of all minter allowances
-func GetTotalMinterAllowance(govMasterMinterAddress common.Address, state StateReader) *big.Int {
-	totalMinterAllowanceSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_totalMinterAllowance)
-	value := state.GetState(govMasterMinterAddress, totalMinterAllowanceSlot)
-	return value.Big()
-}
+// Note: GetTotalMinterAllowance removed - calculate sum by querying FiatToken for each minter
+// Total allowance is computed on-demand in getMinterStats() view function
 
 // GetMaxMinterAllowance returns the maximum allowance per minter
 func GetMaxMinterAllowance(govMasterMinterAddress common.Address, state StateReader) *big.Int {

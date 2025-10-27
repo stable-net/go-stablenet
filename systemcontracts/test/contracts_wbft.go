@@ -583,7 +583,7 @@ func (g *GovWBFT) MaxMinterAllowance(sender *EOA) (*big.Int, error) {
 
 func (g *GovWBFT) IsMinter(sender *EOA, minter common.Address) (bool, error) {
 	var result []interface{}
-	err := g.masterMinterCall("isMinter", sender, &result, minter)
+	err := g.masterMinterCall("getIsMinter", sender, &result, minter)
 	if err != nil {
 		return false, err
 	}
@@ -592,7 +592,7 @@ func (g *GovWBFT) IsMinter(sender *EOA, minter common.Address) (bool, error) {
 
 func (g *GovWBFT) MinterAllowance(sender *EOA, minter common.Address) (*big.Int, error) {
 	var result []interface{}
-	err := g.masterMinterCall("minterAllowances", sender, &result, minter)
+	err := g.masterMinterCall("getMinterAllowance", sender, &result, minter)
 	if err != nil {
 		return nil, err
 	}

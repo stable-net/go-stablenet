@@ -43,13 +43,16 @@ func initGovMasterMinter(t *testing.T) {
 	mockFiatToken = common.HexToAddress("0xC00002") // Mock fiat token address
 	defaultMaxAllowance = new(big.Int).Mul(big.NewInt(1000000), big.NewInt(1e18)) // 1M tokens
 
+	// MockFiatToken bytecode
+	mockFiatTokenCode := hexutil.MustDecode("0x608060405234801561000f575f5ffd5b506004361061004a575f3560e01c80633092afd51461004e5780634e44d956146100765780638a6db9c314610089578063aa271e1a146100bf575b5f5ffd5b61006161005c3660046101ca565b6100ea565b60405190151581526020015b60405180910390f35b6100616100843660046101ea565b610146565b6100b16100973660046101ca565b6001600160a01b03165f9081526001602052604090205490565b60405190815260200161006d565b6100616100cd3660046101ca565b6001600160a01b03165f9081526020819052604090205460ff1690565b6001600160a01b0381165f81815260208181526040808320805460ff191690556001909152808220829055519091907fe94479a9f7e1952cc78f2d6baab678adc1b772d936c6583def489e524cb66692908390a2506001919050565b6001600160a01b0382165f81815260208181526040808320805460ff191660019081179091558252808320859055518481529192917f46980fca912ef9bcdbd36877427b6b90e860769f604e89c0e67720cece530d20910160405180910390a250600192915050565b80356001600160a01b03811681146101c5575f5ffd5b919050565b5f602082840312156101da575f5ffd5b6101e3826101af565b9392505050565b5f5f604083850312156101fb575f5ffd5b610204836101af565b94602093909301359350505056fea2646970667358221220d31173a4dd708d544437de2deccd13f015f0091426a1ea75e2d32631b5e1976e64736f6c634300081e0033")
+
 	var err error
 	gMasterMinter, err = NewGovWBFT(t, types.GenesisAlloc{
 		masterMinterMembers[0].Operator.Address: {Balance: towei(1_000_000)},
 		masterMinterMembers[1].Operator.Address: {Balance: towei(1_000_000)},
 		masterMinterMembers[2].Operator.Address: {Balance: towei(1_000_000)},
 		masterMinterNonMember.Address:           {Balance: towei(1_000_000)},
-		mockFiatToken:                           {Balance: towei(0)}, // Mock token contract
+		mockFiatToken:                           {Balance: towei(0), Code: mockFiatTokenCode}, // Mock token contract with code
 	}, func(govValidator *params.SystemContract) {
 		// Setup governance members for voting
 		var members, validators, blsPubKeys string
@@ -73,6 +76,7 @@ func initGovMasterMinter(t *testing.T) {
 		}
 	}, nil, nil, func(govMasterMinter *params.SystemContract) {
 		// Initialize GovMasterMinter with fiatToken and max allowance
+		t.Logf("Setting maxMinterAllowance param: %s", defaultMaxAllowance.String())
 		govMasterMinter.Params = map[string]string{
 			sc.GOV_MASTER_MINTER_PARAM_FIAT_TOKEN:         mockFiatToken.String(),
 			sc.GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE: defaultMaxAllowance.String(),
@@ -81,6 +85,7 @@ func initGovMasterMinter(t *testing.T) {
 			sc.GOV_BASE_PARAM_EXPIRY:                      "604800",
 			sc.GOV_BASE_PARAM_MEMBER_VERSION:              "1",
 		}
+		t.Logf("GovMasterMinter.Params set: %+v", govMasterMinter.Params)
 	})
 	require.NoError(t, err)
 }
@@ -98,6 +103,7 @@ func TestGovMasterMinter_Initialize(t *testing.T) {
 		// Check maxMinterAllowance is set correctly
 		maxAllowance, err := gMasterMinter.MaxMinterAllowance(masterMinterNonMember)
 		require.NoError(t, err)
+		t.Logf("maxAllowance: %s, defaultMaxAllowance: %s", maxAllowance.String(), defaultMaxAllowance.String())
 		require.Equal(t, 0, maxAllowance.Cmp(defaultMaxAllowance))
 
 		// Check governance base parameters

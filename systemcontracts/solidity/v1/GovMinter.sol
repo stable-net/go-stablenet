@@ -18,7 +18,7 @@
 pragma solidity ^0.8.14;
 
 import {GovBaseV2} from "../abstracts/GovBaseV2.sol";
-import {ICoinManager} from "../interfaces/ICoinManager.sol";
+import {IFiatToken} from "../interfaces/IFiatToken.sol";
 
 /**
  * @title GovMinter
@@ -107,7 +107,7 @@ contract GovMinter is GovBaseV2 {
     }
 
     // ========== State Variables ==========
-    ICoinManager public fiatToken;
+    IFiatToken public fiatToken;
     bool public emergencyPaused;
 
     /// @dev Prevents front-running by binding each member to a single beneficiary
@@ -174,7 +174,7 @@ contract GovMinter is GovBaseV2 {
         _initializeGovernance(GovernanceConfig({members: _members, quorum: _quorum, proposalExpiry: 7 days}));
 
         if (_fiatToken == address(0)) revert InvalidTokenAddress();
-        fiatToken = ICoinManager(_fiatToken);
+        fiatToken = IFiatToken(_fiatToken);
 
         // Validate uniqueness and set beneficiaries in a single pass
         // During initialization, all beneficiaries must be set (address(0) not allowed)
@@ -585,22 +585,10 @@ contract GovMinter is GovBaseV2 {
 
         burnBalance[from] -= amount;
 
-        try fiatToken.burn(from, amount) {
-            // Transfer native coin to user
-            (bool success,) = from.call{value: amount}("");
-            if (!success) {
-                // Rollback if transfer fails
-                burnBalance[from] += amount;
-                return false;
-            }
+        fiatToken.burn(amount);
+        _markWithdrawalIdExecuted(withdrawalId);
 
-            // Mark withdrawalId as permanently executed (consumed)
-            _markWithdrawalIdExecuted(withdrawalId);
-            return true;
-        } catch {
-            burnBalance[from] += amount;
-            return false;
-        }
+        return true;
     }
 
     /// @dev Execute emergency pause action
