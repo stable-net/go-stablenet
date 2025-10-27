@@ -115,7 +115,7 @@ func init() {
 		To:       &testUserAddress,
 		Value:    big.NewInt(1000),
 		Gas:      params.TxGas,
-		GasPrice: big.NewInt(1100 * params.GWei),
+		GasPrice: new(big.Int).SetUint64(params.MinBaseFee),
 	})
 	pendingTxs = append(pendingTxs, tx1)
 
@@ -124,7 +124,7 @@ func init() {
 		To:       &testUserAddress,
 		Value:    big.NewInt(1000),
 		Gas:      params.TxGas,
-		GasPrice: big.NewInt(100 * params.GWei),
+		GasPrice: new(big.Int).SetUint64(params.MinBaseFee),
 	})
 	newTxs = append(newTxs, tx2)
 }
