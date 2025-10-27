@@ -32,7 +32,7 @@ func TestNativeCoinAdapter(t *testing.T) {
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTERS] = minter1.Address.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTER_ALLOWED] = allowedAmount.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_DECIMALS] = strconv.Itoa(int(decimals))
-	})
+	}, nil, nil)
 	require.NoError(t, err)
 
 	t.Run("initialize", func(t *testing.T) {

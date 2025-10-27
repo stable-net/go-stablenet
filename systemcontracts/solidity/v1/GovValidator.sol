@@ -18,9 +18,9 @@
 pragma solidity ^0.8.14;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import { GovBase } from "../abstracts/GovBase.sol";
+import { GovBaseV2 } from "../abstracts/GovBaseV2.sol";
 
-contract GovValidator is GovBase {
+contract GovValidator is GovBaseV2 {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 public constant BLS_PUBLIC_KEY_LENGTH = 48;
@@ -139,8 +139,10 @@ contract GovValidator is GovBase {
         }
     }
 
-    function _executeInternalAction(bytes32 actionType) internal override returns (bool) {
-        return true;
+    function _executeCustomAction(bytes32 actionType, bytes memory callData) internal override returns (bool) {
+        // GovValidator doesn't have custom actions beyond member management
+        // All validator configuration is done directly via configureValidator
+        return false;
     }
 
     function _checkBlsKey(bytes calldata _blsKey, bytes calldata _blsSig) internal view {

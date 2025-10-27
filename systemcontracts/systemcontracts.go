@@ -38,6 +38,19 @@ func checkSystemContractVersions(systemContracts *params.SystemContracts) error 
 	if SystemContractCodes[CONTRACT_COIN_ADAPTER][systemContracts.NativeCoinAdapter.Version] == "" {
 		return fmt.Errorf("`systemContracts.nativeCoinAdapter`: unsupported version %s", systemContracts.NativeCoinAdapter.Version)
 	}
+
+	if systemContracts.GovMinter != nil {
+		if SystemContractCodes[CONTRACT_GOV_MINTER][systemContracts.GovMinter.Version] == "" {
+			return fmt.Errorf("`systemContracts.govMinter`: unsupported version %s", systemContracts.GovMinter.Version)
+		}
+	}
+
+	if systemContracts.GovMasterMinter != nil {
+		if SystemContractCodes[CONTRACT_GOV_MASTER_MINTER][systemContracts.GovMasterMinter.Version] == "" {
+			return fmt.Errorf("`systemContracts.govMasterMinter`: unsupported version %s", systemContracts.GovMasterMinter.Version)
+		}
+	}
+
 	return nil
 }
 
@@ -61,5 +74,24 @@ func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc
 		}
 		st.States = append(st.States, sp...)
 	}
+
+	if systemContracts.GovMinter != nil {
+		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovMinter.Address, Code: SystemContractCodes[CONTRACT_GOV_MINTER][systemContracts.GovMinter.Version]})
+		sp, err := initializeMinter(systemContracts.GovMinter.Address, systemContracts.GovMinter.Params)
+		if err != nil {
+			return nil, err
+		}
+		st.States = append(st.States, sp...)
+	}
+
+	if systemContracts.GovMasterMinter != nil {
+		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovMasterMinter.Address, Code: SystemContractCodes[CONTRACT_GOV_MASTER_MINTER][systemContracts.GovMasterMinter.Version]})
+		sp, err := initializeMasterMinter(systemContracts.GovMasterMinter.Address, systemContracts.GovMasterMinter.Params)
+		if err != nil {
+			return nil, err
+		}
+		st.States = append(st.States, sp...)
+	}
+
 	return st, nil
 }

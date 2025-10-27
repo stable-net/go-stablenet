@@ -39,6 +39,8 @@ func main() {
 		{ // v1
 			filepath.Join(filepath.Join(root, versions[0]), "GovValidator.sol"),
 			filepath.Join(filepath.Join(root, versions[0]), "NativeCoinAdapter.sol"),
+			filepath.Join(filepath.Join(root, versions[0]), "GovMinter.sol"),
+			filepath.Join(filepath.Join(root, versions[0]), "GovMasterMinter.sol"),
 		},
 		{ // v2
 			filepath.Join(filepath.Join(root, versions[0]), "GovValidator.sol"),
@@ -48,6 +50,8 @@ func main() {
 		{ // v1
 			sc.CONTRACT_GOV_VALIDATOR,
 			sc.CONTRACT_COIN_ADAPTER,
+			sc.CONTRACT_GOV_MINTER,
+			sc.CONTRACT_GOV_MASTER_MINTER,
 		},
 		{ // v2
 			sc.CONTRACT_GOV_VALIDATOR,

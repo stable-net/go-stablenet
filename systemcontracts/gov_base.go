@@ -34,11 +34,32 @@ const (
 	GOV_BASE_PARAM_EXPIRY         = "expiry"
 	GOV_BASE_PARAM_MEMBER_VERSION = "memberVersion"
 
-	SLOT_GOV_BASE_quorum              = "0x0"
-	SLOT_GOV_BASE_proposalExpiry      = "0x1"
-	SLOT_GOV_BASE_members             = "0x2"
-	SLOT_GOV_BASE_versionedMemberList = "0x3"
-	SLOT_GOV_BASE_version             = "0x4"
+	// GovBase Storage Layout (matches GovBaseV2.sol):
+	// Slot 0: proposalExpiry (uint256)
+	// Slot 1: memberVersion (uint256)
+	// Slot 2: currentProposalId (uint256)
+	// Slot 3: _reentrancyGuard (uint256)
+	// Slot 4: quorum (uint32)
+	// Slot 5: members (mapping)
+	// Slot 6: versionedMemberList (mapping)
+	// Slot 7: proposals (mapping)
+	// Slot 8: memberIndexByVersion (mapping(uint256 => mapping(address => uint32)))
+	// Slot 9: quorumByVersion (mapping(uint256 => uint32))
+	// Slot 10: proposalExecutionCount (mapping(uint256 => uint256))
+	// Slot 11: memberActiveProposalCount (mapping(address => uint256))
+	// Slot 12-49: __gap (reserved storage)
+	SLOT_GOV_BASE_proposalExpiry            = "0x0"
+	SLOT_GOV_BASE_version                   = "0x1"
+	SLOT_GOV_BASE_currentProposalId         = "0x2"
+	SLOT_GOV_BASE_reentrancyGuard           = "0x3"
+	SLOT_GOV_BASE_quorum                    = "0x4"
+	SLOT_GOV_BASE_members                   = "0x5"
+	SLOT_GOV_BASE_versionedMemberList       = "0x6"
+	SLOT_GOV_BASE_proposals                 = "0x7"
+	SLOT_GOV_BASE_memberIndexByVersion      = "0x8"
+	SLOT_GOV_BASE_quorumByVersion           = "0x9"
+	SLOT_GOV_BASE_proposalExecutionCount    = "0xa"
+	SLOT_GOV_BASE_memberActiveProposalCount = "0xb"
 )
 
 type Member struct {
@@ -46,22 +67,48 @@ type Member struct {
 	JoinedAt uint32
 }
 
+type GovernanceConfig struct {
+	Members        []common.Address
+	Quorum         uint32
+	ProposalExpiry *big.Int
+}
+
+// ProposalStatus represents the state of a governance proposal
+// Matches the ProposalStatus enum in GovBaseV2.sol
+type ProposalStatus uint8
+
+const (
+	ProposalStatusNone      ProposalStatus = 0 // No proposal exists
+	ProposalStatusVoting    ProposalStatus = 1 // Voting in progress - voting and execution allowed
+	ProposalStatusApproved  ProposalStatus = 2 // Quorum reached - voting and execution allowed
+	ProposalStatusExecuted  ProposalStatus = 3 // Successfully executed - all operations disallowed
+	ProposalStatusCancelled ProposalStatus = 4 // Cancelled by proposer - all operations disallowed
+	ProposalStatusExpired   ProposalStatus = 5 // Expired due to timeout - all operations disallowed
+	ProposalStatusFailed    ProposalStatus = 6 // Execution failed - all operations disallowed
+	ProposalStatusRejected  ProposalStatus = 7 // Rejected by votes - all operations disallowed
+)
+
 type Proposal struct {
 	ActionType        [32]byte
-	Status            uint8
-	Proposer          common.Address
 	MemberVersion     *big.Int
-	RequiredApprovals *big.Int
 	VotedBitmap       *big.Int
-	Approved          *big.Int
-	Rejected          *big.Int
 	CreatedAt         *big.Int
 	ExecutedAt        *big.Int
+	Proposer          common.Address
+	RequiredApprovals uint32
+	Approved          uint32
+	Rejected          uint32
+	Status            ProposalStatus
 	CallData          []byte
 }
 
 func (m Member) ToHash() common.Hash {
 	var result common.Hash
+	// Solidity tight packing for structs in storage:
+	// Fields are packed from right to left (lower-order first)
+	// Byte 31: isActive (bool) - rightmost byte
+	// Bytes 27-30: joinedAt (uint32)
+	// Bytes 0-26: padding (zeros)
 	if m.IsActive {
 		result[31] = 0x01
 	} else {
@@ -114,6 +161,8 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 		membersSlot := common.HexToHash(SLOT_GOV_BASE_members)
 		versionedMemberListSlot := common.HexToHash(SLOT_GOV_BASE_versionedMemberList)
 		versionSlot := common.HexToHash(SLOT_GOV_BASE_version)
+		memberIndexByVersionSlot := common.HexToHash(SLOT_GOV_BASE_memberIndexByVersion)
+		quorumByVersionSlot := common.HexToHash(SLOT_GOV_BASE_quorumByVersion)
 
 		versionStr, ok2 := param[GOV_BASE_PARAM_MEMBER_VERSION]
 		if !ok2 {
@@ -142,15 +191,24 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 				continue
 			}
 			sp = append(sp,
+				// Set member active status and joinedAt timestamp
 				params.StateParam{
 					Address: govBaseAddress,
 					Key:     CalculateMappingSlot(membersSlot, member),
 					Value:   memberData,
 				},
+				// Add member to versionedMemberList[version][currentIdx]
 				params.StateParam{
 					Address: govBaseAddress,
 					Key:     CalculateDynamicSlot(CalculateMappingSlot(versionedMemberListSlot, version), new(big.Int).SetUint64(currentIdx)),
 					Value:   common.BytesToHash(member.Bytes()),
+				},
+				// Set memberIndexByVersion[version][member] = currentIdx + 1
+				// Note: Index is 1-based (0 means not a member)
+				params.StateParam{
+					Address: govBaseAddress,
+					Key:     CalculateMappingSlot(CalculateMappingSlot(memberIndexByVersionSlot, version), member),
+					Value:   common.BigToHash(new(big.Int).SetUint64(currentIdx + 1)),
 				},
 			)
 			duplicated[member] = struct{}{}
@@ -173,6 +231,18 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 				Value:   common.BigToHash(version),
 			},
 		)
+
+		// Set quorumByVersion[version] = quorum
+		// This creates a snapshot of the quorum value at this member version
+		if quorum > 0 {
+			sp = append(sp,
+				params.StateParam{
+					Address: govBaseAddress,
+					Key:     CalculateMappingSlot(quorumByVersionSlot, version),
+					Value:   common.BigToHash(new(big.Int).SetUint64(quorum)),
+				},
+			)
+		}
 	}
 
 	return sp, nil

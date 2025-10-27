@@ -39,9 +39,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mustParseType is a helper function to parse ABI types
+func mustParseType(typeName string) abi.Type {
+	typ, err := abi.NewType(typeName, "", nil)
+	if err != nil {
+		panic(err)
+	}
+	return typ
+}
+
 var (
-	TestGovValidatorAddress = params.DefaultGovValidatorAddress
-	TestCoinAdapterAddress  = params.DefaultNativeCoinAdapterAddress
+	TestGovValidatorAddress    = params.DefaultGovValidatorAddress
+	TestCoinAdapterAddress     = params.DefaultNativeCoinAdapterAddress
+	TestGovMinterAddress       = params.DefaultGovMinterAddress
+	TestGovMasterMinterAddress = params.DefaultGovMasterMinterAddress
 )
 
 var (
@@ -53,14 +64,18 @@ func init() {
 }
 
 type compiledContractWBFT struct {
-	GovValidator *bindContract
-	CoinAdapter  *bindContract
+	GovValidator    *bindContract
+	CoinAdapter     *bindContract
+	GovMinter       *bindContract
+	GovMasterMinter *bindContract
 }
 
 func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 	if contracts, err := compile.Compile(openzeppelinPath,
 		filepath.Join(root, "GovValidator.sol"),
 		filepath.Join(root, "NativeCoinAdapter.sol"),
+		filepath.Join(root, "GovMinter.sol"),
+		filepath.Join(root, "GovMasterMinter.sol"),
 	); err != nil {
 		panic(err)
 	} else {
@@ -70,14 +85,22 @@ func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 		if c.CoinAdapter, err = newBindContract(contracts["NativeCoinAdapter"]); err != nil {
 			panic(err)
 		}
+		if c.GovMinter, err = newBindContract(contracts["GovMinter"]); err != nil {
+			panic(err)
+		}
+		if c.GovMasterMinter, err = newBindContract(contracts["GovMasterMinter"]); err != nil {
+			panic(err)
+		}
 	}
 }
 
 type GovWBFT struct {
-	backend      *simulated.WBFTBackend
-	owner        *bind.TransactOpts
-	govValidator *bind.BoundContract
-	coinAdapter  *bind.BoundContract
+	backend         *simulated.WBFTBackend
+	owner           *bind.TransactOpts
+	govValidator    *bind.BoundContract
+	coinAdapter     *bind.BoundContract
+	govMinter       *bind.BoundContract
+	govMasterMinter *bind.BoundContract
 }
 
 type TestCandidate struct {
@@ -125,7 +148,7 @@ func (s *TestCandidate) GetBLSPoPSignature(t *testing.T) bls.Signature {
 
 var defaultBlockPeriod time.Duration
 
-func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapterOption func(*params.SystemContract)) (*GovWBFT, error) {
+func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapterOption, minterOption, masterMinterOption func(*params.SystemContract)) (*GovWBFT, error) {
 	owner := getTxOpt(t, "owner")
 
 	if alloc == nil {
@@ -147,10 +170,34 @@ func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapter
 			if adapterOption != nil {
 				adapterOption(anzeonConfig.SystemContracts.NativeCoinAdapter)
 			}
+
+			if minterOption != nil {
+				anzeonConfig.SystemContracts.GovMinter = &params.SystemContract{
+					Address: TestGovMinterAddress,
+					Version: "v1",
+				}
+				minterOption(anzeonConfig.SystemContracts.GovMinter)
+			}
+
+			if masterMinterOption != nil {
+				anzeonConfig.SystemContracts.GovMasterMinter = &params.SystemContract{
+					Address: TestGovMasterMinterAddress,
+					Version: "v1",
+				}
+				masterMinterOption(anzeonConfig.SystemContracts.GovMasterMinter)
+			}
 		}),
 	}
 	g.govValidator = compiledWBFT.GovValidator.New(g.backend.Client(), TestGovValidatorAddress)
 	g.coinAdapter = compiledWBFT.CoinAdapter.New(g.backend.Client(), TestCoinAdapterAddress)
+
+	if minterOption != nil {
+		g.govMinter = compiledWBFT.GovMinter.New(g.backend.Client(), TestGovMinterAddress)
+	}
+	if masterMinterOption != nil {
+		g.govMasterMinter = compiledWBFT.GovMasterMinter.New(g.backend.Client(), TestGovMasterMinterAddress)
+	}
+
 	return g, nil
 }
 
@@ -221,13 +268,51 @@ func (g *GovWBFT) BaseMemberVersion(contract *bind.BoundContract, sender *EOA) (
 	return result[0].(*big.Int), nil
 }
 
-func (g *GovWBFT) BaseGetProposal(contract *bind.BoundContract, sender *EOA) (sc.Proposal, error) {
+func (g *GovWBFT) BaseCurrentProposalId(contract *bind.BoundContract, sender *EOA) (*big.Int, error) {
 	var result []interface{}
-	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "getProposal")
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "currentProposalId")
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) BaseGetProposal(contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (sc.Proposal, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "getProposal", proposalId)
 	if err != nil {
 		return sc.Proposal{}, err
 	}
-	proposal := *abi.ConvertType(result[0], new(sc.Proposal)).(*sc.Proposal)
+
+	// The result is a tuple, we need to manually parse the fields
+	rawProposal := result[0].(struct {
+		ActionType        [32]byte       `json:"actionType"`
+		MemberVersion     *big.Int       `json:"memberVersion"`
+		VotedBitmap       *big.Int       `json:"votedBitmap"`
+		CreatedAt         *big.Int       `json:"createdAt"`
+		ExecutedAt        *big.Int       `json:"executedAt"`
+		Proposer          common.Address `json:"proposer"`
+		RequiredApprovals uint32         `json:"requiredApprovals"`
+		Approved          uint32         `json:"approved"`
+		Rejected          uint32         `json:"rejected"`
+		Status            uint8          `json:"status"` // Parse as uint8 first
+		CallData          []byte         `json:"callData"`
+	})
+
+	proposal := sc.Proposal{
+		ActionType:        rawProposal.ActionType,
+		MemberVersion:     rawProposal.MemberVersion,
+		VotedBitmap:       rawProposal.VotedBitmap,
+		CreatedAt:         rawProposal.CreatedAt,
+		ExecutedAt:        rawProposal.ExecutedAt,
+		Proposer:          rawProposal.Proposer,
+		RequiredApprovals: rawProposal.RequiredApprovals,
+		Approved:          rawProposal.Approved,
+		Rejected:          rawProposal.Rejected,
+		Status:            sc.ProposalStatus(rawProposal.Status), // Convert uint8 to ProposalStatus
+		CallData:          rawProposal.CallData,
+	}
+
 	return proposal, nil
 }
 
@@ -235,12 +320,17 @@ func (g *GovWBFT) BaseTxProposeAddMember(t *testing.T, contract *bind.BoundContr
 	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "proposeAddMember", newMember, newQuorum)
 }
 
-func (g *GovWBFT) BaseTxApproveProposal(t *testing.T, contract *bind.BoundContract, sender *EOA) (*types.Transaction, error) {
-	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "approveProposal")
+func (g *GovWBFT) BaseTxApproveProposal(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "approveProposal", proposalId)
+}
+
+func (g *GovWBFT) BaseTxApproveProposalAndExecute(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "approveProposalAndExecute", proposalId)
 }
 
 func (g *GovWBFT) BaseTxChangeMember(t *testing.T, contract *bind.BoundContract, sender *EOA, newMember common.Address) (*types.Transaction, error) {
-	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "changeMember", newMember)
+	// GovBaseV2: proposeChangeMember requires oldMember and newMember
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "proposeChangeMember", sender.Address, newMember)
 }
 
 // GovValidator Contract
@@ -323,6 +413,210 @@ func (g *GovWBFT) validatorContractTx(t *testing.T, method string, sender *EOA, 
 
 func (g *GovWBFT) validatorCall(method string, sender *EOA, result *[]interface{}, params ...interface{}) error {
 	return g.govValidator.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, result, method, params...)
+}
+
+// GovMinter Contract
+func (g *GovWBFT) FiatToken(sender *EOA) (common.Address, error) {
+	var result []interface{}
+	err := g.minterCall("fiatToken", sender, &result)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return result[0].(common.Address), nil
+}
+
+func (g *GovWBFT) GetMemberBeneficiary(sender *EOA, member common.Address) (common.Address, error) {
+	var result []interface{}
+	err := g.minterCall("memberBeneficiaries", sender, &result, member)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return result[0].(common.Address), nil
+}
+
+func (g *GovWBFT) GetBurnBalance(sender *EOA, member common.Address) (*big.Int, error) {
+	var result []interface{}
+	err := g.minterCall("burnBalance", sender, &result, member)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) TxProposeMint(t *testing.T, sender *EOA, recipient common.Address, amount *big.Int) (*types.Transaction, error) {
+	// Encode MintProof as bytes
+	// MintProof: (address beneficiary, uint256 amount, uint256 timestamp, string depositId, string bankReference, string memo)
+	// Note: beneficiary must be the sender's registered beneficiary to prevent front-running
+
+	// Get the sender's registered beneficiary
+	beneficiary, err := g.GetMemberBeneficiary(sender, sender.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	// Use beneficiary instead of recipient for the proof
+	timestamp := big.NewInt(time.Now().Unix())
+	depositId := "deposit-" + beneficiary.Hex()[:10]
+	bankReference := "bank-ref-001"
+	memo := "test mint"
+
+	proofData, err := abi.Arguments{
+		{Type: mustParseType("address")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+	}.Pack(beneficiary, amount, timestamp, depositId, bankReference, memo)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return g.minterContractTx(t, "proposeMint", sender, proofData)
+}
+
+func (g *GovWBFT) TxProposeBurn(t *testing.T, sender *EOA, from common.Address, amount *big.Int) (*types.Transaction, error) {
+	// Encode BurnProof as bytes
+	// BurnProof: (address from, uint256 amount, uint256 timestamp, string withdrawalId, string referenceId, string memo)
+	// Note: from must be the sender's address (BurnFromMustBeProposer validation)
+
+	// Use sender.Address as the 'from' field to satisfy BurnFromMustBeProposer check
+	actualFrom := sender.Address
+
+	timestamp := big.NewInt(time.Now().Unix())
+	withdrawalId := "withdrawal-" + actualFrom.Hex()[:10]
+	referenceId := "ref-001"
+	memo := "test burn"
+
+	proofData, err := abi.Arguments{
+		{Type: mustParseType("address")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+	}.Pack(actualFrom, amount, timestamp, withdrawalId, referenceId, memo)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return g.minterContractTx(t, "proposeBurn", sender, proofData)
+}
+
+func (g *GovWBFT) TxRegisterBeneficiary(t *testing.T, sender *EOA, beneficiary common.Address) (*types.Transaction, error) {
+	// registerBeneficiary is called directly, not through proposal
+	return g.minterContractTx(t, "registerBeneficiary", sender, beneficiary)
+}
+
+func (g *GovWBFT) DepositForBurn(t *testing.T, sender *EOA, amount *big.Int) error {
+	// Send native coins to GovMinter contract to build up burn balance
+	// This triggers the receive() function in GovMinter
+
+	// Get current nonce
+	nonce, err := g.backend.Client().PendingNonceAt(context.TODO(), sender.Address)
+	if err != nil {
+		return err
+	}
+
+	// Get gas price
+	gasPrice, err := g.backend.Client().SuggestGasPrice(context.TODO())
+	if err != nil {
+		return err
+	}
+
+	// Create transaction
+	tx := types.NewTx(&types.LegacyTx{
+		Nonce:    nonce,
+		GasPrice: gasPrice,
+		Gas:      100000, // Sufficient gas for receive()
+		To:       &TestGovMinterAddress,
+		Value:    amount,
+		Data:     nil,
+	})
+
+	// Sign transaction
+	signer := types.NewEIP155Signer(params.TestWBFTChainConfig.ChainID)
+	signedTx, err := types.SignTx(tx, signer, sender.PrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// Send transaction
+	err = g.backend.Client().SendTransaction(context.TODO(), signedTx)
+	if err != nil {
+		return err
+	}
+
+	// Commit to mine the transaction
+	g.backend.Commit()
+	return nil
+}
+
+func (g *GovWBFT) minterContractTx(t *testing.T, method string, sender *EOA, params ...interface{}) (*types.Transaction, error) {
+	return g.govMinter.Transact(NewTxOptsWithValue(t, sender, nil), method, params...)
+}
+
+func (g *GovWBFT) minterCall(method string, sender *EOA, result *[]interface{}, params ...interface{}) error {
+	return g.govMinter.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, result, method, params...)
+}
+
+// GovMasterMinter Contract
+func (g *GovWBFT) MasterMinterFiatToken(sender *EOA) (common.Address, error) {
+	var result []interface{}
+	err := g.masterMinterCall("fiatToken", sender, &result)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return result[0].(common.Address), nil
+}
+
+func (g *GovWBFT) MaxMinterAllowance(sender *EOA) (*big.Int, error) {
+	var result []interface{}
+	err := g.masterMinterCall("maxMinterAllowance", sender, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) IsMinter(sender *EOA, minter common.Address) (bool, error) {
+	var result []interface{}
+	err := g.masterMinterCall("isMinter", sender, &result, minter)
+	if err != nil {
+		return false, err
+	}
+	return result[0].(bool), nil
+}
+
+func (g *GovWBFT) MinterAllowance(sender *EOA, minter common.Address) (*big.Int, error) {
+	var result []interface{}
+	err := g.masterMinterCall("minterAllowances", sender, &result, minter)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) TxProposeConfigureMinter(t *testing.T, sender *EOA, minter common.Address, allowance *big.Int) (*types.Transaction, error) {
+	return g.masterMinterContractTx(t, "proposeConfigureMinter", sender, minter, allowance)
+}
+
+func (g *GovWBFT) TxProposeRemoveMinter(t *testing.T, sender *EOA, minter common.Address) (*types.Transaction, error) {
+	return g.masterMinterContractTx(t, "proposeRemoveMinter", sender, minter)
+}
+
+func (g *GovWBFT) TxProposeUpdateMaxMinterAllowance(t *testing.T, sender *EOA, newMax *big.Int) (*types.Transaction, error) {
+	return g.masterMinterContractTx(t, "proposeUpdateMaxMinterAllowance", sender, newMax)
+}
+
+func (g *GovWBFT) masterMinterContractTx(t *testing.T, method string, sender *EOA, params ...interface{}) (*types.Transaction, error) {
+	return g.govMasterMinter.Transact(NewTxOptsWithValue(t, sender, nil), method, params...)
+}
+
+func (g *GovWBFT) masterMinterCall(method string, sender *EOA, result *[]interface{}, params ...interface{}) error {
+	return g.govMasterMinter.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, result, method, params...)
 }
 
 // General Functions
