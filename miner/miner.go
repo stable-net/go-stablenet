@@ -62,14 +62,14 @@ type Config struct {
 
 // DefaultGasPrice Pre-computed gas price values
 var (
-	// Use InitialMinerTip from protocol params for consistency
-	DefaultGasPrice = new(big.Int).SetUint64(params.InitialMinerTip)
+	// Use InitialGasTip from protocol params for consistency
+	DefaultGasPrice = new(big.Int).SetUint64(params.InitialGasTip)
 )
 
 // DefaultConfig contains default settings for miner.
 var DefaultConfig = Config{
 	GasCeil:  105000000,
-	GasPrice: DefaultGasPrice, // Use InitialMinerTip from protocol params
+	GasPrice: DefaultGasPrice, // Use InitialGasTip from protocol params
 
 	// The default recommit time is chosen as two seconds since
 	// consensus-layer usually will wait a half slot of time(6s)

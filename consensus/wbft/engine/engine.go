@@ -67,7 +67,7 @@ type Engine struct {
 	signer   common.Address   // Ethereum address of the signing key
 	sign     SignerFn         // Signer function to authorize hashes with
 	checkSig CheckSignatureFn // Check signature function to verify signatures
-	minerTip *big.Int         // tip value agreed through governance voting (in Wei)
+	gasTip   *big.Int         // tip value agreed through governance voting (in Wei)
 }
 
 func NewEngine(cfg *wbft.Config, signer common.Address, sign SignerFn, checkSig CheckSignatureFn) *Engine {
@@ -76,17 +76,17 @@ func NewEngine(cfg *wbft.Config, signer common.Address, sign SignerFn, checkSig 
 		signer:   signer,
 		sign:     sign,
 		checkSig: checkSig,
-		minerTip: big.NewInt(100 * params.GWei),
+		gasTip:   big.NewInt(100 * params.GWei),
 	}
 }
 
-// SetMinerTip updates the governance-agreed tip value used by miners (in Wei).
-func (e *Engine) SetMinerTip(tip *big.Int) error {
+// SetGasTip updates the governance-agreed tip value used by miners (in Wei).
+func (e *Engine) SetGasTip(tip *big.Int) error {
 	if tip == nil {
-		return fmt.Errorf("invalid minerTip: value is nil")
+		return fmt.Errorf("invalid gasTip: value is nil")
 	}
 	// keep a copy to avoid external mutation
-	e.minerTip = new(big.Int).Set(tip)
+	e.gasTip = new(big.Int).Set(tip)
 	return nil
 }
 
@@ -333,8 +333,8 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		}
 	}
 
-	if header.Number.Uint64() > 0 && currentExtra.MinerTip != nil && currentExtra.MinerTip.Cmp(e.minerTip) != 0 {
-		return fmt.Errorf("invalid gov tip: have %d, want %d", currentExtra.MinerTip, e.minerTip)
+	if header.Number.Uint64() > 0 && currentExtra.GasTip != nil && currentExtra.GasTip.Cmp(e.gasTip) != 0 {
+		return fmt.Errorf("invalid gov tip: have %d, want %d", currentExtra.GasTip, e.gasTip)
 	}
 
 	return nil
@@ -485,7 +485,7 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	if mustHavePrevSeals(header) {
 		lastCanonicalHeader := chain.GetHeaderByNumber(header.Number.Uint64() - 1)
 		if lastCanonicalHeader.Number.Sign() == 0 {
-			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteMinerTip(e.minerTip))
+			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteGasTip(e.gasTip))
 		} else {
 			extra, err2 := types.ExtractWBFTExtra(lastCanonicalHeader)
 			if err2 != nil {
@@ -508,13 +508,13 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 				header,
 				e.WriteRandao(chain.Config(), header),
 				WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
-				WriteMinerTip(e.minerTip),
+				WriteGasTip(e.gasTip),
 			)
 		}
 	} else {
 		// croissant hardFork block has empty prev seal
 		// next block of genesis croissant block has empty prev seal
-		madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteMinerTip(e.minerTip))
+		madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteGasTip(e.gasTip))
 	}
 
 	if err != nil {
@@ -575,9 +575,9 @@ func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyWBFTExtra {
 	}
 }
 
-func WriteMinerTip(minerTip *big.Int) ApplyWBFTExtra {
+func WriteGasTip(gasTip *big.Int) ApplyWBFTExtra {
 	return func(wbftExtra *types.WBFTExtra) error {
-		wbftExtra.MinerTip = minerTip
+		wbftExtra.GasTip = gasTip
 		return nil
 	}
 }

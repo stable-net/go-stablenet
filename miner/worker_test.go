@@ -164,7 +164,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 				Validators:    []uint32{0},
 				BLSPublicKeys: [][]byte{testBankBlsPubKey.Marshal()},
 			},
-			MinerTip: new(big.Int).SetUint64(params.InitialMinerTip),
+			GasTip: new(big.Int).SetUint64(params.InitialGasTip),
 		}
 		gspec.ExtraData, _ = rlp.EncodeToBytes(sampleExtra)
 	default:

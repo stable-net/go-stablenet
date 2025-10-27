@@ -63,7 +63,7 @@ func TestPrepareExtra(t *testing.T) {
 			PreparedSeal:      nil,
 			CommittedSeal:     nil,
 			EpochInfo:         nil,
-			MinerTip:          big.NewInt(0),
+			GasTip:            big.NewInt(0),
 		},
 	)
 
@@ -120,7 +120,7 @@ func TestWriteCommittedSeals(t *testing.T) {
 				testAccount4.blsKey.PublicKey().Marshal(),
 			},
 		},
-		MinerTip: big.NewInt(0),
+		GasTip: big.NewInt(0),
 	}
 	// use this to generate istRawData
 	//encodedIstExtra, _ := rlp.EncodeToBytes(expectedIstExtra)
@@ -133,7 +133,7 @@ func TestWriteCommittedSeals(t *testing.T) {
 	_, err := ApplyHeaderWBFTExtra(
 		h,
 		writeCommittedSeals([]wbft.SealData{{Seal: expectedCommittedSeal, Sealer: 0}}),
-		WriteMinerTip(big.NewInt(0)),
+		WriteGasTip(big.NewInt(0)),
 	)
 	if err != nil {
 		t.Errorf("error mismatch: have %v, want: nil", err)
@@ -194,7 +194,7 @@ func TestWritePreparedSeals(t *testing.T) {
 				testAccount4.blsKey.PublicKey().Marshal(),
 			},
 		},
-		MinerTip: big.NewInt(0),
+		GasTip: big.NewInt(0),
 	}
 	// use this to generate istRawData
 	//encodedIstExtra, _ := rlp.EncodeToBytes(expectedIstExtra)
@@ -267,7 +267,7 @@ func TestWriteRoundNumber(t *testing.T) {
 				testAccount4.blsKey.PublicKey().Marshal(),
 			},
 		},
-		MinerTip: big.NewInt(0),
+		GasTip: big.NewInt(0),
 	}
 	// use this to generate istRawData
 	//encodedIstExtra, _ := rlp.EncodeToBytes(expectedIstExtra)

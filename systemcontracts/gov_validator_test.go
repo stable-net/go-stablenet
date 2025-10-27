@@ -55,7 +55,7 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // minerTip (default: InitialMinerTip = 100 Gwei)
+				{ // gasTip (default: InitialGasTip = 100 Gwei)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
 					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
@@ -105,7 +105,7 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // minerTip (default: InitialMinerTip = 100 Gwei)
+				{ // gasTip (default: InitialGasTip = 100 Gwei)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
 					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
@@ -155,31 +155,31 @@ func TestInitializeValidator(t *testing.T) {
 			expectParam: nil,
 		},
 		{
-			name: "minerTip with invalid format",
+			name: "gasTip with invalid format",
 			param: map[string]string{
 				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
 				GOV_BASE_PARAM_MEMBER_VERSION: "1",
-				GOV_VALIDATOR_PARAM_MINER_TIP: "invalid_number",
+				GOV_VALIDATOR_PARAM_GAS_TIP:   "invalid_number",
 			},
-			expectErr:   "`systemContracts.govValidator.params.minerTip`: invalid value: invalid_number",
+			expectErr:   "`systemContracts.govValidator.params.gasTip`: invalid value: invalid_number",
 			expectParam: nil,
 		},
 		{
-			name: "minerTip below minimum (0.5 Gwei)",
+			name: "gasTip below minimum (0.5 Gwei)",
 			param: map[string]string{
 				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
 				GOV_BASE_PARAM_MEMBER_VERSION: "1",
-				GOV_VALIDATOR_PARAM_MINER_TIP: "500000000", // 0.5 Gwei (below 1 Gwei minimum)
+				GOV_VALIDATOR_PARAM_GAS_TIP:   "500000000", // 0.5 Gwei (below 1 Gwei minimum)
 			},
-			expectErr:   "`systemContracts.govValidator.params.minerTip`: value 500000000 is below minimum 1000000000 wei",
+			expectErr:   "`systemContracts.govValidator.params.gasTip`: value 500000000 is below minimum 1000000000 wei",
 			expectParam: nil,
 		},
 		{
-			name: "minerTip at exact minimum (1 Gwei)",
+			name: "gasTip at exact minimum (1 Gwei)",
 			param: map[string]string{
 				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
 				GOV_BASE_PARAM_MEMBER_VERSION: "1",
-				GOV_VALIDATOR_PARAM_MINER_TIP: "1000000000", // 1 Gwei (exact minimum)
+				GOV_VALIDATOR_PARAM_GAS_TIP:   "1000000000", // 1 Gwei (exact minimum)
 			},
 			expectErr: "",
 			expectParam: []params.StateParam{
@@ -208,7 +208,7 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // minerTip
+				{ // gasTip
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
 					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000003b9aca00"), // 1 Gwei
@@ -216,11 +216,11 @@ func TestInitializeValidator(t *testing.T) {
 			},
 		},
 		{
-			name: "minerTip not provided (should use InitialMinerTip default)",
+			name: "gasTip not provided (should use InitialGasTip default)",
 			param: map[string]string{
 				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
 				GOV_BASE_PARAM_MEMBER_VERSION: "1",
-				// minerTip not provided - should default to InitialMinerTip (100 Gwei)
+				// gasTip not provided - should default to InitialGasTip (100 Gwei)
 			},
 			expectErr: "",
 			expectParam: []params.StateParam{
@@ -249,7 +249,7 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // minerTip (default: InitialMinerTip = 100 Gwei = 100000000000 = 0x174876e800)
+				{ // gasTip (default: InitialGasTip = 100 Gwei = 100000000000 = 0x174876e800)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
 					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
@@ -257,11 +257,11 @@ func TestInitializeValidator(t *testing.T) {
 			},
 		},
 		{
-			name: "minerTip with valid value (100 Gwei)",
+			name: "gasTip with valid value (100 Gwei)",
 			param: map[string]string{
 				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
 				GOV_BASE_PARAM_MEMBER_VERSION: "1",
-				GOV_VALIDATOR_PARAM_MINER_TIP: "100000000000", // 100 Gwei
+				GOV_VALIDATOR_PARAM_GAS_TIP:   "100000000000", // 100 Gwei
 			},
 			expectErr: "",
 			expectParam: []params.StateParam{
@@ -290,7 +290,7 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // minerTip
+				{ // gasTip
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
 					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
@@ -342,7 +342,7 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // minerTip (default: InitialMinerTip = 100 Gwei)
+				{ // gasTip (default: InitialGasTip = 100 Gwei)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
 					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
@@ -395,13 +395,13 @@ func TestInitializeValidator(t *testing.T) {
 			},
 		},
 		{
-			name: "1 member, 1 validator, 1 bls key, with minerTip",
+			name: "1 member, 1 validator, 1 bls key, with gasTip",
 			param: map[string]string{
 				GOV_BASE_PARAM_MEMBERS:         sampleMemberAddress,
 				GOV_BASE_PARAM_MEMBER_VERSION:  "1",
 				GOV_VALIDATOR_PARAM_VALIDATORS: sampleMemberAddress,
 				GOV_VALIDATOR_PARAM_BLS_KEYS:   sampleBlsKey,
-				GOV_VALIDATOR_PARAM_MINER_TIP:  "200000000000", // 200 Gwei
+				GOV_VALIDATOR_PARAM_GAS_TIP:    "200000000000", // 200 Gwei
 			},
 			expectErr: "",
 			expectParam: []params.StateParam{
@@ -430,7 +430,7 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // minerTip (200 Gwei = 0x2e90edd000)
+				{ // gasTip (200 Gwei = 0x2e90edd000)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000002e90edd000"),

@@ -151,10 +151,10 @@ type Message struct {
 }
 
 // TransactionToMessage converts a transaction into a Message.
-func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, minerTip *big.Int) (*Message, error) {
+func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, gasTip *big.Int) (*Message, error) {
 	gasTipCap := new(big.Int).Set(tx.GasTipCap())
-	if minerTip != nil {
-		gasTipCap = minerTip
+	if gasTip != nil {
+		gasTipCap = gasTip
 	}
 
 	msg := &Message{

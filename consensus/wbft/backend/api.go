@@ -337,7 +337,7 @@ func (api *API) GetWbftExtraInfo(number rpc.BlockNumber) (map[string]interface{}
 		"preparedSeal":      sealForJSON(extra.PreparedSeal, curValidators.AddressList()),
 		"committedSeal":     sealForJSON(extra.CommittedSeal, curValidators.AddressList()),
 		"epochInfo":         epochForJSON(extra.EpochInfo),
-		"minerTip":          extra.MinerTip.String(),
+		"gasTip":            extra.GasTip.String(),
 	}
 
 	return result, nil

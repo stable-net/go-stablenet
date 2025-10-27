@@ -643,18 +643,18 @@ func ReadReceipts(db ethdb.Reader, hash common.Hash, number uint64, time uint64,
 		baseFee = header.BaseFee
 	}
 
-	var minerTip *big.Int
+	var gasTip *big.Int
 	if header == nil {
-		minerTip = big.NewInt(0)
+		gasTip = big.NewInt(0)
 	} else {
-		minerTip = header.MinerTip()
+		gasTip = header.GasTip()
 	}
 	// Compute effective blob gas price.
 	var blobGasPrice *big.Int
 	if header != nil && header.ExcessBlobGas != nil {
 		blobGasPrice = eip4844.CalcBlobFee(*header.ExcessBlobGas)
 	}
-	if err := receipts.DeriveFields(config, hash, number, time, baseFee, minerTip, blobGasPrice, body.Transactions); err != nil {
+	if err := receipts.DeriveFields(config, hash, number, time, baseFee, gasTip, blobGasPrice, body.Transactions); err != nil {
 		log.Error("Failed to derive block receipts fields", "hash", hash, "number", number, "err", err)
 		return nil
 	}

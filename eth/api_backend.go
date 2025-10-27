@@ -363,7 +363,7 @@ func (b *EthAPIBackend) SyncProgress() ethereum.SyncProgress {
 }
 
 func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
-	// Return the current minerTip from governance contract
+	// Return the current gasTip from governance contract
 	// The worker updates this value from GovValidator contract before filling transactions
 	return b.eth.Miner().GetGasTip(), nil
 }
