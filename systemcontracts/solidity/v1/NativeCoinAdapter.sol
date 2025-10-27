@@ -37,7 +37,13 @@ import { EIP3009 } from "../abstracts/eip/EIP3009.sol";
 import { EIP2612 } from "../abstracts/eip/EIP2612.sol";
 import { EIP712 } from "../libraries/EIP712.sol";
 
-import { ICoinManager } from "../interfaces/ICoinManager.sol";
+interface ICoinManager {
+    function mint(address to, uint256 amount) external;
+
+    function burn(address from, uint256 amount) external;
+
+    function transfer(address from, address to, uint256 amount) external;
+}
 
 /**
  * @title NativeCoinAdapter

@@ -193,7 +193,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
 			return nil, gas, ErrInsufficientBalance
 		}
-		if !evm.chainConfig.AnzeonEnabled() {
+		if evm.chainConfig.AnzeonEnabled() {
 			// Fail if transferring value to zero address
 			if addr == (common.Address{}) {
 				return nil, gas, ErrZeroAddressTransfer
