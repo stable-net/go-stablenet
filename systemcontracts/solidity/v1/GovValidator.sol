@@ -25,7 +25,6 @@ contract GovValidator is GovBase {
 
     uint256 public constant BLS_PUBLIC_KEY_LENGTH = 48;
     uint256 public constant BLS_SIGNATURE_LENGTH = 96;
-    uint256 public constant MIN_MINER_TIP = 1e9; // Must match params.MinMinerTip in protocol_params.go
 
     error InvalidValidator();
     error AlreadyValidatorExists();
@@ -36,7 +35,6 @@ contract GovValidator is GovBase {
     error FailedToVerifyBlsKey();
     error InvalidBlsKey();
     error InvalidMinerTip();
-    error MinerTipTooLow();
     error SameMinerTip();
 
     // 0x0 ~ 0x31: reserved for GovBase
@@ -177,11 +175,6 @@ contract GovValidator is GovBase {
         noActiveProposal 
         returns (uint256) 
     {
-        // Check minimum value
-        if (_newTip < MIN_MINER_TIP) {
-            revert MinerTipTooLow();
-        }
-        
         // Check if same as current value
         if (_newTip == minerTip) {
             revert SameMinerTip();

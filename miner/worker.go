@@ -1192,10 +1192,6 @@ func (w *worker) updateMinerTipFromContract(env *environment) error {
 		return fmt.Errorf("invalid minerTip value from contract: %s", minerTip.String())
 	}
 
-	if minerTip.Uint64() < params.MinMinerTip {
-		return fmt.Errorf("minerTip %s is below minimum %d", minerTip.String(), params.MinMinerTip)
-	}
-
 	// setGasTip checks if changed and updates accordingly (with WBFT engine notification)
 	if w.setGasTip(minerTip) {
 		log.Trace("Updated minerTip from GovValidator contract", "newTip", minerTip)

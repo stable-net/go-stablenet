@@ -75,13 +75,6 @@ func initializeValidator(govValidatorAddress common.Address, param map[string]st
 		minerTip = new(big.Int).SetUint64(params.InitialMinerTip)
 	}
 
-	// Validate minerTip meets minimum requirement
-	minMinerTip := new(big.Int).SetUint64(params.MinMinerTip)
-	if minerTip.Cmp(minMinerTip) < 0 {
-		return nil, fmt.Errorf("`systemContracts.govValidator.params.minerTip`: value %s is below minimum %s wei",
-			minerTip.String(), minMinerTip.String())
-	}
-
 	// Set minerTip in contract storage
 	sp = append(sp,
 		params.StateParam{

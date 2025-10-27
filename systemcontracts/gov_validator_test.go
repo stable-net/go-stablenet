@@ -505,28 +505,3 @@ func TestInitializeValidator(t *testing.T) {
 		})
 	}
 }
-
-// TestMinMinerTipConsistency verifies that the MinMinerTip constant in Go matches
-// the MIN_MINER_TIP constant in GovValidator.sol
-func TestMinMinerTipConsistency(t *testing.T) {
-	// MIN_MINER_TIP in GovValidator.sol is defined
-	solidityMinMinerTip := uint64(1e9)
-
-	if params.MinMinerTip != solidityMinMinerTip {
-		t.Errorf("MinMinerTip mismatch: params.MinMinerTip=%d, GovValidator.sol MIN_MINER_TIP=%d",
-			params.MinMinerTip, solidityMinMinerTip)
-	}
-
-	t.Logf("MinMinerTip consistency verified: %d wei", params.MinMinerTip)
-}
-
-// TestInitialMinerTipValidity verifies that InitialMinerTip is greater than or equal to MinMinerTip
-func TestInitialMinerTipValidity(t *testing.T) {
-	if params.InitialMinerTip < params.MinMinerTip {
-		t.Errorf("InitialMinerTip (%d) must be >= MinMinerTip (%d)",
-			params.InitialMinerTip, params.MinMinerTip)
-	}
-
-	t.Logf("InitialMinerTip validity verified: %d wei >= MinMinerTip %d wei",
-		params.InitialMinerTip, params.MinMinerTip)
-}
