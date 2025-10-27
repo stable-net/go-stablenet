@@ -78,7 +78,7 @@ var (
 	testConfig = &Config{
 		Recommit: common.Duration(time.Second),
 		GasCeil:  params.GenesisGasLimit,
-		GasPrice: big.NewInt(100 * params.GWei),
+		GasPrice: new(big.Int).SetUint64(params.MinBaseFee),
 	}
 )
 
@@ -164,7 +164,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 				Validators:    []uint32{0},
 				BLSPublicKeys: [][]byte{testBankBlsPubKey.Marshal()},
 			},
-			MinerTip: big.NewInt(100 * params.GWei),
+			MinerTip: new(big.Int).SetUint64(params.InitialMinerTip),
 		}
 		gspec.ExtraData, _ = rlp.EncodeToBytes(sampleExtra)
 	default:
