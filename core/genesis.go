@@ -550,9 +550,6 @@ func DefaultStableNetMainnetGenesisBlock() *Genesis {
 		panic("Cannot parse default StableNet mainnet genesis.")
 	}
 	genesis.Config = params.StableOneMainnetChainConfig
-	if genesis.Config.AnzeonEnabled() {
-		genesis.BaseFee = new(big.Int).SetUint64(params.MinBaseFee)
-	}
 	return genesis
 }
 
@@ -562,9 +559,6 @@ func DefaultStableNetTestnetGenesisBlock() *Genesis {
 		panic("Cannot parse default StableNet testnet genesis.")
 	}
 	genesis.Config = params.StableOneTestnetChainConfig
-	if genesis.Config.AnzeonEnabled() {
-		genesis.BaseFee = new(big.Int).SetUint64(params.MinBaseFee)
-	}
 	return genesis
 }
 
