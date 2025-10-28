@@ -90,6 +90,19 @@ func initGovMinter(t *testing.T) {
 		}
 	})
 	require.NoError(t, err)
+
+	// Configure GovMinter as a minter with sufficient allowance (10M tokens)
+	// This is required for the new P0-1 security fix (minter allowance validation)
+	owner := minterMembers[0].Operator
+	minterAllowance := big.NewInt(10_000_000)
+	tx, err := gMinter.ConfigureMockFiatTokenMinter(t, owner, TestGovMinterAddress, minterAllowance)
+	_, err = gMinter.ExpectedOk(tx, err)
+	require.NoError(t, err, "Failed to configure GovMinter as minter")
+
+	// Verify minter allowance was set
+	allowance, err := gMinter.GetMockFiatTokenMinterAllowance(owner, TestGovMinterAddress)
+	require.NoError(t, err)
+	require.Equal(t, 0, minterAllowance.Cmp(allowance), "Minter allowance should be configured")
 }
 
 func TestGovMinter_Initialize(t *testing.T) {

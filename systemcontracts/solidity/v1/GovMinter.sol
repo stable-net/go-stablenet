@@ -49,6 +49,8 @@ contract GovMinter is GovBaseV2 {
     error ContractPaused();
     error ContractNotPaused();
     error MintFailed();
+    error InsufficientMinterAllowance();
+    error BurnAmountMismatch();
 
     // ========== Constants ==========
     bytes32 public constant ACTION_MINT_WITH_DEPOSIT = keccak256("MINT_WITH_DEPOSIT");
@@ -127,6 +129,14 @@ contract GovMinter is GovBaseV2 {
     mapping(string => bool) public executedWithdrawalIds;
     mapping(uint256 => BurnProposalData) public burnProposals;
 
+    // Mint allowance tracking
+    /// @dev Total amount reserved by pending mint proposals
+    /// @notice Used to prevent over-allocation of minter allowance
+    uint256 public reservedMintAmount;
+
+    /// @dev Maps proposalId to mint amount for cleanup on proposal completion
+    mapping(uint256 => uint256) public mintProposalAmounts;
+
     // Burn balance tracking
     mapping(address => uint256) public burnBalance;
 
@@ -146,6 +156,10 @@ contract GovMinter is GovBaseV2 {
 
     /// @notice Emitted when a user prepays for burn operations
     event BurnPrepaid(address indexed user, uint256 amount);
+
+    /// @notice Emitted when burn is successfully executed
+    /// @dev Essential for off-chain monitoring and governance transparency
+    event BurnExecuted(address indexed from, uint256 indexed amount, string withdrawalId);
 
     /// @notice Emitted when emergency pause is activated
     event EmergencyPaused(uint256 indexed proposalId);
@@ -324,6 +338,12 @@ contract GovMinter is GovBaseV2 {
         if (bytes(proof.depositId).length == 0) revert InvalidDepositId();
         if (bytes(proof.bankReference).length == 0) revert InvalidBankReference();
 
+        // Validate against minter allowance
+        // Check if there's enough unreserved allowance for this mint
+        uint256 totalAllowance = fiatToken.minterAllowance(address(this));
+        uint256 availableAllowance = totalAllowance - reservedMintAmount;
+        if (proof.amount > availableAllowance) revert InsufficientMinterAllowance();
+
         // Front-running prevention: verify beneficiary matches registered beneficiary
         address registeredBeneficiary = memberBeneficiaries[msg.sender];
         if (registeredBeneficiary == address(0)) revert BeneficiaryNotRegistered();
@@ -343,6 +363,10 @@ contract GovMinter is GovBaseV2 {
 
         // Create proposal with callData
         uint256 proposalId = _createProposal(ACTION_MINT_WITH_DEPOSIT, callData);
+
+        // Reserve mint allowance for this proposal
+        reservedMintAmount += proof.amount;
+        mintProposalAmounts[proposalId] = proof.amount;
 
         // Link depositId to proposalId for state tracking
         depositIdToProposalId[proof.depositId] = proposalId;
@@ -382,7 +406,9 @@ contract GovMinter is GovBaseV2 {
 
         _markProofHashUsed(proofHash);
 
-        if (burnBalance[proof.from] < proof.amount) revert InsufficientBurnBalance();
+        // Validate burn amount matches prepaid native coin exactly
+        // This ensures the accounting remains consistent (장부가 꼬이지 않도록)
+        if (burnBalance[proof.from] != proof.amount) revert BurnAmountMismatch();
 
         // Encode execution data (from, amount, withdrawalId) for callData
         bytes memory callData = abi.encode(proof.from, proof.amount, proof.withdrawalId);
@@ -423,6 +449,50 @@ contract GovMinter is GovBaseV2 {
         // Create proposal with empty callData (no parameters needed)
         bytes memory callData = "";
         return _createProposal(ACTION_UNPAUSE, callData);
+    }
+
+    /// @dev Internal function to release reserved mint allowance
+    /// @notice Automatically cleans up reservation when proposal reaches terminal state
+    /// @param proposalId The proposal ID to clean up
+    function _cleanupMintReservation(uint256 proposalId) internal {
+        uint256 reservedAmount = mintProposalAmounts[proposalId];
+        if (reservedAmount > 0) {
+            reservedMintAmount -= reservedAmount;
+            delete mintProposalAmounts[proposalId];
+        }
+    }
+
+    /// @dev Hook implementation for proposal finalization
+    /// @notice Called automatically by GovBaseV2 when proposal reaches terminal state
+    /// @param proposalId The proposal that reached terminal state
+    ///
+    /// @custom:security Called AFTER state transition (status already updated in GovBaseV2)
+    /// @custom:security Safe to call multiple times due to idempotent cleanup function
+    /// @custom:security No external calls - only state cleanup
+    ///
+    /// @custom:usage Terminal States (all trigger cleanup)
+    ///      - Executed: Proposal successfully executed (mint completed)
+    ///      - Failed: Proposal execution failed (mint failed)
+    ///      - Expired: Proposal expired before execution
+    ///      - Cancelled: Proposal cancelled by proposer
+    ///      - Rejected: Proposal rejected by members
+    ///
+    /// @custom:design Pattern
+    ///      - Template Method Pattern: GovBaseV2 defines lifecycle, GovMinter implements cleanup
+    ///      - Single Responsibility: Proposal lifecycle (GovBaseV2) separated from mint cleanup (GovMinter)
+    ///      - DRY Principle: One hook definition, called from 7 terminal state transitions
+    ///
+    /// @custom:idempotency
+    ///      - Safe to call multiple times for same proposalId
+    ///      - _cleanupMintReservation checks reservedAmount > 0 before cleanup
+    ///      - Prevents double-cleanup issues
+    ///
+    /// @custom:gas-optimization
+    ///      - Early exit if no reservation (reservedAmount == 0)
+    ///      - Single SLOAD + conditional SSTORE: ~5000-8000 gas
+    ///      - Minimal overhead for non-mint proposals
+    function _onProposalFinalized(uint256 proposalId) internal override {
+        _cleanupMintReservation(proposalId);
     }
 
     // ========== Internal Action Implementation ==========
@@ -526,6 +596,10 @@ contract GovMinter is GovBaseV2 {
     function _executeMint(address beneficiary, uint256 amount, string memory depositId) internal returns (bool) {
         if (emergencyPaused) revert ContractPaused();
 
+        // Note: Reserved mint allowance cleanup is handled by _onProposalFinalized hook
+        // Hook is automatically called by GovBaseV2 when proposal reaches terminal state
+        // This ensures cleanup happens for ALL terminal states (Executed, Failed, Expired, Cancelled, Rejected)
+
         try fiatToken.mint(beneficiary, amount) {
             // Mark depositId as permanently executed (consumed)
             _markDepositIdExecuted(depositId);
@@ -587,10 +661,16 @@ contract GovMinter is GovBaseV2 {
     function _safeBurn(address from, uint256 amount, string memory withdrawalId) internal returns (bool) {
         if (emergencyPaused) revert ContractPaused();
 
+        // CEI Pattern - Effects BEFORE Interactions
+        // 1. Effects: Update state first
         burnBalance[from] -= amount;
-
-        fiatToken.burn(amount);
         _markWithdrawalIdExecuted(withdrawalId);
+
+        // 2. Interactions: External call LAST
+        fiatToken.burn(amount);
+
+        // Emit event for off-chain monitoring
+        emit BurnExecuted(from, amount, withdrawalId);
 
         return true;
     }
@@ -783,8 +863,9 @@ contract GovMinter is GovBaseV2 {
      * @param depositId The deposit identifier to validate
      * @dev Reverts if depositId is already executed or currently in use (Voting/Approved)
      * @dev Allows reuse if previous proposal was Cancelled, Rejected, or Expired
+     * @dev Automatically cleans up reserved mint allowance for terminal state proposals
      */
-    function _validateDepositIdAvailability(string memory depositId) internal view {
+    function _validateDepositIdAvailability(string memory depositId) internal {
         // Check if depositId was already executed (permanent consumption)
         if (executedDepositIds[depositId]) {
             revert DepositIdAlreadyUsed();
@@ -806,7 +887,9 @@ contract GovMinter is GovBaseV2 {
             revert DepositIdInUse();
         }
 
-        // Cancelled, Rejected, Expired: depositId can be reused
+        // Cancelled, Rejected, Expired, Failed: depositId can be reused
+        // Note: Reserved mint allowance cleanup is handled by _onProposalFinalized hook
+        // Hook is automatically called when proposal transitions to terminal state
         // (Executed is already blocked by executedDepositIds check above)
     }
 

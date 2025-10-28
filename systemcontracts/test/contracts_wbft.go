@@ -699,12 +699,69 @@ func (g *GovWBFT) SetMockFiatTokenBurnShouldFail(t *testing.T, sender *EOA, shou
 	return g.mockFiatTokenContractTx(t, "setFailBurn", sender, shouldFail)
 }
 
+func (g *GovWBFT) ConfigureMockFiatTokenMinter(t *testing.T, sender *EOA, minter common.Address, allowance *big.Int) (*types.Transaction, error) {
+	if g.mockFiatToken == nil {
+		return nil, fmt.Errorf("mockFiatToken not initialized")
+	}
+	return g.mockFiatTokenContractTx(t, "configureMinter", sender, minter, allowance)
+}
+
+func (g *GovWBFT) GetMockFiatTokenMinterAllowance(sender *EOA, minter common.Address) (*big.Int, error) {
+	if g.mockFiatToken == nil {
+		return nil, fmt.Errorf("mockFiatToken not initialized")
+	}
+	var result []interface{}
+	err := g.mockFiatTokenCall("minterAllowance", sender, &result, minter)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
 func (g *GovWBFT) mockFiatTokenContractTx(t *testing.T, method string, sender *EOA, params ...interface{}) (*types.Transaction, error) {
 	return g.mockFiatToken.Transact(NewTxOptsWithValue(t, sender, nil), method, params...)
 }
 
 func (g *GovWBFT) mockFiatTokenCall(method string, sender *EOA, result *[]interface{}, params ...interface{}) error {
 	return g.mockFiatToken.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, result, method, params...)
+}
+
+// ========== GovMinter State Getter Functions ==========
+
+func (g *GovWBFT) GetReservedMintAmount(sender *EOA) (*big.Int, error) {
+	var result []interface{}
+	err := g.minterCall("reservedMintAmount", sender, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) GetMintProposalAmount(sender *EOA, proposalId *big.Int) (*big.Int, error) {
+	var result []interface{}
+	err := g.minterCall("mintProposalAmounts", sender, &result, proposalId)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+// ========== GovBase Transaction Functions ==========
+
+func (g *GovWBFT) BaseTxCancelProposal(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "cancelProposal", proposalId)
+}
+
+func (g *GovWBFT) BaseTxDisapproveProposal(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "disapproveProposal", proposalId)
+}
+
+func (g *GovWBFT) BaseTxExpireProposal(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "expireProposal", proposalId)
+}
+
+func (g *GovWBFT) BaseTxExecuteWithFailure(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "executeWithFailure", proposalId)
 }
 
 // ========== Proof Generation Helper Functions ==========

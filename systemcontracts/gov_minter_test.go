@@ -265,6 +265,53 @@ func TestGetMemberBeneficiary(t *testing.T) {
 	})
 }
 
+func TestGetReservedMintAmount(t *testing.T) {
+	govMinterAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	reservedAmount := big.NewInt(5000000)
+
+	t.Run("get existing reserved mint amount", func(t *testing.T) {
+		mockState := newMockStateReader()
+
+		// Set reserved mint amount
+		slot := common.HexToHash(SLOT_GOV_MINTER_reservedMintAmount)
+		mockState.SetState(govMinterAddr, slot, common.BigToHash(reservedAmount))
+
+		result := GetReservedMintAmount(govMinterAddr, mockState)
+		require.Equal(t, reservedAmount, result)
+	})
+
+	t.Run("get zero reserved mint amount", func(t *testing.T) {
+		mockState := newMockStateReader()
+
+		result := GetReservedMintAmount(govMinterAddr, mockState)
+		require.Equal(t, 0, result.Cmp(big.NewInt(0)))
+	})
+}
+
+func TestGetMintProposalAmount(t *testing.T) {
+	govMinterAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	proposalId := big.NewInt(1)
+	amount := big.NewInt(2000000)
+
+	t.Run("get existing mint proposal amount", func(t *testing.T) {
+		mockState := newMockStateReader()
+
+		// Set mint proposal amount
+		key := CalculateMappingSlot(common.HexToHash(SLOT_GOV_MINTER_mintProposalAmounts), common.BigToHash(proposalId))
+		mockState.SetState(govMinterAddr, key, common.BigToHash(amount))
+
+		result := GetMintProposalAmount(govMinterAddr, mockState, proposalId)
+		require.Equal(t, amount, result)
+	})
+
+	t.Run("get zero mint proposal amount", func(t *testing.T) {
+		mockState := newMockStateReader()
+
+		result := GetMintProposalAmount(govMinterAddr, mockState, proposalId)
+		require.Equal(t, 0, result.Cmp(big.NewInt(0)))
+	})
+}
+
 func TestGetBurnBalance(t *testing.T) {
 	govMinterAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	addr := common.HexToAddress("0x1111111111111111111111111111111111111111")

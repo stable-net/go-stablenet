@@ -414,10 +414,21 @@ abstract contract GovBaseV2 {
         }
 
         // Check and enforce expiry
+        // Note: Vote attempt on expired proposal will trigger expiry state transition
+        // instead of recording the vote. This maintains state changes and cleanup.
         if (block.timestamp > proposal.createdAt + proposalExpiry) {
             proposal.status = ProposalStatus.Expired;
             _decrementActiveProposalCount(proposalId);
-            revert ProposalAlreadyExpired();
+            _onProposalFinalized(proposalId);
+            emit ProposalExpired(proposalId, msg.sender);
+
+            // Important: Return instead of revert to maintain state changes
+            // - Proposal status updated to Expired (persisted)
+            // - Cleanup hook executed (reservation released)
+            // - ProposalExpired event emitted (off-chain monitoring)
+            // - Voter's transaction succeeds but no vote recorded
+            // - Subsequent operations will fail with ProposalNotInVoting
+            return;
         }
 
         // Validate voter membership at proposal's member version snapshot
@@ -470,6 +481,7 @@ abstract contract GovBaseV2 {
             if (newRejected > maxRejections) {
                 proposal.status = ProposalStatus.Rejected;
                 _decrementActiveProposalCount(proposalId);
+                _onProposalFinalized(proposalId);
                 emit ProposalRejected(proposalId, msg.sender, proposal.approved, newRejected);
             }
         }
@@ -506,9 +518,12 @@ abstract contract GovBaseV2 {
         if (proposal.approved < proposal.requiredApprovals) revert InsufficientApprovals();
 
         // Handle expiry gracefully (update state and return false)
+        // Note: Execution attempt on expired proposal will trigger expiry state transition.
+        // Returns false to indicate execution did not succeed, but state changes persist.
         if (block.timestamp > proposal.createdAt + proposalExpiry) {
             proposal.status = ProposalStatus.Expired;
             _decrementActiveProposalCount(proposalId);
+            _onProposalFinalized(proposalId);
             emit ProposalExpired(proposalId, msg.sender);
             return false;
         }
@@ -518,23 +533,25 @@ abstract contract GovBaseV2 {
             revert TooManyExecutionAttempts();
         }
 
-        // EFFECTS: Increment execution count (rolls back on revert)
+        // Increment execution count (rolls back on revert)
         proposalExecutionCount[proposalId]++;
 
-        // INTERACTIONS: Execute action (may call derived contract's _executeCustomAction)
+        // Execute action (may call derived contract's _executeCustomAction)
         success = _executeInternalAction(proposal.actionType, proposal.callData);
 
-        // EFFECTS: Update proposal state based on execution result
+        // Update proposal state based on execution result
         if (success) {
             proposal.status = ProposalStatus.Executed;
             proposal.executedAt = block.timestamp;
             _decrementActiveProposalCount(proposalId);
+            _onProposalFinalized(proposalId);
             emit ProposalExecuted(proposalId, msg.sender, true);
         } else {
             if (markFailedOnError) {
                 // Terminal execution: mark as Failed
                 proposal.status = ProposalStatus.Failed;
                 _decrementActiveProposalCount(proposalId);
+                _onProposalFinalized(proposalId);
             } else {
                 // Retry-enabled: keep as Approved for retry
                 proposal.status = ProposalStatus.Approved;
@@ -711,11 +728,11 @@ abstract contract GovBaseV2 {
         if (!members[oldMember].isActive) revert NotAMember();
         if (members[newMember].isActive) revert AlreadyAMember();
 
-        // EFFECTS: Create new version snapshot
+        // Create new version snapshot
         (address[] storage newSnapshot, address[] storage oldSnapshot, uint256 newVersion) = _prepareNextMemberVersion();
         uint256 oldLength = oldSnapshot.length;
 
-        // EFFECTS: Copy members, replacing oldMember with newMember at same index
+        // Copy members, replacing oldMember with newMember at same index
         uint256 newIndex = 0;
         for (uint256 i = 0; i < oldLength; i++) {
             address existing = oldSnapshot[i];
@@ -729,15 +746,15 @@ abstract contract GovBaseV2 {
             memberIndexByVersion[newVersion][existing] = uint32(++newIndex);
         }
 
-        // EFFECTS: Clean up stale mapping entry
+        // Clean up stale mapping entry
         delete memberIndexByVersion[newVersion][oldMember];
 
-        // EFFECTS: Update member states and emit events
+        // Update member states and emit events
         members[newMember] = Member({isActive: true, joinedAt: uint32(block.timestamp)});
         members[oldMember].isActive = false;
         emit MemberChanged(oldMember, newMember);
 
-        // INTERACTIONS: Call hook for derived contract logic (avoid external calls here)
+        // Call hook for derived contract logic (avoid external calls here)
         _onMemberChanged(oldMember, newMember);
 
         quorumByVersion[newVersion] = quorum;
@@ -780,11 +797,11 @@ abstract contract GovBaseV2 {
     // 3. _onMemberRemoved: React to member removal (e.g., cleanup state)
     // 4. _onMemberChanged: React to member address change (e.g., migrate state)
     //
-    // ⚠️ SECURITY WARNING FOR HOOK IMPLEMENTATIONS:
+    // SECURITY WARNING FOR HOOK IMPLEMENTATIONS:
     // - DO NOT make external calls (token.transfer, externalContract.call, etc.)
     // - Hooks are called AFTER state changes, enabling cross-function reentrancy if external calls are made
-    // - ✅ Safe: Storage updates, event emissions, internal logic
-    // - ❌ Unsafe: External calls to tokens, contracts, or payable addresses
+    // - Safe: Storage updates, event emissions, internal logic
+    // - Unsafe: External calls to tokens, contracts, or payable addresses
     // - See docs/SECURITY.md for detailed guidelines and examples
 
     /// @dev Execute custom actions - override in derived contracts to implement specific action sets
@@ -795,7 +812,7 @@ abstract contract GovBaseV2 {
     /// @notice Default implementation returns false (unknown action type)
     /// @notice Override examples: GovMinter (mint/burn), GovMasterMinter (minter management), GovValidator (validator ops)
     ///
-    /// @notice ⚠️ SECURITY: Follow CEI pattern (Checks-Effects-Interactions)
+    /// @notice SECURITY: Follow CEI pattern (Checks-Effects-Interactions)
     ///         Perform all state changes BEFORE making external calls
     ///         See docs/SECURITY.md for safe implementation patterns
     function _executeCustomAction(bytes32 actionType, bytes memory callData) internal virtual returns (bool success) {
@@ -807,14 +824,14 @@ abstract contract GovBaseV2 {
     /// @param member Address of the newly added member
     /// @notice Called after member is added and quorum is updated
     /// @notice Use this to sync member state in derived contracts
-    /// @notice ⚠️ SECURITY: No external calls - see SECURITY WARNING above and docs/SECURITY.md
+    /// @notice SECURITY: No external calls - see SECURITY WARNING above and docs/SECURITY.md
     function _onMemberAdded(address member) internal virtual {}
 
     /// @dev Override to perform contract-specific logic when member is removed
     /// @param member Address of the removed member
     /// @notice Called after member is removed and quorum is updated
     /// @notice Use this to clean up member-specific state in derived contracts
-    /// @notice ⚠️ SECURITY: No external calls - see SECURITY WARNING above and docs/SECURITY.md
+    /// @notice SECURITY: No external calls - see SECURITY WARNING above and docs/SECURITY.md
     function _onMemberRemoved(address member) internal virtual {}
 
     /// @dev Override to perform contract-specific logic when member changes address
@@ -822,8 +839,46 @@ abstract contract GovBaseV2 {
     /// @param newMember New member address (now active)
     /// @notice Called after member change is complete
     /// @notice Use this to transfer member-specific state in derived contracts
-    /// @notice ⚠️ SECURITY: No external calls - see SECURITY WARNING above and docs/SECURITY.md
+    /// @notice SECURITY: No external calls - see SECURITY WARNING above and docs/SECURITY.md
     function _onMemberChanged(address oldMember, address newMember) internal virtual {}
+
+    /// @dev Hook called when proposal reaches terminal state
+    /// @notice Override in derived contracts to implement cleanup logic
+    /// @param proposalId The proposal that reached terminal state
+    ///
+    /// @custom:security Called AFTER state transition (status already updated)
+    /// @custom:security Derived contracts should use view/pure logic or minimal state changes
+    /// @custom:security Must NOT make external calls to prevent reentrancy
+    ///
+    /// @custom:usage Terminal States
+    ///      - Executed: Proposal successfully executed
+    ///      - Failed: Proposal execution failed (markFailedOnError mode)
+    ///      - Expired: Proposal expired before execution
+    ///      - Cancelled: Proposal cancelled by proposer
+    ///      - Rejected: Proposal rejected by members
+    ///
+    /// @custom:usage Call Sites
+    ///      - _vote: Lines 419 (Expired), 472 (Rejected)
+    ///      - _executeProposal: Lines 511 (Expired), 531 (Executed), 537 (Failed)
+    ///      - cancelProposal: Line 894 (Cancelled)
+    ///      - expireProposal: Line 920 (Expired)
+    ///
+    /// @custom:design Rationale
+    ///      - Template Method Pattern: Allows derived contracts to extend behavior
+    ///      - Open/Closed Principle: GovBaseV2 is open for extension, closed for modification
+    ///      - Single Responsibility: Lifecycle management separated from cleanup logic
+    ///      - Backward Compatible: Empty default implementation (virtual)
+    ///
+    /// @custom:example GovMinter Cleanup
+    ///      ```solidity
+    ///      function _onProposalFinalized(uint256 proposalId) internal override {
+    ///          _cleanupMintReservation(proposalId);
+    ///      }
+    ///      ```
+    function _onProposalFinalized(uint256 proposalId) internal virtual {
+        // Default implementation: do nothing (backward compatible)
+        // Derived contracts can override to implement cleanup logic
+    }
 
     // ========== Public Functions ==========
 
@@ -892,6 +947,7 @@ abstract contract GovBaseV2 {
 
         proposal.status = ProposalStatus.Cancelled;
         _decrementActiveProposalCount(proposalId);
+        _onProposalFinalized(proposalId);
         emit ProposalCancelled(proposalId, msg.sender);
     }
 
@@ -918,6 +974,7 @@ abstract contract GovBaseV2 {
         // Update state
         proposal.status = ProposalStatus.Expired;
         _decrementActiveProposalCount(proposalId);
+        _onProposalFinalized(proposalId);
         emit ProposalExpired(proposalId, msg.sender);
         return true;
     }
@@ -1139,11 +1196,11 @@ abstract contract GovBaseV2 {
     ///   - Uninitialized proposal access (proposals start from ID 1)
     ///
     /// @custom:security Attack vector analysis:
-    ///   ✅ Invalid ID: Protected by _validateProposalId (0 or > currentProposalId)
-    ///   ✅ Integer overflow: Protected by Solidity 0.8+ automatic checks
-    ///   ✅ Uninitialized access: proposalId starts from 1, 0 is invalid
-    ///   ✅ Race conditions: View function, no state changes, safe concurrent access
-    ///   ✅ Gas DoS: O(1) complexity, single mapping lookup
+    ///   - Invalid ID: Protected by _validateProposalId (0 or > currentProposalId)
+    ///   - Integer overflow: Protected by Solidity 0.8+ automatic checks
+    ///   - Uninitialized access: proposalId starts from 1, 0 is invalid
+    ///   - Race conditions: View function, no state changes, safe concurrent access
+    ///   - Gas DoS: O(1) complexity, single mapping lookup
     ///
     /// @custom:security Proposal data guarantees:
     ///   - proposalId == 0: Always invalid (proposals start from 1)
@@ -1210,10 +1267,10 @@ abstract contract GovBaseV2 {
     ///   - Expiry check prevents considering expired proposals as active
     ///
     /// @custom:security Attack vector analysis:
-    ///   ✅ Invalid proposalId: Protected by _validateProposalId
-    ///   ✅ Integer overflow: Protected by Solidity 0.8+ for timestamp arithmetic
-    ///   ✅ TOCTOU: View function, no state changes, safe for concurrent access
-    ///   ✅ Gas DoS: O(1) complexity, single mapping lookup + arithmetic
+    ///   - Invalid proposalId: Protected by _validateProposalId
+    ///   - Integer overflow: Protected by Solidity 0.8+ for timestamp arithmetic
+    ///   - TOCTOU: View function, no state changes, safe for concurrent access
+    ///   - Gas DoS: O(1) complexity, single mapping lookup + arithmetic
     ///
     /// Reverts with:
     /// @custom:revert InvalidProposal if proposalId is 0 or exceeds currentProposalId
@@ -1436,12 +1493,12 @@ abstract contract GovBaseV2 {
     /// - Quorum snapshots are immutable (historical values never change)
     ///
     /// @custom:security **Attack Vector Analysis**
-    /// - **Invalid Version**: ✅ Protected by `_validateMemberVersion`
-    /// - **Zero Quorum**: ✅ Protected by explicit zero check + validation at storage time
-    /// - **Integer Overflow**: ✅ Protected by Solidity 0.8+ (quorum is uint32, max value 4,294,967,295)
-    /// - **Uninitialized Access**: ✅ Protected by version validation + zero check
+    /// - **Invalid Version**: Protected by `_validateMemberVersion`
+    /// - **Zero Quorum**: Protected by explicit zero check + validation at storage time
+    /// - **Integer Overflow**: Protected by Solidity 0.8+ (quorum is uint32, max value 4,294,967,295)
+    /// - **Uninitialized Access**: Protected by version validation + zero check
     /// - **TOCTOU (Time-of-Check-Time-of-Use)**: N/A (view function, no state changes)
-    /// - **Gas DoS**: ✅ O(1) complexity, single mapping lookup, constant gas cost
+    /// - **Gas DoS**: O(1) complexity, single mapping lookup, constant gas cost
     ///
     /// @custom:revert `InvalidMemberVersion()` if targetVersion is 0 or exceeds current memberVersion
     /// @custom:revert `InvalidQuorum()` if quorum snapshot is 0 (should never happen by design)
@@ -2233,7 +2290,7 @@ abstract contract GovBaseV2 {
     /// @param version The member version to query (historical snapshot)
     /// @return index The 0-based member index, or type(uint256).max if not a member at that version
     ///
-    /// @custom:security Parameter Validation (Addressed TODO)
+    /// @custom:security Parameter Validation - Design Decision
     ///      - ⚠️ **version parameter is NOT validated in this function**
     ///      - Callers should validate version using _validateMemberVersion before calling
     ///      - Invalid version (0 or > memberVersion) will return 0 from mapping (non-member)
@@ -2323,7 +2380,7 @@ abstract contract GovBaseV2 {
     ///
     /// @param proposalId The proposal ID that has reached a terminal state
     ///
-    /// @custom:security Parameter Validation (Addressed TODO)
+    /// @custom:security Parameter Validation - Design Decision
     ///      - ⚠️ **proposalId is NOT validated in this function**
     ///      - Callers must ensure proposalId is valid before calling
     ///      - Invalid proposalId will access proposals[0] (default struct with proposer = address(0))

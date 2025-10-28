@@ -35,24 +35,28 @@ const (
 	// Slots 0xc-0x31: __gap (reserved)
 	// Slot 0x32: fiatToken (address, 20 bytes) + emergencyPaused (bool, 1 byte)
 	// Slot 0x33: memberBeneficiaries (mapping(address => address))
-	// Slot 0x34: beneficiaryToMember (mapping(address => address)) - NEW: reverse mapping
+	// Slot 0x34: beneficiaryToMember (mapping(address => address)) - reverse mapping
 	// Slot 0x35: usedProofHashes (mapping(bytes32 => bool))
 	// Slot 0x36: depositIdToProposalId (mapping(string => uint256))
 	// Slot 0x37: executedDepositIds (mapping(string => bool))
 	// Slot 0x38: withdrawalIdToProposalId (mapping(string => uint256))
 	// Slot 0x39: executedWithdrawalIds (mapping(string => bool))
 	// Slot 0x3a: burnProposals (mapping(uint256 => BurnProposalData))
-	// Slot 0x3b: burnBalance (mapping(address => uint256))
-	SLOT_GOV_MINTER_fiatToken              = "0x32"
-	SLOT_GOV_MINTER_memberBeneficiaries    = "0x33"
-	SLOT_GOV_MINTER_beneficiaryToMember    = "0x34"
-	SLOT_GOV_MINTER_usedProofHashes        = "0x35"
-	SLOT_GOV_MINTER_depositIdToProposalId  = "0x36"
-	SLOT_GOV_MINTER_executedDepositIds     = "0x37"
+	// Slot 0x3b: reservedMintAmount (uint256) - P0-1 security fix
+	// Slot 0x3c: mintProposalAmounts (mapping(uint256 => uint256))
+	// Slot 0x3d: burnBalance (mapping(address => uint256))
+	SLOT_GOV_MINTER_fiatToken                = "0x32"
+	SLOT_GOV_MINTER_memberBeneficiaries      = "0x33"
+	SLOT_GOV_MINTER_beneficiaryToMember      = "0x34"
+	SLOT_GOV_MINTER_usedProofHashes          = "0x35"
+	SLOT_GOV_MINTER_depositIdToProposalId    = "0x36"
+	SLOT_GOV_MINTER_executedDepositIds       = "0x37"
 	SLOT_GOV_MINTER_withdrawalIdToProposalId = "0x38"
-	SLOT_GOV_MINTER_executedWithdrawalIds  = "0x39"
-	SLOT_GOV_MINTER_burnProposals          = "0x3a"
-	SLOT_GOV_MINTER_burnBalance            = "0x3b"
+	SLOT_GOV_MINTER_executedWithdrawalIds    = "0x39"
+	SLOT_GOV_MINTER_burnProposals            = "0x3a"
+	SLOT_GOV_MINTER_reservedMintAmount       = "0x3b"
+	SLOT_GOV_MINTER_mintProposalAmounts      = "0x3c"
+	SLOT_GOV_MINTER_burnBalance              = "0x3d"
 )
 
 // MintProof represents the proof data for minting operations
@@ -160,6 +164,21 @@ func GetMemberBeneficiary(govMinterAddress common.Address, state StateReader, me
 	key := CalculateMappingSlot(memberBeneficiariesSlot, member)
 	value := state.GetState(govMinterAddress, key)
 	return common.BytesToAddress(value.Bytes())
+}
+
+// GetReservedMintAmount returns the total reserved mint amount
+func GetReservedMintAmount(govMinterAddress common.Address, state StateReader) *big.Int {
+	slot := common.HexToHash(SLOT_GOV_MINTER_reservedMintAmount)
+	value := state.GetState(govMinterAddress, slot)
+	return value.Big()
+}
+
+// GetMintProposalAmount returns the mint amount reserved for a specific proposal
+func GetMintProposalAmount(govMinterAddress common.Address, state StateReader, proposalId *big.Int) *big.Int {
+	mintProposalAmountsSlot := common.HexToHash(SLOT_GOV_MINTER_mintProposalAmounts)
+	key := CalculateMappingSlot(mintProposalAmountsSlot, common.BigToHash(proposalId))
+	value := state.GetState(govMinterAddress, key)
+	return value.Big()
 }
 
 // GetBurnBalance returns the burn balance for a given address
