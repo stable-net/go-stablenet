@@ -39,7 +39,7 @@ var (
 func initGovMinter(t *testing.T) {
 	minterMembers = []*TestCandidate{NewTestCandidate(), NewTestCandidate(), NewTestCandidate()}
 	minterNonMember = NewEOA()
-	fiatTokenAddress = common.HexToAddress("0xC00001") // Mock fiat token address
+	fiatTokenAddress = TestMockFiatTokenAddress // Use actual deployed MockFiatToken address
 
 	var err error
 	gMinter, err = NewGovWBFT(t, types.GenesisAlloc{
@@ -47,7 +47,6 @@ func initGovMinter(t *testing.T) {
 		minterMembers[1].Operator.Address: {Balance: towei(1_000_000)},
 		minterMembers[2].Operator.Address: {Balance: towei(1_000_000)},
 		minterNonMember.Address:           {Balance: towei(1_000_000)},
-		fiatTokenAddress:                  {Balance: towei(0)}, // Mock token contract
 	}, func(govValidator *params.SystemContract) {
 		// Setup governance members for voting
 		var members, validators, blsPubKeys string
@@ -83,7 +82,13 @@ func initGovMinter(t *testing.T) {
 			sc.GOV_BASE_PARAM_EXPIRY:          "604800",
 			sc.GOV_BASE_PARAM_MEMBER_VERSION:  "1",
 		}
-	}, nil)
+	}, nil, func(fiatToken *params.SystemContract) {
+		// Deploy MockFiatToken at genesis for testing
+		// This is a test helper contract, not a production system contract
+		fiatToken.Params = map[string]string{
+			// MockFiatToken has no initialization params needed
+		}
+	})
 	require.NoError(t, err)
 }
 

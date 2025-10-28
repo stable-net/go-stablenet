@@ -54,6 +54,7 @@ var (
 	TestCoinAdapterAddress     = params.DefaultNativeCoinAdapterAddress
 	TestGovMinterAddress       = params.DefaultGovMinterAddress
 	TestGovMasterMinterAddress = params.DefaultGovMasterMinterAddress
+	TestMockFiatTokenAddress   = common.HexToAddress("0x1004")
 )
 
 var (
@@ -155,13 +156,24 @@ func (s *TestCandidate) GetBLSPoPSignature(t *testing.T) bls.Signature {
 
 var defaultBlockPeriod time.Duration
 
-func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapterOption, minterOption, masterMinterOption func(*params.SystemContract)) (*GovWBFT, error) {
+func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapterOption, minterOption, masterMinterOption, fiatTokenOption func(*params.SystemContract)) (*GovWBFT, error) {
 	owner := getTxOpt(t, "owner")
 
 	if alloc == nil {
 		alloc = make(types.GenesisAlloc)
 	}
 	alloc[owner.From] = types.Account{Balance: MAX_UINT_128}
+
+	// Deploy MockFiatToken at genesis BEFORE backend creation (NOT a system contract, just test helper)
+	if fiatTokenOption != nil {
+		// Get compiled MockFiatToken runtime bytecode (NOT creation bytecode)
+		mockFiatTokenBytecode := compiledWBFT.MockFiatToken.RuntimeBin
+		alloc[TestMockFiatTokenAddress] = types.Account{
+			Balance: big.NewInt(0),
+			Code:    mockFiatTokenBytecode,
+		}
+	}
+
 	g := &GovWBFT{
 		owner: owner,
 		backend: simulated.NewWBFTBackend(alloc, func(nodeConf *node.Config, ethConf *ethconfig.Config) {
@@ -195,6 +207,7 @@ func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapter
 			}
 		}),
 	}
+
 	g.govValidator = compiledWBFT.GovValidator.New(g.backend.Client(), TestGovValidatorAddress)
 	g.coinAdapter = compiledWBFT.CoinAdapter.New(g.backend.Client(), TestCoinAdapterAddress)
 
@@ -203,6 +216,9 @@ func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapter
 	}
 	if masterMinterOption != nil {
 		g.govMasterMinter = compiledWBFT.GovMasterMinter.New(g.backend.Client(), TestGovMasterMinterAddress)
+	}
+	if fiatTokenOption != nil {
+		g.mockFiatToken = compiledWBFT.MockFiatToken.New(g.backend.Client(), TestMockFiatTokenAddress)
 	}
 
 	return g, nil

@@ -224,14 +224,14 @@ contract GovMinter is GovBaseV2 {
     /// @dev Allows users to prepay for burn operations by sending native coins
     ///
     ///      This function enables users to deposit native coins that will be used
-    ///      to back burn operations. When a burn proposal is executed, the user
-    ///      receives back their prepaid amount.
+    ///      to back burn operations. The deposited native coins remain in the
+    ///      GovMinter contract as collateral.
     ///
     ///      Flow:
     ///      1. User sends native coins to contract
     ///      2. Amount is credited to burnBalance[msg.sender]
     ///      3. User can propose burns up to their balance
-    ///      4. On burn execution, user receives native coins back
+    ///      4. On burn execution, fiatTokens are burned from GovMinter
     ///
     /// @custom:security Reentrancy Safety
     ///      - No external calls, safe from reentrancy
@@ -436,7 +436,7 @@ contract GovMinter is GovBaseV2 {
     ///
     ///         Supported actions:
     ///         - ACTION_MINT_WITH_DEPOSIT: Mint tokens to beneficiary
-    ///         - ACTION_BURN: Burn tokens and return native coins
+    ///         - ACTION_BURN: Burn fiat tokens from GovMinter balance
     ///         - ACTION_PAUSE: Activate emergency pause (blocks mints and burns)
     ///         - ACTION_UNPAUSE: Deactivate emergency pause (resumes operations)
     ///
@@ -535,23 +535,22 @@ contract GovMinter is GovBaseV2 {
         }
     }
 
-    /// @dev Execute burn action - burn tokens and return native coins
-    /// @notice Burns fiat tokens and transfers native coins to user
+    /// @dev Execute burn action - burn fiat tokens from GovMinter balance
+    /// @notice Burns fiat tokens held by GovMinter contract
     ///
-    ///         This function implements the burn workflow with proper rollback
-    ///         on failure. It follows the Checks-Effects-Interactions (CEI) pattern
-    ///         to prevent reentrancy attacks.
+    ///         This function implements the burn workflow. It deducts the prepaid
+    ///         native coin balance and calls fiatToken.burn() to burn fiat tokens.
+    ///         The native coins remain in GovMinter as collateral.
     ///
     ///         Execution flow:
     ///         1. Check emergency pause status
     ///         2. Deduct amount from burnBalance[from] (effect)
-    ///         3. Try to burn tokens via fiatToken.burn()
-    ///         4. Try to transfer native coins to user (interaction)
-    ///         5. On success: Mark withdrawalId as executed (permanent)
-    ///         6. On failure: Rollback burnBalance and return false
+    ///         3. Call fiatToken.burn(amount) - burns GovMinter's fiat tokens
+    ///         4. On success: Mark withdrawalId as executed (permanent)
+    ///         5. On failure: Automatic revert rolls back all state changes
     ///
-    /// @param from Address to burn tokens from (must be proposal requester)
-    /// @param amount Amount of tokens to burn and native coins to return
+    /// @param from Address whose burnBalance will be deducted (proposal requester)
+    /// @param amount Amount of fiat tokens to burn
     /// @param withdrawalId Unique identifier for the withdrawal (consumed on success)
     /// @return success True if burn succeeded, false otherwise
     ///
@@ -562,18 +561,17 @@ contract GovMinter is GovBaseV2 {
     /// @custom:security CEI Pattern (Checks-Effects-Interactions)
     ///      - **Checks**: emergencyPaused check
     ///      - **Effects**: burnBalance[from] -= amount (before external calls)
-    ///      - **Interactions**: fiatToken.burn() and from.call{value}()
+    ///      - **Interactions**: fiatToken.burn()
     ///      - Prevents reentrancy by updating state before external calls
     ///
     /// @custom:security Reentrancy Protection
     ///      - State updated before external calls (CEI pattern)
-    ///      - Even if 'from' is malicious contract, cannot exploit
-    ///      - burnBalance already decremented before call
+    ///      - burnBalance already decremented before fiatToken.burn()
     ///      - GovBaseV2 has nonReentrant modifier on executeProposal
     ///
-    /// @custom:security Rollback Mechanism
-    ///      - If fiatToken.burn() fails: Rollback burnBalance, return false
-    ///      - If native transfer fails: Rollback burnBalance, return false
+    /// @custom:security Automatic Rollback
+    ///      - If fiatToken.burn() fails: Solidity reverts all state changes
+    ///      - burnBalance automatically restored on revert
     ///      - Clean state on failure (proposal can be retried)
     ///
     /// @custom:security WithdrawalId Consumption
@@ -581,17 +579,11 @@ contract GovMinter is GovBaseV2 {
     ///      - Prevents replay attacks with same withdrawalId
     ///      - Once marked, withdrawalId cannot be reused (permanent)
     ///
-    /// @custom:security Native Transfer Safety
-    ///      - Uses low-level call{value}() for native transfer
-    ///      - Checks success flag and rolls back on failure
-    ///      - Does not use transfer() (fixed 2300 gas)
-    ///      - Does not use send() (ignores return value patterns)
-    ///
     /// @custom:invariant Balance Consistency
     ///      - Invariant: burnBalance decreases IFF burn succeeds
     ///      - Invariant: Each withdrawalId can only be successfully executed once
     ///      - Invariant: Failed executions do not consume withdrawalId
-    ///      - Invariant: User receives native coins IFF burn succeeds
+    ///      - Invariant: Native coins remain in GovMinter as collateral
     function _safeBurn(address from, uint256 amount, string memory withdrawalId) internal returns (bool) {
         if (emergencyPaused) revert ContractPaused();
 
@@ -919,7 +911,7 @@ contract GovMinter is GovBaseV2 {
     ///      - Single SSTORE operation (~20000 gas cold, ~2900 gas warm)
     ///
     /// @custom:usage Call Sites
-    ///      - _safeBurn: After successful burn and native transfer
+    ///      - _safeBurn: After successful fiat token burn
     function _markWithdrawalIdExecuted(string memory withdrawalId) internal {
         executedWithdrawalIds[withdrawalId] = true;
     }

@@ -61,7 +61,7 @@ func initGov(t *testing.T) {
 				"blsPublicKeys": blsPubKeys,
 			}
 		}
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 	require.NoError(t, err)
 }
 
