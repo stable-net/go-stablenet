@@ -19,6 +19,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"path/filepath"
 	"testing"
@@ -68,6 +69,7 @@ type compiledContractWBFT struct {
 	CoinAdapter     *bindContract
 	GovMinter       *bindContract
 	GovMasterMinter *bindContract
+	MockFiatToken   *bindContract
 }
 
 func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
@@ -76,6 +78,7 @@ func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 		filepath.Join(root, "NativeCoinAdapter.sol"),
 		filepath.Join(root, "GovMinter.sol"),
 		filepath.Join(root, "GovMasterMinter.sol"),
+		filepath.Join(root, "../test", "MockFiatToken.sol"),
 	); err != nil {
 		panic(err)
 	} else {
@@ -91,6 +94,9 @@ func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 		if c.GovMasterMinter, err = newBindContract(contracts["GovMasterMinter"]); err != nil {
 			panic(err)
 		}
+		if c.MockFiatToken, err = newBindContract(contracts["MockFiatToken"]); err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -101,6 +107,7 @@ type GovWBFT struct {
 	coinAdapter     *bind.BoundContract
 	govMinter       *bind.BoundContract
 	govMasterMinter *bind.BoundContract
+	mockFiatToken   *bind.BoundContract
 }
 
 type TestCandidate struct {
@@ -634,4 +641,281 @@ func (g *GovWBFT) BalanceAt(t *testing.T, ctx context.Context, addr common.Addre
 func (g *GovWBFT) AdjustTime(adjustment time.Duration) {
 	g.backend.AdjustTime(adjustment)
 	g.backend.AdjustTime(defaultBlockPeriod)
+}
+
+// ========== MockFiatToken Helper Functions ==========
+
+func (g *GovWBFT) GetMockFiatTokenBalance(sender *EOA, account common.Address) (*big.Int, error) {
+	if g.mockFiatToken == nil {
+		return nil, fmt.Errorf("mockFiatToken not initialized")
+	}
+	var result []interface{}
+	err := g.mockFiatTokenCall("balanceOf", sender, &result, account)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) GetMockFiatTokenTotalSupply(sender *EOA) (*big.Int, error) {
+	if g.mockFiatToken == nil {
+		return nil, fmt.Errorf("mockFiatToken not initialized")
+	}
+	var result []interface{}
+	err := g.mockFiatTokenCall("totalSupply", sender, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) SetMockFiatTokenMintShouldFail(t *testing.T, sender *EOA, shouldFail bool) (*types.Transaction, error) {
+	if g.mockFiatToken == nil {
+		return nil, fmt.Errorf("mockFiatToken not initialized")
+	}
+	return g.mockFiatTokenContractTx(t, "setFailMint", sender, shouldFail)
+}
+
+func (g *GovWBFT) SetMockFiatTokenBurnShouldFail(t *testing.T, sender *EOA, shouldFail bool) (*types.Transaction, error) {
+	if g.mockFiatToken == nil {
+		return nil, fmt.Errorf("mockFiatToken not initialized")
+	}
+	return g.mockFiatTokenContractTx(t, "setFailBurn", sender, shouldFail)
+}
+
+func (g *GovWBFT) mockFiatTokenContractTx(t *testing.T, method string, sender *EOA, params ...interface{}) (*types.Transaction, error) {
+	return g.mockFiatToken.Transact(NewTxOptsWithValue(t, sender, nil), method, params...)
+}
+
+func (g *GovWBFT) mockFiatTokenCall(method string, sender *EOA, result *[]interface{}, params ...interface{}) error {
+	return g.mockFiatToken.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, result, method, params...)
+}
+
+// ========== Proof Generation Helper Functions ==========
+
+// CreateMintProof creates ABI-encoded mint proof with custom parameters
+func CreateMintProof(beneficiary common.Address, amount *big.Int, depositId, bankReference, memo string) ([]byte, error) {
+	timestamp := big.NewInt(time.Now().Unix())
+
+	return abi.Arguments{
+		{Type: mustParseType("address")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+	}.Pack(beneficiary, amount, timestamp, depositId, bankReference, memo)
+}
+
+// CreateBurnProof creates ABI-encoded burn proof with custom parameters
+func CreateBurnProof(from common.Address, amount *big.Int, withdrawalId, referenceId, memo string) ([]byte, error) {
+	timestamp := big.NewInt(time.Now().Unix())
+
+	return abi.Arguments{
+		{Type: mustParseType("address")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+	}.Pack(from, amount, timestamp, withdrawalId, referenceId, memo)
+}
+
+// TxProposeMintWithProof proposes mint with raw proof data (for custom proof testing)
+func (g *GovWBFT) TxProposeMintWithProof(t *testing.T, sender *EOA, proofData []byte) (*types.Transaction, error) {
+	return g.minterContractTx(t, "proposeMint", sender, proofData)
+}
+
+// TxProposeBurnWithProof proposes burn with raw proof data (for custom proof testing)
+func (g *GovWBFT) TxProposeBurnWithProof(t *testing.T, sender *EOA, proofData []byte) (*types.Transaction, error) {
+	return g.minterContractTx(t, "proposeBurn", sender, proofData)
+}
+
+// ========== Emergency Pause Helper Functions ==========
+
+// TxProposePause proposes emergency pause
+func (g *GovWBFT) TxProposePause(t *testing.T, sender *EOA) (*types.Transaction, error) {
+	return g.minterContractTx(t, "proposePause", sender)
+}
+
+// TxProposeUnpause proposes emergency unpause
+func (g *GovWBFT) TxProposeUnpause(t *testing.T, sender *EOA) (*types.Transaction, error) {
+	return g.minterContractTx(t, "proposeUnpause", sender)
+}
+
+// IsEmergencyPaused returns whether contract is paused
+func (g *GovWBFT) IsEmergencyPaused(sender *EOA) (bool, error) {
+	var result []interface{}
+	err := g.minterCall("emergencyPaused", sender, &result)
+	if err != nil {
+		return false, err
+	}
+	return result[0].(bool), nil
+}
+
+// ========== State Query Helper Functions ==========
+
+// IsDepositIdExecuted returns whether depositId has been permanently executed
+func (g *GovWBFT) IsDepositIdExecuted(sender *EOA, depositId string) (bool, error) {
+	var result []interface{}
+	err := g.minterCall("executedDepositIds", sender, &result, depositId)
+	if err != nil {
+		return false, err
+	}
+	return result[0].(bool), nil
+}
+
+// IsWithdrawalIdExecuted returns whether withdrawalId has been permanently executed
+func (g *GovWBFT) IsWithdrawalIdExecuted(sender *EOA, withdrawalId string) (bool, error) {
+	var result []interface{}
+	err := g.minterCall("executedWithdrawalIds", sender, &result, withdrawalId)
+	if err != nil {
+		return false, err
+	}
+	return result[0].(bool), nil
+}
+
+// ==================== Proposal Execution Workflow Helpers ====================
+
+// ExecuteProposal - Generic proposal execution workflow with automatic approval
+// This helper automates the entire approval workflow:
+// 1. Gets proposal status and quorum requirement
+// 2. Collects approvals from provided EOAs until quorum is reached
+// 3. Executes the proposal automatically once approved
+// Returns the execution receipt
+func (g *GovWBFT) ExecuteProposal(
+	t *testing.T,
+	contract *bind.BoundContract,
+	proposalId *big.Int,
+	approvers []*EOA,
+) (*types.Receipt, error) {
+	// Get current proposal to check how many approvals it already has
+	proposal, err := g.BaseGetProposal(contract, approvers[0], proposalId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get proposal: %w", err)
+	}
+
+	// Calculate how many more approvals we need
+	currentApprovals := proposal.Approved
+	requiredApprovals := proposal.RequiredApprovals
+	neededApprovals := int(requiredApprovals) - int(currentApprovals)
+
+	if neededApprovals <= 0 {
+		// Already has enough approvals, just execute
+		tx, err := g.BaseTxExecuteProposal(t, contract, approvers[0], proposalId)
+		receipt, err := g.ExpectedOk(tx, err)
+		if err != nil {
+			return nil, fmt.Errorf("execution failed: %w", err)
+		}
+		return receipt, nil
+	}
+
+	// Check we have enough approvers
+	if len(approvers) < neededApprovals {
+		return nil, fmt.Errorf("insufficient approvers: need %d more approvals but only %d approvers provided", neededApprovals, len(approvers))
+	}
+
+	// Collect approvals until we reach quorum
+	for i := 0; i < neededApprovals; i++ {
+		tx, err := g.BaseTxApproveProposal(t, contract, approvers[i], proposalId)
+		_, err = g.ExpectedOk(tx, err)
+		if err != nil {
+			return nil, fmt.Errorf("approval %d/%d failed: %w", i+1, neededApprovals, err)
+		}
+	}
+
+	// Verify proposal is now Approved
+	proposal, err = g.BaseGetProposal(contract, approvers[0], proposalId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify approval status: %w", err)
+	}
+
+	if proposal.Status != sc.ProposalStatusApproved {
+		return nil, fmt.Errorf("proposal status is %v, expected Approved", proposal.Status)
+	}
+
+	// Execute the proposal
+	tx, err := g.BaseTxExecuteProposal(t, contract, approvers[0], proposalId)
+	receipt, err := g.ExpectedOk(tx, err)
+	if err != nil {
+		return nil, fmt.Errorf("execution failed: %w", err)
+	}
+
+	return receipt, nil
+}
+
+// CompleteMintProposal - Full mint workflow helper
+// This automates the entire mint workflow:
+// 1. Creates a mint proposal
+// 2. Gets the proposal ID
+// 3. Collects approvals and executes via ExecuteProposal
+// Returns the final execution receipt
+func (g *GovWBFT) CompleteMintProposal(
+	t *testing.T,
+	proposer *EOA,
+	recipient common.Address,
+	amount *big.Int,
+	approvers []*EOA,
+) (*types.Receipt, error) {
+	// Step 1: Create mint proposal
+	tx, err := g.TxProposeMint(t, proposer, recipient, amount)
+	_, err = g.ExpectedOk(tx, err)
+	if err != nil {
+		return nil, fmt.Errorf("propose mint failed: %w", err)
+	}
+
+	// Step 2: Get the proposal ID
+	proposalId, err := g.BaseCurrentProposalId(g.govMinter, proposer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get proposal ID: %w", err)
+	}
+
+	// Step 3: Execute the proposal (approve + execute)
+	receipt, err := g.ExecuteProposal(t, g.govMinter, proposalId, approvers)
+	if err != nil {
+		return nil, fmt.Errorf("execute proposal failed: %w", err)
+	}
+
+	return receipt, nil
+}
+
+// CompleteBurnProposal - Full burn workflow helper
+// This automates the entire burn workflow:
+// 1. Deposits tokens for burn
+// 2. Creates a burn proposal
+// 3. Gets the proposal ID
+// 4. Collects approvals and executes via ExecuteProposal
+// Returns the final execution receipt
+func (g *GovWBFT) CompleteBurnProposal(
+	t *testing.T,
+	proposer *EOA,
+	amount *big.Int,
+	approvers []*EOA,
+) (*types.Receipt, error) {
+	// Step 1: Deposit tokens for burn
+	err := g.DepositForBurn(t, proposer, amount)
+	if err != nil {
+		return nil, fmt.Errorf("deposit for burn failed: %w", err)
+	}
+
+	// Step 2: Create burn proposal
+	tx, err := g.TxProposeBurn(t, proposer, proposer.Address, amount)
+	_, err = g.ExpectedOk(tx, err)
+	if err != nil {
+		return nil, fmt.Errorf("propose burn failed: %w", err)
+	}
+
+	// Step 3: Get the proposal ID
+	proposalId, err := g.BaseCurrentProposalId(g.govMinter, proposer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get proposal ID: %w", err)
+	}
+
+	// Step 4: Execute the proposal (approve + execute)
+	receipt, err := g.ExecuteProposal(t, g.govMinter, proposalId, approvers)
+	if err != nil {
+		return nil, fmt.Errorf("execute proposal failed: %w", err)
+	}
+
+	return receipt, nil
 }

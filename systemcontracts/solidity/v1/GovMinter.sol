@@ -113,6 +113,10 @@ contract GovMinter is GovBaseV2 {
     /// @dev Prevents front-running by binding each member to a single beneficiary
     mapping(address => address) public memberBeneficiaries;
 
+    /// @dev Reverse mapping for O(1) duplicate beneficiary check
+    /// Maps beneficiary address to the member who registered it
+    mapping(address => address) public beneficiaryToMember;
+
     // Replay attack prevention
     mapping(bytes32 => bool) public usedProofHashes;
 
@@ -180,20 +184,21 @@ contract GovMinter is GovBaseV2 {
         // During initialization, all beneficiaries must be set (address(0) not allowed)
         for (uint256 i = 0; i < _members.length; i++) {
             address beneficiary = _beneficiaries[i];
+            address member = _members[i];
 
             // Beneficiary must be set during initialization
             if (beneficiary == address(0)) revert InvalidBeneficiary();
 
-            // Check for duplicates by verifying beneficiary not already registered
-            for (uint256 j = 0; j < i; j++) {
-                if (_beneficiaries[j] == beneficiary) {
-                    revert DuplicateBeneficiary();
-                }
+            // Check for duplicates using reverse mapping (O(1) check)
+            if (beneficiaryToMember[beneficiary] != address(0)) {
+                revert DuplicateBeneficiary();
             }
 
-            // Set beneficiary and emit event
-            memberBeneficiaries[_members[i]] = beneficiary;
-            emit BeneficiaryRegistered(_members[i], beneficiary);
+            // Set beneficiary mappings (forward and reverse)
+            memberBeneficiaries[member] = beneficiary;
+            beneficiaryToMember[beneficiary] = member;
+
+            emit BeneficiaryRegistered(member, beneficiary);
         }
     }
 
@@ -272,20 +277,27 @@ contract GovMinter is GovBaseV2 {
      * @dev Reverts if beneficiary is already registered by another member (prevents front-running)
      * @dev Members can change their own beneficiary to a different address
      * @dev Used for members added after initialization via proposeAddMember
+     * @dev Uses O(1) reverse mapping for efficient duplicate check (prevents DoS)
      */
     function registerBeneficiary(address beneficiary) external onlyMember {
         if (beneficiary == address(0)) revert InvalidBeneficiary();
 
-        // Prevent duplicate beneficiaries across all members (front-running protection)
-        uint256 memberCount = getMemberCount(memberVersion);
-        for (uint256 i = 0; i < memberCount; i++) {
-            address member = getMemberAt(memberVersion, i);
-            if (member != msg.sender && memberBeneficiaries[member] == beneficiary) {
-                revert DuplicateBeneficiary();
-            }
+        // O(1) duplicate check using reverse mapping
+        address existingMember = beneficiaryToMember[beneficiary];
+        if (existingMember != address(0) && existingMember != msg.sender) {
+            revert DuplicateBeneficiary();
         }
 
+        // Clear old beneficiary mapping if member is changing beneficiary
+        address oldBeneficiary = memberBeneficiaries[msg.sender];
+        if (oldBeneficiary != address(0) && oldBeneficiary != beneficiary) {
+            delete beneficiaryToMember[oldBeneficiary];
+        }
+
+        // Set new beneficiary mappings (forward and reverse)
         memberBeneficiaries[msg.sender] = beneficiary;
+        beneficiaryToMember[beneficiary] = msg.sender;
+
         emit BeneficiaryRegistered(msg.sender, beneficiary);
     }
 

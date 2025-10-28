@@ -18,7 +18,9 @@
 package systemcontracts
 
 import (
+	"fmt"
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -126,7 +128,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_MEMBER_VERSION: "1",
 				GOV_BASE_PARAM_QUORUM:         "2",
 			},
-			expectErr: "`systemContracts.govBase.params.quorum` must not be greater than the number of members",
+			expectErr: "`systemContracts.govBase.params.quorum` (2) must not be greater than unique member count (1)",
 		},
 		{
 			name: "invalid quorum format",
@@ -296,23 +298,13 @@ func TestInitializeBase(t *testing.T) {
 			validateCount: 1,
 		},
 		{
-			name: "quorum=0 should not set quorumByVersion",
+			name: "quorum=0 should be rejected (SECURITY FIX)",
 			param: map[string]string{
 				GOV_BASE_PARAM_MEMBERS:        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
 				GOV_BASE_PARAM_MEMBER_VERSION: "1",
 				GOV_BASE_PARAM_QUORUM:         "0",
 			},
-			expectErr:     "",
-			validateCount: 6, // No quorumByVersion
-			validateFunc: func(t *testing.T, sp []params.StateParam) {
-				// Verify quorumByVersion is NOT set
-				quorumByVersionSlot := CalculateMappingSlot(common.HexToHash(SLOT_GOV_BASE_quorumByVersion), big.NewInt(1))
-				for _, p := range sp {
-					if p.Key == quorumByVersionSlot {
-						t.Error("quorumByVersion should not be set when quorum=0")
-					}
-				}
-			},
+			expectErr: "`systemContracts.govBase.params.quorum` must be greater than 0",
 		},
 	}
 
@@ -439,5 +431,92 @@ func TestStorageSlotConstants(t *testing.T) {
 				t.Errorf("SLOT_%s = %s, expected %s", tt.name, tt.constant, tt.expected)
 			}
 		})
+	}
+}
+
+// TestQuorumZeroValidation tests that quorum=0 is rejected
+func TestQuorumZeroValidation(t *testing.T) {
+	param := map[string]string{
+		GOV_BASE_PARAM_QUORUM: "0",
+	}
+	_, err := initializeBase(common.Address{}, param)
+	if err == nil {
+		t.Error("expected error for quorum=0, got nil")
+	}
+	expectedMsg := "`systemContracts.govBase.params.quorum` must be greater than 0"
+	if err.Error() != expectedMsg {
+		t.Errorf("expected error: %v, got: %v", expectedMsg, err.Error())
+	}
+}
+
+// TestZeroAddressMember tests that zero address in members is rejected
+func TestZeroAddressMember(t *testing.T) {
+	param := map[string]string{
+		GOV_BASE_PARAM_MEMBERS:        "0x0000000000000000000000000000000000000000",
+		GOV_BASE_PARAM_MEMBER_VERSION: "1",
+		GOV_BASE_PARAM_QUORUM:         "1",
+	}
+	_, err := initializeBase(common.Address{}, param)
+	if err == nil {
+		t.Error("expected error for zero address member, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid zero address") {
+		t.Errorf("expected error about zero address, got: %v", err.Error())
+	}
+}
+
+// TestMemberIndexOverflow tests that member count exceeding MAX_MEMBERS is rejected
+func TestMemberIndexOverflow(t *testing.T) {
+	// Create 256 members (exceeds MAX_MEMBERS = 255)
+	members := make([]string, 256)
+	for i := 0; i < 256; i++ {
+		// Generate unique addresses
+		members[i] = fmt.Sprintf("0x%040x", i+1)
+	}
+
+	param := map[string]string{
+		GOV_BASE_PARAM_MEMBERS:        strings.Join(members, ","),
+		GOV_BASE_PARAM_MEMBER_VERSION: "1",
+		GOV_BASE_PARAM_QUORUM:         "1",
+	}
+	_, err := initializeBase(common.Address{}, param)
+	if err == nil {
+		t.Error("expected error for member overflow, got nil")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum allowed") {
+		t.Errorf("expected error about max members, got: %v", err.Error())
+	}
+}
+
+// TestQuorumAfterDeduplication tests that quorum is validated after deduplication
+func TestQuorumAfterDeduplication(t *testing.T) {
+	param := map[string]string{
+		GOV_BASE_PARAM_MEMBERS:        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd,0xabcdefabcdefabcdefabcdefabcdefabcdefabcd,0x1111111111111111111111111111111111111111",
+		GOV_BASE_PARAM_MEMBER_VERSION: "1",
+		GOV_BASE_PARAM_QUORUM:         "3", // 3 addresses but only 2 unique
+	}
+	_, err := initializeBase(common.Address{}, param)
+	if err == nil {
+		t.Error("expected error for quorum > unique members, got nil")
+	}
+	if !strings.Contains(err.Error(), "must not be greater than unique member count") {
+		t.Errorf("expected error about quorum vs unique members, got: %v", err.Error())
+	}
+}
+
+// TestValidConfiguration tests that valid configuration passes all checks
+func TestValidConfiguration(t *testing.T) {
+	param := map[string]string{
+		GOV_BASE_PARAM_MEMBERS:        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd,0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222",
+		GOV_BASE_PARAM_MEMBER_VERSION: "1",
+		GOV_BASE_PARAM_QUORUM:         "2",
+		GOV_BASE_PARAM_EXPIRY:         "604800",
+	}
+	result, err := initializeBase(common.Address{}, param)
+	if err != nil {
+		t.Errorf("unexpected error for valid config: %v", err)
+	}
+	if len(result) == 0 {
+		t.Error("expected non-empty state params")
 	}
 }

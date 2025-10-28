@@ -275,3 +275,191 @@ func TestGovMinter_GovernanceWorkflow(t *testing.T) {
 		// In a full integration test, we'd deploy a mock fiat token contract
 	})
 }
+
+// ========================================
+// CRITICAL-1 & CRITICAL-2: _safeBurn Vulnerability Tests
+// ========================================
+
+func TestGovMinter_CRITICAL_BurnRollbackOnFailure(t *testing.T) {
+	t.Run("CRITICAL-1: burn should rollback burnBalance when burn fails", func(t *testing.T) {
+		initGovMinter(t)
+		defer gMinter.backend.Close()
+
+		member := minterMembers[0]
+		burnAmount := towei(1) // 1 ETH
+
+		// Step 1: Member deposits ETH for burn
+		err := gMinter.DepositForBurn(t, member.Operator, burnAmount)
+		require.NoError(t, err)
+
+		// Verify burnBalance is credited
+		burnBalanceBefore, err := gMinter.GetBurnBalance(minterNonMember, member.Operator.Address)
+		require.NoError(t, err)
+		require.Equal(t, 0, burnBalanceBefore.Cmp(burnAmount), "burnBalance should be credited")
+
+		// Step 2: Create burn proposal
+		tx, err := gMinter.TxProposeBurn(t, member.Operator, member.Operator.Address, burnAmount)
+		_, err = gMinter.ExpectedOk(tx, err)
+		require.NoError(t, err)
+
+		proposalId := big.NewInt(1)
+
+		// Step 3: Approve proposal
+		tx, err = gMinter.BaseTxApproveProposal(t, gMinter.govMinter, minterMembers[1].Operator, proposalId)
+		_, err = gMinter.ExpectedOk(tx, err)
+		require.NoError(t, err)
+
+		// Step 4: Execute proposal
+		// NOTE: This will fail because fiatToken is not a real contract
+		// In the current implementation (WITH BUG), this would:
+		// - Deduct burnBalance
+		// - Try to burn (fails)
+		// - NOT rollback burnBalance ← CRITICAL BUG
+		tx, err = gMinter.BaseTxExecuteProposal(t, gMinter.govMinter, member.Operator, proposalId)
+		// Execution may fail, which is expected for now
+		_ = gMinter.ExpectedFail(tx, err)
+
+		// CRITICAL TEST: burnBalance should be rolled back after failure
+		burnBalanceAfter, err := gMinter.GetBurnBalance(minterNonMember, member.Operator.Address)
+		require.NoError(t, err)
+
+		// WITH BUG: burnBalanceAfter would be 0 (incorrectly deducted)
+		// AFTER FIX: burnBalanceAfter should equal burnBalanceBefore (rolled back)
+		require.Equal(t, 0, burnBalanceAfter.Cmp(burnBalanceBefore),
+			"CRITICAL-1: burnBalance should be rolled back when burn fails, but got %s expected %s",
+			burnBalanceAfter.String(), burnBalanceBefore.String())
+	})
+}
+
+func TestGovMinter_CRITICAL_BurnTransfersNativeCoins(t *testing.T) {
+	t.Run("CRITICAL-2: burn should transfer native coins back to user", func(t *testing.T) {
+		// This test will be implemented after deploying a working MockFiatToken
+		// For now, skip it as it requires full integration
+		t.Skip("Requires working MockFiatToken contract deployment")
+
+		// When implemented, this test should:
+		// 1. Deploy MockFiatToken with mint/burn functionality
+		// 2. Member deposits ETH for burn
+		// 3. Give GovMinter some fiat tokens
+		// 4. Create and approve burn proposal
+		// 5. Execute burn
+		// 6. Verify user received ETH back
+		// 7. Verify burnBalance is 0
+		// 8. Verify withdrawalId is marked executed
+	})
+}
+
+// ========================================
+// HIGH-1: Beneficiary Front-Running Tests
+// ========================================
+
+func TestGovMinter_HIGH_DuplicateBeneficiaryPrevention(t *testing.T) {
+	t.Run("HIGH-1: duplicate beneficiary should be prevented", func(t *testing.T) {
+		initGovMinter(t)
+		defer gMinter.backend.Close()
+
+		member1 := minterMembers[0]
+		member2 := minterMembers[1]
+
+		// Member1's beneficiary is already set during initialization
+		beneficiary1, err := gMinter.GetMemberBeneficiary(minterNonMember, member1.Operator.Address)
+		require.NoError(t, err)
+
+		// Try to set member2's beneficiary to the same as member1 (should fail)
+		tx, err := gMinter.TxRegisterBeneficiary(t, member2.Operator, beneficiary1)
+		err = gMinter.ExpectedFail(tx, err)
+		require.Error(t, err, "Duplicate beneficiary should be rejected")
+	})
+
+	t.Run("HIGH-1: beneficiary change should clear old mapping", func(t *testing.T) {
+		initGovMinter(t)
+		defer gMinter.backend.Close()
+
+		member1 := minterMembers[0]
+		member2 := minterMembers[1]
+
+		// Get member1's original beneficiary
+		oldBeneficiary, err := gMinter.GetMemberBeneficiary(minterNonMember, member1.Operator.Address)
+		require.NoError(t, err)
+
+		// Member1 changes beneficiary to a new address
+		newBeneficiary := NewEOA().Address
+		tx, err := gMinter.TxRegisterBeneficiary(t, member1.Operator, newBeneficiary)
+		_, err = gMinter.ExpectedOk(tx, err)
+		require.NoError(t, err)
+
+		// Verify new beneficiary is set
+		currentBeneficiary, err := gMinter.GetMemberBeneficiary(minterNonMember, member1.Operator.Address)
+		require.NoError(t, err)
+		require.Equal(t, newBeneficiary, currentBeneficiary)
+
+		// NOW: member2 should be able to register oldBeneficiary
+		// WITH CURRENT IMPLEMENTATION (O(n) loop), this might fail due to stale check
+		// AFTER FIX (reverse mapping), this should succeed
+		tx, err = gMinter.TxRegisterBeneficiary(t, member2.Operator, oldBeneficiary)
+		_, err = gMinter.ExpectedOk(tx, err)
+		require.NoError(t, err, "After member1 changes beneficiary, member2 should be able to use the old one")
+
+		// Verify member2's beneficiary is set
+		member2Beneficiary, err := gMinter.GetMemberBeneficiary(minterNonMember, member2.Operator.Address)
+		require.NoError(t, err)
+		require.Equal(t, oldBeneficiary, member2Beneficiary)
+	})
+}
+
+// ========================================
+// MEDIUM-3: FiatToken Validation Tests
+// ========================================
+
+func TestGovMinter_MEDIUM_FiatTokenValidation(t *testing.T) {
+	t.Run("MEDIUM-3: fiatToken validation during initialization", func(t *testing.T) {
+		// This test verifies that invalid fiatToken addresses are rejected
+		// Current implementation only checks for zero address
+		// After fix, should also check for contract existence and interface compatibility
+		t.Skip("Requires genesis initialization with validation")
+	})
+}
+
+// ========================================
+// Burn Balance Edge Cases
+// ========================================
+
+func TestGovMinter_BurnBalanceEdgeCases(t *testing.T) {
+	t.Run("multiple deposits accumulate burnBalance", func(t *testing.T) {
+		initGovMinter(t)
+		defer gMinter.backend.Close()
+
+		member := minterMembers[0]
+		depositAmount := towei(1)
+
+		// Initial balance should be 0
+		balance, err := gMinter.GetBurnBalance(minterNonMember, member.Operator.Address)
+		require.NoError(t, err)
+		require.Equal(t, 0, balance.Cmp(big.NewInt(0)))
+
+		// Deposit 3 times
+		for i := 0; i < 3; i++ {
+			err := gMinter.DepositForBurn(t, member.Operator, depositAmount)
+			require.NoError(t, err)
+		}
+
+		// Balance should be 3 * depositAmount
+		balance, err = gMinter.GetBurnBalance(minterNonMember, member.Operator.Address)
+		require.NoError(t, err)
+		expectedBalance := new(big.Int).Mul(depositAmount, big.NewInt(3))
+		require.Equal(t, 0, balance.Cmp(expectedBalance), "Balance should accumulate")
+	})
+
+	t.Run("burn proposal requires sufficient balance", func(t *testing.T) {
+		initGovMinter(t)
+		defer gMinter.backend.Close()
+
+		member := minterMembers[0]
+		burnAmount := towei(10) // Request more than deposited
+
+		// Try to propose burn without sufficient balance (should fail)
+		tx, err := gMinter.TxProposeBurn(t, member.Operator, member.Operator.Address, burnAmount)
+		err = gMinter.ExpectedFail(tx, err)
+		require.Error(t, err, "Should fail with InsufficientBurnBalance")
+	})
+}

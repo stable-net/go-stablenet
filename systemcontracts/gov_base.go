@@ -129,6 +129,11 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 			return nil, fmt.Errorf("`systemContracts.govBase.params.quorum`: %w", err)
 		}
 
+		// Validate quorum is greater than 0
+		if quorum == 0 {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.quorum` must be greater than 0")
+		}
+
 		sp = append(sp,
 			params.StateParam{
 				Address: govBaseAddress,
@@ -154,8 +159,35 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 
 	if membersStr, ok := param[GOV_BASE_PARAM_MEMBERS]; ok {
 		memberAddresses := strings.Split(membersStr, ",")
-		if quorum > 0 && uint64(len(memberAddresses)) < quorum {
-			return nil, fmt.Errorf("`systemContracts.govBase.params.quorum` must not be greater than the number of members")
+
+		// Pre-validate and deduplicate members
+		uniqueMembers := make(map[common.Address]struct{})
+		for _, addrStr := range memberAddresses {
+			member := common.HexToAddress(addrStr)
+
+			// Validate zero address
+			if member == (common.Address{}) {
+				return nil, fmt.Errorf("`systemContracts.govBase.params.members` contains invalid zero address")
+			}
+
+			uniqueMembers[member] = struct{}{}
+		}
+
+		// Check quorum after deduplication
+		if quorum > 0 && uint64(len(uniqueMembers)) < quorum {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.quorum` (%d) must not be greater than unique member count (%d)", quorum, len(uniqueMembers))
+		}
+
+		// Enforce maximum member limit (matches Solidity MAX_MEMBER_INDEX)
+		const MAX_MEMBERS = 255
+		if len(uniqueMembers) > MAX_MEMBERS {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.members` count (%d) exceeds maximum allowed (%d)", len(uniqueMembers), MAX_MEMBERS)
+		}
+
+		// Enforce minimum quorum for security (optional but recommended)
+		const MIN_QUORUM = 1 // Set to 2 for production if multi-sig is required
+		if quorum > 0 && quorum < MIN_QUORUM {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.quorum` (%d) must be at least %d for security", quorum, MIN_QUORUM)
 		}
 
 		membersSlot := common.HexToHash(SLOT_GOV_BASE_members)
@@ -174,8 +206,6 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 		}
 		version := new(big.Int).SetUint64(versionInt)
 
-		duplicated := make(map[common.Address]struct{})
-
 		// joinedAt is set to 0 for all initial members.
 		// We do not use the current time in the genesis (configuration).
 		// This is because it makes the genesis generation non-deterministic.
@@ -185,10 +215,11 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 		}.ToHash()
 
 		currentIdx := uint64(0)
-		for _, memberAddr := range memberAddresses {
-			member := common.HexToAddress(memberAddr)
-			if _, ok := duplicated[member]; ok {
-				continue
+		// Use uniqueMembers map for iteration
+		for member := range uniqueMembers {
+			// Additional overflow check (defensive programming)
+			if currentIdx >= MAX_MEMBERS {
+				return nil, fmt.Errorf("member index overflow: currentIdx (%d) >= MAX_MEMBERS (%d)", currentIdx, MAX_MEMBERS)
 			}
 			sp = append(sp,
 				// Set member active status and joinedAt timestamp
@@ -211,7 +242,6 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 					Value:   common.BigToHash(new(big.Int).SetUint64(currentIdx + 1)),
 				},
 			)
-			duplicated[member] = struct{}{}
 			currentIdx++
 		}
 

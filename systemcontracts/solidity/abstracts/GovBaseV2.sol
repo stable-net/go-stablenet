@@ -413,7 +413,7 @@ abstract contract GovBaseV2 {
             revert ProposalNotInVoting();
         }
 
-        // Validate proposal not expired
+        // Check and enforce expiry
         if (block.timestamp > proposal.createdAt + proposalExpiry) {
             proposal.status = ProposalStatus.Expired;
             _decrementActiveProposalCount(proposalId);
@@ -547,6 +547,9 @@ abstract contract GovBaseV2 {
     /// @return newSnapshot Empty storage array for new member version
     /// @return oldSnapshot Current member list snapshot
     /// @return newVersion Incremented version number
+    /// @notice Old version proposals continue to use their snapshot member list for voting/execution
+    ///         This allows proposals to complete even after member composition changes
+    ///         Each proposal maintains its own version snapshot for consistency
     function _prepareNextMemberVersion()
         internal
         returns (address[] storage newSnapshot, address[] storage oldSnapshot, uint256 newVersion)
@@ -574,6 +577,7 @@ abstract contract GovBaseV2 {
     /// @notice Security consideration: _onMemberAdded is called after state changes
     ///         Derived contracts must avoid external calls in _onMemberAdded to prevent
     ///         cross-function reentrancy attacks
+    /// @notice Reentrancy protection: Caller (_executeProposal) has nonReentrant guard
     function _addMember(address newMember, uint32 newQuorum) internal {
         // CHECKS: Validate member and address
         if (members[newMember].isActive) revert AlreadyAMember();
@@ -636,6 +640,7 @@ abstract contract GovBaseV2 {
     /// @notice Security consideration: _onMemberRemoved is called after state changes
     ///         Derived contracts must avoid external calls in _onMemberRemoved to prevent
     ///         cross-function reentrancy attacks
+    /// @notice Reentrancy protection: Caller (_executeProposal) has nonReentrant guard
     function _removeMember(address member, uint32 newQuorum) internal {
         // CHECKS: Validate member status
         if (!members[member].isActive) revert NotAMember();
@@ -699,6 +704,7 @@ abstract contract GovBaseV2 {
     /// @notice Security consideration: _onMemberChanged is called after state changes
     ///         Derived contracts must avoid external calls in _onMemberChanged to prevent
     ///         cross-function reentrancy attacks
+    /// @notice Reentrancy protection: Caller (_executeProposal) has nonReentrant guard
     function _changeMember(address oldMember, address newMember) internal {
         // CHECKS: Validate addresses and member status
         if (newMember == address(0)) revert InvalidMemberAddress();
