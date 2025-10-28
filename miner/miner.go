@@ -60,16 +60,10 @@ type Config struct {
 	SimulatedEnabled bool `toml:",omitempty"`
 }
 
-// DefaultGasPrice Pre-computed gas price values
-var (
-	// Use InitialGasTip from protocol params for consistency
-	DefaultGasPrice = new(big.Int).SetUint64(params.InitialGasTip)
-)
-
 // DefaultConfig contains default settings for miner.
 var DefaultConfig = Config{
 	GasCeil:  105000000,
-	GasPrice: DefaultGasPrice, // Use InitialGasTip from protocol params
+	GasPrice: big.NewInt(0),
 
 	// The default recommit time is chosen as two seconds since
 	// consensus-layer usually will wait a half slot of time(6s)

@@ -76,7 +76,7 @@ func NewEngine(cfg *wbft.Config, signer common.Address, sign SignerFn, checkSig 
 		signer:   signer,
 		sign:     sign,
 		checkSig: checkSig,
-		gasTip:   big.NewInt(100 * params.GWei),
+		gasTip:   big.NewInt(0),
 	}
 }
 
@@ -334,7 +334,7 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 	}
 
 	if header.Number.Uint64() > 0 && currentExtra.GasTip != nil && currentExtra.GasTip.Cmp(e.gasTip) != 0 {
-		return fmt.Errorf("invalid gov tip: have %d, want %d", currentExtra.GasTip, e.gasTip)
+		return fmt.Errorf("invalid gas tip: have %d, want %d", currentExtra.GasTip, e.gasTip)
 	}
 
 	return nil

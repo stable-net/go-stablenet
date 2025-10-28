@@ -310,6 +310,17 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		worker.simSyncer = newSimSyncer(worker)
 	}
 
+	if worker.chainConfig.AnzeonEnabled() {
+		// Initialize gasTip from GovValidator contract
+		if currentBlock := worker.chain.CurrentBlock(); currentBlock != nil {
+			if state, err := worker.chain.StateAt(currentBlock.Root); err == nil {
+				worker.updateGasTipFromContract(state)
+			} else {
+				log.Warn("Failed to get state from current block", "err", err)
+			}
+		}
+	}
+
 	worker.wg.Add(4)
 	go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
@@ -350,6 +361,19 @@ func (w *worker) setExtra(extra []byte) {
 func (w *worker) setGasTip(tip *big.Int) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	return w.setGasTipUnsafe(tip)
+}
+
+// setGasTipUnsafe sets the minimum miner tip without acquiring the lock.
+// This is used when the caller already holds the lock or when called from
+// contexts where we cannot acquire the lock (e.g., from within a RLock).
+// Returns true if the tip was changed.
+func (w *worker) setGasTipUnsafe(tip *big.Int) bool {
+	// Check if the tip actually needs to be changed
+	if w.tip.Cmp(uint256.MustFromBig(tip)) == 0 {
+		return false // No change needed
+	}
 
 	// Apply governance-defined tip (GasTip) to the WBFT engine
 	// If this fails, we should not update worker.tip or txPool to maintain consistency
@@ -636,6 +660,16 @@ func (w *worker) newWorkLoopWBFT() {
 
 			err := handler.NewChainHead()
 			clearPending(head.Block.NumberU64())
+
+			if w.chainConfig.AnzeonEnabled() {
+				// Update gasTip from contract when new block is imported
+				if state, stateErr := w.chain.StateAt(head.Block.Root()); stateErr == nil {
+					w.updateGasTipFromContract(state)
+				} else {
+					log.Warn("Failed to get state from new block", "err", stateErr)
+				}
+			}
+
 			if errors.Is(err, wbft.ErrStoppedEngine) {
 				// If WBFT engine is running, we don't need to commit new work here because
 				// it will triggered by readyToCommitCh
@@ -1146,6 +1180,15 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		header.ParentBeaconRoot = genParams.beaconRoot
 	}
 
+	// Update gasTip from GovValidator contract before filling transactions
+	if w.chainConfig.AnzeonEnabled() {
+		if state, err := w.chain.StateAt(parent.Root); err == nil {
+			w.updateGasTipFromContract(state)
+		} else {
+			return nil, err
+		}
+	}
+
 	// Run the consensus preparation with the default or customized consensus engine.
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for sealing", "err", err)
@@ -1167,37 +1210,36 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	return env, nil
 }
 
-// updateGasTipFromContract reads the current gasTip from GovValidator contract
-// and updates the worker's tip accordingly.
-func (w *worker) updateGasTipFromContract(env *environment) error {
-	// Only update if WBFT is enabled
-	if w.chainConfig.Anzeon == nil || w.chainConfig.Anzeon.SystemContracts == nil {
+// updateGasTipFromContract updates the gasTip from GovValidator contract.
+// This is called asynchronously via goroutine to avoid deadlock issues.
+func (w *worker) updateGasTipFromContract(state *state.StateDB) {
+	gasTip := w.getGasTipFromContract(state)
+	if gasTip != nil {
+		go func() {
+			if updated := w.setGasTip(gasTip); updated {
+				log.Trace("Updated gasTip from GovValidator contract", "newTip", gasTip)
+			}
+		}()
+	}
+}
+
+// getGasTipFromContract reads the current gasTip from GovValidator contract
+func (w *worker) getGasTipFromContract(state *state.StateDB) *big.Int {
+	if w.chainConfig.Anzeon.SystemContracts == nil {
+		log.Warn("GovValidator contract is not enabled")
 		return nil
 	}
 
-	// Get GovValidator address from system contracts
-	systemContracts := w.chainConfig.Anzeon.SystemContracts
-	if systemContracts.GovValidator == nil {
-		return nil
-	}
-	govValidatorAddr := systemContracts.GovValidator.Address
+	govValidatorAddr := w.chainConfig.Anzeon.SystemContracts.GovValidator.Address
 
 	// Read gasTip from contract storage
-	gasTip := govwbft.GetGasTip(govValidatorAddr, env.state)
-	if gasTip == nil {
-		return fmt.Errorf("failed to read gasTip from GovValidator contract at %s", govValidatorAddr.Hex())
+	gasTip := govwbft.GetGasTip(govValidatorAddr, state)
+	if gasTip == nil || gasTip.Sign() <= 0 {
+		log.Warn("Failed to get gasTip from GovValidator contract", "gasTip", gasTip)
+		return nil
 	}
 
-	if gasTip.Sign() <= 0 {
-		return fmt.Errorf("invalid gasTip value from contract: %s", gasTip.String())
-	}
-
-	// setGasTip checks if changed and updates accordingly (with WBFT engine notification)
-	if w.setGasTip(gasTip) {
-		log.Trace("Updated gasTip from GovValidator contract", "newTip", gasTip)
-	}
-
-	return nil
+	return gasTip
 }
 
 // fillTransactions retrieves the pending transactions from the txpool and fills them
@@ -1266,11 +1308,6 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 	}
 	defer work.discard()
 
-	// Update gasTip from GovValidator contract
-	if err := w.updateGasTipFromContract(work); err != nil {
-		return &newPayloadResult{err: fmt.Errorf("failed to update gasTip: %w", err)}
-	}
-
 	if !params.noTxs {
 
 		interrupt := new(atomic.Int32)
@@ -1319,12 +1356,6 @@ func (w *worker) commitWork(interrupt *atomic.Int32, timestamp int64) {
 	})
 	if err != nil {
 		log.Error("Fail to prepare work", "err", err)
-		return
-	}
-
-	// Update gasTip from GovValidator contract before filling transactions
-	if err := w.updateGasTipFromContract(work); err != nil {
-		log.Error("Failed to update gasTip", "err", err)
 		return
 	}
 
