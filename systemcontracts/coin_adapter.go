@@ -107,7 +107,7 @@ func InitializeCoinAdatper(coinAdapterAddress common.Address, param map[string]s
 	if !ok || len(symbol) == 0 {
 		return nil, fmt.Errorf("`systemContracts.nativeCoinAdapter.params`: missing parameter: %s", COIN_ADAPTER_PARAM_SYMBOL)
 	}
-	for slot, value := range EncodeBytesToSlots(common.HexToHash(SLOT_COIN_ADAPTER_NAME), []byte(symbol)) {
+	for slot, value := range EncodeBytesToSlots(common.HexToHash(SLOT_COIN_ADAPTER_SYMBOL), []byte(symbol)) {
 		sp = append(sp, params.StateParam{
 			Address: coinAdapterAddress,
 			Key:     slot,
@@ -135,7 +135,7 @@ func InitializeCoinAdatper(coinAdapterAddress common.Address, param map[string]s
 	if !ok || len(currency) == 0 {
 		return nil, fmt.Errorf("`systemContracts.nativeCoinAdapter.params`: missing parameter: %s", COIN_ADAPTER_PARAM_CURRENCY)
 	}
-	for slot, value := range EncodeBytesToSlots(common.HexToHash(SLOT_COIN_ADAPTER_NAME), []byte(currency)) {
+	for slot, value := range EncodeBytesToSlots(common.HexToHash(SLOT_COIN_ADAPTER_CURRENCY), []byte(currency)) {
 		sp = append(sp, params.StateParam{
 			Address: coinAdapterAddress,
 			Key:     slot,
