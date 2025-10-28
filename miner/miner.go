@@ -213,7 +213,7 @@ func (miner *Miner) SetExtra(extra []byte) error {
 
 func (miner *Miner) SetGasTip(tip *big.Int) error {
 	if miner.worker.chainConfig.AnzeonEnabled() {
-		return fmt.Errorf("setGasTip is not supported for anzenon")
+		return fmt.Errorf("setGasTip is not supported for anzeon")
 	}
 	miner.worker.setGasTip(tip)
 	return nil
