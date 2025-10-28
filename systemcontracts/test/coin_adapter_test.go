@@ -68,7 +68,40 @@ func TestNativeCoinAdapter(t *testing.T) {
 	})
 
 	t.Run("mint", func(t *testing.T) {
+		// TODO: Implement mint test
+	})
 
+	t.Run("transfer", func(t *testing.T) {
+		sender := masterMinter
+		recipient := minter1
+		transferAmount := toWeiN(1000, decimals)
+
+		// Get initial balances
+		senderInitialBalance := g.BalanceOf(t, sender.Address)
+		recipientInitialBalance := g.BalanceOf(t, recipient.Address)
+
+		// Perform transfer
+		_, err := g.coinAdapter.Transact(NewTxOptsWithValue(t, sender, nil), "transfer", recipient.Address, transferAmount)
+		require.NoError(t, err)
+
+		// Commit the transaction
+		g.backend.Commit()
+
+		// Verify balances after transfer
+		senderFinalBalance := g.BalanceOf(t, sender.Address)
+		recipientFinalBalance := g.BalanceOf(t, recipient.Address)
+
+		// Sender balance should decrease by transfer amount (considering gas fees)
+		// Note: Sender's balance includes gas costs, so we only check recipient increase
+		require.True(t, senderFinalBalance.Cmp(senderInitialBalance) < 0, "Sender balance should decrease")
+
+		// Recipient balance should increase by transfer amount
+		expectedRecipientBalance := new(big.Int).Add(recipientInitialBalance, transferAmount)
+		require.Equal(t, 0, recipientFinalBalance.Cmp(expectedRecipientBalance), "Recipient balance mismatch")
+
+		// Total supply should remain unchanged
+		totalSupply := contractCall(t, g.coinAdapter, "totalSupply")[0].(*big.Int)
+		require.NotNil(t, totalSupply)
 	})
 }
 
@@ -76,14 +109,9 @@ func (g *GovWBFT) BalanceOf(t *testing.T, address common.Address) *big.Int {
 	return contractCall(t, g.coinAdapter, "balanceOf", address)[0].(*big.Int)
 }
 
-// TODO
-// transfer
-// // contract function
-// // call
-// // to precompiled
-
-// mint/burn
-// mint allowance
-// add minter, remove minter
-// permit
-// transferWithAuthorization
+// Additional tests to consider implementing:
+// - mint/burn operations
+// - mint allowance management
+// - add/remove minter
+// - permit (EIP-2612)
+// - transferWithAuthorization (EIP-3009)

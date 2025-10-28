@@ -170,6 +170,29 @@ contract GovMinter is GovBaseV2 {
     // ========== Constructor & Initialization ==========
     constructor() {}
 
+
+    // ========== Modifiers ==========
+
+    /// @notice Modifier to check if contract is not paused
+    /// @dev Reverts with ContractPaused if emergencyPaused is true
+    modifier whenNotPaused() {
+        if (emergencyPaused) revert ContractPaused();
+        _;
+    }
+
+    /// @notice Modifier to check if contract is paused
+    /// @dev Reverts with ContractNotPaused if emergencyPaused is false
+    modifier whenPaused() {
+        if (!emergencyPaused) revert ContractNotPaused();
+        _;
+    }
+
+
+    // ============================================================
+    // 1. INITIALIZATION
+    // ============================================================
+
+
     /**
      * @notice Initialize the contract
      * @param _members Array of member addresses
@@ -216,21 +239,11 @@ contract GovMinter is GovBaseV2 {
         }
     }
 
-    // ========== Modifiers ==========
 
-    /// @notice Modifier to check if contract is not paused
-    /// @dev Reverts with ContractPaused if emergencyPaused is true
-    modifier whenNotPaused() {
-        if (emergencyPaused) revert ContractPaused();
-        _;
-    }
+    // ============================================================
+    // 2. RECEIVE FUNCTION
+    // ============================================================
 
-    /// @notice Modifier to check if contract is paused
-    /// @dev Reverts with ContractNotPaused if emergencyPaused is false
-    modifier whenPaused() {
-        if (!emergencyPaused) revert ContractNotPaused();
-        _;
-    }
 
     // ========== Receive Function ==========
 
@@ -282,6 +295,12 @@ contract GovMinter is GovBaseV2 {
         emit BurnPrepaid(msg.sender, msg.value);
     }
 
+
+    // ============================================================
+    // 3. PUBLIC FUNCTIONS - Beneficiary Management
+    // ============================================================
+
+
     // ========== Beneficiary Management ==========
 
     /**
@@ -314,6 +333,12 @@ contract GovMinter is GovBaseV2 {
 
         emit BeneficiaryRegistered(msg.sender, beneficiary);
     }
+
+
+    // ============================================================
+    // 4. PUBLIC FUNCTIONS - Proposal Operations
+    // ============================================================
+
 
     // ========== Proposal Functions ==========
 
@@ -379,6 +404,7 @@ contract GovMinter is GovBaseV2 {
         return proposalId;
     }
 
+
     /**
      * @notice Propose burn with burn proof
      * @param proofData ABI-encoded BurnProof data
@@ -423,6 +449,7 @@ contract GovMinter is GovBaseV2 {
         return proposalId;
     }
 
+
     /**
      * @notice Propose emergency pause of all mint and burn operations
      * @return proposalId The ID of the created proposal
@@ -436,6 +463,7 @@ contract GovMinter is GovBaseV2 {
         bytes memory callData = "";
         return _createProposal(ACTION_PAUSE, callData);
     }
+
 
     /**
      * @notice Propose resumption of mint and burn operations
@@ -451,49 +479,11 @@ contract GovMinter is GovBaseV2 {
         return _createProposal(ACTION_UNPAUSE, callData);
     }
 
-    /// @dev Internal function to release reserved mint allowance
-    /// @notice Automatically cleans up reservation when proposal reaches terminal state
-    /// @param proposalId The proposal ID to clean up
-    function _cleanupMintReservation(uint256 proposalId) internal {
-        uint256 reservedAmount = mintProposalAmounts[proposalId];
-        if (reservedAmount > 0) {
-            reservedMintAmount -= reservedAmount;
-            delete mintProposalAmounts[proposalId];
-        }
-    }
 
-    /// @dev Hook implementation for proposal finalization
-    /// @notice Called automatically by GovBaseV2 when proposal reaches terminal state
-    /// @param proposalId The proposal that reached terminal state
-    ///
-    /// @custom:security Called AFTER state transition (status already updated in GovBaseV2)
-    /// @custom:security Safe to call multiple times due to idempotent cleanup function
-    /// @custom:security No external calls - only state cleanup
-    ///
-    /// @custom:usage Terminal States (all trigger cleanup)
-    ///      - Executed: Proposal successfully executed (mint completed)
-    ///      - Failed: Proposal execution failed (mint failed)
-    ///      - Expired: Proposal expired before execution
-    ///      - Cancelled: Proposal cancelled by proposer
-    ///      - Rejected: Proposal rejected by members
-    ///
-    /// @custom:design Pattern
-    ///      - Template Method Pattern: GovBaseV2 defines lifecycle, GovMinter implements cleanup
-    ///      - Single Responsibility: Proposal lifecycle (GovBaseV2) separated from mint cleanup (GovMinter)
-    ///      - DRY Principle: One hook definition, called from 7 terminal state transitions
-    ///
-    /// @custom:idempotency
-    ///      - Safe to call multiple times for same proposalId
-    ///      - _cleanupMintReservation checks reservedAmount > 0 before cleanup
-    ///      - Prevents double-cleanup issues
-    ///
-    /// @custom:gas-optimization
-    ///      - Early exit if no reservation (reservedAmount == 0)
-    ///      - Single SLOAD + conditional SSTORE: ~5000-8000 gas
-    ///      - Minimal overhead for non-mint proposals
-    function _onProposalFinalized(uint256 proposalId) internal override {
-        _cleanupMintReservation(proposalId);
-    }
+    // ============================================================
+    // 5. INTERNAL FUNCTIONS - Action Execution Router
+    // ============================================================
+
 
     // ========== Internal Action Implementation ==========
 
@@ -553,6 +543,12 @@ contract GovMinter is GovBaseV2 {
         return false;
     }
 
+
+    // ============================================================
+    // 6. INTERNAL FUNCTIONS - Action Executors
+    // ============================================================
+
+
     /// @dev Execute mint action - mint tokens to beneficiary
     /// @notice Mints fiat tokens and marks depositId as permanently executed
     ///
@@ -608,6 +604,7 @@ contract GovMinter is GovBaseV2 {
             return false;
         }
     }
+
 
     /// @dev Execute burn action - burn fiat tokens from GovMinter balance
     /// @notice Burns fiat tokens held by GovMinter contract
@@ -675,6 +672,7 @@ contract GovMinter is GovBaseV2 {
         return true;
     }
 
+
     /// @dev Execute emergency pause action
     /// @notice Activates emergency pause to block all mint and burn operations
     ///
@@ -716,6 +714,7 @@ contract GovMinter is GovBaseV2 {
         emit EmergencyPaused(currentProposalId);
         return true;
     }
+
 
     /// @dev Execute emergency unpause action
     /// @notice Deactivates emergency pause to resume mint and burn operations
@@ -764,6 +763,12 @@ contract GovMinter is GovBaseV2 {
         return true;
     }
 
+
+    // ============================================================
+    // 7. INTERNAL FUNCTIONS - Proof Decoding
+    // ============================================================
+
+
     // ========== Proof Management Functions ==========
 
     /// @dev Decode ABI-encoded mint proof data
@@ -811,6 +816,7 @@ contract GovMinter is GovBaseV2 {
         });
     }
 
+
     /// @dev Decode ABI-encoded burn proof data
     /// @notice Converts bytes to BurnProof struct
     ///
@@ -856,6 +862,12 @@ contract GovMinter is GovBaseV2 {
         });
     }
 
+
+    // ============================================================
+    // 8. INTERNAL FUNCTIONS - Replay Prevention (Validation)
+    // ============================================================
+
+
     // ========== Replay Attack Prevention ==========
 
     /**
@@ -893,6 +905,7 @@ contract GovMinter is GovBaseV2 {
         // (Executed is already blocked by executedDepositIds check above)
     }
 
+
     /**
      * @notice Validate withdrawalId availability based on proposal state
      * @param withdrawalId The withdrawal identifier to validate
@@ -925,6 +938,7 @@ contract GovMinter is GovBaseV2 {
         // (Executed is already blocked by executedWithdrawalIds check above)
     }
 
+
     /// @dev Check if proof hash has been used before
     /// @notice Validates that the proof hash is unique and not replayed
     ///
@@ -951,6 +965,12 @@ contract GovMinter is GovBaseV2 {
         if (usedProofHashes[proofHash]) revert ProofAlreadyUsed();
     }
 
+
+    // ============================================================
+    // 9. INTERNAL FUNCTIONS - Replay Prevention (State Updates)
+    // ============================================================
+
+
     /// @dev Mark depositId as permanently executed
     /// @notice Permanently consumes depositId to prevent replay attacks
     ///
@@ -975,6 +995,7 @@ contract GovMinter is GovBaseV2 {
         executedDepositIds[depositId] = true;
     }
 
+
     /// @dev Mark withdrawalId as permanently executed
     /// @notice Permanently consumes withdrawalId to prevent replay attacks
     ///
@@ -998,6 +1019,7 @@ contract GovMinter is GovBaseV2 {
     function _markWithdrawalIdExecuted(string memory withdrawalId) internal {
         executedWithdrawalIds[withdrawalId] = true;
     }
+
 
     /// @dev Mark proof hash as used to prevent replay attacks
     /// @notice Permanently stores proof hash to detect duplicates
@@ -1024,6 +1046,58 @@ contract GovMinter is GovBaseV2 {
         usedProofHashes[proofHash] = true;
     }
 
+
+    // ============================================================
+    // 10. INTERNAL FUNCTIONS - Cleanup & Lifecycle Hooks
+    // ============================================================
+
+
+    /// @dev Internal function to release reserved mint allowance
+    /// @notice Automatically cleans up reservation when proposal reaches terminal state
+    /// @param proposalId The proposal ID to clean up
+    function _cleanupMintReservation(uint256 proposalId) internal {
+        uint256 reservedAmount = mintProposalAmounts[proposalId];
+        if (reservedAmount > 0) {
+            reservedMintAmount -= reservedAmount;
+            delete mintProposalAmounts[proposalId];
+        }
+    }
+
+
+    /// @dev Hook implementation for proposal finalization
+    /// @notice Called automatically by GovBaseV2 when proposal reaches terminal state
+    /// @param proposalId The proposal that reached terminal state
+    ///
+    /// @custom:security Called AFTER state transition (status already updated in GovBaseV2)
+    /// @custom:security Safe to call multiple times due to idempotent cleanup function
+    /// @custom:security No external calls - only state cleanup
+    ///
+    /// @custom:usage Terminal States (all trigger cleanup)
+    ///      - Executed: Proposal successfully executed (mint completed)
+    ///      - Failed: Proposal execution failed (mint failed)
+    ///      - Expired: Proposal expired before execution
+    ///      - Cancelled: Proposal cancelled by proposer
+    ///      - Rejected: Proposal rejected by members
+    ///
+    /// @custom:design Pattern
+    ///      - Template Method Pattern: GovBaseV2 defines lifecycle, GovMinter implements cleanup
+    ///      - Single Responsibility: Proposal lifecycle (GovBaseV2) separated from mint cleanup (GovMinter)
+    ///      - DRY Principle: One hook definition, called from 7 terminal state transitions
+    ///
+    /// @custom:idempotency
+    ///      - Safe to call multiple times for same proposalId
+    ///      - _cleanupMintReservation checks reservedAmount > 0 before cleanup
+    ///      - Prevents double-cleanup issues
+    ///
+    /// @custom:gas-optimization
+    ///      - Early exit if no reservation (reservedAmount == 0)
+    ///      - Single SLOAD + conditional SSTORE: ~5000-8000 gas
+    ///      - Minimal overhead for non-mint proposals
+    function _onProposalFinalized(uint256 proposalId) internal override {
+        _cleanupMintReservation(proposalId);
+    }
+
+
     // ========== Hook Implementations ==========
 
     /// @dev Hook called when a new member is added to governance
@@ -1046,6 +1120,7 @@ contract GovMinter is GovBaseV2 {
     ///      - Keeps governance flexible and explicit
     function _onMemberAdded(address /* newMember */) internal override {}
 
+
     /// @dev Hook called when a member is removed from governance
     /// @notice Currently empty - no cleanup needed for removed members
     ///
@@ -1066,6 +1141,7 @@ contract GovMinter is GovBaseV2 {
     ///      - Preserves burn balance for potential withdrawal
     ///      - Does not cancel active proposals (governance decision)
     function _onMemberRemoved(address /* member */) internal override {}
+
 
     /// @dev Hook called when a member address is changed in governance
     /// @notice Currently empty - no state migration needed
@@ -1090,4 +1166,5 @@ contract GovMinter is GovBaseV2 {
     ///      - Old member data preserved (audit trail)
     ///      - Governance can manually handle special cases if needed
     function _onMemberChanged(address /* oldMember */, address /* newMember */) internal override {}
+
 }

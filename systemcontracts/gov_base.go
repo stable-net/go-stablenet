@@ -184,10 +184,25 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 			return nil, fmt.Errorf("`systemContracts.govBase.params.members` count (%d) exceeds maximum allowed (%d)", len(uniqueMembers), MAX_MEMBERS)
 		}
 
-		// Enforce minimum quorum for security (optional but recommended)
-		const MIN_QUORUM = 1 // Set to 2 for production if multi-sig is required
-		if quorum > 0 && quorum < MIN_QUORUM {
-			return nil, fmt.Errorf("`systemContracts.govBase.params.quorum` (%d) must be at least %d for security", quorum, MIN_QUORUM)
+		// Quorum validation matching GovBaseV2.sol logic
+		// This ensures consistency between genesis initialization and smart contract behavior
+		// Only validate if quorum is explicitly provided (quorum > 0)
+		if quorum > 0 {
+			memberCount := uint64(len(uniqueMembers))
+			if memberCount == 1 {
+				// Single member governance: quorum must be exactly 1
+				// WARNING: Single-member governance is centralized and not recommended for production
+				if quorum != 1 {
+					return nil, fmt.Errorf("`systemContracts.govBase.params.quorum` must be exactly 1 for single-member governance, got %d", quorum)
+				}
+			} else {
+				// Multi-member governance: require at least 2 approvals (proposer + 1 reviewer)
+				// This prevents any single member from executing proposals without peer review
+				// Security: quorum=1 would allow single-member unilateral decisions
+				if quorum < 2 {
+					return nil, fmt.Errorf("`systemContracts.govBase.params.quorum` (%d) must be at least 2 for multi-member governance (member count: %d)", quorum, memberCount)
+				}
+			}
 		}
 
 		membersSlot := common.HexToHash(SLOT_GOV_BASE_members)

@@ -306,6 +306,58 @@ func TestInitializeBase(t *testing.T) {
 			},
 			expectErr: "`systemContracts.govBase.params.quorum` must be greater than 0",
 		},
+		{
+			name: "multi-member with quorum=1 should fail (SECURITY - matches Solidity)",
+			param: map[string]string{
+				GOV_BASE_PARAM_MEMBERS:        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd,0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222",
+				GOV_BASE_PARAM_MEMBER_VERSION: "1",
+				GOV_BASE_PARAM_QUORUM:         "1",
+			},
+			expectErr: "`systemContracts.govBase.params.quorum` (1) must be at least 2 for multi-member governance (member count: 3)",
+		},
+		{
+			name: "single member with quorum=2 should fail",
+			param: map[string]string{
+				GOV_BASE_PARAM_MEMBERS:        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+				GOV_BASE_PARAM_MEMBER_VERSION: "1",
+				GOV_BASE_PARAM_QUORUM:         "2",
+			},
+			expectErr: "`systemContracts.govBase.params.quorum` (2) must not be greater than unique member count (1)",
+		},
+		{
+			name: "single member with quorum=1 should succeed",
+			param: map[string]string{
+				GOV_BASE_PARAM_MEMBERS:        "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+				GOV_BASE_PARAM_MEMBER_VERSION: "1",
+				GOV_BASE_PARAM_QUORUM:         "1",
+			},
+			expectErr:     "",
+			validateCount: 7, // members, versionedMemberList[v][0], memberIndexByVersion, versionedMemberList.length, memberVersion, quorum, quorumByVersion
+			validateFunc: func(t *testing.T, sp []params.StateParam) {
+				// Verify single member governance is properly configured
+				foundMember := false
+				foundQuorum := false
+				for _, p := range sp {
+					if p.Key == common.HexToHash(SLOT_GOV_BASE_quorum) {
+						if p.Value != common.BigToHash(big.NewInt(1)) {
+							t.Errorf("quorum: expected 1, got %s", p.Value.Big().String())
+						}
+						foundQuorum = true
+					}
+					// Verify member is registered
+					memberSlot := CalculateMappingSlot(common.HexToHash(SLOT_GOV_BASE_members), common.HexToAddress("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"))
+					if p.Key == memberSlot {
+						foundMember = true
+					}
+				}
+				if !foundQuorum {
+					t.Error("quorum not found")
+				}
+				if !foundMember {
+					t.Error("member not found")
+				}
+			},
+		},
 	}
 
 	for _, tc := range testCases {
