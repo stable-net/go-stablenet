@@ -57,9 +57,10 @@ contract GovMasterMinter is GovBaseV2 {
     bool public emergencyPaused; // Emergency pause state
 
     // Slot 0x34: maxMinterAllowance (uint256, 32 bytes)
-    // Note: Default value for system contract initialization
-    // Genesis state can override this value via initializeMasterMinter()
-    uint256 public maxMinterAllowance = 10000000000 * 10 ** 18;
+    // Note: Default value 10B tokens (10000000000 * 10^18 = 10000000000000000000000000000 wei)
+    // Genesis state should override this via initializeMasterMinter() but due to simulated backend limitation,
+    // this fallback value is used
+    uint256 public maxMinterAllowance = 10000000000000000000000000000;
 
     // Slot 0x35: isMinter mapping (base slot)
     mapping(address => bool) public isMinter; // Minter status

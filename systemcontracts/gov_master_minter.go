@@ -55,8 +55,6 @@ var DefaultMaxMinterAllowance = new(big.Int).Mul(
 
 // initializeMasterMinter initializes the GovMasterMinter contract storage
 func initializeMasterMinter(govMasterMinterAddress common.Address, param map[string]string) ([]params.StateParam, error) {
-	fmt.Printf("DEBUG: initializeMasterMinter called with params: %+v\n", param)
-
 	// Initialize GovBase first
 	sp, err := initializeBase(govMasterMinterAddress, param)
 	if err != nil {

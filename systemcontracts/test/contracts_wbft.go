@@ -328,6 +328,10 @@ func (g *GovWBFT) BaseTxApproveProposalAndExecute(t *testing.T, contract *bind.B
 	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "approveProposalAndExecute", proposalId)
 }
 
+func (g *GovWBFT) BaseTxExecuteProposal(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "executeProposal", proposalId)
+}
+
 func (g *GovWBFT) BaseTxChangeMember(t *testing.T, contract *bind.BoundContract, sender *EOA, newMember common.Address) (*types.Transaction, error) {
 	// GovBaseV2: proposeChangeMember requires oldMember and newMember
 	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "proposeChangeMember", sender.Address, newMember)
