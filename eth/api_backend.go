@@ -363,9 +363,12 @@ func (b *EthAPIBackend) SyncProgress() ethereum.SyncProgress {
 }
 
 func (b *EthAPIBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
-	// Return the current gasTip from governance contract
-	// The worker updates this value from GovValidator contract before filling transactions
-	return b.eth.Miner().GetGasTip(), nil
+	if b.eth.blockchain.Config().AnzeonEnabled() {
+		// Return the current gasTip from governance contract
+		// The worker updates this value from GovValidator contract
+		return b.eth.Miner().GetGasTip(), nil
+	}
+	return b.gpo.SuggestTipCap(ctx)
 }
 
 func (b *EthAPIBackend) FeeHistory(ctx context.Context, blockCount uint64, lastBlock rpc.BlockNumber, rewardPercentiles []float64) (firstBlock *big.Int, reward [][]*big.Int, baseFee []*big.Int, gasUsedRatio []float64, err error) {

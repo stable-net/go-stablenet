@@ -120,8 +120,7 @@ var (
 		utils.TdSyncIntervalFlag,
 		utils.MiningEnabledFlag,
 		utils.MinerGasLimitFlag,
-		// DISABLED: MinerGasPriceFlag is disabled - removed from CLI flags
-		// utils.MinerGasPriceFlag,
+		utils.MinerGasPriceFlag,
 		utils.MinerEtherbaseFlag,
 		utils.MinerExtraDataFlag,
 		utils.MinerRecommitIntervalFlag,
@@ -433,8 +432,8 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 			utils.Fatalf("Ethereum service not running")
 		}
 
-		// Get current gas tip from miner (which reads from GovValidator contract)
-		gasprice := ethBackend.Miner().GetGasTip()
+		// Set the gas price to the limits from the CLI and start mining
+		gasprice := flags.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
 		ethBackend.TxPool().SetGasTip(gasprice)
 		if err := ethBackend.StartMining(); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)

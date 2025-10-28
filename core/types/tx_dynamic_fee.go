@@ -99,10 +99,13 @@ func (tx *DynamicFeeTx) to() *common.Address    { return tx.To }
 
 func (tx *DynamicFeeTx) effectiveGasPrice(dst *big.Int, baseFee, gasTip *big.Int) *big.Int {
 	if baseFee == nil {
+		if gasTip != nil && gasTip.Sign() > 0 {
+			return dst.Set(gasTip)
+		}
 		return dst.Set(tx.GasFeeCap)
 	}
 	tip := dst.Sub(tx.GasFeeCap, baseFee)
-	if gasTip != nil && tip.Cmp(gasTip) > 0 {
+	if gasTip != nil && gasTip.Sign() > 0 {
 		tip.Set(gasTip)
 	} else {
 		if tip.Cmp(tx.GasTipCap) > 0 {

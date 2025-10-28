@@ -153,7 +153,7 @@ type Message struct {
 // TransactionToMessage converts a transaction into a Message.
 func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, gasTip *big.Int) (*Message, error) {
 	gasTipCap := new(big.Int).Set(tx.GasTipCap())
-	if gasTip != nil {
+	if gasTip != nil && gasTip.Sign() > 0 {
 		gasTipCap = gasTip
 	}
 
@@ -501,9 +501,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	effectiveTip := msg.GasPrice
-	if rules.IsAnzeon {
-		// Base fee burn is removed under Anzeon, so gasPrice is treated as the full tip.
-	} else if rules.IsLondon {
+	// Base fee burn is removed under Anzeon
+	if !rules.IsAnzeon && rules.IsLondon {
 		effectiveTip = new(big.Int).Sub(msg.GasPrice, st.evm.Context.BaseFee)
 	}
 	effectiveTipU256, _ := uint256.FromBig(effectiveTip)

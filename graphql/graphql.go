@@ -303,7 +303,13 @@ func (t *Transaction) EffectiveGasPrice(ctx context.Context) (*hexutil.Big, erro
 		return (*hexutil.Big)(tx.GasPrice()), nil
 	}
 
-	return (*hexutil.Big)(new(big.Int).Add(header.GasTip(), header.BaseFee)), nil
+	gasTip := header.GasTip()
+
+	if gasTip != nil && gasTip.Sign() > 0 {
+		return (*hexutil.Big)(new(big.Int).Add(header.GasTip(), header.BaseFee)), nil
+	}
+
+	return (*hexutil.Big)(math.BigMin(new(big.Int).Add(tx.GasTipCap(), header.BaseFee), tx.GasFeeCap())), nil
 }
 
 func (t *Transaction) MaxFeePerGas(ctx context.Context) *hexutil.Big {

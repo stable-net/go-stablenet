@@ -333,10 +333,11 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		}
 	}
 
-	if header.Number.Uint64() > 0 && currentExtra.GasTip != nil && currentExtra.GasTip.Cmp(e.gasTip) != 0 {
-		return fmt.Errorf("invalid gas tip: have %d, want %d", currentExtra.GasTip, e.gasTip)
+	if chain.Config().AnzeonEnabled() {
+		if header.Number.Uint64() > 0 && currentExtra.GasTip != nil && currentExtra.GasTip.Cmp(e.gasTip) != 0 {
+			return fmt.Errorf("invalid gas tip: have %d, want %d", currentExtra.GasTip, e.gasTip)
+		}
 	}
-
 	return nil
 }
 
@@ -485,7 +486,11 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	if mustHavePrevSeals(header) {
 		lastCanonicalHeader := chain.GetHeaderByNumber(header.Number.Uint64() - 1)
 		if lastCanonicalHeader.Number.Sign() == 0 {
-			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteGasTip(e.gasTip))
+			if chain.Config().AnzeonEnabled() {
+				madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteGasTip(e.gasTip))
+			} else {
+				madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header))
+			}
 		} else {
 			extra, err2 := types.ExtractWBFTExtra(lastCanonicalHeader)
 			if err2 != nil {
@@ -504,17 +509,20 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 			prevCommittedSeal := mergeSeals(extra.CommittedSeal, extraCommittedSeal)
 
 			// add validators in snapshot to extraData's validators section and lastBlock committers to extraData's prevCommittedSeal section
-			madeExtra, err = ApplyHeaderWBFTExtra(
-				header,
-				e.WriteRandao(chain.Config(), header),
-				WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
-				WriteGasTip(e.gasTip),
-			)
+			if chain.Config().AnzeonEnabled() {
+				madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal), WriteGasTip(e.gasTip))
+			} else {
+				madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal))
+			}
 		}
 	} else {
 		// croissant hardFork block has empty prev seal
 		// next block of genesis croissant block has empty prev seal
-		madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteGasTip(e.gasTip))
+		if chain.Config().AnzeonEnabled() {
+			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteGasTip(e.gasTip))
+		} else {
+			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header))
+		}
 	}
 
 	if err != nil {

@@ -358,11 +358,15 @@ func (w *worker) setExtra(extra []byte) {
 
 // setGasTip sets the minimum miner tip needed to include a non-local transaction.
 // Returns true if the tip was changed.
-func (w *worker) setGasTip(tip *big.Int) bool {
+func (w *worker) setGasTip(tip *big.Int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	return w.setGasTipUnsafe(tip)
+	if w.chainConfig.AnzeonEnabled() {
+		w.setGasTipUnsafe(tip)
+	} else {
+		w.tip = uint256.MustFromBig(tip)
+	}
 }
 
 // setGasTipUnsafe sets the minimum miner tip without acquiring the lock.
@@ -390,6 +394,8 @@ func (w *worker) setGasTipUnsafe(tip *big.Int) bool {
 
 	// Update txPool's gas tip to filter pending transactions accordingly
 	w.eth.TxPool().SetGasTip(tip)
+
+	log.Trace("Updated gasTip from GovValidator contract", "newTip", tip)
 
 	return true
 }
@@ -1214,11 +1220,9 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 // This is called asynchronously via goroutine to avoid deadlock issues.
 func (w *worker) updateGasTipFromContract(state *state.StateDB) {
 	gasTip := w.getGasTipFromContract(state)
-	if gasTip != nil {
+	if gasTip != nil && gasTip.Sign() > 0 {
 		go func() {
-			if updated := w.setGasTip(gasTip); updated {
-				log.Trace("Updated gasTip from GovValidator contract", "newTip", gasTip)
-			}
+			w.setGasTip(gasTip)
 		}()
 	}
 }
@@ -1309,7 +1313,6 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 	defer work.discard()
 
 	if !params.noTxs {
-
 		interrupt := new(atomic.Int32)
 		timer := time.AfterFunc(w.newpayloadTimeout, func() {
 			interrupt.Store(commitInterruptTimeout)
@@ -1358,7 +1361,6 @@ func (w *worker) commitWork(interrupt *atomic.Int32, timestamp int64) {
 		log.Error("Fail to prepare work", "err", err)
 		return
 	}
-
 	// Fill pending transactions from the txpool into the block.
 	err = w.fillTransactions(interrupt, work)
 	switch {
