@@ -127,7 +127,7 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
         _minterAllowed[msg.sender] = mintingAllowedAmount.sub(_amount);
 
         (bool _success, ) = _coinManager.call(abi.encodeWithSelector(ICoinManager.mint.selector, _to, _amount));
-        require(_success, "mint failed");
+        require(_success, "NativeCoinAdapter: mint failed");
 
         _totalSupply = _totalSupply.add(_amount);
         emit Mint(msg.sender, _to, _amount);
@@ -147,7 +147,7 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
         require(balance >= _amount, "NativeCoinAdapter: burn amount exceeds balance");
 
         (bool success, ) = _coinManager.call(abi.encodeWithSelector(ICoinManager.burn.selector, msg.sender, _amount));
-        require(success, "burn failed");
+        require(success, "NativeCoinAdapter: burn failed");
 
         _totalSupply = _totalSupply.sub(_amount);
         emit Burn(msg.sender, _amount);
@@ -170,7 +170,7 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
         address to,
         uint256 value
     ) external override notBlacklisted(msg.sender) notBlacklisted(from) notBlacklisted(to) returns (bool) {
-        require(value <= _allowed[from][msg.sender], "ERC20: transfer amount exceeds allowance");
+        require(value <= _allowed[from][msg.sender], "NativeCoinAdapter: transfer amount exceeds allowance");
         _transfer(from, to, value);
         _allowed[from][msg.sender] = _allowed[from][msg.sender].sub(value);
         return true;
@@ -194,12 +194,12 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
      * @param value Transfer amount.
      */
     function _transfer(address from, address to, uint256 value) internal override {
-        require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
-        require(value <= _balanceOf(from), "ERC20: transfer amount exceeds balance");
+        require(from != address(0), "NativeCoinAdapter: transfer from the zero address");
+        require(to != address(0), "NativeCoinAdapter: transfer to the zero address");
+        require(value <= _balanceOf(from), "NativeCoinAdapter: transfer amount exceeds balance");
 
         (bool success, ) = _coinManager.call(abi.encodeWithSelector(ICoinManager.transfer.selector, from, to, value));
-        require(success, "transfer failed");
+        require(success, "NativeCoinAdapter: transfer failed");
         // Transfer event is emitted by the EVM
     }
 
@@ -235,8 +235,8 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
      * @param value     Allowance amount.
      */
     function _approve(address owner, address spender, uint256 value) internal override {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(spender != address(0), "ERC20: approve to the zero address");
+        require(owner != address(0), "NativeCoinAdapter: approve from the zero address");
+        require(spender != address(0), "NativeCoinAdapter: approve to the zero address");
         _allowed[owner][spender] = value;
         emit Approval(owner, spender, value);
     }
@@ -280,7 +280,7 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
      * @param decrement Amount of decrease
      */
     function _decreaseAllowance(address owner, address spender, uint256 decrement) internal override {
-        _approve(owner, spender, _allowed[owner][spender].sub(decrement, "ERC20: decreased allowance below zero"));
+        _approve(owner, spender, _allowed[owner][spender].sub(decrement, "NativeCoinAdapter: decreased allowance below zero"));
     }
 
     // ============================================================================
@@ -464,7 +464,7 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
      * @inheritdoc Blacklistable
      */
     function updateBlacklister(address) external pure override {
-        revert("Blacklister role merged into MasterMinter");
+        revert("NativeCoinAdapter: Blacklister role merged into MasterMinter");
     }
 
     /**

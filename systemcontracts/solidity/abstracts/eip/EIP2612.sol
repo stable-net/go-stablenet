@@ -78,7 +78,7 @@ abstract contract EIP2612 is AbstractFiatToken, EIP712Domain {
             _domainSeparator(),
             keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, _permitNonces[owner]++, deadline))
         );
-        require(SignatureChecker.isValidSignatureNow(owner, typedDataHash, signature), "EIP2612: invalid signature");
+        require(SignatureChecker.isValidSignatureNow(owner, typedDataHash, signature), "NativeCoinAdapter: invalid signature (EIP2612)");
 
         _approve(owner, spender, value);
     }

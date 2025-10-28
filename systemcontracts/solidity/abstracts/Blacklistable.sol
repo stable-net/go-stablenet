@@ -44,7 +44,7 @@ abstract contract Blacklistable is IBlacklistManagement {
      * @dev Throws if called by any account other than the blacklister.
      */
     modifier onlyBlacklister() {
-        require(_isBlacklister(msg.sender), "Blacklistable: caller is not the blacklister");
+        require(_isBlacklister(msg.sender), "NativeCoinAdapter: caller is not the blacklister");
         _;
     }
 
@@ -53,7 +53,7 @@ abstract contract Blacklistable is IBlacklistManagement {
      * @param _account The address to check.
      */
     modifier notBlacklisted(address _account) {
-        require(!_isBlacklisted(_account), "Blacklistable: account is blacklisted");
+        require(!_isBlacklisted(_account), "NativeCoinAdapter: account is blacklisted");
         _;
     }
 
@@ -95,7 +95,7 @@ abstract contract Blacklistable is IBlacklistManagement {
      * @param _newBlacklister The address of the new blacklister.
      */
     function _updateBlacklister(address _newBlacklister) internal {
-        require(_newBlacklister != address(0), "Blacklistable: new blacklister is the zero address");
+        require(_newBlacklister != address(0), "NativeCoinAdapter: new blacklister is the zero address");
         blacklister = _newBlacklister;
         emit BlacklisterChanged(blacklister);
     }

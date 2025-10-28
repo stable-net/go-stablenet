@@ -220,7 +220,7 @@ abstract contract EIP3009 is AbstractFiatToken, EIP712Domain {
     function _requireValidSignature(address signer, bytes32 dataHash, bytes memory signature) private view {
         require(
             SignatureChecker.isValidSignatureNow(signer, MessageHashUtils.toTypedDataHash(_domainSeparator(), dataHash), signature),
-            "NativeCoinAdapter: invalid signature"
+            "NativeCoinAdapter: invalid signature (EIP3009)"
         );
     }
 

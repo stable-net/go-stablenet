@@ -50,7 +50,7 @@ abstract contract Mintable is IMinterManagement {
      * @dev Throws if called by any account other than a minter.
      */
     modifier onlyMinters() {
-        require(_minters[msg.sender], "Mintable: caller is not a minter");
+        require(_minters[msg.sender], "NativeCoinAdapter: caller is not a minter");
         _;
     }
 
@@ -58,7 +58,7 @@ abstract contract Mintable is IMinterManagement {
      * @dev Throws if called by any account other than the masterMinter
      */
     modifier onlyMasterMinter() {
-        require(msg.sender == masterMinter, "Mintable: caller is not the masterMinter");
+        require(msg.sender == masterMinter, "NativeCoinAdapter: caller is not the masterMinter");
         _;
     }
 
@@ -114,7 +114,7 @@ abstract contract Mintable is IMinterManagement {
      * @param _newMasterMinter The address of the new master minter.
      */
     function updateMasterMinter(address _newMasterMinter) external onlyMasterMinter {
-        require(_newMasterMinter != address(0), "Mintable: new masterMinter is the zero address");
+        require(_newMasterMinter != address(0), "NativeCoinAdapter: new masterMinter is the zero address");
         masterMinter = _newMasterMinter;
         emit MasterMinterChanged(masterMinter);
     }
