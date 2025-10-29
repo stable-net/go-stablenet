@@ -46,7 +46,6 @@ abstract contract GovBaseV2 {
     error MemberIndexOverflow();
     error NotAMember();
     error NotProposer();
-    error ProposalAlreadyExpired();
     error ProposalAlreadyInVoting();
     error ProposalNotExecutable();
     error ProposalNotInVoting();
@@ -185,13 +184,6 @@ abstract contract GovBaseV2 {
     // ========== Modifiers ==========
     modifier onlyMember() {
         _checkMembership();
-        _;
-    }
-
-    /// @notice Validates proposal is executable
-    /// @dev WARNING: This modifier may modify state (auto-expire expired proposals)
-    modifier proposalExecutable() {
-        _checkProposalExecutable();
         _;
     }
 
@@ -355,22 +347,6 @@ abstract contract GovBaseV2 {
     }
 
 
-    /// @dev Internal function for proposalExecutable modifier
-    /// @notice Validates proposal is in Approved state and not expired
-    /// @notice **IMPORTANT**: This function modifies state when proposal is expired (auto-expire design)
-    /// @custom:revert ProposalNotExecutable if proposal is not in Approved state
-    /// @custom:revert ProposalAlreadyExpired if proposal has expired (after marking it Expired)
-    function _checkProposalExecutable() internal {
-        Proposal storage proposal = proposals[currentProposalId];
-        if (proposal.status != ProposalStatus.Approved) revert ProposalNotExecutable();
-        if (block.timestamp > proposal.createdAt + proposalExpiry) {
-            proposal.status = ProposalStatus.Expired;
-            _decrementActiveProposalCount(currentProposalId);
-            revert ProposalAlreadyExpired();
-        }
-    }
-
-
     /// @dev Internal reentrancy guard initialization (OpenZeppelin pattern)
     /// @notice Sets guard to prevent reentrant calls. Must be paired with _nonReentrantAfter()
     /// @custom:revert ReentrantCall if guard is already set (reentrant call detected)
@@ -456,9 +432,7 @@ abstract contract GovBaseV2 {
             revert ProposalAlreadyInVoting();
         }
 
-        proposal.status = ProposalStatus.Cancelled;
-        _decrementActiveProposalCount(proposalId);
-        _onProposalFinalized(proposalId);
+        _finalizeProposal(proposalId, ProposalStatus.Cancelled);
         emit ProposalCancelled(proposalId, msg.sender);
     }
 
@@ -484,9 +458,7 @@ abstract contract GovBaseV2 {
         }
 
         // Update state
-        proposal.status = ProposalStatus.Expired;
-        _decrementActiveProposalCount(proposalId);
-        _onProposalFinalized(proposalId);
+        _finalizeProposal(proposalId, ProposalStatus.Expired);
         emit ProposalExpired(proposalId, msg.sender);
         return true;
     }
@@ -854,9 +826,7 @@ abstract contract GovBaseV2 {
         // Note: Vote attempt on expired proposal will trigger expiry state transition
         // instead of recording the vote. This maintains state changes and cleanup.
         if (block.timestamp > proposal.createdAt + proposalExpiry) {
-            proposal.status = ProposalStatus.Expired;
-            _decrementActiveProposalCount(proposalId);
-            _onProposalFinalized(proposalId);
+            _finalizeProposal(proposalId, ProposalStatus.Expired);
             emit ProposalExpired(proposalId, msg.sender);
 
             // Important: Return instead of revert to maintain state changes
@@ -920,9 +890,7 @@ abstract contract GovBaseV2 {
             // Example: 5 members, quorum=3 → maxRejections=2 (if rejected>2, cannot reach quorum)
             uint32 maxRejections = uint32(snapshot.length) - proposal.requiredApprovals;
             if (newRejected > maxRejections) {
-                proposal.status = ProposalStatus.Rejected;
-                _decrementActiveProposalCount(proposalId);
-                _onProposalFinalized(proposalId);
+                _finalizeProposal(proposalId, ProposalStatus.Rejected);
                 emit ProposalRejected(proposalId, msg.sender, proposal.approved, newRejected);
             }
         }
@@ -963,9 +931,7 @@ abstract contract GovBaseV2 {
         // Note: Execution attempt on expired proposal will trigger expiry state transition.
         // Returns false to indicate execution did not succeed, but state changes persist.
         if (block.timestamp > proposal.createdAt + proposalExpiry) {
-            proposal.status = ProposalStatus.Expired;
-            _decrementActiveProposalCount(proposalId);
-            _onProposalFinalized(proposalId);
+            _finalizeProposal(proposalId, ProposalStatus.Expired);
             emit ProposalExpired(proposalId, msg.sender);
             return false;
         }
@@ -983,17 +949,12 @@ abstract contract GovBaseV2 {
 
         // Update proposal state based on execution result
         if (success) {
-            proposal.status = ProposalStatus.Executed;
-            proposal.executedAt = block.timestamp;
-            _decrementActiveProposalCount(proposalId);
-            _onProposalFinalized(proposalId);
+            _finalizeProposal(proposalId, ProposalStatus.Executed);
             emit ProposalExecuted(proposalId, msg.sender, true);
         } else {
             if (markFailedOnError) {
                 // Terminal execution: mark as Failed
-                proposal.status = ProposalStatus.Failed;
-                _decrementActiveProposalCount(proposalId);
-                _onProposalFinalized(proposalId);
+                _finalizeProposal(proposalId, ProposalStatus.Failed);
             } else {
                 // Retry-enabled: keep as Approved for retry
                 proposal.status = ProposalStatus.Approved;
@@ -1345,6 +1306,41 @@ abstract contract GovBaseV2 {
     function _onProposalFinalized(uint256 proposalId) internal virtual {
         // Default implementation: do nothing (backward compatible)
         // Derived contracts can override to implement cleanup logic
+    }
+
+
+    /// @dev Finalize proposal to terminal state with atomic cleanup
+    /// @notice Atomically performs three operations that must always occur together:
+    ///         1. Update proposal status to terminal state
+    ///         2. Decrement active proposal count (free member's slot)
+    ///         3. Execute cleanup hook (_onProposalFinalized)
+    ///
+    /// @param proposalId The proposal ID to finalize
+    /// @param finalStatus Terminal status (Executed, Failed, Expired, Cancelled, or Rejected)
+    ///
+    /// @custom:security Atomicity
+    ///      Prevents inconsistent states by ensuring all three operations execute together.
+    ///
+    /// @custom:note Event Emission
+    ///      Caller must emit appropriate event after calling this function.
+    ///      Each terminal state has different event parameters.
+    ///
+    /// @custom:note Executed State
+    ///      Automatically sets executedAt timestamp when finalStatus is Executed.
+    function _finalizeProposal(uint256 proposalId, ProposalStatus finalStatus) internal {
+        // Update status to terminal state
+        proposals[proposalId].status = finalStatus;
+
+        // Record execution timestamp for Executed state
+        if (finalStatus == ProposalStatus.Executed) {
+            proposals[proposalId].executedAt = block.timestamp;
+        }
+
+        // Free member's proposal slot
+        _decrementActiveProposalCount(proposalId);
+
+        // Execute cleanup hook
+        _onProposalFinalized(proposalId);
     }
 
 
