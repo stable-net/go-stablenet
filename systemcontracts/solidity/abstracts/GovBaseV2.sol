@@ -525,20 +525,6 @@ abstract contract GovBaseV2 {
     }
 
 
-    /// @notice Propose to change a member's address
-    /// @param oldMember Current address of the member
-    /// @param newMember New address to replace old member
-    /// @return proposalId The ID of the created proposal
-    /// @dev Requires governance approval to execute
-    /// @dev Different from changeMember() which is self-service without proposal
-    function proposeChangeMember(address oldMember, address newMember) public onlyMember returns (uint256 proposalId) {
-        if (newMember == address(0)) revert InvalidMemberAddress();
-        if (!members[oldMember].isActive) revert NotAMember();
-        if (members[newMember].isActive) revert AlreadyAMember();
-
-        bytes memory callData = abi.encode(oldMember, newMember);
-        return _createProposal(ACTION_CHANGE_MEMBER, callData);
-    }
 
 
     // ============================================================
@@ -1183,7 +1169,7 @@ abstract contract GovBaseV2 {
     /// @param actionType The type of action to execute
     /// @param callData ABI-encoded parameters for the action
     /// @return success True if the action executed successfully
-    /// @notice Handles ACTION_ADD_MEMBER, ACTION_REMOVE_MEMBER, ACTION_CHANGE_MEMBER internally
+    /// @notice Handles ACTION_ADD_MEMBER, ACTION_REMOVE_MEMBER internally
     /// @notice Delegates unknown actions to _executeCustomAction for derived contract handling
     function _executeInternalAction(bytes32 actionType, bytes memory callData) internal virtual returns (bool success) {
         if (actionType == ACTION_ADD_MEMBER) {
@@ -1193,10 +1179,6 @@ abstract contract GovBaseV2 {
         } else if (actionType == ACTION_REMOVE_MEMBER) {
             (address member, uint32 newQuorum) = abi.decode(callData, (address, uint32));
             _removeMember(member, newQuorum);
-            return true;
-        } else if (actionType == ACTION_CHANGE_MEMBER) {
-            (address oldMember, address newMember) = abi.decode(callData, (address, address));
-            _changeMember(oldMember, newMember);
             return true;
         }
 

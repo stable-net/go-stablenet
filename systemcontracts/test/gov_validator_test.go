@@ -448,38 +448,4 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, common.Address{}, val)
 	})
-
-	t.Run("_onMemberChanged", func(t *testing.T) {
-		initGov(t)
-		defer g.backend.Close()
-
-		// GovBaseV2: proposeChangeMember creates a proposal that needs approval
-		_, err := g.ExpectedOk(
-			g.BaseTxChangeMember(t, g.govValidator, customValidators[1].Operator, anotherValidator.Operator.Address))
-		require.NoError(t, err)
-
-		// Approve the proposal to execute member change
-		proposalId, err := g.BaseCurrentProposalId(g.govValidator, customValidators[0].Operator)
-		require.NoError(t, err)
-		_, err = g.ExpectedOk(
-			g.BaseTxApproveProposal(t, g.govValidator, customValidators[0].Operator, proposalId))
-		require.NoError(t, err)
-
-		// verify
-		member, err := g.BaseMembers(g.govValidator, nonValidator.Operator, customValidators[1].Operator.Address)
-		require.NoError(t, err)
-		require.False(t, member.IsActive)
-		member, err = g.BaseMembers(g.govValidator, nonValidator.Operator, anotherValidator.Operator.Address)
-		require.NoError(t, err)
-		require.True(t, member.IsActive)
-		op, err := g.ValidatorToOperator(nonValidator.Operator, customValidators[1].Validator.Address)
-		require.NoError(t, err)
-		require.Equal(t, anotherValidator.Operator.Address, op)
-		val, err := g.OperatorToValidator(nonValidator.Operator, anotherValidator.Operator.Address)
-		require.NoError(t, err)
-		require.Equal(t, customValidators[1].Validator.Address, val)
-		val, err = g.OperatorToValidator(nonValidator.Operator, customValidators[1].Operator.Address)
-		require.NoError(t, err)
-		require.Equal(t, common.Address{}, val)
-	})
 }

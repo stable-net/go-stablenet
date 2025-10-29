@@ -433,7 +433,7 @@ contract GovMinter is GovBaseV2 {
         _markProofHashUsed(proofHash);
 
         // Validate burn amount matches prepaid native coin exactly
-        // This ensures the accounting remains consistent (장부가 꼬이지 않도록)
+        // This ensures the accounting remains consistent
         if (burnBalance[proof.from] != proof.amount) revert BurnAmountMismatch();
 
         // Encode execution data (from, amount, withdrawalId) for callData
