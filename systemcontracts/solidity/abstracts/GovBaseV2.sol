@@ -188,11 +188,6 @@ abstract contract GovBaseV2 {
         _;
     }
 
-    modifier proposalExists(uint256 proposalId) {
-        _checkProposalExists(proposalId);
-        _;
-    }
-
     /// @notice Validates proposal is in voteable state
     /// @dev WARNING: This modifier may modify state (auto-expire expired proposals)
     modifier proposalInVoting() {
@@ -364,15 +359,6 @@ abstract contract GovBaseV2 {
     function _checkMembership() internal view {
         Member storage member = members[msg.sender];
         if (!member.isActive) revert NotAMember();
-    }
-
-
-    /// @dev Internal function for proposalExists modifier
-    /// @notice Validates that proposalId is within valid range (1 to currentProposalId)
-    /// @param proposalId The proposal ID to validate
-    /// @custom:revert InvalidProposal if proposalId is 0 or exceeds currentProposalId
-    function _checkProposalExists(uint256 proposalId) internal view {
-        _validateProposalId(proposalId);
     }
 
 
