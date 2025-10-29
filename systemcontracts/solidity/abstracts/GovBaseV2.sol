@@ -983,8 +983,7 @@ abstract contract GovBaseV2 {
         uint256 oldVersion = memberVersion;
         newVersion = oldVersion + 1;
         oldSnapshot = versionedMemberList[oldVersion];
-        delete versionedMemberList[newVersion]; // Clear stale data
-        newSnapshot = versionedMemberList[newVersion];
+        newSnapshot = versionedMemberList[newVersion]; // Empty array by default
         memberVersion = newVersion;
     }
 
