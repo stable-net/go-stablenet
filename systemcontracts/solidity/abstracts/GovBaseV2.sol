@@ -188,13 +188,6 @@ abstract contract GovBaseV2 {
         _;
     }
 
-    /// @notice Validates proposal is in voteable state
-    /// @dev WARNING: This modifier may modify state (auto-expire expired proposals)
-    modifier proposalInVoting() {
-        _checkProposalInVoting();
-        _;
-    }
-
     /// @notice Validates proposal is executable
     /// @dev WARNING: This modifier may modify state (auto-expire expired proposals)
     modifier proposalExecutable() {
@@ -359,24 +352,6 @@ abstract contract GovBaseV2 {
     function _checkMembership() internal view {
         Member storage member = members[msg.sender];
         if (!member.isActive) revert NotAMember();
-    }
-
-
-    /// @dev Internal function for proposalInVoting modifier
-    /// @notice Validates proposal is in Voting or Approved state and not expired
-    /// @notice **IMPORTANT**: This function modifies state when proposal is expired (auto-expire design)
-    /// @custom:revert ProposalNotInVoting if proposal is not in voteable state
-    /// @custom:revert ProposalAlreadyExpired if proposal has expired (after marking it Expired)
-    function _checkProposalInVoting() internal {
-        Proposal storage proposal = proposals[currentProposalId];
-        if (proposal.status != ProposalStatus.Voting && proposal.status != ProposalStatus.Approved) {
-            revert ProposalNotInVoting();
-        }
-        if (block.timestamp > proposal.createdAt + proposalExpiry) {
-            proposal.status = ProposalStatus.Expired;
-            _decrementActiveProposalCount(currentProposalId);
-            revert ProposalAlreadyExpired();
-        }
     }
 
 
