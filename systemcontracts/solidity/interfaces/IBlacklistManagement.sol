@@ -15,7 +15,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the stable-one library. If not, see <http://www.gnu.org/licenses/>.
 
-pragma solidity 0.8.14;
+pragma solidity ^0.8.14;
 
 interface IBlacklistManagement {
     function isBlacklisted(address _account) external view returns (bool);

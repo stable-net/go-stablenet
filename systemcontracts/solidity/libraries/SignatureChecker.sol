@@ -22,7 +22,7 @@
  * limitations under the License.
  */
 
-pragma solidity 0.8.14;
+pragma solidity ^0.8.14;
 
 import { ECRecover } from "./ECRecover.sol";
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";

@@ -22,7 +22,7 @@
  * limitations under the License.
  */
 
-pragma solidity 0.8.14;
+pragma solidity ^0.8.14;
 
 // solhint-disable func-name-mixedcase
 // solhint-disable var-name-mixedcase
