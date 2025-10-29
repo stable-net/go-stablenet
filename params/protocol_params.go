@@ -133,7 +133,7 @@ const (
 	MinBaseFee          uint64 = 5000000000000    // Minimum base fee
 	MaxBaseFee          uint64 = 5000000000000000 // Maximum base fee. If set to 0, this limit is disabled.
 
-	InitialGasTip uint64 = 5000000000000 // Initial miner tip
+	InitialGasTip uint64 = 5000000000000 // Initial gas tip
 
 	MaxCodeSize     = 253952          // WEMIX Maximum bytecode to permit for a contract
 	MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
