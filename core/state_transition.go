@@ -154,7 +154,7 @@ type Message struct {
 func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, gasTip *big.Int) (*Message, error) {
 	gasTipCap := new(big.Int).Set(tx.GasTipCap())
 	if gasTip != nil && gasTip.Sign() > 0 {
-		gasTipCap = gasTip
+		gasTipCap = new(big.Int).Set(gasTip)
 	}
 
 	msg := &Message{

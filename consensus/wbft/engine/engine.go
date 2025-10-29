@@ -85,7 +85,6 @@ func (e *Engine) SetGasTip(tip *big.Int) error {
 	if tip == nil {
 		return fmt.Errorf("invalid gasTip: value is nil")
 	}
-	// keep a copy to avoid external mutation
 	e.gasTip = new(big.Int).Set(tip)
 	return nil
 }
@@ -524,11 +523,9 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header))
 		}
 	}
-
 	if err != nil {
 		return fmt.Errorf("failed to write wbft extra: %w", err)
 	}
-
 	header.MixDigest = CalculateRandaoMix(parent.MixDigest, madeExtra.RandaoReveal)
 	return nil
 }
@@ -585,7 +582,7 @@ func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyWBFTExtra {
 
 func WriteGasTip(gasTip *big.Int) ApplyWBFTExtra {
 	return func(wbftExtra *types.WBFTExtra) error {
-		wbftExtra.GasTip = gasTip
+		wbftExtra.GasTip = new(big.Int).Set(gasTip)
 		return nil
 	}
 }

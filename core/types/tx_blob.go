@@ -166,14 +166,16 @@ func (tx *BlobTx) blobGas() uint64        { return params.BlobTxBlobGasPerBlob *
 func (tx *BlobTx) effectiveGasPrice(dst *big.Int, baseFee, gasTip *big.Int) *big.Int {
 	if baseFee == nil {
 		if gasTip != nil && gasTip.Sign() > 0 {
-			return dst.Set(gasTip)
+			return dst.Set(new(big.Int).Set(gasTip))
 		}
 		return dst.Set(tx.GasFeeCap.ToBig())
 	}
-	tip := dst.Sub(tx.GasFeeCap.ToBig(), baseFee)
+
+	var tip *big.Int
 	if gasTip != nil && gasTip.Sign() > 0 {
-		tip.Set(gasTip)
+		tip = new(big.Int).Set(gasTip)
 	} else {
+		tip = dst.Sub(tx.GasFeeCap.ToBig(), baseFee)
 		if tip.Cmp(tx.GasTipCap.ToBig()) > 0 {
 			tip.Set(tx.GasTipCap.ToBig())
 		}

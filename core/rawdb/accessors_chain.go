@@ -647,7 +647,7 @@ func ReadReceipts(db ethdb.Reader, hash common.Hash, number uint64, time uint64,
 	if header == nil {
 		gasTip = nil
 	} else {
-		gasTip = header.GasTip()
+		gasTip = new(big.Int).Set(header.GasTip())
 	}
 	// Compute effective blob gas price.
 	var blobGasPrice *big.Int

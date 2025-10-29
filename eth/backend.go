@@ -269,7 +269,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		eth.miner.SetEtherbase(eth.etherbase)
 	}
 
-	// Update config.Miner.GasPrice and eth.gasPrice with the actual value from worker (initialized from GovValidator contract)
+	// Update config.Miner.GasPrice
 	actualGasTip := eth.miner.GetGasTip()
 	config.Miner.GasPrice = actualGasTip
 	eth.gasPrice = actualGasTip

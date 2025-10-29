@@ -455,7 +455,6 @@ func (pool *LegacyPool) SetGasTip(tip *big.Int) {
 		pool.priced.Removed(len(drop))
 	}
 	log.Info("Legacy pool tip threshold updated", "tip", newTip)
-
 }
 
 // Nonce returns the next nonce of an account, with all transactions executable

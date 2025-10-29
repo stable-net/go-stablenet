@@ -356,8 +356,8 @@ func (w *worker) setExtra(extra []byte) {
 	w.extra = extra
 }
 
-// setGasTip sets the minimum miner tip needed to include a non-local transaction.
-// Returns true if the tip was changed.
+// setGasTip locks and updates the gas tip.
+// If Anzeon is enabled, delegates to setGasTipUnsafe().
 func (w *worker) setGasTip(tip *big.Int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -369,9 +369,8 @@ func (w *worker) setGasTip(tip *big.Int) {
 	}
 }
 
-// setGasTipUnsafe sets the minimum miner tip without acquiring the lock.
-// This is used when the caller already holds the lock or when called from
-// contexts where we cannot acquire the lock (e.g., from within a RLock).
+// setGasTipUnsafe updates the gas tip without locking.
+// Caller must hold the lock. Also updates WBFT engine and TxPool.
 // Returns true if the tip was changed.
 func (w *worker) setGasTipUnsafe(tip *big.Int) bool {
 	// Check if the tip actually needs to be changed
@@ -380,7 +379,6 @@ func (w *worker) setGasTipUnsafe(tip *big.Int) bool {
 	}
 
 	// Apply governance-defined tip (GasTip) to the WBFT engine
-	// If this fails, we should not update worker.tip or txPool to maintain consistency
 	if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
 		if res := wbftEngine.CallEngineSpecific("SetGasTip", tip); res != nil {
 			if err, ok := res.(error); ok {

@@ -1502,7 +1502,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 func effectiveGasPrice(tx *types.Transaction, baseFee, gasTip *big.Int) *big.Int {
 	var fee *big.Int
 	if gasTip != nil && gasTip.Sign() > 0 {
-		fee = gasTip
+		fee = new(big.Int).Set(gasTip)
 	} else {
 		fee = tx.GasTipCap()
 	}
