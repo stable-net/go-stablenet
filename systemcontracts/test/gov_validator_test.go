@@ -103,20 +103,30 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), version.Uint64())
 
-		memberAddr, err := g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int))
-		require.NoError(t, err)
-		require.Equal(t, customValidators[0].Operator.Address, memberAddr)
-		memberAddr, err = g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(1))
-		require.NoError(t, err)
-		require.Equal(t, customValidators[1].Operator.Address, memberAddr)
-		memberAddr, err = g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(2))
-		require.NoError(t, err)
-		require.Equal(t, customValidators[2].Operator.Address, memberAddr)
-		memberAddr, err = g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(3))
-		require.NoError(t, err)
-		require.Equal(t, customValidators[3].Operator.Address, memberAddr)
-		_, err = g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(4))
-		require.Error(t, err)
+
+	// Verify all 4 members are in versionedMemberList (order-independent check)
+	// Build a set of expected member addresses
+	expectedMembers := make(map[common.Address]bool)
+	for _, cv := range customValidators {
+		expectedMembers[cv.Operator.Address] = true
+	}
+
+	// Check each position in versionedMemberList
+	for i := uint64(0); i < 4; i++ {
+		memberAddr, err := g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(i))
+		require.NoError(t, err, "Should be able to read member at index %d", i)
+		// Verify this address is one of our expected members
+		require.True(t, expectedMembers[memberAddr], "Member at index %d (%s) should be in customValidators list", i, memberAddr.Hex())
+		// Mark as found (prevent duplicates)
+		delete(expectedMembers, memberAddr)
+	}
+
+	// Verify all expected members were found
+	require.Empty(t, expectedMembers, "All customValidators should be in versionedMemberList")
+
+	// Verify index 4 is out of bounds
+	_, err = g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(4))
+	require.Error(t, err, "Index 4 should be out of bounds")
 
 		isValidator, err := g.IsValidator(nonValidator.Operator, customValidators[0].Validator.Address)
 		require.NoError(t, err)

@@ -18,9 +18,12 @@
 package test
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
+	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -192,20 +195,16 @@ func TestGovMinter_ProposeBurn(t *testing.T) {
 		from := minterMembers[0].Operator.Address
 		amount := big.NewInt(500000)
 
-		// First, deposit native coins to build up burn balance
-		err := gMinter.DepositForBurn(t, minterMembers[0].Operator, amount)
-		require.NoError(t, err)
-
-		// Verify burn balance
-		burnBalance, err := gMinter.GetBurnBalance(minterNonMember, from)
-		require.NoError(t, err)
-		require.Equal(t, 0, burnBalance.Cmp(amount))
-
-		// Now member proposes burn
+		// proposeBurn now accepts msg.value directly (no need for separate deposit)
 		tx, err := gMinter.TxProposeBurn(t, minterMembers[0].Operator, from, amount)
 		receipt, err := gMinter.ExpectedOk(tx, err)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), receipt.Status)
+
+		// Verify burn balance was credited
+		burnBalance, err := gMinter.GetBurnBalance(minterNonMember, from)
+		require.NoError(t, err)
+		require.Equal(t, 0, burnBalance.Cmp(amount), "burnBalance should match deposited amount")
 
 		// Check proposal was created
 		proposalId, err := gMinter.BaseCurrentProposalId(gMinter.govMinter, minterNonMember)
@@ -306,23 +305,19 @@ func TestGovMinter_CRITICAL_BurnRollbackOnFailure(t *testing.T) {
 		member := minterMembers[0]
 		burnAmount := towei(1) // 1 ETH
 
-		// Step 1: Member deposits ETH for burn
-		err := gMinter.DepositForBurn(t, member.Operator, burnAmount)
-		require.NoError(t, err)
-
-		// Verify burnBalance is credited
-		burnBalanceBefore, err := gMinter.GetBurnBalance(minterNonMember, member.Operator.Address)
-		require.NoError(t, err)
-		require.Equal(t, 0, burnBalanceBefore.Cmp(burnAmount), "burnBalance should be credited")
-
-		// Step 2: Create burn proposal
+		// Step 1 & 2 combined: proposeBurn now accepts msg.value directly
 		tx, err := gMinter.TxProposeBurn(t, member.Operator, member.Operator.Address, burnAmount)
 		_, err = gMinter.ExpectedOk(tx, err)
 		require.NoError(t, err)
 
+		// Verify burnBalance is credited after proposeBurn
+		burnBalanceBefore, err := gMinter.GetBurnBalance(minterNonMember, member.Operator.Address)
+		require.NoError(t, err)
+		require.Equal(t, 0, burnBalanceBefore.Cmp(burnAmount), "burnBalance should be credited")
+
 		proposalId := big.NewInt(1)
 
-		// Step 3: Approve proposal (auto-executes, but will fail due to insufficient balance)
+		// Step 3: Approve proposal (auto-executes, but will fail due to insufficient fiat token balance)
 		// NOTE: With auto-execution, burn failure causes entire transaction to revert
 		// This automatically ensures burnBalance is rolled back (no partial state changes)
 		tx, err = gMinter.BaseTxApproveProposal(t, gMinter.govMinter, minterMembers[1].Operator, proposalId)
@@ -449,9 +444,28 @@ func TestGovMinter_BurnBalanceEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, balance.Cmp(big.NewInt(0)))
 
-		// Deposit 3 times
+		// Propose burn 3 times (each proposeBurn deposits msg.value)
+		// Note: Each proposal needs unique withdrawalId, so we use TxProposeBurnWithProof
 		for i := 0; i < 3; i++ {
-			err := gMinter.DepositForBurn(t, member.Operator, depositAmount)
+			// Create unique proof with different withdrawalId for each iteration
+			timestamp := big.NewInt(time.Now().Unix())
+			withdrawalId := fmt.Sprintf("withdrawal-%s-%d", member.Operator.Address.Hex()[:10], i)
+			referenceId := fmt.Sprintf("ref-%03d", i)
+			memo := "test burn"
+
+			proofData, err := abi.Arguments{
+				{Type: mustParseType("address")},
+				{Type: mustParseType("uint256")},
+				{Type: mustParseType("uint256")},
+				{Type: mustParseType("string")},
+				{Type: mustParseType("string")},
+				{Type: mustParseType("string")},
+			}.Pack(member.Operator.Address, depositAmount, timestamp, withdrawalId, referenceId, memo)
+			require.NoError(t, err)
+
+			// Send proposeBurn with msg.value
+			tx, err := gMinter.govMinter.Transact(NewTxOptsWithValue(t, member.Operator, depositAmount), "proposeBurn", proofData)
+			_, err = gMinter.ExpectedOk(tx, err)
 			require.NoError(t, err)
 		}
 
@@ -462,16 +476,33 @@ func TestGovMinter_BurnBalanceEdgeCases(t *testing.T) {
 		require.Equal(t, 0, balance.Cmp(expectedBalance), "Balance should accumulate")
 	})
 
-	t.Run("burn proposal requires sufficient balance", func(t *testing.T) {
+	t.Run("burn proposal requires msg.value to match proof amount", func(t *testing.T) {
 		initGovMinter(t)
 		defer gMinter.backend.Close()
 
 		member := minterMembers[0]
-		burnAmount := towei(10) // Request more than deposited
+		proofAmount := towei(10)
+		wrongMsgValue := towei(5) // msg.value doesn't match proof amount
 
-		// Try to propose burn without sufficient balance (should fail)
-		tx, err := gMinter.TxProposeBurn(t, member.Operator, member.Operator.Address, burnAmount)
+		// Create proof data with proofAmount
+		timestamp := big.NewInt(time.Now().Unix())
+		withdrawalId := fmt.Sprintf("withdrawal-%s-mismatch", member.Operator.Address.Hex()[:10])
+		referenceId := "ref-mismatch"
+		memo := "test burn"
+
+		proofData, err := abi.Arguments{
+			{Type: mustParseType("address")},
+			{Type: mustParseType("uint256")},
+			{Type: mustParseType("uint256")},
+			{Type: mustParseType("string")},
+			{Type: mustParseType("string")},
+			{Type: mustParseType("string")},
+		}.Pack(member.Operator.Address, proofAmount, timestamp, withdrawalId, referenceId, memo)
+		require.NoError(t, err)
+
+		// Try to propose burn with msg.value != proof.amount (should fail with BurnAmountMismatch)
+		tx, err := gMinter.govMinter.Transact(NewTxOptsWithValue(t, member.Operator, wrongMsgValue), "proposeBurn", proofData)
 		err = gMinter.ExpectedFail(tx, err)
-		require.Error(t, err, "Should fail with InsufficientBurnBalance")
+		require.Error(t, err, "Should fail with BurnAmountMismatch")
 	})
 }

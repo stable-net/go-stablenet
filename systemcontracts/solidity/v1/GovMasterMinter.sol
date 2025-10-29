@@ -115,7 +115,7 @@ contract GovMasterMinter is GovBaseV2 {
      *      Creates proposal requiring quorum approval before execution
      *      Validation: minter != address(0), 0 < allowance <= maxMinterAllowance
      */
-    function proposeConfigureMinter(address minter, uint256 minterAllowedAmount) external onlyMember whenNotPaused returns (uint256) {
+    function proposeConfigureMinter(address minter, uint256 minterAllowedAmount) external onlyActiveMember whenNotPaused returns (uint256) {
         return _proposeConfigureMinter(minter, minterAllowedAmount);
     }
 
@@ -127,7 +127,7 @@ contract GovMasterMinter is GovBaseV2 {
      *      Creates proposal requiring quorum approval before execution
      *      Validation: minter != address(0), isMinter[minter] == true
      */
-    function proposeRemoveMinter(address minter) external onlyMember whenNotPaused returns (uint256) {
+    function proposeRemoveMinter(address minter) external onlyActiveMember whenNotPaused returns (uint256) {
         return _proposeRemoveMinter(minter);
     }
 
@@ -140,7 +140,7 @@ contract GovMasterMinter is GovBaseV2 {
      *      Validation: newLimit > 0
      *      Note: Does NOT affect existing minters' allowances, only future proposals
      */
-    function proposeUpdateMaxMinterAllowance(uint256 newLimit) external onlyMember returns (uint256) {
+    function proposeUpdateMaxMinterAllowance(uint256 newLimit) external onlyActiveMember returns (uint256) {
         if (newLimit == 0) revert InvalidAllowance();
 
         bytes memory data = abi.encode(newLimit);
@@ -153,7 +153,7 @@ contract GovMasterMinter is GovBaseV2 {
      * @dev Only callable by governance members when not paused
      *      When executed, blocks all minter configuration and removal operations
      */
-    function proposePause() external onlyMember whenNotPaused returns (uint256) {
+    function proposePause() external onlyActiveMember whenNotPaused returns (uint256) {
         bytes memory callData = "";
         return _createProposal(ACTION_PAUSE, callData);
     }
@@ -164,7 +164,7 @@ contract GovMasterMinter is GovBaseV2 {
      * @dev Only callable by governance members when paused
      *      When executed, resumes normal minter configuration and removal operations
      */
-    function proposeUnpause() external onlyMember whenPaused returns (uint256) {
+    function proposeUnpause() external onlyActiveMember whenPaused returns (uint256) {
         bytes memory callData = "";
         return _createProposal(ACTION_UNPAUSE, callData);
     }
@@ -210,25 +210,6 @@ contract GovMasterMinter is GovBaseV2 {
     /// @dev Delegates to FiatToken for current allowance
     function minterAllowance(address _minter) external view returns (uint256) {
         return fiatToken.minterAllowance(_minter);
-    }
-
-    /// @notice Configure a minter (IFiatToken interface)
-    /// @param _minter Address of the minter
-    /// @param _minterAllowedAmount New allowance amount
-    /// @return Always returns true (reverts on failure)
-    /// @dev Creates a governance proposal to configure the minter
-    function configureMinter(address _minter, uint256 _minterAllowedAmount) external onlyMember whenNotPaused returns (bool) {
-        _proposeConfigureMinter(_minter, _minterAllowedAmount);
-        return true;
-    }
-
-    /// @notice Remove a minter (IFiatToken interface)
-    /// @param _minter Address of the minter to remove
-    /// @return Always returns true (reverts on failure)
-    /// @dev Creates a governance proposal to remove the minter
-    function removeMinter(address _minter) external onlyMember whenNotPaused returns (bool) {
-        _proposeRemoveMinter(_minter);
-        return true;
     }
 
     // ========== Internal Action Implementation ==========

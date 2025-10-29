@@ -182,8 +182,18 @@ abstract contract GovBaseV2 {
     event QuorumUpdated(uint32 oldQuorum, uint32 newQuorum);
 
     // ========== Modifiers ==========
-    modifier onlyMember() {
-        _checkMembership();
+
+    /// @dev Check if caller is currently active member (for proposal creation)
+    modifier onlyActiveMember() {
+        Member storage member = members[msg.sender];
+        if (!member.isActive) revert NotAMember();
+        _;
+    }
+
+    /// @dev Check if caller was a member at proposal's member version (for proposal actions)
+    /// @param proposalId The proposal ID to check membership against
+    modifier onlyProposalMember(uint256 proposalId) {
+        _checkProposalMembership(proposalId);
         _;
     }
 
@@ -338,12 +348,17 @@ abstract contract GovBaseV2 {
 
     // ========== Internal Functions for Modifiers ==========
 
-    /// @dev Internal function for onlyMember modifier
-    /// @notice Validates that msg.sender is an active governance member
-    /// @custom:revert NotAMember if caller is not an active member
-    function _checkMembership() internal view {
-        Member storage member = members[msg.sender];
-        if (!member.isActive) revert NotAMember();
+    /// @dev Internal function to validate membership at proposal's member version
+    /// @param proposalId The proposal ID to check membership against
+    /// @notice This allows members who were part of the governance when proposal was created
+    ///         to continue interacting with it, even if they were later removed
+    function _checkProposalMembership(uint256 proposalId) internal view {
+        Proposal storage proposal = proposals[_validateProposalId(proposalId)];
+        uint256 memberIndex = _getMemberIndexAtVersion(msg.sender, proposal.memberVersion);
+        address[] storage snapshot = versionedMemberList[proposal.memberVersion];
+
+        if (memberIndex >= snapshot.length) revert NotAMember();
+        if (snapshot[memberIndex] != msg.sender) revert NotAMember();
     }
 
 
@@ -374,7 +389,7 @@ abstract contract GovBaseV2 {
     /// @dev If this vote reaches quorum, proposal will execute automatically
     /// @dev If execution fails, use executeProposal() to retry
     /// @param proposalId The proposal ID to approve
-    function approveProposal(uint256 proposalId) public onlyMember {
+    function approveProposal(uint256 proposalId) public onlyProposalMember(proposalId) {
         _vote(proposalId, true, true);
     }
 
@@ -382,7 +397,7 @@ abstract contract GovBaseV2 {
     /// @notice Vote NO on a proposal
     /// @dev Reject the specified proposal
     /// @param proposalId The proposal ID to reject
-    function disapproveProposal(uint256 proposalId) public onlyMember {
+    function disapproveProposal(uint256 proposalId) public onlyProposalMember(proposalId) {
         _vote(proposalId, false, false);
     }
 
@@ -393,7 +408,7 @@ abstract contract GovBaseV2 {
     /// @dev Automatically tracks execution attempts and enforces retry limit (MAX_RETRY_COUNT = 3)
     /// @dev If execution fails, proposal remains in Approved status and can be retried by calling again
     /// @dev Reverts with TooManyExecutionAttempts after 3 failed attempts
-    function executeProposal(uint256 proposalId) public onlyMember returns (bool) {
+    function executeProposal(uint256 proposalId) public onlyProposalMember(proposalId) returns (bool) {
         return _executeProposal(proposalId, false);
     }
 
@@ -402,7 +417,7 @@ abstract contract GovBaseV2 {
     /// @param proposalId The proposal ID to execute
     /// @return success True if execution succeeded
     /// @dev If execution fails, proposal is marked as Failed and cannot be retried
-    function executeWithFailure(uint256 proposalId) public onlyMember returns (bool) {
+    function executeWithFailure(uint256 proposalId) public onlyProposalMember(proposalId) returns (bool) {
         return _executeProposal(proposalId, true);
     }
 
@@ -412,9 +427,8 @@ abstract contract GovBaseV2 {
     /// @dev Proposer's automatic approval (approved=1) doesn't prevent cancellation
     /// @dev Proposal must be in Voting status and no other member should have voted yet
     /// @param proposalId The ID of the proposal to cancel
-    function cancelProposal(uint256 proposalId) public onlyMember {
-        // Validate proposal exists
-        if (proposalId == 0 || proposalId > currentProposalId) revert InvalidProposal();
+    function cancelProposal(uint256 proposalId) public onlyProposalMember(proposalId) {
+        // proposalId validation is already checked in modifier
 
         Proposal storage proposal = proposals[proposalId];
 
@@ -441,9 +455,8 @@ abstract contract GovBaseV2 {
     /// @dev Can be called by members to clean up expired proposals
     /// @param proposalId The proposal ID to expire
     /// @return success True if the proposal was expired, false if it cannot be expired
-    function expireProposal(uint256 proposalId) public onlyMember returns (bool success) {
-        // Validate proposal exists
-        if (proposalId == 0 || proposalId > currentProposalId) return false;
+    function expireProposal(uint256 proposalId) public onlyProposalMember(proposalId) returns (bool success) {
+        // proposalId validation is already checked in modifier
 
         Proposal storage proposal = proposals[proposalId];
 
@@ -483,7 +496,7 @@ abstract contract GovBaseV2 {
     /// @param newQuorum New quorum value after adding member
     /// @return proposalId The ID of the created proposal
     /// @dev Requires governance approval to execute
-    function proposeAddMember(address newMember, uint32 newQuorum) public onlyMember returns (uint256 proposalId) {
+    function proposeAddMember(address newMember, uint32 newQuorum) public onlyActiveMember returns (uint256 proposalId) {
         if (newMember == address(0)) revert InvalidMemberAddress();
         if (members[newMember].isActive) revert AlreadyAMember();
 
@@ -507,7 +520,7 @@ abstract contract GovBaseV2 {
     /// @param newQuorum New quorum value after removing member
     /// @return proposalId The ID of the created proposal
     /// @dev Requires governance approval to execute
-    function proposeRemoveMember(address member, uint32 newQuorum) public onlyMember returns (uint256 proposalId) {
+    function proposeRemoveMember(address member, uint32 newQuorum) public onlyActiveMember returns (uint256 proposalId) {
         if (!members[member].isActive) revert NotAMember();
 
         uint256 memberCount = versionedMemberList[memberVersion].length;
@@ -737,7 +750,7 @@ abstract contract GovBaseV2 {
     /// - Gas consideration: If quorum = 1, proposal executes within this transaction
     function _createProposal(bytes32 actionType, bytes memory callData)
         internal
-        onlyMember
+        onlyActiveMember
         returns (uint256 proposalId)
     {
         // Validate proposal expiry is configured (set during initialization)

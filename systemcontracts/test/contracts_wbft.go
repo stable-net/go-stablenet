@@ -498,6 +498,7 @@ func (g *GovWBFT) TxProposeBurn(t *testing.T, sender *EOA, from common.Address, 
 	// Encode BurnProof as bytes
 	// BurnProof: (address from, uint256 amount, uint256 timestamp, string withdrawalId, string referenceId, string memo)
 	// Note: from must be the sender's address (BurnFromMustBeProposer validation)
+	// Note: proposeBurn is now payable, so amount must be sent as msg.value
 
 	// Use sender.Address as the 'from' field to satisfy BurnFromMustBeProposer check
 	actualFrom := sender.Address
@@ -520,56 +521,13 @@ func (g *GovWBFT) TxProposeBurn(t *testing.T, sender *EOA, from common.Address, 
 		return nil, err
 	}
 
-	return g.minterContractTx(t, "proposeBurn", sender, proofData)
+	// Send amount as msg.value (proposeBurn is now payable)
+	return g.govMinter.Transact(NewTxOptsWithValue(t, sender, amount), "proposeBurn", proofData)
 }
 
 func (g *GovWBFT) TxRegisterBeneficiary(t *testing.T, sender *EOA, beneficiary common.Address) (*types.Transaction, error) {
 	// registerBeneficiary is called directly, not through proposal
 	return g.minterContractTx(t, "registerBeneficiary", sender, beneficiary)
-}
-
-func (g *GovWBFT) DepositForBurn(t *testing.T, sender *EOA, amount *big.Int) error {
-	// Send native coins to GovMinter contract to build up burn balance
-	// This triggers the receive() function in GovMinter
-
-	// Get current nonce
-	nonce, err := g.backend.Client().PendingNonceAt(context.TODO(), sender.Address)
-	if err != nil {
-		return err
-	}
-
-	// Get gas price
-	gasPrice, err := g.backend.Client().SuggestGasPrice(context.TODO())
-	if err != nil {
-		return err
-	}
-
-	// Create transaction
-	tx := types.NewTx(&types.LegacyTx{
-		Nonce:    nonce,
-		GasPrice: gasPrice,
-		Gas:      100000, // Sufficient gas for receive()
-		To:       &TestGovMinterAddress,
-		Value:    amount,
-		Data:     nil,
-	})
-
-	// Sign transaction
-	signer := types.NewEIP155Signer(params.TestWBFTChainConfig.ChainID)
-	signedTx, err := types.SignTx(tx, signer, sender.PrivateKey)
-	if err != nil {
-		return err
-	}
-
-	// Send transaction
-	err = g.backend.Client().SendTransaction(context.TODO(), signedTx)
-	if err != nil {
-		return err
-	}
-
-	// Commit to mine the transaction
-	g.backend.Commit()
-	return nil
 }
 
 func (g *GovWBFT) minterContractTx(t *testing.T, method string, sender *EOA, params ...interface{}) (*types.Transaction, error) {
@@ -962,26 +920,20 @@ func (g *GovWBFT) CompleteBurnProposal(
 	amount *big.Int,
 	approvers []*EOA,
 ) (*types.Receipt, error) {
-	// Step 1: Deposit tokens for burn
-	err := g.DepositForBurn(t, proposer, amount)
-	if err != nil {
-		return nil, fmt.Errorf("deposit for burn failed: %w", err)
-	}
-
-	// Step 2: Create burn proposal
+	// Step 1: Create burn proposal (deposits native coins via msg.value)
 	tx, err := g.TxProposeBurn(t, proposer, proposer.Address, amount)
 	_, err = g.ExpectedOk(tx, err)
 	if err != nil {
 		return nil, fmt.Errorf("propose burn failed: %w", err)
 	}
 
-	// Step 3: Get the proposal ID
+	// Step 2: Get the proposal ID
 	proposalId, err := g.BaseCurrentProposalId(g.govMinter, proposer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get proposal ID: %w", err)
 	}
 
-	// Step 4: Execute the proposal (approve + execute)
+	// Step 3: Execute the proposal (approve + execute)
 	receipt, err := g.ExecuteProposal(t, g.govMinter, proposalId, approvers)
 	if err != nil {
 		return nil, fmt.Errorf("execute proposal failed: %w", err)

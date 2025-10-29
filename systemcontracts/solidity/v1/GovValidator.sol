@@ -55,7 +55,7 @@ contract GovValidator is GovBaseV2 {
         return __validators.length();
     }
 
-    function configureValidator(address _newValidator, bytes calldata _blsKey, bytes calldata _blsSig) external onlyMember {
+    function configureValidator(address _newValidator, bytes calldata _blsKey, bytes calldata _blsSig) external onlyActiveMember {
         if (_newValidator == address(0)) {
             revert InvalidValidator();
         }

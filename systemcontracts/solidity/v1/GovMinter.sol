@@ -189,7 +189,7 @@ contract GovMinter is GovBaseV2 {
 
 
     // ============================================================
-    // 1. INITIALIZATION
+    // INITIALIZATION
     // ============================================================
 
 
@@ -241,63 +241,7 @@ contract GovMinter is GovBaseV2 {
 
 
     // ============================================================
-    // 2. RECEIVE FUNCTION
-    // ============================================================
-
-
-    // ========== Receive Function ==========
-
-    /// @notice Receive native coins and credit sender's burn balance
-    /// @dev Allows users to prepay for burn operations by sending native coins
-    ///
-    ///      This function enables users to deposit native coins that will be used
-    ///      to back burn operations. The deposited native coins remain in the
-    ///      GovMinter contract as collateral.
-    ///
-    ///      Flow:
-    ///      1. User sends native coins to contract
-    ///      2. Amount is credited to burnBalance[msg.sender]
-    ///      3. User can propose burns up to their balance
-    ///      4. On burn execution, fiatTokens are burned from GovMinter
-    ///
-    /// @custom:security Reentrancy Safety
-    ///      - No external calls, safe from reentrancy
-    ///      - Simple balance increment operation
-    ///      - No state dependencies
-    ///
-    /// @custom:security Integer Overflow Protection
-    ///      - Solidity 0.8.14 provides automatic overflow protection
-    ///      - burnBalance can theoretically overflow, but would require msg.value > type(uint256).max
-    ///      - Practically impossible due to blockchain gas limits and total supply constraints
-    ///
-    /// @custom:security Access Control
-    ///      - Anyone can deposit (by design)
-    ///      - Only the depositor can use their balance for burns
-    ///      - Balance is tracked per address
-    ///
-    /// @custom:usage Common Use Cases
-    ///      1. **Burn Preparation**: Users deposit before proposing burns
-    ///      2. **Batch Deposits**: Users can deposit multiple times (balances accumulate)
-    ///      3. **Emergency Funding**: Quick deposit without separate transaction
-    ///
-    /// @custom:example Basic Usage
-    ///      ```solidity
-    ///      // Send 100 wei to contract
-    ///      (bool success,) = address(govMinter).call{value: 100}("");
-    ///      require(success, "Deposit failed");
-    ///
-    ///      // Check balance
-    ///      uint256 balance = govMinter.burnBalance(msg.sender);
-    ///      // balance == 100
-    ///      ```
-    receive() external payable {
-        burnBalance[msg.sender] += msg.value;
-        emit BurnPrepaid(msg.sender, msg.value);
-    }
-
-
-    // ============================================================
-    // 3. PUBLIC FUNCTIONS - Beneficiary Management
+    // PUBLIC FUNCTIONS - Beneficiary Management
     // ============================================================
 
 
@@ -312,7 +256,7 @@ contract GovMinter is GovBaseV2 {
      * @dev Used for members added after initialization via proposeAddMember
      * @dev Uses O(1) reverse mapping for efficient duplicate check (prevents DoS)
      */
-    function registerBeneficiary(address beneficiary) external onlyMember {
+    function registerBeneficiary(address beneficiary) external onlyActiveMember {
         if (beneficiary == address(0)) revert InvalidBeneficiary();
 
         // O(1) duplicate check using reverse mapping
@@ -336,7 +280,7 @@ contract GovMinter is GovBaseV2 {
 
 
     // ============================================================
-    // 4. PUBLIC FUNCTIONS - Proposal Operations
+    // PUBLIC FUNCTIONS - Proposal Operations
     // ============================================================
 
 
@@ -353,7 +297,7 @@ contract GovMinter is GovBaseV2 {
      * @dev Only active members can propose mints when contract is not paused
      * @dev Reverts with ContractPaused if emergency pause is active
      */
-    function proposeMint(bytes memory proofData) external onlyMember whenNotPaused returns (uint256) {
+    function proposeMint(bytes memory proofData) external onlyActiveMember whenNotPaused returns (uint256) {
         // Decode proof data
         MintProof memory proof = _decodeMintProof(proofData);
 
@@ -413,8 +357,25 @@ contract GovMinter is GovBaseV2 {
      *      string withdrawalId, string referenceId, string memo)
      * @dev Only active members can propose burns when contract is not paused
      * @dev Reverts with ContractPaused if emergency pause is active
+     * @dev Requires msg.value to match proof.amount for burn collateral
+     * @custom:usage Single-step burn proposal with native coin deposit
+     *      ```solidity
+     *      BurnProof memory proof = BurnProof({
+     *          from: msg.sender,
+     *          amount: 100 ether,
+     *          timestamp: block.timestamp,
+     *          withdrawalId: "WD-001",
+     *          referenceId: "REF-001",
+     *          memo: "Burn memo"
+     *      });
+     *      bytes memory proofData = abi.encode(
+     *          proof.from, proof.amount, proof.timestamp,
+     *          proof.withdrawalId, proof.referenceId, proof.memo
+     *      );
+     *      govMinter.proposeBurn{value: 100 ether}(proofData);
+     *      ```
      */
-    function proposeBurn(bytes memory proofData) public onlyMember whenNotPaused returns (uint256) {
+    function proposeBurn(bytes calldata proofData) external payable onlyActiveMember whenNotPaused returns (uint256) {
         BurnProof memory proof = _decodeBurnProof(proofData);
 
         if (proof.from == address(0)) revert InvalidTargetAddress();
@@ -422,6 +383,14 @@ contract GovMinter is GovBaseV2 {
         if (bytes(proof.withdrawalId).length == 0) revert InvalidWithdrawalId();
         if (bytes(proof.referenceId).length == 0) revert InvalidBankReference();
         if (proof.from != msg.sender) revert BurnFromMustBeProposer();
+
+        // Validate burn amount matches msg.value exactly
+        // This ensures atomic deposit-and-propose in single transaction
+        if (msg.value != proof.amount) revert BurnAmountMismatch();
+
+        // Credit burn balance with received native coins
+        burnBalance[msg.sender] += msg.value;
+        emit BurnPrepaid(msg.sender, msg.value);
 
         // Replay attack prevention - State-based withdrawalId validation
         _validateWithdrawalIdAvailability(proof.withdrawalId);
@@ -431,10 +400,6 @@ contract GovMinter is GovBaseV2 {
         _checkProofHashUnique(proofHash);
 
         _markProofHashUsed(proofHash);
-
-        // Validate burn amount matches prepaid native coin exactly
-        // This ensures the accounting remains consistent
-        if (burnBalance[proof.from] != proof.amount) revert BurnAmountMismatch();
 
         // Encode execution data (from, amount, withdrawalId) for callData
         bytes memory callData = abi.encode(proof.from, proof.amount, proof.withdrawalId);
@@ -458,7 +423,7 @@ contract GovMinter is GovBaseV2 {
      * @dev When executed, sets emergencyPaused = true, blocking all mints and burns
      * @dev Reverts with ContractPaused if already in paused state (prevents duplicate proposals)
      */
-    function proposePause() external onlyMember whenNotPaused returns (uint256) {
+    function proposePause() external onlyActiveMember whenNotPaused returns (uint256) {
         // Create proposal with empty callData (no parameters needed)
         bytes memory callData = "";
         return _createProposal(ACTION_PAUSE, callData);
@@ -473,7 +438,7 @@ contract GovMinter is GovBaseV2 {
      * @dev When executed, sets emergencyPaused = false, allowing mints and burns
      * @dev Reverts with ContractNotPaused if not in paused state (prevents unnecessary proposals)
      */
-    function proposeUnpause() external onlyMember whenPaused returns (uint256) {
+    function proposeUnpause() external onlyActiveMember whenPaused returns (uint256) {
         // Create proposal with empty callData (no parameters needed)
         bytes memory callData = "";
         return _createProposal(ACTION_UNPAUSE, callData);
@@ -481,7 +446,7 @@ contract GovMinter is GovBaseV2 {
 
 
     // ============================================================
-    // 5. INTERNAL FUNCTIONS - Action Execution Router
+    // INTERNAL FUNCTIONS - Action Execution Router
     // ============================================================
 
 
@@ -545,7 +510,7 @@ contract GovMinter is GovBaseV2 {
 
 
     // ============================================================
-    // 6. INTERNAL FUNCTIONS - Action Executors
+    // INTERNAL FUNCTIONS - Action Executors
     // ============================================================
 
 
@@ -765,7 +730,7 @@ contract GovMinter is GovBaseV2 {
 
 
     // ============================================================
-    // 7. INTERNAL FUNCTIONS - Proof Decoding
+    // INTERNAL FUNCTIONS - Proof Decoding
     // ============================================================
 
 
@@ -864,7 +829,7 @@ contract GovMinter is GovBaseV2 {
 
 
     // ============================================================
-    // 8. INTERNAL FUNCTIONS - Replay Prevention (Validation)
+    // INTERNAL FUNCTIONS - Replay Prevention (Validation)
     // ============================================================
 
 
@@ -967,7 +932,7 @@ contract GovMinter is GovBaseV2 {
 
 
     // ============================================================
-    // 9. INTERNAL FUNCTIONS - Replay Prevention (State Updates)
+    // INTERNAL FUNCTIONS - Replay Prevention (State Updates)
     // ============================================================
 
 
@@ -1048,7 +1013,7 @@ contract GovMinter is GovBaseV2 {
 
 
     // ============================================================
-    // 10. INTERNAL FUNCTIONS - Cleanup & Lifecycle Hooks
+    // INTERNAL FUNCTIONS - Cleanup & Lifecycle Hooks
     // ============================================================
 
 
