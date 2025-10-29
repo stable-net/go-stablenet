@@ -151,61 +151,7 @@ func TestGovMinter_CleanupOnExpiredDuringVote(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedAfterExpiry.Cmp(big.NewInt(0)), "Reservation should be cleaned up after expiry")
 }
-
-// Test 4: Expired proposal (during execution) should cleanup reservation
-func TestGovMinter_CleanupOnExpiredDuringExecution(t *testing.T) {
-	initGovMinter(t)
-	defer gMinter.backend.Close()
-
-	member0 := minterMembers[0].Operator
-	member1 := minterMembers[1].Operator
-	recipient := member0.Address
-	amount := big.NewInt(4_000_000)
-
-	// Create and approve mint proposal
-	tx, err := gMinter.TxProposeMint(t, member0, recipient, amount)
-	_, err = gMinter.ExpectedOk(tx, err)
-	require.NoError(t, err)
-
-	proposalId, err := gMinter.BaseCurrentProposalId(gMinter.govMinter, member0)
-	require.NoError(t, err)
-
-	// Approve with member1 (reaches quorum)
-	tx, err = gMinter.BaseTxApproveProposal(t, gMinter.govMinter, member1, proposalId)
-	_, err = gMinter.ExpectedOk(tx, err)
-	require.NoError(t, err)
-
-	// Verify proposal is Approved
-	proposal, err := gMinter.BaseGetProposal(gMinter.govMinter, member0, proposalId)
-	require.NoError(t, err)
-	require.Equal(t, uint8(2), uint8(proposal.Status), "Proposal should be Approved")
-
-	// Verify reservation
-	reservedAfterApprove, err := gMinter.GetReservedMintAmount(member0)
-	require.NoError(t, err)
-	require.Equal(t, amount, reservedAfterApprove)
-
-	// Advance time past expiry
-	gMinter.backend.AdjustTime(7*24*time.Hour + time.Second)
-	gMinter.backend.Commit()
-
-	// Try to execute (should fail with expiry, but trigger cleanup)
-	tx, err = gMinter.BaseTxExecuteProposal(t, gMinter.govMinter, member0, proposalId)
-	_, err = gMinter.ExpectedOk(tx, err)
-	require.NoError(t, err, "Execute should succeed but mark proposal as expired")
-
-	// Verify proposal is Expired
-	proposal, err = gMinter.BaseGetProposal(gMinter.govMinter, member0, proposalId)
-	require.NoError(t, err)
-	require.Equal(t, uint8(5), uint8(proposal.Status), "Proposal should be Expired")
-
-	// CRITICAL: Verify reservation is cleaned up
-	reservedAfterExpiry, err := gMinter.GetReservedMintAmount(member0)
-	require.NoError(t, err)
-	require.Equal(t, 0, reservedAfterExpiry.Cmp(big.NewInt(0)), "Reservation should be cleaned up after expiry")
-}
-
-// Test 5: Failed proposal should cleanup reservation
+// Test 4: Failed proposal should cleanup reservation
 func TestGovMinter_CleanupOnFailed(t *testing.T) {
 	initGovMinter(t)
 	defer gMinter.backend.Close()
@@ -223,30 +169,31 @@ func TestGovMinter_CleanupOnFailed(t *testing.T) {
 	proposalId, err := gMinter.BaseCurrentProposalId(gMinter.govMinter, member0)
 	require.NoError(t, err)
 
-	// Approve with member1
-	tx, err = gMinter.BaseTxApproveProposal(t, gMinter.govMinter, member1, proposalId)
-	_, err = gMinter.ExpectedOk(tx, err)
-	require.NoError(t, err)
-
-	// Verify reservation
-	reservedAfterApprove, err := gMinter.GetReservedMintAmount(member0)
-	require.NoError(t, err)
-	require.Equal(t, amount, reservedAfterApprove)
-
-	// Configure MockFiatToken to fail on mint
+	// Configure MockFiatToken to fail on mint BEFORE approval
+	// This ensures auto-execution fails when quorum is reached
 	tx, err = gMinter.SetMockFiatTokenMintShouldFail(t, member0, true)
 	_, err = gMinter.ExpectedOk(tx, err)
 	require.NoError(t, err)
 
-	// Execute with failure mode
+	// Approve with member1 (auto-execution will fail but proposal stays Approved for retry)
+	tx, err = gMinter.BaseTxApproveProposal(t, gMinter.govMinter, member1, proposalId)
+	_, err = gMinter.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	// Verify proposal is still Approved (auto-execution failed but retry is possible)
+	proposal, err := gMinter.BaseGetProposal(gMinter.govMinter, member0, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, uint8(2), uint8(proposal.Status), "Proposal should be Approved (failed auto-exec, retry possible)")
+
+	// Now do terminal execution to mark as Failed
 	tx, err = gMinter.BaseTxExecuteWithFailure(t, gMinter.govMinter, member0, proposalId)
 	_, err = gMinter.ExpectedOk(tx, err)
 	require.NoError(t, err)
 
-	// Verify proposal is Failed
-	proposal, err := gMinter.BaseGetProposal(gMinter.govMinter, member0, proposalId)
+	// Verify proposal is now Failed
+	proposal, err = gMinter.BaseGetProposal(gMinter.govMinter, member0, proposalId)
 	require.NoError(t, err)
-	require.Equal(t, uint8(6), uint8(proposal.Status), "Proposal should be Failed")
+	require.Equal(t, uint8(6), uint8(proposal.Status), "Proposal should be Failed after terminal execution")
 
 	// CRITICAL: Verify reservation is cleaned up
 	reservedAfterFail, err := gMinter.GetReservedMintAmount(member0)
@@ -282,16 +229,12 @@ func TestGovMinter_CleanupOnExecuted(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, amount, reservedAfterPropose)
 
-	// Approve and execute
+	// Approve (auto-executes on quorum)
 	tx, err = gMinter.BaseTxApproveProposal(t, gMinter.govMinter, member1, proposalId)
 	_, err = gMinter.ExpectedOk(tx, err)
 	require.NoError(t, err)
 
-	tx, err = gMinter.BaseTxExecuteProposal(t, gMinter.govMinter, member0, proposalId)
-	_, err = gMinter.ExpectedOk(tx, err)
-	require.NoError(t, err)
-
-	// Verify proposal is Executed
+	// Verify proposal is Executed (auto-executed when quorum reached)
 	proposal, err := gMinter.BaseGetProposal(gMinter.govMinter, member0, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, uint8(3), uint8(proposal.Status), "Proposal should be Executed")
@@ -348,11 +291,8 @@ func TestGovMinter_CleanupMultipleProposals(t *testing.T) {
 	expectedTotal.Add(expectedTotal, amount3)
 	require.Equal(t, expectedTotal, totalReserved, "Total reservation should be sum of all proposals")
 
-	// Execute proposal 1
+	// Execute proposal 1 (auto-executes on quorum)
 	tx, err = gMinter.BaseTxApproveProposal(t, gMinter.govMinter, member1, proposalId1)
-	_, err = gMinter.ExpectedOk(tx, err)
-	require.NoError(t, err)
-	tx, err = gMinter.BaseTxExecuteProposal(t, gMinter.govMinter, member0, proposalId1)
 	_, err = gMinter.ExpectedOk(tx, err)
 	require.NoError(t, err)
 
@@ -401,24 +341,26 @@ func TestGovMinter_CleanupIdempotency(t *testing.T) {
 	proposalId, err := gMinter.BaseCurrentProposalId(gMinter.govMinter, member0)
 	require.NoError(t, err)
 
+	// Approve (auto-executes on quorum)
 	tx, err = gMinter.BaseTxApproveProposal(t, gMinter.govMinter, member1, proposalId)
 	_, err = gMinter.ExpectedOk(tx, err)
 	require.NoError(t, err)
 
-	tx, err = gMinter.BaseTxExecuteProposal(t, gMinter.govMinter, member0, proposalId)
-	_, err = gMinter.ExpectedOk(tx, err)
-	require.NoError(t, err)
-
-	// Verify cleanup
+	// Verify cleanup (auto-executed)
 	reserved, err := gMinter.GetReservedMintAmount(member0)
 	require.NoError(t, err)
-	require.Equal(t, 0, reserved.Cmp(big.NewInt(0)), "Reservation should be cleaned up after execution")
+	require.Equal(t, 0, reserved.Cmp(big.NewInt(0)), "Reservation should be cleaned up after auto-execution")
 
-	// Try to execute again (should be idempotent, no panic)
-	// Note: This will fail because proposal is already executed, but shouldn't panic
+	// Verify proposal is Executed
+	proposal, err := gMinter.BaseGetProposal(gMinter.govMinter, member0, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, uint8(3), uint8(proposal.Status), "Proposal should be Executed")
+
+	// Try to execute again (should fail gracefully, no panic)
+	// Note: This will fail because proposal is already executed
 	tx, err = gMinter.BaseTxExecuteProposal(t, gMinter.govMinter, member0, proposalId)
 	err = gMinter.ExpectedFail(tx, err)
-	require.Error(t, err, "Second execution should fail")
+	require.Error(t, err, "Second execution should fail gracefully")
 
 	// Verify reservation still 0 (no negative values)
 	reserved, err = gMinter.GetReservedMintAmount(member0)

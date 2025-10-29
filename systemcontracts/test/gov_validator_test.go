@@ -324,7 +324,7 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		require.Equal(t, crypto.Keccak256Hash([]byte("ACTION_ADD_MEMBER")), common.BytesToHash(currentProposal.ActionType[:]))
 		require.Equal(t, uint32(2), currentProposal.RequiredApprovals)
 
-		_, err = g.ExpectedOk(g.BaseTxApproveProposalAndExecute(t,
+		_, err = g.ExpectedOk(g.BaseTxApproveProposal(t,
 			g.govValidator,
 			customValidators[1].Operator, proposalId))
 		require.NoError(t, err)
@@ -462,7 +462,7 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		proposalId, err := g.BaseCurrentProposalId(g.govValidator, customValidators[0].Operator)
 		require.NoError(t, err)
 		_, err = g.ExpectedOk(
-			g.BaseTxApproveProposalAndExecute(t, g.govValidator, customValidators[0].Operator, proposalId))
+			g.BaseTxApproveProposal(t, g.govValidator, customValidators[0].Operator, proposalId))
 		require.NoError(t, err)
 
 		// verify

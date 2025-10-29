@@ -322,30 +322,24 @@ func TestGovMinter_CRITICAL_BurnRollbackOnFailure(t *testing.T) {
 
 		proposalId := big.NewInt(1)
 
-		// Step 3: Approve proposal
+		// Step 3: Approve proposal (auto-executes, but will fail due to insufficient balance)
+		// NOTE: With auto-execution, burn failure causes entire transaction to revert
+		// This automatically ensures burnBalance is rolled back (no partial state changes)
 		tx, err = gMinter.BaseTxApproveProposal(t, gMinter.govMinter, minterMembers[1].Operator, proposalId)
-		_, err = gMinter.ExpectedOk(tx, err)
-		require.NoError(t, err)
-
-		// Step 4: Execute proposal
-		// NOTE: This will fail because fiatToken is not a real contract
-		// In the current implementation (WITH BUG), this would:
-		// - Deduct burnBalance
-		// - Try to burn (fails)
-		// - NOT rollback burnBalance ← CRITICAL BUG
-		tx, err = gMinter.BaseTxExecuteProposal(t, gMinter.govMinter, member.Operator, proposalId)
-		// Execution may fail, which is expected for now
+		// Auto-execution fails, so transaction reverts
 		_ = gMinter.ExpectedFail(tx, err)
 
-		// CRITICAL TEST: burnBalance should be rolled back after failure
+		// CRITICAL TEST: burnBalance should be rolled back after transaction failure
+		// With auto-execution, transaction revert guarantees all state changes are rolled back
 		burnBalanceAfter, err := gMinter.GetBurnBalance(minterNonMember, member.Operator.Address)
 		require.NoError(t, err)
 
-		// WITH BUG: burnBalanceAfter would be 0 (incorrectly deducted)
-		// AFTER FIX: burnBalanceAfter should equal burnBalanceBefore (rolled back)
+		// Auto-execution revert ensures burnBalance is unchanged (transaction-level rollback)
 		require.Equal(t, 0, burnBalanceAfter.Cmp(burnBalanceBefore),
 			"CRITICAL-1: burnBalance should be rolled back when burn fails, but got %s expected %s",
 			burnBalanceAfter.String(), burnBalanceBefore.String())
+
+		t.Logf("✓ CRITICAL-1: With auto-execution, burn failure causes transaction revert, ensuring complete rollback")
 	})
 }
 

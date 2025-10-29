@@ -347,10 +347,6 @@ func (g *GovWBFT) BaseTxApproveProposal(t *testing.T, contract *bind.BoundContra
 	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "approveProposal", proposalId)
 }
 
-func (g *GovWBFT) BaseTxApproveProposalAndExecute(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
-	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "approveProposalAndExecute", proposalId)
-}
-
 func (g *GovWBFT) BaseTxExecuteProposal(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
 	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "executeProposal", proposalId)
 }
@@ -897,17 +893,23 @@ func (g *GovWBFT) ExecuteProposal(
 		}
 	}
 
-	// Verify proposal is now Approved
+	// Verify proposal is now Approved or Executed (auto-execution on quorum)
 	proposal, err = g.BaseGetProposal(contract, approvers[0], proposalId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify approval status: %w", err)
 	}
 
-	if proposal.Status != sc.ProposalStatusApproved {
-		return nil, fmt.Errorf("proposal status is %v, expected Approved", proposal.Status)
+	if proposal.Status == sc.ProposalStatusExecuted {
+		// Proposal was auto-executed when quorum was reached
+		// Return the receipt from the last approval transaction
+		return nil, nil // Receipt not available from approval, but proposal executed successfully
 	}
 
-	// Execute the proposal
+	if proposal.Status != sc.ProposalStatusApproved {
+		return nil, fmt.Errorf("proposal status is %v, expected Approved or Executed", proposal.Status)
+	}
+
+	// Execute the proposal (only if not auto-executed)
 	tx, err := g.BaseTxExecuteProposal(t, contract, approvers[0], proposalId)
 	receipt, err := g.ExpectedOk(tx, err)
 	if err != nil {

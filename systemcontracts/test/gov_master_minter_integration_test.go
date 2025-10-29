@@ -141,18 +141,17 @@ func setMaxMinterAllowanceHelper(t *testing.T, maxAllowance *big.Int) {
 	require.NoError(t, err)
 
 	// Approve by second member (need quorum=2)
+	// Note: With auto-execution, proposal executes automatically when quorum is reached
 	tx, err = gMasterMinter.BaseTxApproveProposal(t, gMasterMinter.govMasterMinter, masterMinterMembers[1].Operator, proposalId)
 	receipt, err = gMasterMinter.ExpectedOk(tx, err)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), receipt.Status)
 
-	// Execute
-	tx, err = gMasterMinter.BaseTxExecuteProposal(t, gMasterMinter.govMasterMinter, masterMinterMembers[0].Operator, proposalId)
-	receipt, err = gMasterMinter.ExpectedOk(tx, err)
+	// Verify proposal is executed and max allowance is set
+	proposal, err := gMasterMinter.BaseGetProposal(gMasterMinter.govMasterMinter, masterMinterNonMember, proposalId)
 	require.NoError(t, err)
-	require.Equal(t, uint64(1), receipt.Status)
+	require.Equal(t, uint8(3), uint8(proposal.Status), "Proposal should be Executed (3)")
 
-	// Verify
 	currentMax, err := gMasterMinter.MaxMinterAllowance(masterMinterNonMember)
 	require.NoError(t, err)
 	require.Equal(t, 0, currentMax.Cmp(maxAllowance))

@@ -394,11 +394,12 @@ abstract contract GovBaseV2 {
 
     // ========== Public Functions ==========
 
-    /// @notice Vote YES on a proposal without automatic execution (gas-safe voting)
-    /// @dev Allows approving without risking gas exhaustion from auto-execution
+    /// @notice Vote YES on a proposal
+    /// @dev If this vote reaches quorum, proposal will execute automatically
+    /// @dev If execution fails, use executeProposal() to retry
     /// @param proposalId The proposal ID to approve
     function approveProposal(uint256 proposalId) public onlyMember {
-        _vote(proposalId, true, false);
+        _vote(proposalId, true, true);
     }
 
 
@@ -407,14 +408,6 @@ abstract contract GovBaseV2 {
     /// @param proposalId The proposal ID to reject
     function disapproveProposal(uint256 proposalId) public onlyMember {
         _vote(proposalId, false, false);
-    }
-
-
-    /// @notice Vote YES on a proposal with automatic execution if quorum is reached
-    /// @dev If this vote reaches quorum, proposal will execute immediately (gas risk applies)
-    /// @param proposalId The proposal ID to approve and potentially execute
-    function approveProposalAndExecute(uint256 proposalId) public onlyMember {
-        _vote(proposalId, true, true);
     }
 
 

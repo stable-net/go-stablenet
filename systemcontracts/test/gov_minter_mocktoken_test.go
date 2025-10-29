@@ -141,17 +141,17 @@ func TestExecuteProposal_Workflow(t *testing.T) {
 
 		// Step 2: Use ExecuteProposal to approve + execute
 		// Quorum is 2, so we need 1 more approval (proposer already voted)
+		// Note: With auto-execution, ExecuteProposal returns nil receipt when quorum is reached
 		approvers := []*EOA{minterMembers[1].Operator}
-		receipt, err := gMinter.ExecuteProposal(t, gMinter.govMinter, proposalId, approvers)
+		_, err = gMinter.ExecuteProposal(t, gMinter.govMinter, proposalId, approvers)
 		require.NoError(t, err)
-		require.Equal(t, uint64(1), receipt.Status, "ExecuteProposal should succeed")
-		t.Logf("✓ ExecuteProposal succeeded in block %d", receipt.BlockNumber.Uint64())
+		t.Logf("✓ ExecuteProposal succeeded (auto-executed on quorum)")
 
 		// Step 3: Verify proposal is now Executed
 		proposal, err := gMinter.BaseGetProposal(gMinter.govMinter, minterNonMember, proposalId)
 		require.NoError(t, err)
-		// Note: Status should be Executed (4), but we can't check that without the enum
-		t.Logf("✓ Final proposal status: %v", proposal.Status)
+		require.Equal(t, uint8(3), uint8(proposal.Status), "Proposal should be Executed (3)")
+		t.Logf("✓ Final proposal status: %v (Executed)", proposal.Status)
 	})
 }
 
@@ -165,8 +165,9 @@ func TestCompleteMintProposal_E2E(t *testing.T) {
 
 	t.Run("CompleteMintProposal full workflow", func(t *testing.T) {
 		// This should: create proposal → approve → execute
+		// Note: With auto-execution, CompleteMintProposal returns nil receipt when quorum is reached
 		approvers := []*EOA{minterMembers[1].Operator} // Need 1 more approval (quorum=2, proposer=1)
-		receipt, err := gMinter.CompleteMintProposal(
+		_, err := gMinter.CompleteMintProposal(
 			t,
 			minterMembers[0].Operator, // proposer
 			beneficiary,
@@ -174,8 +175,7 @@ func TestCompleteMintProposal_E2E(t *testing.T) {
 			approvers,
 		)
 		require.NoError(t, err)
-		require.Equal(t, uint64(1), receipt.Status, "CompleteMintProposal should succeed")
-		t.Logf("✓ CompleteMintProposal succeeded in block %d", receipt.BlockNumber.Uint64())
+		t.Logf("✓ CompleteMintProposal succeeded (auto-executed on quorum)")
 
 		// Verify proposal was executed by checking latest proposalId status
 		proposalId, err := gMinter.BaseCurrentProposalId(gMinter.govMinter, minterNonMember)
@@ -183,6 +183,7 @@ func TestCompleteMintProposal_E2E(t *testing.T) {
 
 		proposal, err := gMinter.BaseGetProposal(gMinter.govMinter, minterNonMember, proposalId)
 		require.NoError(t, err)
-		t.Logf("✓ Final proposal ID %s status: %v", proposalId.String(), proposal.Status)
+		require.Equal(t, uint8(3), uint8(proposal.Status), "Proposal should be Executed (3)")
+		t.Logf("✓ Final proposal ID %s status: %v (Executed)", proposalId.String(), proposal.Status)
 	})
 }

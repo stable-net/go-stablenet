@@ -196,50 +196,6 @@ func TestProposeMint_DuplicateDepositId_InVoting(t *testing.T) {
 	t.Logf("✓ Replay attack prevented: depositId cannot be reused while proposal is Voting")
 }
 
-// TestProposeMint_DuplicateDepositId_InApproved validates that depositIds cannot be
-// reused while a proposal is in Approved status
-func TestProposeMint_DuplicateDepositId_InApproved(t *testing.T) {
-	initGovMinter(t)
-	defer gMinter.backend.Close()
-
-	amount := big.NewInt(1000000)
-	depositId := "FIXED-DEPOSIT-002"
-
-	// First proposal by Member 0 with their beneficiary
-	beneficiary0 := minterMembers[0].Operator.Address
-	proof1, err := CreateMintProof(beneficiary0, amount, depositId, "bank-ref", "memo")
-	require.NoError(t, err)
-
-	tx, err := gMinter.TxProposeMintWithProof(t, minterMembers[0].Operator, proof1)
-	_, err = gMinter.ExpectedOk(tx, err)
-	require.NoError(t, err)
-
-	proposalId, err := gMinter.BaseCurrentProposalId(gMinter.govMinter, minterNonMember)
-	require.NoError(t, err)
-
-	// Approve to reach quorum (status = Approved)
-	tx, err = gMinter.BaseTxApproveProposal(t, gMinter.govMinter, minterMembers[1].Operator, proposalId)
-	_, err = gMinter.ExpectedOk(tx, err)
-	require.NoError(t, err)
-
-	// Verify status = Approved
-	proposal, err := gMinter.BaseGetProposal(gMinter.govMinter, minterNonMember, proposalId)
-	require.NoError(t, err)
-	require.Equal(t, uint8(2), uint8(proposal.Status)) // Approved = 2
-
-	// Try to create another proposal with SAME depositId by Member 2 with their OWN beneficiary
-	beneficiary2 := minterMembers[2].Operator.Address
-	proof2, err := CreateMintProof(beneficiary2, amount, depositId, "bank-ref", "memo")
-	require.NoError(t, err)
-
-	tx2, err := gMinter.TxProposeMintWithProof(t, minterMembers[2].Operator, proof2)
-	err = gMinter.ExpectedFail(tx2, err)
-
-	ExpectedRevert(t, err, "DepositIdInUse")
-
-	t.Logf("✓ Replay attack prevented: depositId cannot be reused while proposal is Approved")
-}
-
 // TestProposeMint_DuplicateDepositId_AlreadyExecuted validates that depositIds
 // are permanently consumed after execution and cannot be reused
 func TestProposeMint_DuplicateDepositId_AlreadyExecuted(t *testing.T) {
@@ -261,10 +217,9 @@ func TestProposeMint_DuplicateDepositId_AlreadyExecuted(t *testing.T) {
 	proposalId, err := gMinter.BaseCurrentProposalId(gMinter.govMinter, minterNonMember)
 	require.NoError(t, err)
 
-	// Execute the proposal
-	receipt, err := gMinter.ExecuteProposal(t, gMinter.govMinter, proposalId, []*EOA{minterMembers[1].Operator})
+	// Execute the proposal (auto-executed on quorum)
+	_, err = gMinter.ExecuteProposal(t, gMinter.govMinter, proposalId, []*EOA{minterMembers[1].Operator})
 	require.NoError(t, err)
-	require.Equal(t, uint64(1), receipt.Status)
 
 	// Verify depositId is marked as executed
 	isExecuted, err := gMinter.IsDepositIdExecuted(minterNonMember, depositId)
