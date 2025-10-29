@@ -51,24 +51,24 @@ func TestProposeMint_BeneficiaryMismatch(t *testing.T) {
 	t.Logf("✓ Front-running attack prevented: cannot mint to unauthorized beneficiary")
 }
 
-// TestProposeMint_BeneficiaryNotRegistered validates that new members without
-// registered beneficiaries cannot propose mint operations
-// NOTE: This test is simplified - in production, member addition requires governance
+// TestProposeMint_BeneficiaryNotRegistered validates that non-members
+// cannot propose mint operations (access control enforced before beneficiary checks)
+// NOTE: This test validates non-member access control, not beneficiary registration status
 func TestProposeMint_BeneficiaryNotRegistered(t *testing.T) {
 	initGovMinter(t)
 	defer gMinter.backend.Close()
 
 	// Use existing non-member who is not in governance
-	// This non-member has no beneficiary registered
+	// Non-members should be rejected before beneficiary validation occurs
 
-	// Try to propose mint WITHOUT being a member
+	// Try to propose mint WITHOUT being a governance member
 	tx, err := gMinter.TxProposeMint(t, minterNonMember, minterNonMember.Address, big.NewInt(1000000))
 	err = gMinter.ExpectedFail(tx, err)
 
-	// Verify error - should fail because not a governance member
+	// Verify error - should fail with NotAuthorized because sender is not a governance member
 	require.Error(t, err, "Should fail when sender is not a member")
 
-	t.Logf("✓ Non-member without beneficiary cannot propose mint")
+	t.Logf("✓ Non-member cannot propose mint (access control enforced before beneficiary checks)")
 }
 
 // TestProposeMint_CannotMintToOtherMemberBeneficiary validates that members cannot

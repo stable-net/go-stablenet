@@ -289,8 +289,8 @@ func TestGovMinter_GovernanceWorkflow(t *testing.T) {
 		proposal, err = gMinter.BaseGetProposal(gMinter.govMinter, minterNonMember, proposalId)
 		require.NoError(t, err)
 		require.Equal(t, uint32(2), proposal.Approved)
-		// Note: Execution would happen but may fail if fiatToken is not a real contract
-		// In a full integration test, we'd deploy a mock fiat token contract
+		// Note: MockFiatToken is deployed in test setup
+		// Auto-execution will succeed when quorum is reached
 	})
 }
 

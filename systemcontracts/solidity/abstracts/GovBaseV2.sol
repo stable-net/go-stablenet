@@ -896,8 +896,12 @@ abstract contract GovBaseV2 {
 
             // Check if quorum reached
             if (newApproved >= proposal.requiredApprovals) {
-                proposal.status = ProposalStatus.Approved;
-                emit ProposalApproved(proposalId, msg.sender, newApproved, proposal.rejected);
+                // Only update status and emit event if not already Approved
+                // (handles retry votes after auto-execution failure)
+                if (proposal.status != ProposalStatus.Approved) {
+                    proposal.status = ProposalStatus.Approved;
+                    emit ProposalApproved(proposalId, msg.sender, newApproved, proposal.rejected);
+                }
 
                 // Interactions (external calls last)
                 if (autoExecute) {
