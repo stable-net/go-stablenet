@@ -623,18 +623,21 @@ contract GovMinter is GovBaseV2 {
     function _safeBurn(address from, uint256 amount, string memory withdrawalId) internal returns (bool) {
         if (emergencyPaused) revert ContractPaused();
 
-        // CEI Pattern - Effects BEFORE Interactions
-        // 1. Effects: Update state first
-        burnBalance[from] -= amount;
-        _markWithdrawalIdExecuted(withdrawalId);
+        // Note: burnBalance cleanup is handled by _onProposalFinalized hook
+        // Hook is automatically called by GovBaseV2 when proposal reaches terminal state
+        // This ensures cleanup happens for ALL terminal states (Executed, Failed, Expired, Cancelled, Rejected)
 
-        // 2. Interactions: External call LAST
-        fiatToken.burn(amount);
-
-        // Emit event for off-chain monitoring
-        emit BurnExecuted(from, amount, withdrawalId);
-
-        return true;
+        try fiatToken.burn(amount) {
+            // 1. Effects: Update state after successful burn
+            burnBalance[from] -= amount;
+            // 2. Mark withdrawalId as permanently executed (consumed)
+            _markWithdrawalIdExecuted(withdrawalId);
+            // 3. Emit event for off-chain monitoring
+            emit BurnExecuted(from, amount, withdrawalId);
+            return true;
+        } catch {
+            return false;
+        }
     }
 
 
