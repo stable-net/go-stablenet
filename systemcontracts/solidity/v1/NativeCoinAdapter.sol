@@ -171,8 +171,8 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
         uint256 value
     ) external override notBlacklisted(msg.sender) notBlacklisted(from) notBlacklisted(to) returns (bool) {
         require(value <= _allowed[from][msg.sender], "NativeCoinAdapter: transfer amount exceeds allowance");
-        _transfer(from, to, value);
         _allowed[from][msg.sender] = _allowed[from][msg.sender].sub(value);
+        _transfer(from, to, value);
         return true;
     }
 
