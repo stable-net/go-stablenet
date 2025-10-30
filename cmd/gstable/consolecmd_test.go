@@ -61,13 +61,13 @@ func TestConsoleWelcome(t *testing.T) {
 	gstable.SetTemplateFunc("goarch", func() string { return runtime.GOARCH })
 	gstable.SetTemplateFunc("gover", runtime.Version)
 	gstable.SetTemplateFunc("gstablever", func() string { return params.VersionWithCommit("", "") })
-	geth.SetTemplateFunc("niltime", func() string {
+	gstable.SetTemplateFunc("niltime", func() string {
 		return time.Unix(1548854791, 0).Format("Mon Jan 02 2006 15:04:05 GMT-0700 (MST)")
 	})
-	geth.SetTemplateFunc("apis", func() string { return ipcAPIs })
+	gstable.SetTemplateFunc("apis", func() string { return ipcAPIs })
 
 	// Verify the actual welcome message to the required template
-	geth.Expect(`
+	gstable.Expect(`
 Welcome to the Gstable JavaScript console!
 
 instance: Gstable/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
@@ -79,7 +79,7 @@ at block: 0 ({{niltime}})
 To exit, press ctrl-d or type exit
 > {{.InputLine "exit"}}
 `)
-	geth.ExpectExit()
+	gstable.ExpectExit()
 }
 
 // Tests that a console can be attached to a running node via various means.
