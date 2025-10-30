@@ -171,6 +171,43 @@ Here's a sample code snippet for the Anzeon config:
           "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
           "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
       }
+    },
+    "nativeCoinAdapter": {
+      "address": "0x0000000000000000000000000000000000001000",
+      "version": "v1",
+      "params": {
+        "currency": "KRW",
+        "decimals": "18",
+        "masterMinter": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+        "minterAllowed": "10000000000000000000000000000",
+        "minters": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+        "name": "KRC1",
+        "symbol": "KRC1"
+      }
+    },
+    "govMinter": {
+      "address": "0x0000000000000000000000000000000000001003",
+      "version": "v1",
+      "params": {
+        "beneficiaries": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+        "expiry": "604800",
+        "fiatToken": "0x0000000000000000000000000000000000001000",
+        "memberVersion": "1",
+        "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+        "quorum": "1"
+      }
+    },
+    "govMasterMinter": {
+      "address": "0x0000000000000000000000000000000000001002",
+      "version": "v1",
+      "params": {
+        "expiry": "604800",
+        "fiatToken": "0x0000000000000000000000000000000000001000",
+        "maxMinterAllowance": "10000000000000000000000000000",
+        "memberVersion": "1",
+        "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+        "quorum": "1"
+      }
     }
   }
 }
