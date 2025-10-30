@@ -44,8 +44,8 @@ func tmpDatadirWithKeystore(t *testing.T) string {
 
 func TestAccountListEmpty(t *testing.T) {
 	t.Parallel()
-	geth := runGstable(t, "account", "list")
-	geth.ExpectExit()
+	gstable := runGstable(t, "account", "list")
+	gstable.ExpectExit()
 }
 
 func TestAccountList(t *testing.T) {
@@ -64,22 +64,22 @@ Account #2: {289d485d9771714cce91d3393d764e1311907acc} keystore://{{.Datadir}}\k
 `
 	}
 	{
-		geth := runGstable(t, "account", "list", "--datadir", datadir)
-		geth.Expect(want)
-		geth.ExpectExit()
+		gstable := runGstable(t, "account", "list", "--datadir", datadir)
+		gstable.Expect(want)
+		gstable.ExpectExit()
 	}
 	{
-		geth := runGstable(t, "--datadir", datadir, "account", "list")
-		geth.Expect(want)
-		geth.ExpectExit()
+		gstable := runGstable(t, "--datadir", datadir, "account", "list")
+		gstable.Expect(want)
+		gstable.ExpectExit()
 	}
 }
 
 func TestAccountNew(t *testing.T) {
 	t.Parallel()
-	geth := runGstable(t, "account", "new", "--lightkdf")
-	defer geth.ExpectExit()
-	geth.Expect(`
+	gstable := runGstable(t, "account", "new", "--lightkdf")
+	defer gstable.ExpectExit()
+	gstable.Expect(`
 Your new account is locked with a password. Please give a password. Do not forget this password.
 !! Unsupported terminal, password will be echoed.
 Password: {{.InputLine "foobar"}}
@@ -87,7 +87,7 @@ Repeat password: {{.InputLine "foobar"}}
 
 Your new key was generated
 `)
-	geth.ExpectRegexp(`
+	gstable.ExpectRegexp(`
 Public address of the key:   0x[0-9a-fA-F]{40}
 Path of the secret key file: .*UTC--.+--[0-9a-f]{40}
 
@@ -123,15 +123,15 @@ func TestAccountImport(t *testing.T) {
 
 func TestAccountHelp(t *testing.T) {
 	t.Parallel()
-	geth := runGstable(t, "account", "-h")
-	geth.WaitExit()
-	if have, want := geth.ExitStatus(), 0; have != want {
+	gstable := runGstable(t, "account", "-h")
+	gstable.WaitExit()
+	if have, want := gstable.ExitStatus(), 0; have != want {
 		t.Errorf("exit error, have %d want %d", have, want)
 	}
 
-	geth = runGstable(t, "account", "import", "-h")
-	geth.WaitExit()
-	if have, want := geth.ExitStatus(), 0; have != want {
+	gstable = runGstable(t, "account", "import", "-h")
+	gstable.WaitExit()
+	if have, want := gstable.ExitStatus(), 0; have != want {
 		t.Errorf("exit error, have %d want %d", have, want)
 	}
 }
@@ -146,9 +146,9 @@ func importAccountWithExpect(t *testing.T, key string, expected string) {
 	if err := os.WriteFile(passwordFile, []byte("foobar"), 0600); err != nil {
 		t.Error(err)
 	}
-	geth := runGstable(t, "--lightkdf", "account", "import", "-password", passwordFile, keyfile)
-	defer geth.ExpectExit()
-	geth.Expect(expected)
+	gstable := runGstable(t, "--lightkdf", "account", "import", "-password", passwordFile, keyfile)
+	defer gstable.ExpectExit()
+	gstable.Expect(expected)
 }
 
 func TestAccountNewBadRepeat(t *testing.T) {

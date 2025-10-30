@@ -31,7 +31,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var gethPubKeys []string = []string{
+var gstablePubKeys []string = []string{
 	//@holiman, minisign public key FB1D084D39BAEC24
 	"RWQk7Lo5TQgd+wxBNZM+Zoy+7UhhMHaWKzqoes9tvSbFLJYZhNTbrIjx",
 	//minisign public key 138B1CA303E51687
@@ -73,7 +73,7 @@ func checkCurrent(url, current string) error {
 	if sig, err = fetch(fmt.Sprintf("%v.minisig", url)); err != nil {
 		return fmt.Errorf("could not retrieve signature: %w", err)
 	}
-	if err = verifySignature(gethPubKeys, data, sig); err != nil {
+	if err = verifySignature(gstablePubKeys, data, sig); err != nil {
 		return err
 	}
 	var vulns []vulnJson

@@ -34,7 +34,7 @@ var (
 		Usage:     "Manage Ethereum presale wallets",
 		ArgsUsage: "",
 		Description: `
-    geth wallet import /path/to/my/presale.wallet
+    gstable wallet import /path/to/my/presale.wallet
 
 will prompt for your password and imports your ether presale account.
 It can be used non-interactively with the --password option taking a

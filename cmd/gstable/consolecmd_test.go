@@ -34,7 +34,7 @@ const (
 	httpAPIs = "eth:1.0 net:1.0 rpc:1.0 web3:1.0"
 )
 
-// spawns geth with the given command line args, using a set of flags to minimise
+// spawns gstable with the given command line args, using a set of flags to minimise
 // memory and disk IO. If the args don't set --datadir, the
 // child g gets a temporary data directory.
 func runMinimalGstable(t *testing.T, args ...string) *testgstable {
@@ -53,14 +53,14 @@ func TestConsoleWelcome(t *testing.T) {
 	t.Parallel()
 	coinbase := "0x8605cdbbdb6d264aa742e77020dcbc58fcdce182"
 
-	// Start a geth console, make sure it's cleaned up and terminate the console
-	geth := runMinimalGstable(t, "--miner.etherbase", coinbase, "console")
+	// Start a gstable console, make sure it's cleaned up and terminate the console
+	gstable := runMinimalGstable(t, "--miner.etherbase", coinbase, "console")
 
 	// Gather all the infos the welcome message needs to contain
-	geth.SetTemplateFunc("goos", func() string { return runtime.GOOS })
-	geth.SetTemplateFunc("goarch", func() string { return runtime.GOARCH })
-	geth.SetTemplateFunc("gover", runtime.Version)
-	geth.SetTemplateFunc("gethver", func() string { return params.VersionWithCommit("", "") })
+	gstable.SetTemplateFunc("goos", func() string { return runtime.GOOS })
+	gstable.SetTemplateFunc("goarch", func() string { return runtime.GOARCH })
+	gstable.SetTemplateFunc("gover", runtime.Version)
+	gstable.SetTemplateFunc("gstablever", func() string { return params.VersionWithCommit("", "") })
 	geth.SetTemplateFunc("niltime", func() string {
 		return time.Unix(1548854791, 0).Format("Mon Jan 02 2006 15:04:05 GMT-0700 (MST)")
 	})

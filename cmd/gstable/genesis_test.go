@@ -88,12 +88,12 @@ func TestCustomGenesis(t *testing.T) {
 		runGstable(t, "--datadir", datadir, "init", json).WaitExit()
 
 		// Query the custom genesis block
-		geth := runGstable(t, "--networkid", "1337", "--syncmode=full", "--cache", "16",
+		gstable := runGstable(t, "--networkid", "1337", "--syncmode=full", "--cache", "16",
 			"--datadir", datadir, "--maxpeers", "0", "--port", "0", "--authrpc.port", "0",
 			"--nodiscover", "--nat", "none", "--ipcdisable",
 			"--exec", tt.query, "console")
-		geth.ExpectRegexp(tt.result)
-		geth.ExpectExit()
+		gstable.ExpectRegexp(tt.result)
+		gstable.ExpectExit()
 	}
 }
 
@@ -135,18 +135,18 @@ func TestCustomBackend(t *testing.T) {
 		}
 		{ // Init
 			args := append(tt.initArgs, "--datadir", datadir, "init", json)
-			geth := runGstable(t, args...)
-			geth.ExpectRegexp(tt.initExpect)
-			geth.ExpectExit()
+			gstable := runGstable(t, args...)
+			gstable.ExpectRegexp(tt.initExpect)
+			gstable.ExpectExit()
 		}
 		{ // Exec + query
 			args := append(tt.execArgs, "--networkid", "1337", "--syncmode=full", "--cache", "16",
 				"--datadir", datadir, "--maxpeers", "0", "--port", "0", "--authrpc.port", "0",
 				"--nodiscover", "--nat", "none", "--ipcdisable",
 				"--exec", "eth.getBlock(0).nonce", "console")
-			geth := runGstable(t, args...)
-			geth.ExpectRegexp(tt.execExpect)
-			geth.ExpectExit()
+			gstable := runGstable(t, args...)
+			gstable.ExpectRegexp(tt.execExpect)
+			gstable.ExpectExit()
 		}
 		return nil
 	}

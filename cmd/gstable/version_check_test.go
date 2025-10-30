@@ -118,7 +118,7 @@ func TestMatching(t *testing.T) {
 				t.Fatal(err)
 			}
 			if vuln.Name == "Denial of service due to Go CVE-2020-28362" {
-				// this one is not tied to geth-versions
+				// this one is not tied to gstable-versions
 				continue
 			}
 			if vulnIntro <= current && vulnFixed > current {
@@ -147,7 +147,7 @@ func TestMatching(t *testing.T) {
 
 func TestGstablePubKeysParseable(t *testing.T) {
 	t.Parallel()
-	for _, pubkey := range gethPubKeys {
+	for _, pubkey := range gstablePubKeys {
 		_, err := minisign.NewPublicKey(pubkey)
 		if err != nil {
 			t.Errorf("Should be parseable")
@@ -165,9 +165,9 @@ func TestKeyID(t *testing.T) {
 		args args
 		want string
 	}{
-		{"@holiman key", args{id: extractKeyId(gethPubKeys[0])}, "FB1D084D39BAEC24"},
-		{"second key", args{id: extractKeyId(gethPubKeys[1])}, "138B1CA303E51687"},
-		{"third key", args{id: extractKeyId(gethPubKeys[2])}, "FD9813B2D2098484"},
+		{"@holiman key", args{id: extractKeyId(gstablePubKeys[0])}, "FB1D084D39BAEC24"},
+		{"second key", args{id: extractKeyId(gstablePubKeys[1])}, "138B1CA303E51687"},
+		{"third key", args{id: extractKeyId(gstablePubKeys[2])}, "FD9813B2D2098484"},
 	}
 	for _, tt := range tests {
 		tt := tt

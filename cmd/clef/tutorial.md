@@ -305,7 +305,7 @@ $ clef --keystore ~/.ethereum/rinkeby/keystore --chainid 4 --rules rules.js
 In a different window we can start Gstable, list our accounts, even list our wallets to see where the accounts originate from:
 
 ```text
-$ geth --rinkeby --signer=~/.clef/clef.ipc console
+$ gstable --rinkeby --signer=~/.clef/clef.ipc console
 
 > eth.accounts
 ["0xd9c9cd5f6779558b6e0ed4e6acf6b1947e7fa1f3", "0x086278a6c067775f71d6b2bb1856db6e28c30418"]
