@@ -118,7 +118,11 @@ func CreateDynamicTx(backend IBackend, opts *bind.TransactOpts, to *common.Addre
 	// Estimate FeeCap
 	gasFeeCap := opts.GasFeeCap
 	if gasFeeCap == nil {
-		gasFeeCap = new(big.Int).Add(gasTipCap, big.NewInt(1e9)) // 101gwei is recommended for maxFeeCap
+		fee, err := backend.SuggestGasPrice(ensureContext(opts.Context))
+		if err != nil {
+			return nil, err
+		}
+		gasFeeCap = fee
 	}
 	if gasFeeCap.Cmp(gasTipCap) < 0 {
 		return nil, fmt.Errorf("maxFeePerGas (%v) < maxPriorityFeePerGas (%v)", gasFeeCap, gasTipCap)
