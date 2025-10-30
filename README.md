@@ -455,7 +455,7 @@ $ genesis_generator
 This will help you generate genesis file by simply choosing the options it gives like below : 
 ``` shell
 Which consensus engine to use? (default = Anzeon)
- 1. Anzeon (WBFT for StableOne)
+ 1. Anzeon (WBFT for StableNet)
  2. Ethash (proof-of-work)
  3. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)
  4. Clique (proof-of-authority)
@@ -523,7 +523,7 @@ Note that this setting is not recommended for production.
    Example) 
 
     Which consensus engine to use? (default = Anzeon)
-     1. Anzeon (WBFT for StableOne)
+     1. Anzeon (WBFT for StableNet)
      2. Ethash (proof-of-work)
      3. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)
      4. Clique (proof-of-authority)
