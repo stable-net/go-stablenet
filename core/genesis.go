@@ -549,7 +549,7 @@ func DefaultStableNetMainnetGenesisBlock() *Genesis {
 	if err := json.NewDecoder(strings.NewReader(stableNetMainnetGenesisJson)).Decode(genesis); err != nil {
 		panic("Cannot parse default StableNet mainnet genesis.")
 	}
-	genesis.Config = params.StableOneMainnetChainConfig
+	genesis.Config = params.StableNetMainnetChainConfig
 	return genesis
 }
 
@@ -558,7 +558,7 @@ func DefaultStableNetTestnetGenesisBlock() *Genesis {
 	if err := json.NewDecoder(strings.NewReader(stableNetTestnetGenesisJson)).Decode(genesis); err != nil {
 		panic("Cannot parse default StableNet testnet genesis.")
 	}
-	genesis.Config = params.StableOneTestnetChainConfig
+	genesis.Config = params.StableNetTestnetChainConfig
 	return genesis
 }
 
