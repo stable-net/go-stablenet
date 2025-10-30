@@ -49,8 +49,9 @@ type bindBackend interface {
 }
 
 type bindContract struct {
-	Bin []byte
-	Abi abi.ABI
+	Bin        []byte
+	RuntimeBin []byte
+	Abi        abi.ABI
 }
 
 func newBindContract(contract *compiler.Contract) (*bindContract, error) {
@@ -65,9 +66,19 @@ func newBindContract(contract *compiler.Contract) (*bindContract, error) {
 		if !strings.HasPrefix(code, "0x") {
 			code = "0x" + code
 		}
+
+		runtimeCode := contract.RuntimeCode
+		if !strings.HasPrefix(runtimeCode, "0x") {
+			runtimeCode = "0x" + runtimeCode
+		}
+
 		collectErrors(parsedAbi)
 		collectEvent(parsedAbi)
-		return &bindContract{Bin: hexutil.MustDecode(code), Abi: *parsedAbi}, err
+		return &bindContract{
+			Bin:        hexutil.MustDecode(code),
+			RuntimeBin: hexutil.MustDecode(runtimeCode),
+			Abi:        *parsedAbi,
+		}, err
 	}
 }
 

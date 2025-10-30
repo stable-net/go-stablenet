@@ -278,6 +278,12 @@ func getSystemContracts(blockNumber *big.Int, wbftCfg *Config) params.SystemCont
 			if upgrade.NativeCoinAdapter != nil {
 				gc.NativeCoinAdapter = upgrade.NativeCoinAdapter
 			}
+			if upgrade.GovMasterMinter != nil {
+				gc.GovMasterMinter = upgrade.GovMasterMinter
+			}
+			if upgrade.GovMinter != nil {
+				gc.GovMinter = upgrade.GovMinter
+			}
 		})
 	}
 	return gc

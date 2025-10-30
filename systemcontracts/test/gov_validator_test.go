@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	sc "github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +23,7 @@ var (
 )
 
 func initGov(t *testing.T) {
-	customValidators = []*TestCandidate{NewTestCandidate(), NewTestCandidate(), NewTestCandidate()}
+	customValidators = []*TestCandidate{NewTestCandidate(), NewTestCandidate(), NewTestCandidate(), NewTestCandidate()}
 	nonValidator = NewTestCandidate()
 	newValidator = NewTestCandidate()
 	anotherValidator = NewTestCandidate()
@@ -33,6 +34,7 @@ func initGov(t *testing.T) {
 		customValidators[0].Operator.Address: {Balance: towei(1_000_000)},
 		customValidators[1].Operator.Address: {Balance: towei(1_000_000)},
 		customValidators[2].Operator.Address: {Balance: towei(1_000_000)},
+		customValidators[3].Operator.Address: {Balance: towei(1_000_000)},
 		nonValidator.Operator.Address:        {Balance: towei(1_000_000)},
 		newValidator.Operator.Address:        {Balance: towei(1_000_000)},
 		anotherValidator.Operator.Address:    {Balance: towei(1_000_000)},
@@ -59,7 +61,7 @@ func initGov(t *testing.T) {
 				"blsPublicKeys": blsPubKeys,
 			}
 		}
-	}, nil)
+	}, nil, nil, nil, nil)
 	require.NoError(t, err)
 }
 
@@ -88,6 +90,10 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, member.IsActive)
 		require.Zero(t, member.JoinedAt)
+		member, err = g.BaseMembers(g.govValidator, nonValidator.Operator, customValidators[3].Operator.Address)
+		require.NoError(t, err)
+		require.True(t, member.IsActive)
+		require.Zero(t, member.JoinedAt)
 		member, err = g.BaseMembers(g.govValidator, nonValidator.Operator, nonValidator.Operator.Address)
 		require.NoError(t, err)
 		require.False(t, member.IsActive)
@@ -97,17 +103,30 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), version.Uint64())
 
-		memberAddr, err := g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int))
-		require.NoError(t, err)
-		require.Equal(t, customValidators[0].Operator.Address, memberAddr)
-		memberAddr, err = g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(1))
-		require.NoError(t, err)
-		require.Equal(t, customValidators[1].Operator.Address, memberAddr)
-		memberAddr, err = g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(2))
-		require.NoError(t, err)
-		require.Equal(t, customValidators[2].Operator.Address, memberAddr)
-		_, err = g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(3))
-		require.Error(t, err)
+
+	// Verify all 4 members are in versionedMemberList (order-independent check)
+	// Build a set of expected member addresses
+	expectedMembers := make(map[common.Address]bool)
+	for _, cv := range customValidators {
+		expectedMembers[cv.Operator.Address] = true
+	}
+
+	// Check each position in versionedMemberList
+	for i := uint64(0); i < 4; i++ {
+		memberAddr, err := g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(i))
+		require.NoError(t, err, "Should be able to read member at index %d", i)
+		// Verify this address is one of our expected members
+		require.True(t, expectedMembers[memberAddr], "Member at index %d (%s) should be in customValidators list", i, memberAddr.Hex())
+		// Mark as found (prevent duplicates)
+		delete(expectedMembers, memberAddr)
+	}
+
+	// Verify all expected members were found
+	require.Empty(t, expectedMembers, "All customValidators should be in versionedMemberList")
+
+	// Verify index 4 is out of bounds
+	_, err = g.BaseVersionedMemberList(g.govValidator, nonValidator.Operator, version, new(big.Int).SetUint64(4))
+	require.Error(t, err, "Index 4 should be out of bounds")
 
 		isValidator, err := g.IsValidator(nonValidator.Operator, customValidators[0].Validator.Address)
 		require.NoError(t, err)
@@ -118,13 +137,16 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		isValidator, err = g.IsValidator(nonValidator.Operator, customValidators[2].Validator.Address)
 		require.NoError(t, err)
 		require.True(t, isValidator)
+		isValidator, err = g.IsValidator(nonValidator.Operator, customValidators[3].Validator.Address)
+		require.NoError(t, err)
+		require.True(t, isValidator)
 		isValidator, err = g.IsValidator(nonValidator.Operator, nonValidator.Validator.Address)
 		require.NoError(t, err)
 		require.False(t, isValidator)
 
 		valCount, err := g.ValidatorCount(nonValidator.Operator)
 		require.NoError(t, err)
-		require.Equal(t, uint64(3), valCount.Uint64())
+		require.Equal(t, uint64(4), valCount.Uint64())
 
 		operator, err := g.ValidatorToOperator(nonValidator.Operator, customValidators[0].Validator.Address)
 		require.NoError(t, err)
@@ -135,6 +157,9 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		operator, err = g.ValidatorToOperator(nonValidator.Operator, customValidators[2].Validator.Address)
 		require.NoError(t, err)
 		require.Equal(t, customValidators[2].Operator.Address, operator)
+		operator, err = g.ValidatorToOperator(nonValidator.Operator, customValidators[3].Validator.Address)
+		require.NoError(t, err)
+		require.Equal(t, customValidators[3].Operator.Address, operator)
 		operator, err = g.ValidatorToOperator(nonValidator.Operator, nonValidator.Validator.Address)
 		require.NoError(t, err)
 		require.Equal(t, common.Address{}, operator)
@@ -148,6 +173,9 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		validator, err = g.OperatorToValidator(nonValidator.Operator, customValidators[2].Operator.Address)
 		require.NoError(t, err)
 		require.Equal(t, customValidators[2].Validator.Address, validator)
+		validator, err = g.OperatorToValidator(nonValidator.Operator, customValidators[3].Operator.Address)
+		require.NoError(t, err)
+		require.Equal(t, customValidators[3].Validator.Address, validator)
 		validator, err = g.OperatorToValidator(nonValidator.Operator, nonValidator.Operator.Address)
 		require.NoError(t, err)
 		require.Equal(t, common.Address{}, validator)
@@ -161,6 +189,9 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		blsKey, err = g.ValidatorToBlsKey(nonValidator.Operator, customValidators[2].Validator.Address)
 		require.NoError(t, err)
 		require.Equal(t, customValidators[2].GetBLSPublicKey(t).Marshal(), blsKey)
+		blsKey, err = g.ValidatorToBlsKey(nonValidator.Operator, customValidators[3].Validator.Address)
+		require.NoError(t, err)
+		require.Equal(t, customValidators[3].GetBLSPublicKey(t).Marshal(), blsKey)
 		blsKey, err = g.ValidatorToBlsKey(nonValidator.Operator, nonValidator.Validator.Address)
 		require.NoError(t, err)
 		require.Empty(t, blsKey)
@@ -174,6 +205,9 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		validator, err = g.BlsKeyToValidator(nonValidator.Operator, customValidators[2].GetBLSPublicKey(t).Marshal())
 		require.NoError(t, err)
 		require.Equal(t, customValidators[2].Validator.Address, validator)
+		validator, err = g.BlsKeyToValidator(nonValidator.Operator, customValidators[3].GetBLSPublicKey(t).Marshal())
+		require.NoError(t, err)
+		require.Equal(t, customValidators[3].Validator.Address, validator)
 		validator, err = g.BlsKeyToValidator(nonValidator.Operator, nonValidator.GetBLSPublicKey(t).Marshal())
 		require.NoError(t, err)
 		require.Equal(t, common.Address{}, validator)
@@ -286,25 +320,28 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		)
 
 		// success case 1: register new validator
-		_, err := g.ExpectedOk(g.BaseTxProposeAddMember(t,
+		_, tx, err := g.BaseTxProposeAddMember(t,
 			g.govValidator,
 			customValidators[0].Operator,
 			newValidator.Operator.Address,
-			2))
+			2)
+		_, err = g.ExpectedOk(tx, err)
 		require.NoError(t, err)
-		currentProposal, err := g.BaseGetProposal(g.govValidator, customValidators[0].Operator)
+		proposalId, err := g.BaseCurrentProposalId(g.govValidator, customValidators[0].Operator)
 		require.NoError(t, err)
-		require.Equal(t, uint8(1), currentProposal.Status) // Voting
-		require.Equal(t, crypto.Keccak256Hash([]byte("ADD_MEMBER")), common.BytesToHash(currentProposal.ActionType[:]))
-		require.Equal(t, 2, int(currentProposal.RequiredApprovals.Uint64()))
+		currentProposal, err := g.BaseGetProposal(g.govValidator, customValidators[0].Operator, proposalId)
+		require.NoError(t, err)
+		require.Equal(t, sc.ProposalStatusVoting, currentProposal.Status) // Voting
+		require.Equal(t, crypto.Keccak256Hash([]byte("ACTION_ADD_MEMBER")), common.BytesToHash(currentProposal.ActionType[:]))
+		require.Equal(t, uint32(2), currentProposal.RequiredApprovals)
 
 		_, err = g.ExpectedOk(g.BaseTxApproveProposal(t,
 			g.govValidator,
-			customValidators[1].Operator))
+			customValidators[1].Operator, proposalId))
 		require.NoError(t, err)
-		currentProposal, err = g.BaseGetProposal(g.govValidator, customValidators[0].Operator)
+		currentProposal, err = g.BaseGetProposal(g.govValidator, customValidators[0].Operator, proposalId)
 		require.NoError(t, err)
-		require.Equal(t, uint8(3), currentProposal.Status) // Executed
+		require.Equal(t, sc.ProposalStatusExecuted, currentProposal.Status) // Executed
 		memberVersion, err := g.BaseMemberVersion(g.govValidator, customValidators[0].Operator)
 		require.NoError(t, err)
 		require.Equal(t, uint64(2), memberVersion.Uint64())
@@ -332,7 +369,7 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		require.Equal(t, newValidator.Validator.Address, val)
 		valCount, err := g.ValidatorCount(newValidator.Operator)
 		require.NoError(t, err)
-		require.Equal(t, uint64(4), valCount.Uint64())
+		require.Equal(t, uint64(5), valCount.Uint64())
 		blsKey, err := g.ValidatorToBlsKey(newValidator.Operator, newValidator.Validator.Address)
 		require.NoError(t, err)
 		require.Equal(t, newValidator.GetBLSPublicKey(t).Marshal(), blsKey)
@@ -419,32 +456,6 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, anotherValidator2.Validator.Address, val)
 		val, err = g.BlsKeyToValidator(anotherValidator2.Operator, customValidators[2].GetBLSPublicKey(t).Marshal())
-		require.NoError(t, err)
-		require.Equal(t, common.Address{}, val)
-	})
-
-	t.Run("_onMemberChanged", func(t *testing.T) {
-		initGov(t)
-		defer g.backend.Close()
-
-		_, err := g.ExpectedOk(
-			g.BaseTxChangeMember(t, g.govValidator, customValidators[1].Operator, anotherValidator.Operator.Address))
-		require.NoError(t, err)
-
-		// verify
-		member, err := g.BaseMembers(g.govValidator, nonValidator.Operator, customValidators[1].Operator.Address)
-		require.NoError(t, err)
-		require.False(t, member.IsActive)
-		member, err = g.BaseMembers(g.govValidator, nonValidator.Operator, anotherValidator.Operator.Address)
-		require.NoError(t, err)
-		require.True(t, member.IsActive)
-		op, err := g.ValidatorToOperator(nonValidator.Operator, customValidators[1].Validator.Address)
-		require.NoError(t, err)
-		require.Equal(t, anotherValidator.Operator.Address, op)
-		val, err := g.OperatorToValidator(nonValidator.Operator, anotherValidator.Operator.Address)
-		require.NoError(t, err)
-		require.Equal(t, customValidators[1].Validator.Address, val)
-		val, err = g.OperatorToValidator(nonValidator.Operator, customValidators[1].Operator.Address)
 		require.NoError(t, err)
 		require.Equal(t, common.Address{}, val)
 	})

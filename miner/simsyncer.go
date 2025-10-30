@@ -40,6 +40,12 @@ func combineSystemContracts(source *params.SystemContracts, target *params.Syste
 	if target.NativeCoinAdapter != nil {
 		source.NativeCoinAdapter = target.NativeCoinAdapter
 	}
+	if target.GovMasterMinter != nil {
+		source.GovMasterMinter = target.GovMasterMinter
+	}
+	if target.GovMinter != nil {
+		source.GovMinter = target.GovMinter
+	}
 }
 
 func (ss *simSyncer) Apply(chainConfig *params.ChainConfig, config *wbft.Config, num *big.Int) {

@@ -34,6 +34,12 @@ var (
 
 	DefaultGovValidatorAddress = common.HexToAddress("0x1001")
 	DefaultGovVersion          = "v1"
+
+	DefaultGovMasterMinterAddress = common.HexToAddress("0x1002")
+	DefaultGovMasterMinterVersion = "v1"
+
+	DefaultGovMinterAddress = common.HexToAddress("0x1003")
+	DefaultGovMinterVersion = "v1"
 )
 
 var CheckSystemContractVersions func(systemContracts *SystemContracts) error
@@ -92,6 +98,12 @@ func (c *AnzeonConfig) CheckValidity() error {
 	if c.SystemContracts.NativeCoinAdapter == nil {
 		return errors.New("`anzeon.systemContracts: missing `NativeCoinAdapter`")
 	}
+	if c.SystemContracts.GovMasterMinter == nil {
+		return errors.New("`anzeon.systemContracts: missing `GovMasterMinter`")
+	}
+	if c.SystemContracts.GovMinter == nil {
+		return errors.New("`anzeon.systemContracts: missing `GovMinter`")
+	}
 	if err := CheckSystemContractVersions(c.SystemContracts); err != nil {
 		return fmt.Errorf("`anzeon.systemContracts`: %v", err)
 	}
@@ -128,11 +140,13 @@ func (i *Init) String() string {
 type SystemContracts struct {
 	GovValidator      *SystemContract `json:"govValidator"`
 	NativeCoinAdapter *SystemContract `json:"nativeCoinAdapter"`
+	GovMinter         *SystemContract `json:"govMinter,omitempty"`
+	GovMasterMinter   *SystemContract `json:"govMasterMinter,omitempty"`
 }
 
 func (c *SystemContracts) String() string {
-	return fmt.Sprintf("{GovValidator: %v}, {NativeCoinAdapter: %v}",
-		c.GovValidator, c.NativeCoinAdapter,
+	return fmt.Sprintf("{GovValidator: %v}, {NativeCoinAdapter: %v}, {GovMinter: %v}, {GovMasterMinter: %v}",
+		c.GovValidator, c.NativeCoinAdapter, c.GovMinter, c.GovMasterMinter,
 	)
 }
 
@@ -201,6 +215,14 @@ var DefaultAnzeonConfig = &AnzeonConfig{
 		NativeCoinAdapter: &SystemContract{
 			Address: DefaultNativeCoinAdapterAddress,
 			Version: DefaultNativeCoinAdapterVersion,
+		},
+		GovMasterMinter: &SystemContract{
+			Address: DefaultGovMasterMinterAddress,
+			Version: DefaultGovMasterMinterVersion,
+		},
+		GovMinter: &SystemContract{
+			Address: DefaultGovMinterAddress,
+			Version: DefaultGovMinterVersion,
 		},
 	},
 	Init: &WBFTInit{},
