@@ -70,7 +70,7 @@ func TestConsoleWelcome(t *testing.T) {
 	gstable.Expect(`
 Welcome to the Gstable JavaScript console!
 
-instance: Gstable/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
+instance: Gstable/v{{gstablever}}/{{goos}}-{{goarch}}/{{gover}}
 coinbase: {{.Etherbase}}
 at block: 0 ({{niltime}})
  datadir: {{.Datadir}}
@@ -130,7 +130,7 @@ func testAttachWelcome(t *testing.T, geth *testgstable, endpoint, apis string) {
 	attach.SetTemplateFunc("goos", func() string { return runtime.GOOS })
 	attach.SetTemplateFunc("goarch", func() string { return runtime.GOARCH })
 	attach.SetTemplateFunc("gover", runtime.Version)
-	attach.SetTemplateFunc("gethver", func() string { return params.VersionWithCommit("", "") })
+	attach.SetTemplateFunc("gstablever", func() string { return params.VersionWithCommit("", "") })
 	attach.SetTemplateFunc("etherbase", func() string { return geth.Etherbase })
 	attach.SetTemplateFunc("niltime", func() string {
 		return time.Unix(1548854791, 0).Format("Mon Jan 02 2006 15:04:05 GMT-0700 (MST)")
@@ -143,7 +143,7 @@ func testAttachWelcome(t *testing.T, geth *testgstable, endpoint, apis string) {
 	attach.Expect(`
 Welcome to the Gstable JavaScript console!
 
-instance: Gstable/v{{gethver}}/{{goos}}-{{goarch}}/{{gover}}
+instance: Gstable/v{{gstablever}}/{{goos}}-{{goarch}}/{{gover}}
 coinbase: {{etherbase}}
 at block: 0 ({{niltime}}){{if ipc}}
  datadir: {{datadir}}{{end}}
