@@ -26,6 +26,7 @@ import (
 	"math/big"
 	"reflect"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -423,6 +424,7 @@ func updateChainConfig(chainConfig *params.ChainConfig, newValidators []account)
 		blsKeys += "0x" + hexutil.Encode(v.blsKey.PublicKey().Marshal())[2:]
 	}
 	chainConfig.Anzeon.SystemContracts.GovValidator.Params[systemcontracts.GOV_BASE_PARAM_MEMBERS] = vals
+	chainConfig.Anzeon.SystemContracts.GovValidator.Params[systemcontracts.GOV_BASE_PARAM_QUORUM] = strconv.Itoa(len(newValidators))
 	chainConfig.Anzeon.SystemContracts.GovValidator.Params[systemcontracts.GOV_VALIDATOR_PARAM_VALIDATORS] = vals
 	chainConfig.Anzeon.SystemContracts.GovValidator.Params[systemcontracts.GOV_VALIDATOR_PARAM_BLS_KEYS] = blsKeys
 }

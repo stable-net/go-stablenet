@@ -547,11 +547,10 @@ func testStatusFunctions(t *testing.T, client *rpc.Client) {
 
 func testCallContractAtHash(t *testing.T, client *rpc.Client) {
 	ec := ethclient.NewClient(client)
-	to := crypto.CreateAddress(common.Address{}, 1)
 	// EstimateGas
 	msg := ethereum.CallMsg{
 		From:  testAddr,
-		To:    &to,
+		To:    &common.Address{},
 		Gas:   21000,
 		Value: big.NewInt(1),
 	}
@@ -574,11 +573,10 @@ func testCallContractAtHash(t *testing.T, client *rpc.Client) {
 
 func testCallContract(t *testing.T, client *rpc.Client) {
 	ec := ethclient.NewClient(client)
-	to := crypto.CreateAddress(common.Address{}, 1)
 	// EstimateGas
 	msg := ethereum.CallMsg{
 		From:  testAddr,
-		To:    &to,
+		To:    &common.Address{},
 		Gas:   21000,
 		Value: big.NewInt(1),
 	}
