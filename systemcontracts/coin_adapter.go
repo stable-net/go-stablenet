@@ -31,7 +31,7 @@ const (
 	COIN_ADAPTER_PARAM_CURRENCY       = "currency"
 )
 
-func InitializeCoinAdatper(coinAdapterAddress common.Address, param map[string]string, alloc *types.GenesisAlloc) ([]params.StateParam, error) {
+func initializeCoinAdatper(coinAdapterAddress common.Address, param map[string]string, alloc *types.GenesisAlloc) ([]params.StateParam, error) {
 	sp := make([]params.StateParam, 0)
 
 	// SLOT_COIN_ADAPTER_MASTER_MINTER

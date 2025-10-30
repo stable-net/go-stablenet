@@ -68,7 +68,7 @@ func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc
 
 	if systemContracts.NativeCoinAdapter != nil {
 		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.NativeCoinAdapter.Address, Code: SystemContractCodes[CONTRACT_COIN_ADAPTER][systemContracts.NativeCoinAdapter.Version]})
-		sp, err := InitializeCoinAdatper(systemContracts.NativeCoinAdapter.Address, systemContracts.NativeCoinAdapter.Params, alloc)
+		sp, err := initializeCoinAdatper(systemContracts.NativeCoinAdapter.Address, systemContracts.NativeCoinAdapter.Params, alloc)
 		if err != nil {
 			return nil, err
 		}
