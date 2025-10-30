@@ -213,7 +213,7 @@ func (c *coinManagerTransfer) Run(evm *EVM, data []byte, suppliedGas uint64) ([]
 	ret, leftOverGas, err := evm.Call(AccountRef(from), to, nil, suppliedGas, amount)
 
 	// Transfer event emission for 0-value transfer (ERC20)
-	if err == nil && amount.Sign() == 0 {
+	if err == nil && amount.IsZero() {
 		evm.AddTransferLog(from, to, amount)
 	}
 	return ret, leftOverGas, err

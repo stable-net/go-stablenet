@@ -18,6 +18,7 @@
 package test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/big"
@@ -194,6 +195,10 @@ func getNonce(backend interface {
 	}
 }
 
+func NewTxOpts(t *testing.T, eoa *EOA) *bind.TransactOpts {
+	return NewTxOptsWithValue(t, eoa, nil)
+}
+
 func NewTxOptsWithValue(t *testing.T, eoa *EOA, value *big.Int) *bind.TransactOpts {
 	opts, err := bind.NewKeyedTransactorWithChainID(eoa.PrivateKey, params.TestWBFTChainConfig.ChainID)
 	require.NoError(t, err)
@@ -220,4 +225,61 @@ func ToBytes32(str string) [32]byte {
 	var copied = [32]byte{}
 	copy(copied[:], bytes)
 	return copied
+}
+
+func concatBytes(parts ...[]byte) []byte {
+	return bytes.Join(parts, nil)
+}
+
+func SignEIP712Hash(t *testing.T, domainSeparator, data common.Hash, signer *EOA) (sig []byte, r, s common.Hash, v uint8) {
+	finalEncoded := concatBytes([]byte("\x19\x01"), domainSeparator.Bytes(), data.Bytes())
+	sig, err := crypto.Sign(crypto.Keccak256Hash(finalEncoded).Bytes(), signer.PrivateKey)
+	require.NoError(t, err)
+
+	if sig[64] < 27 {
+		sig[64] += 27
+	}
+
+	r = common.BytesToHash(sig[:32])
+	s = common.BytesToHash(sig[32:64])
+	v = sig[64]
+
+	return
+}
+
+func CheckSignatureArgs(args ...interface{}) error {
+	switch len(args) {
+	case 1:
+		// case: bytes signature
+		if _, ok := args[0].([]byte); !ok {
+			return fmt.Errorf("invalid signature: expected bytes, got %T", args[0])
+		}
+		return nil
+
+	case 3:
+		// case: v, r, s
+		if _, ok := args[0].(uint8); !ok {
+			return fmt.Errorf("invalid v: expected uint8, got %T", args[0])
+		}
+
+		isValidHash := func(v interface{}) bool {
+			switch v.(type) {
+			case [32]byte, common.Hash:
+				return true
+			default:
+				return false
+			}
+		}
+
+		if !isValidHash(args[1]) {
+			return fmt.Errorf("invalid r: expected [32]byte or common.Hash, got %T", args[1])
+		}
+		if !isValidHash(args[2]) {
+			return fmt.Errorf("invalid s: expected [32]byte or common.Hash, got %T", args[2])
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("invalid signature arguments: expected signature(bytes) or v, r, s(uint8,bytes32,byte32)")
+	}
 }

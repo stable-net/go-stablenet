@@ -78,12 +78,12 @@ func initGovMasterMinter(t *testing.T) {
 	}, nil, nil, func(govMasterMinter *params.SystemContract) {
 		// Initialize GovMasterMinter with fiatToken and max allowance
 		govMasterMinter.Params = map[string]string{
-			sc.GOV_MASTER_MINTER_PARAM_FIAT_TOKEN:         mockFiatToken.String(),
+			sc.GOV_MASTER_MINTER_PARAM_FIAT_TOKEN:           mockFiatToken.String(),
 			sc.GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE: defaultMaxAllowance.String(),
-			sc.GOV_BASE_PARAM_MEMBERS:                     masterMinterMembers[0].Operator.Address.String() + "," + masterMinterMembers[1].Operator.Address.String() + "," + masterMinterMembers[2].Operator.Address.String(),
-			sc.GOV_BASE_PARAM_QUORUM:                      "2",
-			sc.GOV_BASE_PARAM_EXPIRY:                      "604800",
-			sc.GOV_BASE_PARAM_MEMBER_VERSION:              "1",
+			sc.GOV_BASE_PARAM_MEMBERS:                       masterMinterMembers[0].Operator.Address.String() + "," + masterMinterMembers[1].Operator.Address.String() + "," + masterMinterMembers[2].Operator.Address.String(),
+			sc.GOV_BASE_PARAM_QUORUM:                        "2",
+			sc.GOV_BASE_PARAM_EXPIRY:                        "604800",
+			sc.GOV_BASE_PARAM_MEMBER_VERSION:                "1",
 		}
 	}, nil)
 	require.NoError(t, err)
@@ -169,7 +169,7 @@ func TestGovMasterMinter_ProposeConfigureMinter(t *testing.T) {
 		allowance := big.NewInt(100000)
 
 		// Check minter is not configured initially
-		isMinter, err := gMasterMinter.IsMinter(masterMinterNonMember, minter)
+		isMinter, err := gMasterMinter.GetIsMinter(masterMinterNonMember, minter)
 		require.NoError(t, err)
 		require.False(t, isMinter)
 
@@ -271,12 +271,12 @@ func TestGovMasterMinter_MinterAllowanceTracking(t *testing.T) {
 		minter := NewEOA().Address
 
 		// Check initial allowance is zero
-		allowance, err := gMasterMinter.MinterAllowance(masterMinterNonMember, minter)
+		allowance, err := gMasterMinter.GetMinterAllowance(masterMinterNonMember, minter)
 		require.NoError(t, err)
 		require.Equal(t, 0, allowance.Cmp(big.NewInt(0)))
 
 		// Check minter status is false
-		isMinter, err := gMasterMinter.IsMinter(masterMinterNonMember, minter)
+		isMinter, err := gMasterMinter.GetIsMinter(masterMinterNonMember, minter)
 		require.NoError(t, err)
 		require.False(t, isMinter)
 	})

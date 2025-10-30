@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math/big"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient/simulated"
@@ -565,7 +567,7 @@ func (g *GovWBFT) MaxMinterAllowance(sender *EOA) (*big.Int, error) {
 	return result[0].(*big.Int), nil
 }
 
-func (g *GovWBFT) IsMinter(sender *EOA, minter common.Address) (bool, error) {
+func (g *GovWBFT) GetIsMinter(sender *EOA, minter common.Address) (bool, error) {
 	var result []interface{}
 	err := g.masterMinterCall("getIsMinter", sender, &result, minter)
 	if err != nil {
@@ -574,7 +576,7 @@ func (g *GovWBFT) IsMinter(sender *EOA, minter common.Address) (bool, error) {
 	return result[0].(bool), nil
 }
 
-func (g *GovWBFT) MinterAllowance(sender *EOA, minter common.Address) (*big.Int, error) {
+func (g *GovWBFT) GetMinterAllowance(sender *EOA, minter common.Address) (*big.Int, error) {
 	var result []interface{}
 	err := g.masterMinterCall("getMinterAllowance", sender, &result, minter)
 	if err != nil {
@@ -948,4 +950,202 @@ func (g *GovWBFT) CompleteBurnProposal(
 	}
 
 	return receipt, nil
+}
+
+// ========== NativeCoinAdapter Contract ==========
+
+func (g *GovWBFT) ConfigureMinter(t *testing.T, masterMinter *EOA, minter common.Address, allowedAmount *big.Int) (*types.Transaction, error) {
+	return g.coinAdapter.Transact(NewTxOpts(t, masterMinter), "configureMinter", minter, allowedAmount)
+}
+
+func (g *GovWBFT) RemoveMinter(t *testing.T, masterMinter *EOA, minter common.Address) (*types.Transaction, error) {
+	return g.coinAdapter.Transact(NewTxOpts(t, masterMinter), "removeMinter", minter)
+}
+func (g *GovWBFT) BalanceOf(t *testing.T, address common.Address) *big.Int {
+	return contractCall(t, g.coinAdapter, "balanceOf", address)[0].(*big.Int)
+}
+
+func (g *GovWBFT) TotalSupply(t *testing.T) *big.Int {
+	return contractCall(t, g.coinAdapter, "totalSupply")[0].(*big.Int)
+}
+
+func (g *GovWBFT) IsMinter(t *testing.T, minter common.Address) bool {
+	return contractCall(t, g.coinAdapter, "isMinter", minter)[0].(bool)
+}
+
+func (g *GovWBFT) MinterAllowance(t *testing.T, minter common.Address) *big.Int {
+	return contractCall(t, g.coinAdapter, "minterAllowance", minter)[0].(*big.Int)
+}
+
+func (g *GovWBFT) Mint(t *testing.T, minter *EOA, to common.Address, amount *big.Int) (*types.Transaction, error) {
+	return g.coinAdapter.Transact(NewTxOpts(t, minter), "mint", to, amount)
+}
+
+func (g *GovWBFT) Burn(t *testing.T, minter *EOA, amount *big.Int) (*types.Transaction, error) {
+	return g.coinAdapter.Transact(NewTxOpts(t, minter), "burn", amount)
+}
+
+func (g *GovWBFT) Transfer(t *testing.T, sender *EOA, to common.Address, amount *big.Int) (*types.Transaction, error) {
+	return g.coinAdapter.Transact(NewTxOpts(t, sender), "transfer", to, amount)
+}
+
+func (g *GovWBFT) TransferFrom(t *testing.T, sender *EOA, from, to common.Address, amount *big.Int) (*types.Transaction, error) {
+	return g.coinAdapter.Transact(NewTxOpts(t, sender), "transferFrom", from, to, amount)
+}
+
+func (g *GovWBFT) Allowance(t *testing.T, owner, spender common.Address) *big.Int {
+	return contractCall(t, g.coinAdapter, "allowance", owner, spender)[0].(*big.Int)
+}
+
+func (g *GovWBFT) Approve(t *testing.T, owner *EOA, spender common.Address, amount *big.Int) (*types.Transaction, error) {
+	return g.coinAdapter.Transact(NewTxOpts(t, owner), "approve", spender, amount)
+}
+
+// signatureArgs must be either signature(bytes) or v, r, s(uint8,bytes32,byte32)
+func (g *GovWBFT) Permit(t *testing.T, sender *EOA, owner, spender common.Address, amount, deadline *big.Int, signatureArgs ...interface{},
+) (*types.Transaction, error) {
+	// validate signature args
+	require.NoError(t, CheckSignatureArgs(signatureArgs...))
+
+	if deadline == nil {
+		deadline = MAX_UINT_256
+	}
+	params := append([]interface{}{owner, spender, amount, deadline}, signatureArgs...)
+
+	// Use fallback to handle ABI name mismatch from overloaded functions.
+	tx, err := g.coinAdapter.Transact(NewTxOpts(t, sender), "permit", params...)
+	if err != nil && strings.Contains(err.Error(), "argument count mismatch") {
+		return g.coinAdapter.Transact(NewTxOpts(t, sender), "permit0", params...)
+	}
+	return tx, err
+}
+
+// signatureArgs must be either signature(bytes) or v, r, s(uint8,bytes32,byte32)
+func (g *GovWBFT) TransferWithAuthorization(
+	t *testing.T, sender *EOA, from, to common.Address, amount, validAfter, validBefore *big.Int, nonce common.Hash, signatureArgs ...interface{},
+) (*types.Transaction, error) {
+	// validate signature args
+	require.NoError(t, CheckSignatureArgs(signatureArgs...))
+
+	if validAfter == nil {
+		validAfter = common.Big0
+	}
+	if validBefore == nil {
+		validBefore = MAX_UINT_256
+	}
+	params := append([]interface{}{from, to, amount, validAfter, validBefore, nonce}, signatureArgs...)
+
+	// Use fallback to handle ABI name mismatch from overloaded functions.
+	tx, err := g.coinAdapter.Transact(NewTxOpts(t, sender), "transferWithAuthorization", params...)
+	if err != nil && strings.Contains(err.Error(), "argument count mismatch") {
+		return g.coinAdapter.Transact(NewTxOpts(t, sender), "transferWithAuthorization0", params...)
+	}
+	return tx, err
+}
+
+// signatureArgs must be either signature(bytes) or v, r, s(uint8,bytes32,byte32)
+func (g *GovWBFT) ReceiveWithAuthorization(
+	t *testing.T, sender *EOA, from common.Address, amount, validAfter, validBefore *big.Int, nonce common.Hash, signatureArgs ...interface{},
+) (*types.Transaction, error) {
+	// validate signature args
+	require.NoError(t, CheckSignatureArgs(signatureArgs...))
+
+	if validAfter == nil {
+		validAfter = common.Big0
+	}
+	if validBefore == nil {
+		validBefore = MAX_UINT_256
+	}
+	params := append([]interface{}{from, sender.Address, amount, validAfter, validBefore, nonce}, signatureArgs...)
+
+	// Use fallback to handle ABI name mismatch from overloaded functions.
+	tx, err := g.coinAdapter.Transact(NewTxOpts(t, sender), "receiveWithAuthorization", params...)
+	if err != nil && strings.Contains(err.Error(), "argument count mismatch") {
+		return g.coinAdapter.Transact(NewTxOpts(t, sender), "receiveWithAuthorization0", params...)
+	}
+	return tx, err
+}
+
+// signatureArgs must be either signature(bytes) or v, r, s(uint8,bytes32,byte32)
+func (g *GovWBFT) CancelAuthorization(
+	t *testing.T, sender *EOA, authorizer common.Address, nonce common.Hash, signatureArgs ...interface{}) (*types.Transaction, error) {
+	// validate signature args
+	require.NoError(t, CheckSignatureArgs(signatureArgs...))
+
+	params := append([]interface{}{authorizer, nonce}, signatureArgs...)
+
+	// Use fallback to handle ABI name mismatch from overloaded functions.
+	tx, err := g.coinAdapter.Transact(NewTxOpts(t, sender), "cancelAuthorization", params...)
+	if err != nil && strings.Contains(err.Error(), "argument count mismatch") {
+		return g.coinAdapter.Transact(NewTxOpts(t, sender), "cancelAuthorization0", params...)
+	}
+	return tx, err
+}
+
+func (g *GovWBFT) PermitNonce(t *testing.T, owner common.Address) *big.Int {
+	return contractCall(t, g.coinAdapter, "nonces", owner)[0].(*big.Int)
+}
+
+func (g *GovWBFT) DomainSeparator(t *testing.T) common.Hash {
+	return common.Hash(contractCall(t, g.coinAdapter, "DOMAIN_SEPARATOR")[0].([32]byte))
+}
+
+func (g *GovWBFT) BuildPermitSig(t *testing.T, owner *EOA, spender common.Address, amount, deadline *big.Int) (sig []byte, r, s common.Hash, v uint8) {
+	if deadline == nil {
+		deadline = MAX_UINT_256
+	}
+	typeHash := contractCall(t, g.coinAdapter, "PERMIT_TYPEHASH")[0].([32]byte)
+	permitHash := crypto.Keccak256Hash(concatBytes(
+		typeHash[:],
+		common.LeftPadBytes(owner.Address.Bytes(), 32),
+		common.LeftPadBytes(spender.Bytes(), 32),
+		common.LeftPadBytes(amount.Bytes(), 32),
+		common.LeftPadBytes(g.PermitNonce(t, owner.Address).Bytes(), 32),
+		common.LeftPadBytes(deadline.Bytes(), 32),
+	))
+	return SignEIP712Hash(t, g.DomainSeparator(t), permitHash, owner)
+}
+
+func (g *GovWBFT) BuildTransferWithAuthSig(
+	t *testing.T, from *EOA, to common.Address, amount, validAfter, validBefore *big.Int, nonce common.Hash,
+) (sig []byte, r, s common.Hash, v uint8) {
+	return g.buildAuthorizationSig(t, "TRANSFER_WITH_AUTHORIZATION_TYPEHASH", from, to, amount, validAfter, validBefore, nonce)
+}
+
+func (g *GovWBFT) BuildReceiveWithAuthSig(
+	t *testing.T, from *EOA, to common.Address, amount, validAfter, validBefore *big.Int, nonce common.Hash,
+) (sig []byte, r, s common.Hash, v uint8) {
+	return g.buildAuthorizationSig(t, "RECEIVE_WITH_AUTHORIZATION_TYPEHASH", from, to, amount, validAfter, validBefore, nonce)
+}
+
+func (g *GovWBFT) buildAuthorizationSig(
+	t *testing.T, methodType string, from *EOA, to common.Address, amount, validAfter, validBefore *big.Int, nonce common.Hash,
+) (sig []byte, r, s common.Hash, v uint8) {
+	if validAfter == nil {
+		validAfter = common.Big0
+	}
+	if validBefore == nil {
+		validBefore = MAX_UINT_256
+	}
+	typeHash := contractCall(t, g.coinAdapter, methodType)[0].([32]byte)
+	permitHash := crypto.Keccak256Hash(concatBytes(
+		typeHash[:],
+		common.LeftPadBytes(from.Address.Bytes(), 32),
+		common.LeftPadBytes(to.Bytes(), 32),
+		common.LeftPadBytes(amount.Bytes(), 32),
+		common.LeftPadBytes(validAfter.Bytes(), 32),
+		common.LeftPadBytes(validBefore.Bytes(), 32),
+		nonce.Bytes(),
+	))
+	return SignEIP712Hash(t, g.DomainSeparator(t), permitHash, from)
+}
+
+func (g *GovWBFT) BuildCancelAuthSig(t *testing.T, authorizer *EOA, nonce common.Hash) (sig []byte, r, s common.Hash, v uint8) {
+	typeHash := contractCall(t, g.coinAdapter, "CANCEL_AUTHORIZATION_TYPEHASH")[0].([32]byte)
+	permitHash := crypto.Keccak256Hash(concatBytes(
+		typeHash[:],
+		common.LeftPadBytes(authorizer.Address.Bytes(), 32),
+		nonce.Bytes(),
+	))
+	return SignEIP712Hash(t, g.DomainSeparator(t), permitHash, authorizer)
 }

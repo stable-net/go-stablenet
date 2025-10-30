@@ -3,15 +3,186 @@ package test
 import (
 	"context"
 	"math/big"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/systemcontracts"
+	compile "github.com/ethereum/go-ethereum/systemcontracts/compile/compiler"
 	"github.com/stretchr/testify/require"
 )
+
+func TestTransferLog(t *testing.T) {
+	var (
+		ctx = context.TODO()
+
+		masterMinter = NewEOA()
+		minter       = NewEOA()
+		sender       = NewEOA()
+		recipient    = NewEOA()
+
+		amount = towei(1_000_000)
+	)
+	masterMinter.Address.Hex()
+
+	g, err := NewGovWBFT(t, types.GenesisAlloc{
+		minter.Address: {Balance: new(big.Int).Mul(amount, common.Big3)},
+	}, nil, func(coinAdapter *params.SystemContract) {
+		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MASTER_MINTER] = masterMinter.Address.String()
+		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTERS] = minter.Address.String()
+		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTER_ALLOWED] = MAX_UINT_128.String()
+	}, nil, nil, nil)
+	require.NoError(t, err)
+
+	checkGasFeeTransferEvent := func(event map[string]interface{}, sender common.Address, receipt *types.Receipt) {
+		blockNumber := receipt.BlockNumber
+		block, err := g.backend.Client().BlockByNumber(ctx, blockNumber)
+		require.NoError(t, err)
+
+		tx, isPending, err := g.backend.Client().TransactionByHash(ctx, receipt.TxHash)
+		require.NoError(t, err)
+		require.False(t, isPending)
+
+		effectiveGasPrice, err := tx.EffectiveGasTip(block.BaseFee())
+		require.NoError(t, err)
+
+		coinBase := block.Coinbase()
+		diff := new(big.Int).Sub(
+			g.BalanceAt(t, ctx, coinBase, blockNumber),
+			g.BalanceAt(t, ctx, coinBase, new(big.Int).Sub(blockNumber, common.Big1)),
+		)
+		actualGas := event["value"].(*big.Int)
+		require.Equal(t, sender, event["from"].(common.Address))
+		require.Equal(t, coinBase, event["to"].(common.Address))
+		require.True(t, diff.Cmp(actualGas) == 0)
+		require.True(t, new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), effectiveGasPrice).Cmp(actualGas) == 0)
+	}
+
+	t.Run("mint", func(t *testing.T) {
+		mintAmount := new(big.Int).Mul(amount, common.Big3)
+		receipt, err := g.ExpectedOk(g.Mint(t, minter, sender.Address, mintAmount))
+		require.NoError(t, err)
+
+		transferEvents := findEvents("Transfer", receipt.Logs)
+		require.Equal(t, 2, len(transferEvents)) // mint, gas
+
+		eventMint := transferEvents[0]
+		require.Equal(t, common.Address{}, eventMint["from"].(common.Address))
+		require.Equal(t, sender.Address, eventMint["to"].(common.Address))
+		require.True(t, mintAmount.Cmp(eventMint["value"].(*big.Int)) == 0)
+
+		checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
+	})
+
+	t.Run("tx.value", func(t *testing.T) {
+		receipt, err := g.ExpectedOk(TransferCoin(g.backend.Client(), NewTxOpts(t, sender), amount, &recipient.Address))
+		require.NoError(t, err)
+
+		transferEvents := findEvents("Transfer", receipt.Logs)
+		require.Equal(t, 2, len(transferEvents)) // mint, gas
+
+		eventMint := transferEvents[0]
+		require.Equal(t, sender.Address, eventMint["from"].(common.Address))
+		require.Equal(t, recipient.Address, eventMint["to"].(common.Address))
+		require.True(t, amount.Cmp(eventMint["value"].(*big.Int)) == 0)
+
+		checkGasFeeTransferEvent(transferEvents[1], sender.Address, receipt)
+	})
+
+	t.Run("transfer", func(t *testing.T) {
+		receipt, err := g.ExpectedOk(g.Transfer(t, sender, recipient.Address, amount))
+		require.NoError(t, err)
+
+		transferEvents := findEvents("Transfer", receipt.Logs)
+		require.Equal(t, 2, len(transferEvents)) // mint, gas
+
+		eventTransfer := transferEvents[0]
+		require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
+		require.Equal(t, recipient.Address, eventTransfer["to"].(common.Address))
+		require.True(t, amount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
+
+		checkGasFeeTransferEvent(transferEvents[1], sender.Address, receipt)
+	})
+
+	t.Run("transfer 0-value", func(t *testing.T) {
+		receipt, err := g.ExpectedOk(g.Transfer(t, sender, recipient.Address, common.Big0))
+		require.NoError(t, err)
+
+		transferEvents := findEvents("Transfer", receipt.Logs)
+		require.Equal(t, 2, len(transferEvents)) // mint, gas
+
+		eventTransfer := transferEvents[0]
+		require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
+		require.Equal(t, recipient.Address, eventTransfer["to"].(common.Address))
+		require.True(t, eventTransfer["value"].(*big.Int).Sign() == 0)
+
+		checkGasFeeTransferEvent(transferEvents[1], sender.Address, receipt)
+	})
+
+	t.Run("tx.value + transfer", func(t *testing.T) {
+		dir := t.TempDir()
+		filename := "Test.sol"
+		testSource := `pragma solidity ^0.8.0;
+		interface CoinAdapter { function transfer(address from, uint256 amount) external; } 
+		contract TestContract{
+			function transfer(address _to) payable external {
+				CoinAdapter(` + TestCoinAdapterAddress.String() + `).transfer(_to, msg.value);
+			}
+		}`
+
+		require.NoError(t, os.WriteFile(filepath.Join(dir, filename), []byte(testSource), 0700))
+		compiled, err := compile.Compile(dir, filepath.Join(dir, filename))
+		require.NoError(t, err)
+
+		testContract, err := newBindContract(compiled["TestContract"])
+		require.NoError(t, err)
+
+		tcAddr, deployTx, tc, err := testContract.Deploy(g.backend.Client(), g.owner)
+		_, err = g.ExpectedOk(deployTx, err)
+		require.NoError(t, err)
+		// transfer with tx.value
+		{
+			receipt, err := g.ExpectedOk(tc.Transact(NewTxOptsWithValue(t, recipient, amount), "transfer", sender.Address))
+			require.NoError(t, err)
+
+			transferEvents := findEvents("Transfer", receipt.Logs)
+			require.Equal(t, 3, len(transferEvents)) // mint, gas
+
+			eventTxValue := transferEvents[0]
+			require.Equal(t, recipient.Address, eventTxValue["from"].(common.Address))
+			require.Equal(t, tcAddr, eventTxValue["to"].(common.Address))
+			require.True(t, amount.Cmp(eventTxValue["value"].(*big.Int)) == 0)
+
+			eventTransfer := transferEvents[1]
+			require.Equal(t, tcAddr, eventTransfer["from"].(common.Address))
+			require.Equal(t, sender.Address, eventTransfer["to"].(common.Address))
+			require.True(t, amount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
+
+			checkGasFeeTransferEvent(transferEvents[2], recipient.Address, receipt)
+		}
+	})
+
+	t.Run("burn", func(t *testing.T) {
+		burnAmount := new(big.Int).Mul(amount, common.Big2)
+		receipt, err := g.ExpectedOk(g.Burn(t, minter, burnAmount))
+		require.NoError(t, err)
+
+		transferEvents := findEvents("Transfer", receipt.Logs)
+		require.Equal(t, 2, len(transferEvents)) // mint, gas
+
+		eventMint := transferEvents[0]
+		require.Equal(t, minter.Address, eventMint["from"].(common.Address))
+		require.Equal(t, common.Address{}, eventMint["to"].(common.Address))
+		require.True(t, burnAmount.Cmp(eventMint["value"].(*big.Int)) == 0)
+
+		checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
+	})
+}
 
 func TestNativeCoinAdapter(t *testing.T) {
 	var (
@@ -20,8 +191,12 @@ func TestNativeCoinAdapter(t *testing.T) {
 		minter1            = NewEOA()
 		decimals     uint8 = 18
 
+		amount         = toWeiN(10_000, decimals)
 		initialBalance = toWeiN(1_000_000, decimals) // for gas
-		allowedAmount  = toWeiN(10_000_000, decimals)
+		allowedAmount  = toWeiN(100_000_000, decimals)
+
+		testAccount1 = NewEOA()
+		testAccount2 = NewEOA()
 	)
 
 	g, err := NewGovWBFT(t, types.GenesisAlloc{
@@ -35,6 +210,10 @@ func TestNativeCoinAdapter(t *testing.T) {
 	}, nil, nil, nil)
 	require.NoError(t, err)
 
+	calcGasCost := func(receipt *types.Receipt) *big.Int {
+		return new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice)
+	}
+
 	t.Run("initialize", func(t *testing.T) {
 		// masterMinter
 		require.Equal(t, masterMinter.Address, contractCall(t, g.coinAdapter, "masterMinter")[0].(common.Address))
@@ -42,7 +221,7 @@ func TestNativeCoinAdapter(t *testing.T) {
 
 		// minter
 		require.True(t, contractCall(t, g.coinAdapter, "isMinter", minter1.Address)[0].(bool))
-		require.True(t, allowedAmount.Cmp(contractCall(t, g.coinAdapter, "minterAllowance", minter1.Address)[0].(*big.Int)) == 0)
+		require.True(t, allowedAmount.Cmp(g.MinterAllowance(t, minter1.Address)) == 0)
 
 		// decimals
 		require.Equal(t, decimals, contractCall(t, g.coinAdapter, "decimals")[0].(uint8))
@@ -62,56 +241,571 @@ func TestNativeCoinAdapter(t *testing.T) {
 			require.True(t, minter1Balance.Cmp(g.BalanceOf(t, minter1.Address)) == 0)
 
 			expectedTotalSupply := new(big.Int).Add(ownerBalance, new(big.Int).Add(masterMinterBalance, minter1Balance))
-			actualTotalSupply := contractCall(t, g.coinAdapter, "totalSupply")[0].(*big.Int)
+			actualTotalSupply := g.TotalSupply(t)
 			require.True(t, actualTotalSupply.Cmp(expectedTotalSupply) == 0)
 		}
 	})
 
 	t.Run("mint", func(t *testing.T) {
-		// TODO: Implement mint test
+		beforeTotalSupply := g.TotalSupply(t)
+		beforeAllowance := g.MinterAllowance(t, minter1.Address)
+		require.True(t, g.BalanceOf(t, testAccount1.Address).Sign() == 0)
+
+		// failure case
+		{
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Mint(t, masterMinter, testAccount1.Address, initialBalance)),
+				"NativeCoinAdapter: caller is not a minter",
+			)
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Mint(t, minter1, common.Address{}, initialBalance)),
+				"NativeCoinAdapter: mint to the zero address",
+			)
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Mint(t, minter1, testAccount1.Address, common.Big0)),
+				"NativeCoinAdapter: mint amount not greater than 0",
+			)
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Mint(t, minter1, testAccount1.Address, new(big.Int).Add(allowedAmount, common.Big1))),
+				"NativeCoinAdapter: mint amount exceeds minterAllowance",
+			)
+		}
+
+		receipt, err := g.ExpectedOk(g.Mint(t, minter1, testAccount1.Address, initialBalance))
+		require.NoError(t, err)
+
+		require.True(t, initialBalance.Cmp(g.BalanceOf(t, testAccount1.Address)) == 0)
+		require.True(t, new(big.Int).Add(beforeTotalSupply, initialBalance).Cmp(g.TotalSupply(t)) == 0)
+		require.True(t, new(big.Int).Sub(beforeAllowance, initialBalance).Cmp(g.MinterAllowance(t, minter1.Address)) == 0)
+
+		// mint event
+		mintEvent := findEvent("Mint", receipt.Logs)
+		require.Equal(t, minter1.Address, mintEvent["minter"])
+		require.Equal(t, testAccount1.Address, mintEvent["to"])
+		require.True(t, initialBalance.Cmp(mintEvent["amount"].(*big.Int)) == 0)
 	})
 
 	t.Run("transfer", func(t *testing.T) {
-		sender := masterMinter
-		recipient := minter1
-		transferAmount := toWeiN(1000, decimals)
+		from, to := testAccount1, testAccount2
+		// failure case
+		{
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Transfer(t, from, common.Address{}, amount)),
+				"NativeCoinAdapter: transfer to the zero address",
+			)
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Transfer(t, from, to.Address, new(big.Int).Add(initialBalance, common.Big1))),
+				"NativeCoinAdapter: transfer amount exceeds balance",
+			)
+		}
+		require.True(t, g.BalanceOf(t, to.Address).Sign() == 0)
+		beforeBalance := g.BalanceOf(t, from.Address)
 
-		// Get initial balances
-		senderInitialBalance := g.BalanceOf(t, sender.Address)
-		recipientInitialBalance := g.BalanceOf(t, recipient.Address)
-
-		// Perform transfer
-		_, err := g.coinAdapter.Transact(NewTxOptsWithValue(t, sender, nil), "transfer", recipient.Address, transferAmount)
+		receipt, err := g.ExpectedOk(g.Transfer(t, from, to.Address, amount))
 		require.NoError(t, err)
 
-		// Commit the transaction
-		g.backend.Commit()
+		// before balance - amount - gas cost
+		expectedBalance := new(big.Int).Sub(new(big.Int).Sub(beforeBalance, amount), calcGasCost(receipt))
+		require.True(t, amount.Cmp(g.BalanceOf(t, to.Address)) == 0)
+		require.True(t, expectedBalance.Cmp(g.BalanceOf(t, from.Address)) == 0)
 
-		// Verify balances after transfer
-		senderFinalBalance := g.BalanceOf(t, sender.Address)
-		recipientFinalBalance := g.BalanceOf(t, recipient.Address)
+		// transfer event
+		transferEvent := findEvent("Transfer", receipt.Logs)
+		require.Equal(t, from.Address, transferEvent["from"].(common.Address))
+		require.Equal(t, to.Address, transferEvent["to"].(common.Address))
+		require.True(t, amount.Cmp(transferEvent["value"].(*big.Int)) == 0)
+	})
 
-		// Sender balance should decrease by transfer amount (considering gas fees)
-		// Note: Sender's balance includes gas costs, so we only check recipient increase
-		require.True(t, senderFinalBalance.Cmp(senderInitialBalance) < 0, "Sender balance should decrease")
+	t.Run("burn", func(t *testing.T) {
+		beforeTotalSupply := g.TotalSupply(t)
+		beforeBalance := g.BalanceOf(t, minter1.Address)
 
-		// Recipient balance should increase by transfer amount
-		expectedRecipientBalance := new(big.Int).Add(recipientInitialBalance, transferAmount)
-		require.Equal(t, 0, recipientFinalBalance.Cmp(expectedRecipientBalance), "Recipient balance mismatch")
+		// failure case
+		{
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Burn(t, masterMinter, amount)),
+				"NativeCoinAdapter: caller is not a minter",
+			)
 
-		// Total supply should remain unchanged
-		totalSupply := contractCall(t, g.coinAdapter, "totalSupply")[0].(*big.Int)
-		require.NotNil(t, totalSupply)
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Burn(t, minter1, common.Big0)),
+				"NativeCoinAdapter: burn amount not greater than 0",
+			)
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Burn(t, minter1, new(big.Int).Add(beforeBalance, common.Big1))),
+				"NativeCoinAdapter: burn amount exceeds balance",
+			)
+		}
+
+		receipt, err := g.ExpectedOk(g.Burn(t, minter1, amount))
+		require.NoError(t, err)
+
+		require.True(t, new(big.Int).Sub(beforeTotalSupply, amount).Cmp(g.TotalSupply(t)) == 0)
+		// before balance - amount - gas cost
+		expectedBalance := new(big.Int).Sub(
+			new(big.Int).Sub(beforeBalance, amount),
+			new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice), // gas cost
+		)
+		require.True(t, expectedBalance.Cmp(g.BalanceOf(t, minter1.Address)) == 0)
+
+		// burn event
+		burnEvent := findEvent("Burn", receipt.Logs)
+		require.Equal(t, minter1.Address, burnEvent["burner"])
+		require.True(t, amount.Cmp(burnEvent["amount"].(*big.Int)) == 0)
+	})
+
+	t.Run("approve and transferFrom", func(t *testing.T) {
+		var (
+			owner, spender = testAccount2, testAccount1
+			approveAmount  = new(big.Int).Div(amount, big.NewInt(10))
+		)
+
+		// failure case - approve
+		{
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Approve(t, owner, common.Address{}, approveAmount)),
+				"NativeCoinAdapter: approve to the zero address",
+			)
+		}
+		_, err := g.ExpectedOk(g.Approve(t, owner, spender.Address, approveAmount))
+		require.NoError(t, err)
+
+		require.True(t, approveAmount.Cmp(g.Allowance(t, owner.Address, spender.Address)) == 0)
+
+		// failure case - transferFrom
+		{
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferFrom(t, minter1, owner.Address, spender.Address, approveAmount)),
+				"NativeCoinAdapter: transfer amount exceeds allowance",
+			)
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferFrom(t, spender, owner.Address, spender.Address, new(big.Int).Add(approveAmount, common.Big1))),
+				"NativeCoinAdapter: transfer amount exceeds allowance",
+			)
+		}
+		beforeBalanceAccount1 := g.BalanceOf(t, spender.Address)
+		beforeBalanceAccount2 := g.BalanceOf(t, owner.Address)
+
+		receipt, err := g.ExpectedOk(g.TransferFrom(t, spender, owner.Address, spender.Address, approveAmount))
+		require.NoError(t, err)
+
+		expectedBalanceAccount1 := new(big.Int).Sub(new(big.Int).Add(beforeBalanceAccount1, approveAmount), calcGasCost(receipt))
+		expectedBalanceAccount2 := new(big.Int).Sub(beforeBalanceAccount2, approveAmount)
+		require.True(t, expectedBalanceAccount1.Cmp(g.BalanceOf(t, spender.Address)) == 0)
+		require.True(t, expectedBalanceAccount2.Cmp(g.BalanceOf(t, owner.Address)) == 0)
+
+		// transfer event
+		transferEvent := findEvent("Transfer", receipt.Logs)
+		require.Equal(t, owner.Address, transferEvent["from"].(common.Address))
+		require.Equal(t, spender.Address, transferEvent["to"].(common.Address))
+		require.True(t, approveAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
+	})
+
+	t.Run("permit", func(t *testing.T) {
+		var (
+			owner, spender = testAccount2, testAccount1
+			approveAmount  = new(big.Int).Div(amount, big.NewInt(10))
+		)
+
+		permitSig, r, s, v := g.BuildPermitSig(t, owner, spender.Address, approveAmount, nil) // deadline == MAX_UINT_256
+		// permit by r,s,v
+		{
+			receipt, err := g.ExpectedOk(g.Permit(t, minter1, owner.Address, spender.Address, approveAmount, nil, v, r, s))
+			require.NoError(t, err)
+
+			require.True(t, approveAmount.Cmp(g.Allowance(t, owner.Address, spender.Address)) == 0)
+
+			// approval event
+			approvalEvent := findEvent("Approval", receipt.Logs)
+			require.Equal(t, owner.Address, approvalEvent["owner"].(common.Address))
+			require.Equal(t, spender.Address, approvalEvent["spender"].(common.Address))
+			require.True(t, approveAmount.Cmp(approvalEvent["value"].(*big.Int)) == 0)
+		}
+
+		block, err := g.backend.Client().BlockByNumber(ctx, nil)
+		require.NoError(t, err)
+		blockTime := new(big.Int).SetUint64(block.Time())
+
+		// failure case
+		{
+			// replay
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Permit(t, minter1, owner.Address, spender.Address, approveAmount, nil, permitSig)),
+				"NativeCoinAdapter: invalid signature (EIP2612)",
+			)
+
+			expectedFailSig, _, _, _ := g.BuildPermitSig(t, owner, spender.Address, approveAmount, blockTime)
+
+			// expired
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Permit(t, spender, owner.Address, spender.Address, approveAmount, blockTime, expectedFailSig)),
+				"NativeCoinAdapter: permit is expired",
+			)
+
+			// invalid deadline
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Permit(t, spender, owner.Address, spender.Address, approveAmount, nil, expectedFailSig)),
+				"NativeCoinAdapter: invalid signature (EIP2612)",
+			)
+		}
+
+		// permit by signature
+		{
+			newApporveAmount := new(big.Int).Mul(approveAmount, common.Big2)
+			deadline := new(big.Int).Add(blockTime, big.NewInt(86_400))
+			permitWithDeadlineSig, _, _, _ := g.BuildPermitSig(t, owner, spender.Address, newApporveAmount, deadline)
+
+			receipt, err := g.ExpectedOk(g.Permit(t, spender, owner.Address, spender.Address, newApporveAmount, deadline, permitWithDeadlineSig))
+			require.NoError(t, err)
+
+			require.True(t, newApporveAmount.Cmp(g.Allowance(t, owner.Address, spender.Address)) == 0)
+
+			// approval event
+			approvalEvent := findEvent("Approval", receipt.Logs)
+			require.Equal(t, owner.Address, approvalEvent["owner"].(common.Address))
+			require.Equal(t, spender.Address, approvalEvent["spender"].(common.Address))
+			require.True(t, newApporveAmount.Cmp(approvalEvent["value"].(*big.Int)) == 0)
+		}
+	})
+
+	t.Run("transfer with authorization", func(t *testing.T) {
+		var (
+			from, to       = testAccount1, testAccount2
+			transferAmount = new(big.Int).Div(amount, big.NewInt(10))
+		)
+
+		transferNonce := ToBytes32("transfer_1")
+		transferSig, r, s, v := g.BuildTransferWithAuthSig(t, from, to.Address, transferAmount, nil, nil, transferNonce) // 0 - MAX_UINT_256
+		// transfer by r,s,v
+		{
+			balnaceFrom := g.BalanceOf(t, from.Address)
+			balnaceTo := g.BalanceOf(t, to.Address)
+
+			receipt, err := g.ExpectedOk(
+				g.TransferWithAuthorization(t, minter1, from.Address, to.Address, transferAmount, nil, nil, transferNonce, v, r, s),
+			)
+			require.NoError(t, err)
+
+			require.True(t, new(big.Int).Sub(balnaceFrom, transferAmount).Cmp(g.BalanceOf(t, from.Address)) == 0)
+			require.True(t, new(big.Int).Add(balnaceTo, transferAmount).Cmp(g.BalanceOf(t, to.Address)) == 0)
+
+			// approval event
+			approvalEvent := findEvent("Transfer", receipt.Logs)
+			require.Equal(t, from.Address, approvalEvent["from"].(common.Address))
+			require.Equal(t, to.Address, approvalEvent["to"].(common.Address))
+			require.True(t, transferAmount.Cmp(approvalEvent["value"].(*big.Int)) == 0)
+		}
+
+		// failure case
+		{
+			// replay
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferWithAuthorization(t, minter1, from.Address, to.Address, transferAmount, nil, nil, transferNonce, transferSig)),
+				"NativeCoinAdapter: authorization is used or canceled",
+			)
+
+			block, err := g.backend.Client().BlockByNumber(ctx, nil)
+			require.NoError(t, err)
+
+			expectedFailNonce := ToBytes32("failed")
+			validAfter := new(big.Int).SetUint64(block.Time() + 10)
+			validBefore := new(big.Int).SetUint64(block.Time() + 100)
+			expectedFailSig, _, _, _ := g.BuildTransferWithAuthSig(t, from, to.Address, transferAmount, validAfter, validBefore, expectedFailNonce)
+
+			// not yet valid
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferWithAuthorization(t, minter1, from.Address, to.Address, transferAmount, validAfter, validBefore, expectedFailNonce, expectedFailSig)),
+				"NativeCoinAdapter: authorization is not yet valid",
+			)
+
+			g.AdjustTime(10 * time.Second)
+
+			// invalid signature - invalid to.address
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferWithAuthorization(t, minter1, from.Address, minter1.Address, transferAmount, validAfter, validBefore, expectedFailNonce, expectedFailSig)),
+				"NativeCoinAdapter: invalid signature (EIP3009)",
+			)
+
+			g.AdjustTime(150 * time.Second)
+			// expired
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferWithAuthorization(t, minter1, from.Address, to.Address, transferAmount, validAfter, validBefore, expectedFailNonce, expectedFailSig)),
+				"NativeCoinAdapter: authorization is expired",
+			)
+		}
+
+		// transfer by signature
+		{
+			block, err := g.backend.Client().BlockByNumber(ctx, nil)
+			require.NoError(t, err)
+
+			transferNonce = ToBytes32("transfer_2")
+			validAfter := new(big.Int).SetUint64(block.Time())
+			validBefore := new(big.Int).SetUint64(block.Time() + 100)
+			transferSig, _, _, _ = g.BuildTransferWithAuthSig(t, from, to.Address, transferAmount, validAfter, validBefore, transferNonce)
+
+			balnaceFrom := g.BalanceOf(t, from.Address)
+			balnaceTo := g.BalanceOf(t, to.Address)
+
+			receipt, err := g.ExpectedOk(g.TransferWithAuthorization(t, minter1, from.Address, to.Address, transferAmount, validAfter, validBefore, transferNonce, transferSig))
+			require.NoError(t, err)
+
+			require.True(t, new(big.Int).Sub(balnaceFrom, transferAmount).Cmp(g.BalanceOf(t, from.Address)) == 0)
+			require.True(t, new(big.Int).Add(balnaceTo, transferAmount).Cmp(g.BalanceOf(t, to.Address)) == 0)
+
+			// transfer event
+			transferEvent := findEvent("Transfer", receipt.Logs)
+			require.Equal(t, from.Address, transferEvent["from"].(common.Address))
+			require.Equal(t, to.Address, transferEvent["to"].(common.Address))
+			require.True(t, transferAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
+		}
+	})
+
+	t.Run("receive with authorization", func(t *testing.T) {
+		var (
+			from, to       = testAccount1, testAccount2
+			transferAmount = new(big.Int).Div(amount, big.NewInt(10))
+		)
+
+		receiveNonce := ToBytes32("receive_1")
+		receiveSig, r, s, v := g.BuildReceiveWithAuthSig(t, from, to.Address, transferAmount, nil, nil, receiveNonce) // 0 - MAX_UINT_256
+		// receive by r,s,v
+		{
+			balnaceFrom := g.BalanceOf(t, from.Address)
+			balnaceTo := g.BalanceOf(t, to.Address)
+
+			receipt, err := g.ExpectedOk(
+				g.ReceiveWithAuthorization(t, to, from.Address, transferAmount, nil, nil, receiveNonce, v, r, s),
+			)
+			require.NoError(t, err)
+
+			require.True(t, new(big.Int).Sub(balnaceFrom, transferAmount).Cmp(g.BalanceOf(t, from.Address)) == 0)
+			expectedBalance := new(big.Int).Sub(new(big.Int).Add(balnaceTo, transferAmount), calcGasCost(receipt))
+			require.True(t, expectedBalance.Cmp(g.BalanceOf(t, to.Address)) == 0)
+
+			// approval event
+			approvalEvent := findEvent("Transfer", receipt.Logs)
+			require.Equal(t, from.Address, approvalEvent["from"].(common.Address))
+			require.Equal(t, to.Address, approvalEvent["to"].(common.Address))
+			require.True(t, transferAmount.Cmp(approvalEvent["value"].(*big.Int)) == 0)
+		}
+
+		// failure case
+		{
+			// replay
+			ExpectedRevert(t,
+				g.ExpectedFail(g.ReceiveWithAuthorization(t, to, from.Address, transferAmount, nil, nil, receiveNonce, receiveSig)),
+				"NativeCoinAdapter: authorization is used or canceled",
+			)
+
+			block, err := g.backend.Client().BlockByNumber(ctx, nil)
+			require.NoError(t, err)
+
+			expectedFailNonce := ToBytes32("failed")
+			validAfter := new(big.Int).SetUint64(block.Time() + 10)
+			validBefore := new(big.Int).SetUint64(block.Time() + 100)
+			expectedFailSig, _, _, _ := g.BuildReceiveWithAuthSig(t, from, to.Address, transferAmount, validAfter, validBefore, expectedFailNonce)
+
+			// not yet valid
+			ExpectedRevert(t,
+				g.ExpectedFail(g.ReceiveWithAuthorization(t, to, from.Address, transferAmount, validAfter, validBefore, expectedFailNonce, expectedFailSig)),
+				"NativeCoinAdapter: authorization is not yet valid",
+			)
+
+			g.AdjustTime(10 * time.Second)
+
+			// msg.sender != to.address
+			ExpectedRevert(t,
+				g.ExpectedFail(g.coinAdapter.Transact(
+					NewTxOpts(t, minter1),
+					"receiveWithAuthorization",
+					from.Address,
+					to.Address,
+					transferAmount,
+					validAfter,
+					validBefore,
+					expectedFailNonce,
+					expectedFailSig,
+				)),
+				"NativeCoinAdapter: caller must be the payee",
+			)
+
+			// invalid signature
+			ExpectedRevert(t,
+				g.ExpectedFail(g.ReceiveWithAuthorization(t, minter1, from.Address, transferAmount, validAfter, validBefore, expectedFailNonce, expectedFailSig)),
+				"NativeCoinAdapter: invalid signature (EIP3009)",
+			)
+
+			g.AdjustTime(150 * time.Second)
+			// expired
+			ExpectedRevert(t,
+				g.ExpectedFail(g.ReceiveWithAuthorization(t, to, from.Address, transferAmount, validAfter, validBefore, expectedFailNonce, expectedFailSig)),
+				"NativeCoinAdapter: authorization is expired",
+			)
+		}
+
+		// receive by signature
+		{
+			block, err := g.backend.Client().BlockByNumber(ctx, nil)
+			require.NoError(t, err)
+
+			receiveNonce = ToBytes32("receive_2")
+			validAfter := new(big.Int).SetUint64(block.Time())
+			validBefore := new(big.Int).SetUint64(block.Time() + 100)
+			receiveSig, _, _, _ = g.BuildReceiveWithAuthSig(t, from, to.Address, transferAmount, validAfter, validBefore, receiveNonce)
+
+			balnaceFrom := g.BalanceOf(t, from.Address)
+			balnaceTo := g.BalanceOf(t, to.Address)
+
+			receipt, err := g.ExpectedOk(
+				g.ReceiveWithAuthorization(t, to, from.Address, transferAmount, validAfter, validBefore, receiveNonce, receiveSig),
+			)
+			require.NoError(t, err)
+
+			require.True(t, new(big.Int).Sub(balnaceFrom, transferAmount).Cmp(g.BalanceOf(t, from.Address)) == 0)
+			expectedBalance := new(big.Int).Sub(new(big.Int).Add(balnaceTo, transferAmount), calcGasCost(receipt))
+			require.True(t, expectedBalance.Cmp(g.BalanceOf(t, to.Address)) == 0)
+
+			// transfer event
+			transferEvent := findEvent("Transfer", receipt.Logs)
+			require.Equal(t, from.Address, transferEvent["from"].(common.Address))
+			require.Equal(t, to.Address, transferEvent["to"].(common.Address))
+			require.True(t, transferAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
+		}
+	})
+
+	t.Run("cancel authorization", func(t *testing.T) {
+		var (
+			from, to       = testAccount1, testAccount2
+			transferAmount = new(big.Int).Div(amount, big.NewInt(10))
+		)
+
+		cancelNonce := ToBytes32("cancel_1")
+		cancelSig, r, s, v := g.BuildCancelAuthSig(t, from, cancelNonce)
+		// cancel by v, r, s
+		{
+			_, err := g.ExpectedOk(g.CancelAuthorization(t, from, from.Address, cancelNonce, v, r, s))
+			require.NoError(t, err)
+
+			transferSig, _, _, _ := g.BuildTransferWithAuthSig(t, from, to.Address, transferAmount, nil, nil, cancelNonce) // 0 - MAX_UINT_256
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferWithAuthorization(t, to, from.Address, to.Address, transferAmount, nil, nil, cancelNonce, transferSig)),
+				"NativeCoinAdapter: authorization is used or canceled",
+			)
+		}
+
+		// failure case
+		{
+			// replay
+			ExpectedRevert(t,
+				g.ExpectedFail(g.CancelAuthorization(t, from, from.Address, cancelNonce, cancelSig)),
+				"NativeCoinAdapter: authorization is used or canceled",
+			)
+
+			expectedFailNonce := ToBytes32("expectedFail")
+			transferSig, _, _, _ := g.BuildTransferWithAuthSig(t, from, to.Address, transferAmount, nil, nil, expectedFailNonce) // 0 - MAX_UINT_256
+			expectedFailSig, _, _, _ := g.BuildCancelAuthSig(t, from, cancelNonce)
+
+			// invalid signature - mismatched nonce
+			ExpectedRevert(t,
+				g.ExpectedFail(g.CancelAuthorization(t, from, from.Address, ToBytes32("mismatched nonce"), expectedFailSig)),
+				"NativeCoinAdapter: invalid signature (EIP3009)",
+			)
+
+			// invalid signature - mismatched authorizer
+			ExpectedRevert(t,
+				g.ExpectedFail(g.CancelAuthorization(t, from, to.Address, expectedFailNonce, expectedFailSig)),
+				"NativeCoinAdapter: invalid signature (EIP3009)",
+			)
+
+			// transfer
+			{
+				balnaceFrom := g.BalanceOf(t, from.Address)
+				balnaceTo := g.BalanceOf(t, to.Address)
+
+				receipt, err := g.ExpectedOk(g.TransferWithAuthorization(t, minter1, from.Address, to.Address, transferAmount, nil, nil, expectedFailNonce, transferSig))
+				require.NoError(t, err)
+
+				require.True(t, new(big.Int).Sub(balnaceFrom, transferAmount).Cmp(g.BalanceOf(t, from.Address)) == 0)
+				require.True(t, new(big.Int).Add(balnaceTo, transferAmount).Cmp(g.BalanceOf(t, to.Address)) == 0)
+
+				// transfer event
+				transferEvent := findEvent("Transfer", receipt.Logs)
+				require.Equal(t, from.Address, transferEvent["from"].(common.Address))
+				require.Equal(t, to.Address, transferEvent["to"].(common.Address))
+				require.True(t, transferAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
+			}
+
+			// already used
+			ExpectedRevert(t,
+				g.ExpectedFail(g.CancelAuthorization(t, from, from.Address, expectedFailNonce, expectedFailSig)),
+				"NativeCoinAdapter: authorization is used or canceled",
+			)
+		}
+
+		// cancel by signature
+		{
+			cancelNonce := ToBytes32("cancel_2")
+			cancelSig, _, _, _ := g.BuildCancelAuthSig(t, from, cancelNonce)
+
+			_, err := g.ExpectedOk(g.CancelAuthorization(t, from, from.Address, cancelNonce, cancelSig))
+			require.NoError(t, err)
+
+			transferSig, _, _, _ := g.BuildReceiveWithAuthSig(t, from, to.Address, transferAmount, nil, nil, cancelNonce) // 0 - MAX_UINT_256
+			ExpectedRevert(t,
+				g.ExpectedFail(g.ReceiveWithAuthorization(t, to, from.Address, transferAmount, nil, nil, cancelNonce, transferSig)),
+				"NativeCoinAdapter: authorization is used or canceled",
+			)
+		}
+	})
+
+	t.Run("manage minter", func(t *testing.T) {
+		// beforeTotalSupply := g.TotalSupply(t)
+		beforeAllowance := g.MinterAllowance(t, minter1.Address)
+		newAllowance := new(big.Int).Add(beforeAllowance, allowedAmount)
+
+		// configure minter - registered minter
+		{
+			ExpectedRevert(t,
+				g.ExpectedFail(g.ConfigureMinter(t, minter1, minter1.Address, newAllowance)),
+				"NativeCoinAdapter: caller is not the masterMinter",
+			)
+
+			_, err := g.ExpectedOk(g.ConfigureMinter(t, masterMinter, minter1.Address, newAllowance))
+			require.NoError(t, err)
+			require.True(t, newAllowance.Cmp(g.MinterAllowance(t, minter1.Address)) == 0)
+		}
+
+		// configure minter - new minter
+		{
+			newMinter := NewEOA()
+			require.False(t, g.IsMinter(t, newMinter.Address))
+			require.True(t, g.MinterAllowance(t, newMinter.Address).Sign() == 0)
+
+			_, err := g.ExpectedOk(g.ConfigureMinter(t, masterMinter, newMinter.Address, newAllowance))
+			require.NoError(t, err)
+
+			require.True(t, g.IsMinter(t, newMinter.Address))
+			require.True(t, newAllowance.Cmp(g.MinterAllowance(t, newMinter.Address)) == 0)
+		}
+
+		// remove minter
+		{
+			ExpectedRevert(t,
+				g.ExpectedFail(g.RemoveMinter(t, minter1, minter1.Address)),
+				"NativeCoinAdapter: caller is not the masterMinter",
+			)
+
+			_, err := g.ExpectedOk(g.RemoveMinter(t, masterMinter, minter1.Address))
+			require.NoError(t, err)
+
+			require.False(t, g.IsMinter(t, minter1.Address))
+			require.True(t, g.MinterAllowance(t, minter1.Address).Sign() == 0)
+		}
 	})
 }
-
-func (g *GovWBFT) BalanceOf(t *testing.T, address common.Address) *big.Int {
-	return contractCall(t, g.coinAdapter, "balanceOf", address)[0].(*big.Int)
-}
-
-// Additional tests to consider implementing:
-// - mint/burn operations
-// - mint allowance management
-// - add/remove minter
-// - permit (EIP-2612)
-// - transferWithAuthorization (EIP-3009)
