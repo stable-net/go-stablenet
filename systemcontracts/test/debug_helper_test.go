@@ -1,10 +1,11 @@
 package test
 
 import (
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDebugAddress(t *testing.T) {

@@ -128,4 +128,3 @@ func TestProposeMint_DuplicateProofHash(t *testing.T) {
 
 	t.Logf("✓ Proof hash replay attack prevented: same proof cannot be reused")
 }
-

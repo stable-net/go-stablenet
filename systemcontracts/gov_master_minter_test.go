@@ -33,10 +33,10 @@ func TestInitializeMasterMinter(t *testing.T) {
 
 	t.Run("initialize with fiatToken and default maxMinterAllowance", func(t *testing.T) {
 		params := map[string]string{
-			GOV_BASE_PARAM_MEMBERS:        member1.Hex() + "," + member2.Hex(),
-			GOV_BASE_PARAM_QUORUM:         "2",
-			GOV_BASE_PARAM_EXPIRY:         "604800",
-			GOV_BASE_PARAM_MEMBER_VERSION: "1",
+			GOV_BASE_PARAM_MEMBERS:             member1.Hex() + "," + member2.Hex(),
+			GOV_BASE_PARAM_QUORUM:              "2",
+			GOV_BASE_PARAM_EXPIRY:              "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:      "1",
 			GOV_MASTER_MINTER_PARAM_FIAT_TOKEN: fiatTokenAddr.Hex(),
 		}
 
@@ -66,11 +66,11 @@ func TestInitializeMasterMinter(t *testing.T) {
 	t.Run("initialize with custom maxMinterAllowance", func(t *testing.T) {
 		customAllowance := "5000000000000000000000000000" // 5B tokens with 18 decimals
 		params := map[string]string{
-			GOV_BASE_PARAM_MEMBERS:                      member1.Hex(),
-			GOV_BASE_PARAM_QUORUM:                       "1",
-			GOV_BASE_PARAM_EXPIRY:                       "604800",
-			GOV_BASE_PARAM_MEMBER_VERSION:               "1",
-			GOV_MASTER_MINTER_PARAM_FIAT_TOKEN:          fiatTokenAddr.Hex(),
+			GOV_BASE_PARAM_MEMBERS:                       member1.Hex(),
+			GOV_BASE_PARAM_QUORUM:                        "1",
+			GOV_BASE_PARAM_EXPIRY:                        "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:                "1",
+			GOV_MASTER_MINTER_PARAM_FIAT_TOKEN:           fiatTokenAddr.Hex(),
 			GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE: customAllowance,
 		}
 
@@ -123,10 +123,10 @@ func TestInitializeMasterMinter(t *testing.T) {
 
 	t.Run("initialize with invalid fiatToken address", func(t *testing.T) {
 		params := map[string]string{
-			GOV_BASE_PARAM_MEMBERS:        member1.Hex(),
-			GOV_BASE_PARAM_QUORUM:         "1",
-			GOV_BASE_PARAM_EXPIRY:         "604800",
-			GOV_BASE_PARAM_MEMBER_VERSION: "1",
+			GOV_BASE_PARAM_MEMBERS:             member1.Hex(),
+			GOV_BASE_PARAM_QUORUM:              "1",
+			GOV_BASE_PARAM_EXPIRY:              "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:      "1",
 			GOV_MASTER_MINTER_PARAM_FIAT_TOKEN: "0x0000000000000000000000000000000000000000",
 		}
 
@@ -138,10 +138,10 @@ func TestInitializeMasterMinter(t *testing.T) {
 
 	t.Run("initialize with invalid maxMinterAllowance format", func(t *testing.T) {
 		params := map[string]string{
-			GOV_BASE_PARAM_MEMBERS:                      member1.Hex(),
-			GOV_BASE_PARAM_QUORUM:                       "1",
-			GOV_BASE_PARAM_EXPIRY:                       "604800",
-			GOV_BASE_PARAM_MEMBER_VERSION:               "1",
+			GOV_BASE_PARAM_MEMBERS:                       member1.Hex(),
+			GOV_BASE_PARAM_QUORUM:                        "1",
+			GOV_BASE_PARAM_EXPIRY:                        "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:                "1",
 			GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE: "invalid_number",
 		}
 
@@ -153,10 +153,10 @@ func TestInitializeMasterMinter(t *testing.T) {
 
 	t.Run("initialize with zero maxMinterAllowance", func(t *testing.T) {
 		params := map[string]string{
-			GOV_BASE_PARAM_MEMBERS:                      member1.Hex(),
-			GOV_BASE_PARAM_QUORUM:                       "1",
-			GOV_BASE_PARAM_EXPIRY:                       "604800",
-			GOV_BASE_PARAM_MEMBER_VERSION:               "1",
+			GOV_BASE_PARAM_MEMBERS:                       member1.Hex(),
+			GOV_BASE_PARAM_QUORUM:                        "1",
+			GOV_BASE_PARAM_EXPIRY:                        "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:                "1",
 			GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE: "0",
 		}
 
@@ -168,10 +168,10 @@ func TestInitializeMasterMinter(t *testing.T) {
 
 	t.Run("initialize with negative maxMinterAllowance", func(t *testing.T) {
 		params := map[string]string{
-			GOV_BASE_PARAM_MEMBERS:                      member1.Hex(),
-			GOV_BASE_PARAM_QUORUM:                       "1",
-			GOV_BASE_PARAM_EXPIRY:                       "604800",
-			GOV_BASE_PARAM_MEMBER_VERSION:               "1",
+			GOV_BASE_PARAM_MEMBERS:                       member1.Hex(),
+			GOV_BASE_PARAM_QUORUM:                        "1",
+			GOV_BASE_PARAM_EXPIRY:                        "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:                "1",
 			GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE: "-1000",
 		}
 

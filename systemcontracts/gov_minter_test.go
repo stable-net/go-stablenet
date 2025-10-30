@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -51,13 +50,6 @@ func (m *mockStateReader) SetState(addr common.Address, key common.Hash, value c
 		m.storage[addr] = make(map[common.Hash]common.Hash)
 	}
 	m.storage[addr][key] = value
-}
-
-// applyStateParams applies state parameters to mock state reader
-func (m *mockStateReader) applyStateParams(params []params.StateParam) {
-	for _, param := range params {
-		m.SetState(param.Address, param.Key, param.Value)
-	}
 }
 
 func TestInitializeMinter(t *testing.T) {

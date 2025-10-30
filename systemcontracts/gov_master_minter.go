@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	GOV_MASTER_MINTER_PARAM_FIAT_TOKEN         = "fiatToken"
+	GOV_MASTER_MINTER_PARAM_FIAT_TOKEN           = "fiatToken"
 	GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE = "maxMinterAllowance"
 
 	// GovMasterMinter Storage Layout (extends GovBaseV2):

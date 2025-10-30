@@ -164,8 +164,8 @@ func TestChangeMember_MultipleChanges(t *testing.T) {
 		customValidators[0].Operator.Address: {Balance: towei(1_000_000)},
 		customValidators[1].Operator.Address: {Balance: towei(1_000_000)},
 		customValidators[2].Operator.Address: {Balance: towei(1_000_000)},
-		newAddress1.Address:                   {Balance: towei(1_000_000)},
-		newAddress2.Address:                   {Balance: towei(1_000_000)},
+		newAddress1.Address:                  {Balance: towei(1_000_000)},
+		newAddress2.Address:                  {Balance: towei(1_000_000)},
 	}, func(govValidator *params.SystemContract) {
 		var members string
 		for i, v := range customValidators {

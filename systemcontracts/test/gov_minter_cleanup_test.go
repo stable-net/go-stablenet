@@ -151,6 +151,7 @@ func TestGovMinter_CleanupOnExpiredDuringVote(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedAfterExpiry.Cmp(big.NewInt(0)), "Reservation should be cleaned up after expiry")
 }
+
 // Test 4: Failed proposal should cleanup reservation
 func TestGovMinter_CleanupOnFailed(t *testing.T) {
 	initGovMinter(t)
