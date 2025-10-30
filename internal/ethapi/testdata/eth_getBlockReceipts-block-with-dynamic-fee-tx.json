@@ -1,10 +1,10 @@
 [
   {
-    "blockHash": "0xfba0602d8b16c67aa76745efd2428fe2b595195d42c01d851d11a8870e880a8d",
+    "blockHash": "0x35e2316586e4f1c30cb5703772988d915e5450c5dc79503651ebc953e84a0ac6",
     "blockNumber": "0x4",
     "contractAddress": null,
     "cumulativeGasUsed": "0x538d",
-    "effectiveGasPrice": "0x48c273951f4",
+    "effectiveGasPrice": "0x9184e72a000",
     "from": "0x703c4b2bd70c169f5717101caee543299fc946c7",
     "gasUsed": "0x538d",
     "logs": [],

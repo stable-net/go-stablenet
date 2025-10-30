@@ -366,6 +366,7 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 			wbftengine.WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
 			wbftengine.WriteGasTip(tip))
 
+		sb.Engine().SetGasTip(tip)
 		return nil
 
 	case "SetMixDigest":

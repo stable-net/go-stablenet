@@ -655,7 +655,9 @@ func TestEstimateGas(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &accounts[1].addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: b.BaseFee(), Data: nil}), signer, accounts[0].key)
+		fee := new(big.Int).Add(b.BaseFee(), big.NewInt(int64(params.InitialGasTip)))
+		fmt.Println("fee", fee)
+		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &accounts[1].addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: fee, Data: nil}), signer, accounts[0].key)
 		b.SetCoinbase(nodeAddr) // WBFT matters who is coinbase
 		b.AddTx(tx)
 	}))
