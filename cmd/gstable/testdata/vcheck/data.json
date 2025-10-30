@@ -13,13 +13,13 @@
     "fixed": "v1.9.24",
     "published": "2020-11-12",
     "severity": "Medium",
-    "check": "Gstable\\/v1\\.(6|7|8)\\..*|Gstable\\/v1\\.9\\.2(1|2|3)-.*"
+    "check": "Geth\\/v1\\.(6|7|8)\\..*|Geth\\/v1\\.9\\.2(1|2|3)-.*"
   },
   {
     "name": "GoCrash",
     "uid": "GETH-2020-02",
-    "summary": "A denial-of-service issue can be used to crash Gstable nodes during block processing, due to an underlying bug in Go (CVE-2020-28362) versions < `1.15.5`, or `<1.14.12`",
-    "description": "The DoS issue can be used to crash all Gstable nodes during block processing, the effects of which would be that a major part of the Ethereum network went offline.\n\nOutside of Go-Ethereum, the issue is most likely relevant for all forks of Gstable (such as TurboGstable or ETC’s core-geth) which is built with versions of Go which contains the vulnerability.",
+    "summary": "A denial-of-service issue can be used to crash Geth nodes during block processing, due to an underlying bug in Go (CVE-2020-28362) versions < `1.15.5`, or `<1.14.12`",
+    "description": "The DoS issue can be used to crash all Geth nodes during block processing, the effects of which would be that a major part of the Ethereum network went offline.\n\nOutside of Go-Ethereum, the issue is most likely relevant for all forks of Geth (such as TurboGeth or ETC’s core-geth) which is built with versions of Go which contains the vulnerability.",
     "links": [
       "https://blog.ethereum.org/2020/11/12/geth_security_release/",
       "https://groups.google.com/g/golang-announce/c/NpBGTTmKzpM",
@@ -28,13 +28,13 @@
     "fixed": "v1.9.24",
     "published": "2020-11-12",
     "severity": "Critical",
-    "check": "Gstable.*\\/go1\\.(11(.*)|12(.*)|13(.*)|14|14\\.(\\d|10|11|)|15|15\\.[0-4])$"
+    "check": "Geth.*\\/go1\\.(11(.*)|12(.*)|13(.*)|14|14\\.(\\d|10|11|)|15|15\\.[0-4])$"
   },
   {
     "name": "ShallowCopy",
     "uid": "GETH-2020-03",
-    "summary": "A consensus flaw in Gstable, related to `datacopy` precompile",
-    "description": "Gstable erroneously performed a 'shallow' copy when the precompiled `datacopy` (at `0x00...04`) was invoked. An attacker could deploy a contract that uses the shallow copy to corrupt the contents of the `RETURNDATA`, thus causing a consensus failure.",
+    "summary": "A consensus flaw in Geth, related to `datacopy` precompile",
+    "description": "Geth erroneously performed a 'shallow' copy when the precompiled `datacopy` (at `0x00...04`) was invoked. An attacker could deploy a contract that uses the shallow copy to corrupt the contents of the `RETURNDATA`, thus causing a consensus failure.",
     "links": [
       "https://blog.ethereum.org/2020/11/12/geth_security_release/"
     ],
@@ -42,12 +42,12 @@
     "fixed": "v1.9.17",
     "published": "2020-11-12",
     "severity": "Critical",
-    "check": "Gstable\\/v1\\.9\\.(7|8|9|10|11|12|13|14|15|16).*$"
+    "check": "Geth\\/v1\\.9\\.(7|8|9|10|11|12|13|14|15|16).*$"
   },
   {
-    "name": "GstableCrash",
+    "name": "GethCrash",
     "uid": "GETH-2020-04",
-    "summary": "A denial-of-service issue can be used to crash Gstable nodes during block processing",
+    "summary": "A denial-of-service issue can be used to crash Geth nodes during block processing",
     "description": "Full details to be disclosed at a later date",
     "links": [
       "https://blog.ethereum.org/2020/11/12/geth_security_release/"
@@ -56,6 +56,6 @@
     "fixed": "v1.9.18",
     "published": "2020-11-12",
     "severity": "Critical",
-    "check": "Gstable\\/v1\\.9.(16|17).*$"
+    "check": "Geth\\/v1\\.9.(16|17).*$"
   }
 ]
