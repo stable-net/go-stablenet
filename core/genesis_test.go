@@ -392,12 +392,12 @@ func TestSetGenesisBlockBaseFee(t *testing.T) {
 		},
 		{
 			baseFee:  big.NewInt(params.InitialBaseFee),
-			config:   params.StableOneMainnetChainConfig,
+			config:   params.StableNetMainnetChainConfig,
 			expected: new(big.Int).SetUint64(params.MinBaseFee),
 		},
 		{
 			baseFee:  nil,
-			config:   params.StableOneMainnetChainConfig,
+			config:   params.StableNetTestnetChainConfig,
 			expected: new(big.Int).SetUint64(params.MinBaseFee),
 		},
 	}
