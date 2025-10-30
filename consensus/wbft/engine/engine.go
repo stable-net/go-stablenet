@@ -803,7 +803,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 		candi := PoweredCandidate{
 			Addr:      c.Addr,
 			Diligence: c.Diligence,
-			Power:     big.NewInt(1), // Each validator has the same power in Stable-One
+			Power:     big.NewInt(1), // Each validator has the same power in StableNet
 		}
 		poweredCandidates = append(poweredCandidates, candi)
 	}

@@ -82,17 +82,17 @@ func testSetupGenesis(t *testing.T, scheme string) {
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
 				return SetupGenesisBlock(db, triedb.NewDatabase(db, newDbConfig(scheme)), nil)
 			},
-			wantHash:   params.StableOneMainnetGenesisHash,
-			wantConfig: params.StableOneMainnetChainConfig,
+			wantHash:   params.StableNetMainnetGenesisHash,
+			wantConfig: params.StableNetMainnetChainConfig,
 		},
 		{
 			name: "mainnet block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				DefaultStableOneMainnetGenesisBlock().MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
+				DefaultStableNetMainnetGenesisBlock().MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
 				return SetupGenesisBlock(db, triedb.NewDatabase(db, newDbConfig(scheme)), nil)
 			},
-			wantHash:   params.StableOneMainnetGenesisHash,
-			wantConfig: params.StableOneMainnetChainConfig,
+			wantHash:   params.StableNetMainnetGenesisHash,
+			wantConfig: params.StableNetMainnetChainConfig,
 		},
 		{
 			name: "custom block in DB, genesis == nil",
@@ -199,15 +199,15 @@ func TestGenesisHashes(t *testing.T) {
 	}
 }
 
-// TestStableOneGenesisHashes checks the congruity of default genesis data to
+// TestStableNetGenesisHashes checks the congruity of default genesis data to
 // corresponding hardcoded genesis hash values.
-func TestStableOneGenesisHashes(t *testing.T) {
+func TestStableNetGenesisHashes(t *testing.T) {
 	for i, c := range []struct {
 		genesis *Genesis
 		want    common.Hash
 	}{
-		{DefaultStableOneMainnetGenesisBlock(), params.StableOneMainnetGenesisHash},
-		{DefaultStableOneTestnetGenesisBlock(), params.StableOneTestnetGenesisHash},
+		{DefaultStableNetMainnetGenesisBlock(), params.StableNetMainnetGenesisHash},
+		{DefaultStableNetTestnetGenesisBlock(), params.StableNetTestnetGenesisHash},
 	} {
 		// Test via MustCommit
 		db := rawdb.NewMemoryDatabase()
@@ -349,10 +349,10 @@ func TestVerkleGenesisCommit(t *testing.T) {
 	}
 }
 
-func TestGenerateStableOneGenesisJson(t *testing.T) {
+func TestGenerateStableNetGenesisJson(t *testing.T) {
 	genesis := &Genesis{
 		BaseFee:    big.NewInt(params.InitialBaseFee),
-		Config:     params.StableOneMainnetChainConfig,
+		Config:     params.StableNetMainnetChainConfig,
 		Timestamp:  0,
 		Difficulty: big.NewInt(0),
 	}
@@ -360,16 +360,16 @@ func TestGenerateStableOneGenesisJson(t *testing.T) {
 	db := rawdb.NewMemoryDatabase()
 	SetupGenesisBlock(db, triedb.NewDatabase(db, triedb.HashDefaults), genesis)
 	genesisJson, _ := genesis.MarshalJSON()
-	t.Logf("StableOne Mainnet genesis json: %s", genesisJson)
+	t.Logf("StableNet Mainnet genesis json: %s", genesisJson)
 
 	genesis = &Genesis{
 		BaseFee:    big.NewInt(params.InitialBaseFee),
-		Config:     params.StableOneTestnetChainConfig,
+		Config:     params.StableNetTestnetChainConfig,
 		Timestamp:  0,
 		Difficulty: big.NewInt(0),
 	}
 	db = rawdb.NewMemoryDatabase()
 	SetupGenesisBlock(db, triedb.NewDatabase(db, triedb.HashDefaults), genesis)
 	genesisJson, _ = genesis.MarshalJSON()
-	t.Logf("StableOne Testnet genesis json: %s", genesisJson)
+	t.Logf("StableNet Testnet genesis json: %s", genesisJson)
 }

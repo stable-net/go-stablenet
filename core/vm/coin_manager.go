@@ -1,5 +1,5 @@
 // Copyright 2025 The go-wemix-wbft Authors
-// This file is part of the stable-one library.
+// This file is part of the go-stablenet library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by

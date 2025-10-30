@@ -86,7 +86,7 @@ func (g *genesisGenerator) makeGenesis() {
 	// Figure out which consensus engine to choose
 	fmt.Println()
 	fmt.Println("Which consensus engine to use? (default = Anzeon)")
-	fmt.Println(" 1. Anzeon (WBFT for StableOne)")
+	fmt.Println(" 1. Anzeon (WBFT for StableNet)")
 	fmt.Println(" 2. Ethash (proof-of-work)")
 	fmt.Println(" 3. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)")
 	fmt.Println(" 4. Clique (proof-of-authority)")
