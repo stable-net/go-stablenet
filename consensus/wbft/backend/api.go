@@ -288,6 +288,11 @@ func DecodeVanityData(vanity []byte) string {
 
 	err := rlp.DecodeBytes(clean, &val)
 	versionBytes := val[0].([]uint8)
+	if len(versionBytes) < 3 {
+		tempBytes := make([]uint8, 3)
+		copy(tempBytes[3-len(versionBytes):], versionBytes)
+		versionBytes = tempBytes
+	}
 	version := uint32(versionBytes[0])<<16 | uint32(versionBytes[1])<<8 | uint32(versionBytes[2])
 	if err == nil && version > 0 {
 		major, minor, patch := versionBytes[0], versionBytes[1], versionBytes[2]

@@ -91,14 +91,14 @@ type ethstatsConfig struct {
 	URL string `toml:",omitempty"`
 }
 
-type gethConfig struct {
+type gstableConfig struct {
 	Eth      ethconfig.Config
 	Node     node.Config
 	Ethstats ethstatsConfig
 	Metrics  metrics.Config
 }
 
-func loadConfig(file string, cfg *gethConfig) error {
+func loadConfig(file string, cfg *gstableConfig) error {
 	f, err := os.Open(file)
 	if err != nil {
 		return err
@@ -121,15 +121,15 @@ func defaultNodeConfig() node.Config {
 	cfg.Version = params.VersionWithCommit(git.Commit, git.Date)
 	cfg.HTTPModules = append(cfg.HTTPModules, "eth")
 	cfg.WSModules = append(cfg.WSModules, "eth")
-	cfg.IPCPath = "geth.ipc"
+	cfg.IPCPath = "gstable.ipc"
 	return cfg
 }
 
-// loadBaseConfig loads the gethConfig based on the given command line
+// loadBaseConfig loads the gstableConfig based on the given command line
 // parameters and config file.
-func loadBaseConfig(ctx *cli.Context) gethConfig {
+func loadBaseConfig(ctx *cli.Context) gstableConfig {
 	// Load defaults.
-	cfg := gethConfig{
+	cfg := gstableConfig{
 		Eth:     ethconfig.Defaults,
 		Node:    defaultNodeConfig(),
 		Metrics: metrics.DefaultConfig,
@@ -148,7 +148,7 @@ func loadBaseConfig(ctx *cli.Context) gethConfig {
 }
 
 // makeConfigNode loads geth configuration and creates a blank node instance.
-func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
+func makeConfigNode(ctx *cli.Context) (*node.Node, gstableConfig) {
 	cfg := loadBaseConfig(ctx)
 	stack, err := node.New(&cfg.Node)
 	if err != nil {
@@ -265,7 +265,7 @@ func dumpConfig(ctx *cli.Context) error {
 	return nil
 }
 
-func applyMetricConfig(ctx *cli.Context, cfg *gethConfig) {
+func applyMetricConfig(ctx *cli.Context, cfg *gstableConfig) {
 	if ctx.IsSet(utils.MetricsEnabledFlag.Name) {
 		cfg.Metrics.Enabled = ctx.Bool(utils.MetricsEnabledFlag.Name)
 	}

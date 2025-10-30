@@ -4,7 +4,7 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * Modifications Copyright 2025 The stable-one Authors
+ * Modifications Copyright 2025 The go-stablenet Authors
  *
  * Original code based on: https://github.com/circlefin/stablecoin-evm/tree/c8c31b249341bf3ffb2e8dbff41977c392a260c5/contracts
  *

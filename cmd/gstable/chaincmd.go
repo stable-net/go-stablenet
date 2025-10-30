@@ -162,7 +162,7 @@ into Era archives. Eras are typically packaged in steps of 8192 blocks.
 		}, utils.DatabaseFlags),
 		Description: `
 The import-preimages command imports hash preimages from an RLP encoded stream.
-It's deprecated, please use "geth db import" instead.
+It's deprecated, please use "gstable db import" instead.
 `,
 	}
 
@@ -260,7 +260,7 @@ func checkAllocAddress(genesis *core.Genesis) error {
 		for _, addr := range forbidden {
 			if _, exists := genesis.Alloc[addr]; exists {
 				log.Crit(
-					"genesis.json must NOT include an allocation for %s; remove it before geth init",
+					"genesis.json must NOT include an allocation for %s; remove it before gstable init",
 					addr.Hex(),
 				)
 			}

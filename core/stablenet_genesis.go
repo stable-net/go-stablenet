@@ -18,8 +18,8 @@ package core
 
 var (
 	// TODO define mainnet genesis accounts
-	// use TestGenerateStableOneGenesisJson to generate genesis json
-	stableOneMainnetGenesisJson = `
+	// use TestGenerateStableNetGenesisJson to generate genesis json
+	stableNetMainnetGenesisJson = `
 {
     "config": {
         "chainId": 8282,
@@ -192,7 +192,7 @@ var (
     "blobGasUsed": null
 }`
 
-	stableOneTestnetGenesisJson = `
+	stableNetTestnetGenesisJson = `
 {
     "config": {
         "chainId": 8283,

@@ -97,7 +97,7 @@ func TestExtractToWBFTExtra(t *testing.T) {
 
 func TestGenerateExtra(t *testing.T) {
 	sampleExtra := &WBFTExtra{
-		VanityData: []byte("Stable One chain block"),
+		VanityData: []byte("StableNet chain block"),
 		EpochInfo: &EpochInfo{
 			Candidates: []*Candidate{
 				{Addr: common.BytesToAddress(hexutil.MustDecode("0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697")), Diligence: DefaultDiligence},

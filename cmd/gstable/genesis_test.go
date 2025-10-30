@@ -72,7 +72,7 @@ var customGenesisTests = []struct {
 	},
 }
 
-// Tests that initializing Geth with a custom genesis block and chain definitions
+// Tests that initializing Gstable with a custom genesis block and chain definitions
 // work properly.
 func TestCustomGenesis(t *testing.T) {
 	t.Parallel()
@@ -85,15 +85,15 @@ func TestCustomGenesis(t *testing.T) {
 		if err := os.WriteFile(json, []byte(tt.genesis), 0600); err != nil {
 			t.Fatalf("test %d: failed to write genesis file: %v", i, err)
 		}
-		runGeth(t, "--datadir", datadir, "init", json).WaitExit()
+		runGstable(t, "--datadir", datadir, "init", json).WaitExit()
 
 		// Query the custom genesis block
-		geth := runGeth(t, "--networkid", "1337", "--syncmode=full", "--cache", "16",
+		gstable := runGstable(t, "--networkid", "1337", "--syncmode=full", "--cache", "16",
 			"--datadir", datadir, "--maxpeers", "0", "--port", "0", "--authrpc.port", "0",
 			"--nodiscover", "--nat", "none", "--ipcdisable",
 			"--exec", tt.query, "console")
-		geth.ExpectRegexp(tt.result)
-		geth.ExpectExit()
+		gstable.ExpectRegexp(tt.result)
+		gstable.ExpectExit()
 	}
 }
 
@@ -135,18 +135,18 @@ func TestCustomBackend(t *testing.T) {
 		}
 		{ // Init
 			args := append(tt.initArgs, "--datadir", datadir, "init", json)
-			geth := runGeth(t, args...)
-			geth.ExpectRegexp(tt.initExpect)
-			geth.ExpectExit()
+			gstable := runGstable(t, args...)
+			gstable.ExpectRegexp(tt.initExpect)
+			gstable.ExpectExit()
 		}
 		{ // Exec + query
 			args := append(tt.execArgs, "--networkid", "1337", "--syncmode=full", "--cache", "16",
 				"--datadir", datadir, "--maxpeers", "0", "--port", "0", "--authrpc.port", "0",
 				"--nodiscover", "--nat", "none", "--ipcdisable",
 				"--exec", "eth.getBlock(0).nonce", "console")
-			geth := runGeth(t, args...)
-			geth.ExpectRegexp(tt.execExpect)
-			geth.ExpectExit()
+			gstable := runGstable(t, args...)
+			gstable.ExpectRegexp(tt.execExpect)
+			gstable.ExpectExit()
 		}
 		return nil
 	}
@@ -188,7 +188,7 @@ func TestCustomBackend(t *testing.T) {
 			initExpect: `Fatal: Invalid choice for db.engine 'mssql', allowed 'leveldb' or 'pebble'`,
 			// Since the init fails, this will return the (default) mainnet genesis
 			// block nonce
-			execExpect: `0x0000000000000000`, // defined at stableone_genesis.go
+			execExpect: `0x0000000000000000`, // defined at stablenet_genesis.go
 		},
 	} {
 		if err := testfunc(t, tt); err != nil {

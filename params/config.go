@@ -28,8 +28,8 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableOneMainnetGenesisHash = common.HexToHash("0x54028f911e89cec83a1f804d03af3d82364bd76dfc8354c2f9cf4c3e8f9335d7")
-	StableOneTestnetGenesisHash = common.HexToHash("0x54028f911e89cec83a1f804d03af3d82364bd76dfc8354c2f9cf4c3e8f9335d7")
+	StableNetMainnetGenesisHash = common.HexToHash("0x54028f911e89cec83a1f804d03af3d82364bd76dfc8354c2f9cf4c3e8f9335d7")
+	StableNetTestnetGenesisHash = common.HexToHash("0x54028f911e89cec83a1f804d03af3d82364bd76dfc8354c2f9cf4c3e8f9335d7")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash          = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
@@ -41,7 +41,7 @@ func newUint64(val uint64) *uint64 { return &val }
 var (
 	MainnetTerminalTotalDifficulty, _ = new(big.Int).SetString("58_750_000_000_000_000_000_000", 0)
 
-	StableOneMainnetChainConfig = &ChainConfig{
+	StableNetMainnetChainConfig = &ChainConfig{
 		ChainID:             big.NewInt(8282),
 		HomesteadBlock:      big.NewInt(0),
 		EIP150Block:         big.NewInt(0),
@@ -126,8 +126,8 @@ var (
 		},
 	}
 
-	// StableOneTestnetChainConfig contains the chain parameters to run a node on the Wemix test network.
-	StableOneTestnetChainConfig = &ChainConfig{
+	// StableNetTestnetChainConfig contains the chain parameters to run a node on the Wemix test network.
+	StableNetTestnetChainConfig = &ChainConfig{
 		ChainID:             big.NewInt(8283),
 		HomesteadBlock:      big.NewInt(0),
 		EIP150Block:         big.NewInt(0),
@@ -671,8 +671,8 @@ var (
 
 // NetworkNames are user friendly names to use in the chain spec banner.
 var NetworkNames = map[string]string{
-	StableOneMainnetChainConfig.ChainID.String(): "mainnet",
-	StableOneTestnetChainConfig.ChainID.String(): "testnet",
+	StableNetMainnetChainConfig.ChainID.String(): "mainnet",
+	StableNetTestnetChainConfig.ChainID.String(): "testnet",
 	GoerliChainConfig.ChainID.String():           "goerli",
 	SepoliaChainConfig.ChainID.String():          "sepolia",
 	HoleskyChainConfig.ChainID.String():          "holesky",

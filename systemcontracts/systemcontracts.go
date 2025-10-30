@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2025 The go-wemix-wbft Authors
-// Copyright 2025 The stable-one Authors
+// Copyright 2025 The go-stablenet Authors
 // This file is part of the go-wemix-wbft library.
 //
 // The go-wemix-wbft library is free software: you can redistribute it and/or modify

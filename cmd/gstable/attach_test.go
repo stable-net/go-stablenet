@@ -32,7 +32,7 @@ func (t *testHandler) ServeHTTP(out http.ResponseWriter, in *http.Request) {
 	t.body(out, in)
 }
 
-// TestAttachWithHeaders tests that 'geth attach' with custom headers works, i.e
+// TestAttachWithHeaders tests that 'gstable attach' with custom headers works, i.e
 // that custom headers are forwarded to the target.
 func TestAttachWithHeaders(t *testing.T) {
 	t.Parallel()
@@ -76,7 +76,7 @@ func testReceiveHeaders(t *testing.T, ln net.Listener, gethArgs ...string) {
 		}}}
 	go server.Serve(ln)
 	defer server.Close()
-	runGeth(t, gethArgs...).WaitExit()
+	runGstable(t, gethArgs...).WaitExit()
 	if ok.Load() != 1 {
 		t.Fatal("Test fail, expected invocation to succeed")
 	}

@@ -198,7 +198,7 @@ var (
 	BLSPoPPrecompileGas     uint64 = 45000                                           // set gas cost to ~15× ecrecover, based on benchmarked execution time.
 )
 
-// stable-one parameters
+// go-stablenet parameters
 const (
 	UpdateBalanceGas uint64 = 4500 // StateDB.SetBalance
 )

@@ -250,7 +250,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	if (stored == common.Hash{}) {
 		if genesis == nil {
 			log.Info("Writing default main-net genesis block")
-			genesis = DefaultStableOneMainnetGenesisBlock()
+			genesis = DefaultStableNetMainnetGenesisBlock()
 		} else {
 			log.Info("Writing custom genesis block")
 		}
@@ -284,7 +284,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	header := rawdb.ReadHeader(db, stored, 0)
 	if header.Root != types.EmptyRootHash && !triedb.Initialized(header.Root) {
 		if genesis == nil {
-			genesis = DefaultStableOneMainnetGenesisBlock()
+			genesis = DefaultStableNetMainnetGenesisBlock()
 		}
 		applyOverrides(genesis.Config)
 
@@ -355,7 +355,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	// chain config as that would be AllProtocolChanges (applying any new fork
 	// on top of an existing private network genesis block). In that case, only
 	// apply the overrides.
-	if genesis == nil && stored != params.MainnetGenesisHash && stored != params.StableOneMainnetGenesisHash {
+	if genesis == nil && stored != params.MainnetGenesisHash && stored != params.StableNetMainnetGenesisHash {
 		newcfg = storedcfg
 		applyOverrides(newcfg)
 	}
@@ -406,17 +406,17 @@ func LoadChainConfig(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, 
 	}
 	// There is no stored chain config and no new config provided,
 	// In this case the default chain config(mainnet) will be used
-	return params.StableOneMainnetChainConfig, nil
+	return params.StableNetMainnetChainConfig, nil
 }
 
 func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 	switch {
 	case g != nil:
 		return g.Config
-	case ghash == params.StableOneMainnetGenesisHash:
-		return params.StableOneMainnetChainConfig
-	case ghash == params.StableOneTestnetGenesisHash:
-		return params.StableOneTestnetChainConfig
+	case ghash == params.StableNetMainnetGenesisHash:
+		return params.StableNetMainnetChainConfig
+	case ghash == params.StableNetTestnetGenesisHash:
+		return params.StableNetTestnetChainConfig
 	case ghash == params.MainnetGenesisHash:
 		return params.MainnetChainConfig
 	case ghash == params.HoleskyGenesisHash:
@@ -539,21 +539,21 @@ func (g *Genesis) MustCommit(db ethdb.Database, triedb *triedb.Database) *types.
 	return block
 }
 
-func DefaultStableOneMainnetGenesisBlock() *Genesis {
+func DefaultStableNetMainnetGenesisBlock() *Genesis {
 	genesis := new(Genesis)
-	if err := json.NewDecoder(strings.NewReader(stableOneMainnetGenesisJson)).Decode(genesis); err != nil {
-		panic("Cannot parse default stable-one mainnet genesis.")
+	if err := json.NewDecoder(strings.NewReader(stableNetMainnetGenesisJson)).Decode(genesis); err != nil {
+		panic("Cannot parse default StableNet mainnet genesis.")
 	}
-	genesis.Config = params.StableOneMainnetChainConfig
+	genesis.Config = params.StableNetMainnetChainConfig
 	return genesis
 }
 
-func DefaultStableOneTestnetGenesisBlock() *Genesis {
+func DefaultStableNetTestnetGenesisBlock() *Genesis {
 	genesis := new(Genesis)
-	if err := json.NewDecoder(strings.NewReader(stableOneTestnetGenesisJson)).Decode(genesis); err != nil {
-		panic("Cannot parse default stable-one testnet genesis.")
+	if err := json.NewDecoder(strings.NewReader(stableNetTestnetGenesisJson)).Decode(genesis); err != nil {
+		panic("Cannot parse default StableNet testnet genesis.")
 	}
-	genesis.Config = params.StableOneTestnetChainConfig
+	genesis.Config = params.StableNetTestnetChainConfig
 	return genesis
 }
 
