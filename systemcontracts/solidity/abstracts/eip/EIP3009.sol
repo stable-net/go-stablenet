@@ -48,7 +48,7 @@ abstract contract EIP3009 is AbstractFiatToken, EIP712Domain {
     /**
      * @dev authorizer address => nonce => bool (true if nonce is used)
      */
-    mapping(address => mapping(bytes32 => bool)) private _authorizationStates;
+    mapping(address => mapping(bytes32 => bool)) private __authorizationStates;
 
     event AuthorizationUsed(address indexed authorizer, bytes32 indexed nonce);
     event AuthorizationCanceled(address indexed authorizer, bytes32 indexed nonce);
@@ -62,7 +62,7 @@ abstract contract EIP3009 is AbstractFiatToken, EIP712Domain {
      * @return True if the nonce is used
      */
     function authorizationState(address authorizer, bytes32 nonce) external view returns (bool) {
-        return _authorizationStates[authorizer][nonce];
+        return __authorizationStates[authorizer][nonce];
     }
 
     /**
@@ -207,7 +207,7 @@ abstract contract EIP3009 is AbstractFiatToken, EIP712Domain {
         _requireUnusedAuthorization(authorizer, nonce);
         _requireValidSignature(authorizer, keccak256(abi.encode(CANCEL_AUTHORIZATION_TYPEHASH, authorizer, nonce)), signature);
 
-        _authorizationStates[authorizer][nonce] = true;
+        __authorizationStates[authorizer][nonce] = true;
         emit AuthorizationCanceled(authorizer, nonce);
     }
 
@@ -230,7 +230,7 @@ abstract contract EIP3009 is AbstractFiatToken, EIP712Domain {
      * @param nonce         Nonce of the authorization
      */
     function _requireUnusedAuthorization(address authorizer, bytes32 nonce) private view {
-        require(!_authorizationStates[authorizer][nonce], "NativeCoinAdapter: authorization is used or canceled");
+        require(!__authorizationStates[authorizer][nonce], "NativeCoinAdapter: authorization is used or canceled");
     }
 
     /**
@@ -252,7 +252,7 @@ abstract contract EIP3009 is AbstractFiatToken, EIP712Domain {
      * @param nonce         Nonce of the authorization
      */
     function _markAuthorizationAsUsed(address authorizer, bytes32 nonce) private {
-        _authorizationStates[authorizer][nonce] = true;
+        __authorizationStates[authorizer][nonce] = true;
         emit AuthorizationUsed(authorizer, nonce);
     }
 }

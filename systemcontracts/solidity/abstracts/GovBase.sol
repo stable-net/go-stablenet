@@ -75,14 +75,14 @@ abstract contract GovBase {
     }
 
     // ========== State Variables ==========
-    uint32 public quorum;  // Required number of approvals (m of n)
+    uint32 public quorum; // Required number of approvals (m of n)
     uint256 public proposalExpiry;
     mapping(address => Member) public members;
     mapping(uint256 => address[]) public versionedMemberList;
     uint256 public memberVersion;
     mapping(uint256 => Proposal) public proposals;
     uint256 public currentProposalId;
-    uint256 private _reentrancyGuard;  // Reentrancy protection
+    uint256 private __reentrancyGuard; // Reentrancy protection
     uint256[42] private __gap; // Reserved storage space
 
     // ========== Events ==========
@@ -95,71 +95,27 @@ abstract contract GovBase {
         bytes callData
     );
 
-    event ProposalVoted(
-        uint256 indexed proposalId,
-        address indexed voter,
-        bool approval,
-        uint256 approved,
-        uint256 rejected
-    );
+    event ProposalVoted(uint256 indexed proposalId, address indexed voter, bool approval, uint256 approved, uint256 rejected);
 
-    event ProposalApproved(
-        uint256 indexed proposalId,
-        address indexed approver,
-        uint256 approved,
-        uint256 rejected
-    );
+    event ProposalApproved(uint256 indexed proposalId, address indexed approver, uint256 approved, uint256 rejected);
 
-    event ProposalRejected(
-        uint256 indexed proposalId,
-        address indexed rejector,
-        uint256 approved,
-        uint256 rejected
-    );
+    event ProposalRejected(uint256 indexed proposalId, address indexed rejector, uint256 approved, uint256 rejected);
 
-    event ProposalExecuted(
-        uint256 indexed proposalId,
-        address indexed executor,
-        bool success
-    );
+    event ProposalExecuted(uint256 indexed proposalId, address indexed executor, bool success);
 
-    event ExecutionFailed(
-        uint256 indexed proposalId,
-        address indexed executor,
-        bytes errorData
-    );
+    event ExecutionFailed(uint256 indexed proposalId, address indexed executor, bytes errorData);
 
-    event ProposalExpired(
-        uint256 indexed proposalId,
-        address indexed executor
-    );
+    event ProposalExpired(uint256 indexed proposalId, address indexed executor);
 
-    event ProposalCancelled(
-        uint256 indexed proposalId,
-        address indexed canceller
-    );
+    event ProposalCancelled(uint256 indexed proposalId, address indexed canceller);
 
-    event MemberAdded(
-        address indexed member,
-        uint256 totalMembers,
-        uint32 newQuorum
-    );
+    event MemberAdded(address indexed member, uint256 totalMembers, uint32 newQuorum);
 
-    event MemberRemoved(
-        address indexed member,
-        uint256 totalMembers,
-        uint32 newQuorum
-    );
+    event MemberRemoved(address indexed member, uint256 totalMembers, uint32 newQuorum);
 
-    event MemberChanged(
-        address indexed oldMember,
-        address indexed newMember
-    );
+    event MemberChanged(address indexed oldMember, address indexed newMember);
 
-    event QuorumUpdated(
-        uint32 oldQuorum,
-        uint32 newQuorum
-    );
+    event QuorumUpdated(uint32 oldQuorum, uint32 newQuorum);
 
     // ========== Modifiers ==========
     modifier onlyMe() {
@@ -204,10 +160,10 @@ abstract contract GovBase {
     }
 
     modifier nonReentrant() {
-        if (_reentrancyGuard == 1) revert ReentrantCall();
-        _reentrancyGuard = 1;
+        if (__reentrancyGuard == 1) revert ReentrantCall();
+        __reentrancyGuard = 1;
         _;
-        _reentrancyGuard = 0;
+        __reentrancyGuard = 0;
     }
 
     modifier noActiveProposal() {
@@ -223,10 +179,7 @@ abstract contract GovBase {
     }
 
     // ========== Internal Functions ==========
-    function _createProposal(
-        bytes32 actionType,
-        bytes memory callData
-    ) internal onlyMember noActiveProposal returns (uint256 proposalId) {
+    function _createProposal(bytes32 actionType, bytes memory callData) internal onlyMember noActiveProposal returns (uint256 proposalId) {
         proposalId = ++currentProposalId;
         proposals[proposalId] = Proposal({
             actionType: actionType,
@@ -260,44 +213,22 @@ abstract contract GovBase {
         if (approved) {
             proposal.approved++;
 
-            emit ProposalVoted(
-                currentProposalId,
-                msg.sender,
-                true,
-                proposal.approved,
-                proposal.rejected
-            );
+            emit ProposalVoted(currentProposalId, msg.sender, true, proposal.approved, proposal.rejected);
 
             if (proposal.approved >= proposal.requiredApprovals) {
                 proposal.status = ProposalStatus.Approved;
-                emit ProposalApproved(
-                    currentProposalId,
-                    msg.sender,
-                    proposal.approved,
-                    proposal.rejected
-                );
+                emit ProposalApproved(currentProposalId, msg.sender, proposal.approved, proposal.rejected);
                 _executeProposal(false);
             }
         } else {
             proposal.rejected++;
 
-            emit ProposalVoted(
-                currentProposalId,
-                msg.sender,
-                false,
-                proposal.approved,
-                proposal.rejected
-            );
+            emit ProposalVoted(currentProposalId, msg.sender, false, proposal.approved, proposal.rejected);
 
             // If rejected, mark as Rejected
             if (proposal.rejected > (versionedMemberList[proposal.memberVersion].length - proposal.requiredApprovals)) {
                 proposal.status = ProposalStatus.Rejected;
-                emit ProposalRejected(
-                    currentProposalId,
-                    msg.sender,
-                    proposal.approved,
-                    proposal.rejected
-                );
+                emit ProposalRejected(currentProposalId, msg.sender, proposal.approved, proposal.rejected);
             }
         }
     }
@@ -345,10 +276,7 @@ abstract contract GovBase {
     }
 
     // To be implemented by derived contracts for their specific actions
-    function _executeInternalAction(bytes32 actionType)
-    internal
-    virtual
-    returns (bool);
+    function _executeInternalAction(bytes32 actionType) internal virtual returns (bool);
 
     function _getMemberIndex(address member) internal view returns (uint256) {
         for (uint256 i = 0; i < versionedMemberList[memberVersion].length; i++) {
@@ -363,10 +291,7 @@ abstract contract GovBase {
         if (members[_newMember].isActive) revert AlreadyAMember();
         if (_newMember == address(0)) revert InvalidMemberAddress();
         if (_newQuorum == 0 || _newQuorum > versionedMemberList[memberVersion].length + 1) revert InvalidQuorum();
-        members[_newMember] = Member({
-            isActive: true,
-            joinedAt: uint32(block.timestamp)
-        });
+        members[_newMember] = Member({ isActive: true, joinedAt: uint32(block.timestamp) });
 
         _newVersionedMemberList();
 
@@ -437,50 +362,23 @@ abstract contract GovBase {
     function _onMemberChanged(address oldMember, address newMember) internal virtual {}
 
     // ========== Public Functions ==========
-    function approveProposal()
-    public
-    onlyMember
-    proposalExists()
-    proposalInVoting()
-    {
+    function approveProposal() public onlyMember proposalExists proposalInVoting {
         _vote(true);
     }
 
-    function disapproveProposal()
-    public
-    onlyMember
-    proposalExists()
-    proposalInVoting()
-    {
+    function disapproveProposal() public onlyMember proposalExists proposalInVoting {
         _vote(false);
     }
 
-    function executeProposal()
-    public
-    onlyMember
-    proposalExists()
-    proposalExecutable()
-    returns (bool)
-    {
+    function executeProposal() public onlyMember proposalExists proposalExecutable returns (bool) {
         return _executeProposal(false);
     }
 
-    function executeWithFailure()
-    public
-    onlyMember
-    proposalExists()
-    proposalExecutable()
-    returns (bool)
-    {
+    function executeWithFailure() public onlyMember proposalExists proposalExecutable returns (bool) {
         return _executeProposal(true);
     }
 
-    function cancelProposal()
-    public
-    onlyMember
-    proposalExists()
-    proposalInVoting()
-    {
+    function cancelProposal() public onlyMember proposalExists proposalInVoting {
         if (proposals[currentProposalId].proposer != msg.sender) revert NotProposer();
         if (proposals[currentProposalId].approved > 1 || proposals[currentProposalId].rejected > 0) revert ProposalAlreadyInVoting();
 
@@ -489,33 +387,19 @@ abstract contract GovBase {
     }
 
     // ========== Member Management ==========
-    function proposeAddMember(address _newMember, uint32 _newQuorum)
-    public
-    onlyMember
-    noActiveProposal
-    returns (uint256)
-    {
+    function proposeAddMember(address _newMember, uint32 _newQuorum) public onlyMember noActiveProposal returns (uint256) {
         bytes4 _selector = this.addMember.selector;
         bytes memory _encodedParams = abi.encode(_newMember, _newQuorum);
         return _createProposal(keccak256("ADD_MEMBER"), abi.encodePacked(_selector, _encodedParams));
     }
 
-    function proposeRemoveMember(address _member, uint32 _newQuorum)
-    public
-    onlyMember
-    noActiveProposal
-    returns (uint256)
-    {
+    function proposeRemoveMember(address _member, uint32 _newQuorum) public onlyMember noActiveProposal returns (uint256) {
         bytes4 _selector = this.removeMember.selector;
         bytes memory _encodedParams = abi.encode(_member, _newQuorum);
         return _createProposal(keccak256("REMOVE_MEMBER"), abi.encodePacked(_selector, _encodedParams));
     }
 
-    function changeMember(address _newMember)
-    public
-    onlyMember
-    noActiveProposal
-    {
+    function changeMember(address _newMember) public onlyMember noActiveProposal {
         if (members[_newMember].isActive) revert AlreadyAMember();
 
         members[_newMember] = members[msg.sender];
@@ -538,12 +422,7 @@ abstract contract GovBase {
         return versionedMemberList[memberVersion][index];
     }
 
-    function getProposal()
-    public
-    view
-    proposalExists()
-    returns (Proposal memory)
-    {
+    function getProposal() public view proposalExists returns (Proposal memory) {
         return proposals[currentProposalId];
     }
 

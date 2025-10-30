@@ -130,7 +130,7 @@ abstract contract GovBaseV2 {
     uint256 public proposalExpiry; // Slot 0: Set once during initialization, cannot be changed
     uint256 public memberVersion = INITIAL_MEMBER_VERSION; // Slot 1
     uint256 public currentProposalId; // Slot 2
-    uint256 private _reentrancyGuard; // Slot 3: Reentrancy protection
+    uint256 private __reentrancyGuard; // Slot 3: Reentrancy protection
 
     // Small value types - uint32 (4 bytes, can be packed with other small types)
     uint32 public quorum; // Slot 4 (0-3 bytes): Required number of approvals (m of n)
@@ -140,8 +140,8 @@ abstract contract GovBaseV2 {
     mapping(address => Member) public members; // Slot 5
     mapping(uint256 => address[]) public versionedMemberList; // Slot 6
     mapping(uint256 => Proposal) public proposals; // Slot 7
-    mapping(uint256 => mapping(address => uint32)) internal memberIndexByVersion; // Slot 8: index + 1 snapshot per version
-    mapping(uint256 => uint32) internal quorumByVersion; // Slot 9: quorum snapshot per member version
+    mapping(uint256 => mapping(address => uint32)) internal _memberIndexByVersion; // Slot 8: index + 1 snapshot per version
+    mapping(uint256 => uint32) internal _quorumByVersion; // Slot 9: quorum snapshot per member version
     mapping(uint256 => uint256) public proposalExecutionCount; // Slot 10: Execution attempt count for each proposal
     mapping(address => uint256) public memberActiveProposalCount; // Slot 11: Track active proposals per member
 
@@ -158,9 +158,7 @@ abstract contract GovBaseV2 {
         bytes callData
     );
 
-    event ProposalVoted(
-        uint256 indexed proposalId, address indexed voter, bool approval, uint256 approved, uint256 rejected
-    );
+    event ProposalVoted(uint256 indexed proposalId, address indexed voter, bool approval, uint256 approved, uint256 rejected);
 
     event ProposalApproved(uint256 indexed proposalId, address indexed approver, uint256 approved, uint256 rejected);
     event ProposalRejected(uint256 indexed proposalId, address indexed rejector, uint256 approved, uint256 rejected);
@@ -213,11 +211,9 @@ abstract contract GovBaseV2 {
     ///    - memberVersion: Always starts at INITIAL_MEMBER_VERSION (1)
     /// 3. No function call required - pure storage initialization
 
-
     // ============================================================
     // 2. MODIFIERS (Internal Check Functions)
     // ============================================================
-
 
     // ========== Internal Functions for Modifiers ==========
 
@@ -234,27 +230,23 @@ abstract contract GovBaseV2 {
         if (snapshot[memberIndex] != msg.sender) revert NotAMember();
     }
 
-
     /// @dev Internal reentrancy guard initialization (OpenZeppelin pattern)
     /// @notice Sets guard to prevent reentrant calls. Must be paired with _nonReentrantAfter()
     /// @custom:revert ReentrantCall if guard is already set (reentrant call detected)
     function _nonReentrantBefore() internal {
-        if (_reentrancyGuard == 1) revert ReentrantCall();
-        _reentrancyGuard = 1;
+        if (__reentrancyGuard == 1) revert ReentrantCall();
+        __reentrancyGuard = 1;
     }
-
 
     /// @dev Internal reentrancy guard cleanup (OpenZeppelin pattern)
     /// @notice Resets guard to allow subsequent calls. Executes even if function body reverts.
     function _nonReentrantAfter() internal {
-        _reentrancyGuard = 0;
+        __reentrancyGuard = 0;
     }
-
 
     // ============================================================
     // 3. PUBLIC FUNCTIONS - Proposal Operations
     // ============================================================
-
 
     // ========== Public Functions ==========
 
@@ -266,14 +258,12 @@ abstract contract GovBaseV2 {
         _vote(proposalId, true, true);
     }
 
-
     /// @notice Vote NO on a proposal
     /// @dev Reject the specified proposal
     /// @param proposalId The proposal ID to reject
     function disapproveProposal(uint256 proposalId) public onlyProposalMember(proposalId) {
         _vote(proposalId, false, false);
     }
-
 
     /// @notice Execute or retry an approved proposal
     /// @param proposalId The proposal ID to execute
@@ -285,7 +275,6 @@ abstract contract GovBaseV2 {
         return _executeProposal(proposalId, false);
     }
 
-
     /// @notice Execute an approved proposal with terminal failure (no retry)
     /// @param proposalId The proposal ID to execute
     /// @return success True if execution succeeded
@@ -293,7 +282,6 @@ abstract contract GovBaseV2 {
     function executeWithFailure(uint256 proposalId) public onlyProposalMember(proposalId) returns (bool) {
         return _executeProposal(proposalId, true);
     }
-
 
     /// @notice Cancel a proposal that is still in voting phase
     /// @dev Can only be called by the original proposer before other members vote
@@ -323,7 +311,6 @@ abstract contract GovBaseV2 {
         emit ProposalCancelled(proposalId, msg.sender);
     }
 
-
     /// @notice Manually expire a proposal that has passed its expiry time
     /// @dev Can be called by members to clean up expired proposals
     /// @param proposalId The proposal ID to expire
@@ -349,11 +336,9 @@ abstract contract GovBaseV2 {
         return true;
     }
 
-
     // ============================================================
     // 4. PUBLIC FUNCTIONS - Member Management Proposals
     // ============================================================
-
 
     // ========== Member Management ==========
     // NOTE: Governance proposal functions moved to derived contracts
@@ -386,7 +371,6 @@ abstract contract GovBaseV2 {
         bytes memory callData = abi.encode(newMember, newQuorum);
         return _createProposal(ACTION_ADD_MEMBER, callData);
     }
-
 
     /// @notice Propose to remove an existing member from governance
     /// @param member Address of the member to remove
@@ -465,9 +449,9 @@ abstract contract GovBaseV2 {
 
                 // Transfer index mapping from old to new address
                 // Note: Index value remains the same (i+1), only the key changes
-                uint32 memberIndex = memberIndexByVersion[currentVersion][oldMember];
-                memberIndexByVersion[currentVersion][newMember] = memberIndex;
-                delete memberIndexByVersion[currentVersion][oldMember];
+                uint32 memberIndex = _memberIndexByVersion[currentVersion][oldMember];
+                _memberIndexByVersion[currentVersion][newMember] = memberIndex;
+                delete _memberIndexByVersion[currentVersion][oldMember];
                 found = true;
                 break;
             }
@@ -479,7 +463,7 @@ abstract contract GovBaseV2 {
 
         // Update member states
         // Activate new member with current timestamp
-        members[newMember] = Member({isActive: true, joinedAt: uint32(block.timestamp)});
+        members[newMember] = Member({ isActive: true, joinedAt: uint32(block.timestamp) });
         // Deactivate old member (preserves joinedAt for historical record)
         members[oldMember].isActive = false;
 
@@ -491,11 +475,9 @@ abstract contract GovBaseV2 {
         _onMemberChanged(oldMember, newMember);
     }
 
-
     // ============================================================
     // 5. VIEW FUNCTIONS - Proposal Queries
     // ============================================================
-
 
     /// @notice Get proposal details by proposal ID
     /// @param proposalId The proposal ID to query (must be between 1 and currentProposalId)
@@ -505,7 +487,6 @@ abstract contract GovBaseV2 {
         proposalId = _validateProposalId(proposalId);
         return proposals[proposalId];
     }
-
 
     /// @notice Check if a proposal is in voting phase (Voting status, not yet approved)
     /// @dev Note: Proposals in Approved status can still receive votes, but this returns false to distinguish phases
@@ -522,7 +503,6 @@ abstract contract GovBaseV2 {
         return false;
     }
 
-
     /// @notice Check if a proposal is ready for execution
     /// @dev Validates: Approved status, not expired, and quorum satisfied
     /// @param proposalId The proposal ID to check (must be between 1 and currentProposalId)
@@ -535,7 +515,6 @@ abstract contract GovBaseV2 {
         return proposal.approved >= proposal.requiredApprovals;
     }
 
-
     /// @notice Check if proposal can be executed with detailed failure reason
     /// @dev This is a view function - state may change between check and execution (race condition possible)
     /// @dev If proposal is expired but status is still Approved, returns Expired (state not modified in view function)
@@ -543,11 +522,7 @@ abstract contract GovBaseV2 {
     /// @param proposalId Proposal ID to check
     /// @return result Execution check result indicating why execution is possible or not
     /// @return attemptsLeft Number of execution attempts remaining (0 if not executable)
-    function canExecuteProposal(uint256 proposalId)
-        external
-        view
-        returns (ExecutionCheckResult result, uint256 attemptsLeft)
-    {
+    function canExecuteProposal(uint256 proposalId) external view returns (ExecutionCheckResult result, uint256 attemptsLeft) {
         // Check 1: Validate proposalId exists
         if (proposalId == 0 || proposalId > currentProposalId) {
             return (ExecutionCheckResult.InvalidProposalId, 0);
@@ -575,7 +550,6 @@ abstract contract GovBaseV2 {
         return (ExecutionCheckResult.Executable, MAX_RETRY_COUNT - executionCount);
     }
 
-
     /// @notice Check if a member has voted on a specific proposal
     /// @dev Uses bitmap tracking with historical member version snapshot
     /// @dev Returns false for non-members or members who joined after proposal creation
@@ -596,11 +570,9 @@ abstract contract GovBaseV2 {
         return proposal.votedBitmap & bit != 0;
     }
 
-
     // ============================================================
     // 6. VIEW FUNCTIONS - Member Queries
     // ============================================================
-
 
     // ========== View Functions ==========
 
@@ -612,7 +584,6 @@ abstract contract GovBaseV2 {
         uint256 version = _validateMemberVersion(targetVersion);
         return versionedMemberList[version].length;
     }
-
 
     /// @notice Get member address at specific index in a governance version snapshot
     /// @param targetVersion The member version to query (must be between 1 and current memberVersion)
@@ -627,7 +598,6 @@ abstract contract GovBaseV2 {
         return snapshot[index];
     }
 
-
     /// @notice Check if an address was a governance member at a specific version
     /// @dev Uses historical member version snapshot (1-based indexing: 0 = not member, >0 = member)
     /// @param account The address to check for membership status
@@ -636,9 +606,8 @@ abstract contract GovBaseV2 {
     /// @custom:revert InvalidMemberVersion if targetVersion is 0 or exceeds current memberVersion
     function isMember(address account, uint256 targetVersion) public view returns (bool) {
         uint256 version = _validateMemberVersion(targetVersion);
-        return memberIndexByVersion[version][account] != 0;
+        return _memberIndexByVersion[version][account] != 0;
     }
-
 
     /// @notice Get the quorum requirement (minimum approvals needed) for a specific governance version
     /// @dev Retrieves historical quorum value from version snapshot for audit and proposal validation
@@ -648,11 +617,10 @@ abstract contract GovBaseV2 {
     /// @custom:revert InvalidQuorum if quorum snapshot is 0 (defense-in-depth check, should never happen)
     function getQuorum(uint256 targetVersion) public view returns (uint32) {
         uint256 version = _validateMemberVersion(targetVersion);
-        uint32 snapshot = quorumByVersion[version];
+        uint32 snapshot = _quorumByVersion[version];
         if (snapshot == 0) revert InvalidQuorum();
         return snapshot;
     }
-
 
     /// @notice Get the number of active (non-terminal) proposals for a member
     /// @dev This count enforces the MAX_ACTIVE_PROPOSALS_PER_MEMBER limit to prevent proposal spam
@@ -662,7 +630,6 @@ abstract contract GovBaseV2 {
         return memberActiveProposalCount[member];
     }
 
-
     /// @notice Check if a member can create a new proposal
     /// @dev Verifies whether the member has available capacity (count < MAX_ACTIVE_PROPOSALS_PER_MEMBER)
     /// @param member The member address to check for proposal creation eligibility
@@ -671,11 +638,9 @@ abstract contract GovBaseV2 {
         return memberActiveProposalCount[member] < MAX_ACTIVE_PROPOSALS_PER_MEMBER;
     }
 
-
     // ============================================================
     // 7. INTERNAL FUNCTIONS - Core Workflow
     // ============================================================
-
 
     /// @dev Create a new governance proposal
     /// @param actionType The type of action to execute (e.g., ACTION_ADD_MEMBER, ACTION_MINT)
@@ -700,11 +665,7 @@ abstract contract GovBaseV2 {
     /// - Proposer automatically approves their own proposal
     /// - Auto-execution enabled (executes immediately if quorum = 1)
     /// - Gas consideration: If quorum = 1, proposal executes within this transaction
-    function _createProposal(bytes32 actionType, bytes memory callData)
-        internal
-        onlyActiveMember
-        returns (uint256 proposalId)
-    {
+    function _createProposal(bytes32 actionType, bytes memory callData) internal onlyActiveMember returns (uint256 proposalId) {
         // Validate proposal expiry is configured (set during initialization)
         if (proposalExpiry == 0) revert InvalidProposalExpiry();
 
@@ -738,7 +699,6 @@ abstract contract GovBaseV2 {
         // Auto-approve by proposer with auto-execution enabled
         _vote(proposalId, true, true);
     }
-
 
     /// @dev Internal voting function for proposal approval or rejection
     /// @param proposalId The proposal ID to vote on
@@ -847,7 +807,6 @@ abstract contract GovBaseV2 {
         }
     }
 
-
     /// @dev Execute approved proposal with automatic retry tracking
     /// @param proposalId The proposal ID to execute
     /// @param markFailedOnError Failure handling mode:
@@ -914,11 +873,9 @@ abstract contract GovBaseV2 {
         }
     }
 
-
     // ============================================================
     // 8. INTERNAL FUNCTIONS - Member Management
     // ============================================================
-
 
     /// @dev Increment member version and create new snapshot for member list changes
     /// @return newSnapshot Empty storage array for new member version
@@ -927,17 +884,13 @@ abstract contract GovBaseV2 {
     /// @notice Old version proposals continue to use their snapshot member list for voting/execution
     ///         This allows proposals to complete even after member composition changes
     ///         Each proposal maintains its own version snapshot for consistency
-    function _prepareNextMemberVersion()
-        internal
-        returns (address[] storage newSnapshot, address[] storage oldSnapshot, uint256 newVersion)
-    {
+    function _prepareNextMemberVersion() internal returns (address[] storage newSnapshot, address[] storage oldSnapshot, uint256 newVersion) {
         uint256 oldVersion = memberVersion;
         newVersion = oldVersion + 1;
         oldSnapshot = versionedMemberList[oldVersion];
         newSnapshot = versionedMemberList[newVersion]; // Empty array by default
         memberVersion = newVersion;
     }
-
 
     /// @dev Add new governance member with quorum update
     /// @param newMember Address of new member to add
@@ -979,16 +932,16 @@ abstract contract GovBaseV2 {
             newSnapshot.push(existing);
             // Safe cast: member count limited to MAX_MEMBER_INDEX (255) < uint32.max
             // forge-lint: disable-next-line(unsafe-typecast)
-            memberIndexByVersion[newVersion][existing] = uint32(i + 1);
+            _memberIndexByVersion[newVersion][existing] = uint32(i + 1);
         }
 
         // EFFECTS: Add new member to snapshot and update state
         newSnapshot.push(newMember);
         // Safe cast: oldLength < MAX_MEMBER_INDEX (255) < uint32.max
         // forge-lint: disable-next-line(unsafe-typecast)
-        memberIndexByVersion[newVersion][newMember] = uint32(oldLength + 1);
+        _memberIndexByVersion[newVersion][newMember] = uint32(oldLength + 1);
 
-        members[newMember] = Member({isActive: true, joinedAt: uint32(block.timestamp)});
+        members[newMember] = Member({ isActive: true, joinedAt: uint32(block.timestamp) });
 
         uint32 oldQuorum = quorum;
         quorum = newQuorum;
@@ -999,9 +952,8 @@ abstract contract GovBaseV2 {
         // INTERACTIONS: Call hook for derived contract logic (avoid external calls here)
         _onMemberAdded(newMember);
 
-        quorumByVersion[newVersion] = newQuorum;
+        _quorumByVersion[newVersion] = newQuorum;
     }
-
 
     /// @dev Change governance quorum requirement
     /// @param newQuorum New quorum value to set
@@ -1031,7 +983,7 @@ abstract contract GovBaseV2 {
         emit QuorumUpdated(oldQuorum, newQuorum);
 
         // Update snapshot for current version
-        quorumByVersion[memberVersion] = newQuorum;
+        _quorumByVersion[memberVersion] = newQuorum;
     }
 
     /// @dev Remove governance member with quorum update
@@ -1057,7 +1009,7 @@ abstract contract GovBaseV2 {
         // EFFECTS: Create new version snapshot
         (address[] storage newSnapshot, address[] storage oldSnapshot, uint256 newVersion) = _prepareNextMemberVersion();
         uint256 oldLength = oldSnapshot.length;
-        uint256 newMemberCount = oldLength - 1;  // Safe: Solidity 0.8+ checks underflow
+        uint256 newMemberCount = oldLength - 1; // Safe: Solidity 0.8+ checks underflow
 
         // CHECKS: Validate quorum requirements
         if (newMemberCount == 0) revert InvalidQuorum(); // Cannot remove last member
@@ -1071,17 +1023,17 @@ abstract contract GovBaseV2 {
         uint256 newIndex = 0;
         for (uint256 i = 0; i < oldLength; i++) {
             address existing = oldSnapshot[i];
-            if (existing == member) continue;  // Skip removed member
+            if (existing == member) continue; // Skip removed member
 
             newSnapshot.push(existing);
             // Safe cast: ++newIndex starts from 1, limited to MAX_MEMBER_INDEX (255) < uint32.max
             // Note: Indices stored as "index + 1" (0 means "not a member")
             // forge-lint: disable-next-line(unsafe-typecast)
-            memberIndexByVersion[newVersion][existing] = uint32(++newIndex);
+            _memberIndexByVersion[newVersion][existing] = uint32(++newIndex);
         }
 
         // Clean up removed member's index in new version (explicit zero for clarity)
-        delete memberIndexByVersion[newVersion][member];
+        delete _memberIndexByVersion[newVersion][member];
 
         // EFFECTS: Deactivate member and update quorum
         members[member].isActive = false;
@@ -1095,13 +1047,12 @@ abstract contract GovBaseV2 {
         // INTERACTIONS: Call hook for derived contract logic (avoid external calls here)
         _onMemberRemoved(member);
 
-        quorumByVersion[newVersion] = newQuorum;
+        _quorumByVersion[newVersion] = newQuorum;
     }
 
     // ============================================================
     // 9. INTERNAL FUNCTIONS - Execution Hooks (Virtual)
     // ============================================================
-
 
     // ========== Internal Action Dispatcher ==========
 
@@ -1129,7 +1080,6 @@ abstract contract GovBaseV2 {
         // Delegate to derived contracts for custom actions
         return _executeCustomAction(actionType, callData);
     }
-
 
     // ========== Hooks for Derived Contracts ==========
     // Hook functions allow derived contracts to inject custom logic at specific points.
@@ -1164,11 +1114,9 @@ abstract contract GovBaseV2 {
         return false;
     }
 
-
     // ============================================================
     // 10. INTERNAL FUNCTIONS - Lifecycle Hooks (Virtual)
     // ============================================================
-
 
     /// @dev Override to perform contract-specific logic when member is added
     /// @param member Address of the newly added member
@@ -1177,14 +1125,12 @@ abstract contract GovBaseV2 {
     /// @notice SECURITY: No external calls - see SECURITY WARNING above and docs/SECURITY.md
     function _onMemberAdded(address member) internal virtual {}
 
-
     /// @dev Override to perform contract-specific logic when member is removed
     /// @param member Address of the removed member
     /// @notice Called after member is removed and quorum is updated
     /// @notice Use this to clean up member-specific state in derived contracts
     /// @notice SECURITY: No external calls - see SECURITY WARNING above and docs/SECURITY.md
     function _onMemberRemoved(address member) internal virtual {}
-
 
     /// @dev Override to perform contract-specific logic when member changes address
     /// @param oldMember Previous member address (now inactive)
@@ -1193,7 +1139,6 @@ abstract contract GovBaseV2 {
     /// @notice Use this to transfer member-specific state in derived contracts
     /// @notice SECURITY: No external calls - see SECURITY WARNING above and docs/SECURITY.md
     function _onMemberChanged(address oldMember, address newMember) internal virtual {}
-
 
     /// @dev Hook called when proposal reaches terminal state
     /// @notice Override in derived contracts to implement cleanup logic
@@ -1233,7 +1178,6 @@ abstract contract GovBaseV2 {
         // Derived contracts can override to implement cleanup logic
     }
 
-
     /// @dev Finalize proposal to terminal state with atomic cleanup
     /// @notice Atomically performs three operations that must always occur together:
     ///         1. Update proposal status to terminal state
@@ -1268,11 +1212,9 @@ abstract contract GovBaseV2 {
         _onProposalFinalized(proposalId);
     }
 
-
     // ============================================================
     // 11. INTERNAL FUNCTIONS - Validation Helpers
     // ============================================================
-
 
     /// @dev Validate member version number and prevent invalid version access
     /// @dev Central validation point for all version-based queries
@@ -1284,7 +1226,6 @@ abstract contract GovBaseV2 {
         return targetVersion;
     }
 
-
     /// @dev Validate proposal ID and prevent invalid proposal access
     /// @dev Central validation point for all proposal-based queries and operations
     /// @param proposalId The proposal ID to validate
@@ -1295,11 +1236,9 @@ abstract contract GovBaseV2 {
         return proposalId;
     }
 
-
     // ============================================================
     // 12. INTERNAL FUNCTIONS - Utility Helpers
     // ============================================================
-
 
     /// @dev Get member index at a specific member version snapshot
     /// @notice Returns 0-based member index, or type(uint256).max if not a member at that version
@@ -1308,13 +1247,12 @@ abstract contract GovBaseV2 {
     /// @param version The member version to query (validation is caller's responsibility)
     /// @return The 0-based member index, or type(uint256).max if not a member
     function _getMemberIndexAtVersion(address member, uint256 version) internal view returns (uint256) {
-        uint32 indexPlusOne = memberIndexByVersion[version][member];
+        uint32 indexPlusOne = _memberIndexByVersion[version][member];
         if (indexPlusOne == 0) {
             return type(uint256).max;
         }
         return uint256(indexPlusOne - 1);
     }
-
 
     /// @dev Decrement active proposal count for a proposal's creator
     /// @notice Called when proposal reaches terminal state (Executed, Cancelled, Expired, Failed, Rejected)
@@ -1326,5 +1264,4 @@ abstract contract GovBaseV2 {
             memberActiveProposalCount[proposer]--;
         }
     }
-
 }

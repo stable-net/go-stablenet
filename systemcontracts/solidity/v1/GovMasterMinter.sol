@@ -17,8 +17,8 @@
 
 pragma solidity ^0.8.14;
 
-import {GovBaseV2} from "../abstracts/GovBaseV2.sol";
-import {IFiatToken} from "../interfaces/IFiatToken.sol";
+import { GovBaseV2 } from "../abstracts/GovBaseV2.sol";
+import { IFiatToken } from "../interfaces/IFiatToken.sol";
 
 /**
  * @title GovMasterMinter
@@ -66,10 +66,10 @@ contract GovMasterMinter is GovBaseV2 {
     mapping(address => bool) public isMinter; // Minter status
 
     // Slot 0x36: minterList array (length slot, elements stored at keccak256(0x36))
-    address[] private minterList; // List of all minters
+    address[] private __minterList; // List of all minters
 
     // Slot 0x37: minterIndex mapping (base slot)
-    mapping(address => uint256) private minterIndex; // Index in minterList + 1 (1-based indexing)
+    mapping(address => uint256) private __minterIndex; // Index in minterList + 1 (1-based indexing)
 
     // ========== Events ==========
 
@@ -103,7 +103,7 @@ contract GovMasterMinter is GovBaseV2 {
         if (!emergencyPaused) revert ContractNotPaused();
         _;
     }
-    
+
     // ========== Proposal Functions ==========
 
     /**
@@ -291,8 +291,8 @@ contract GovMasterMinter is GovBaseV2 {
         // Effect: Update internal state first (CEI pattern)
         // Add minter to tracking if not already present
         if (!isMinter[minter]) {
-            minterList.push(minter);
-            minterIndex[minter] = minterList.length; // 1-based index
+            __minterList.push(minter);
+            __minterIndex[minter] = __minterList.length; // 1-based index
             isMinter[minter] = true;
         }
         // Note: allowance parameter used for FiatToken call, not stored locally
@@ -316,19 +316,19 @@ contract GovMasterMinter is GovBaseV2 {
     function _safeRemoveMinter(address minter) internal whenNotPaused returns (bool) {
         // Effect: Update internal state first (CEI pattern)
         // Remove from array using swap-and-pop
-        uint256 index = minterIndex[minter];
+        uint256 index = __minterIndex[minter];
         if (index > 0) {
             uint256 arrayIndex = index - 1;
-            uint256 lastIndex = minterList.length - 1;
+            uint256 lastIndex = __minterList.length - 1;
 
             if (arrayIndex != lastIndex) {
-                address lastMinter = minterList[lastIndex];
-                minterList[arrayIndex] = lastMinter;
-                minterIndex[lastMinter] = index;
+                address lastMinter = __minterList[lastIndex];
+                __minterList[arrayIndex] = lastMinter;
+                __minterIndex[lastMinter] = index;
             }
 
-            minterList.pop();
-            delete minterIndex[minter];
+            __minterList.pop();
+            delete __minterIndex[minter];
         }
 
         isMinter[minter] = false;
@@ -378,7 +378,7 @@ contract GovMasterMinter is GovBaseV2 {
     /// @dev Returns the length of minterList (local tracking state)
     ///      This count represents minters managed by this governance contract
     function getMinterCount() public view returns (uint256) {
-        return minterList.length;
+        return __minterList.length;
     }
 
     /// @notice Get minter address and its current allowance at a specific index
@@ -389,8 +389,8 @@ contract GovMasterMinter is GovBaseV2 {
     ///      Array order is not stable due to swap-and-pop removal pattern
     ///      Queries FiatToken.minterAllowance() for current allowance value
     function getMinterAt(uint256 index) public view returns (address minter, uint256 allowance) {
-        if (index >= minterList.length) revert IndexOutOfBounds();
-        minter = minterList[index];
+        if (index >= __minterList.length) revert IndexOutOfBounds();
+        minter = __minterList[index];
         allowance = fiatToken.minterAllowance(minter);
     }
 
@@ -401,13 +401,13 @@ contract GovMasterMinter is GovBaseV2 {
     ///      Gas cost: O(n) where n = minterList.length
     ///      Performance: ~100K gas for 10 minters, ~1M gas for 100 minters
     function getAllMinters() public view returns (address[] memory minters, uint256[] memory allowances) {
-        uint256 count = minterList.length;
+        uint256 count = __minterList.length;
         minters = new address[](count);
         allowances = new uint256[](count);
 
         for (uint256 i = 0; i < count; i++) {
-            minters[i] = minterList[i];
-            allowances[i] = fiatToken.minterAllowance(minterList[i]);
+            minters[i] = __minterList[i];
+            allowances[i] = fiatToken.minterAllowance(__minterList[i]);
         }
     }
 
@@ -417,10 +417,10 @@ contract GovMasterMinter is GovBaseV2 {
     /// @dev Queries FiatToken.minterAllowance() for each minter and calculates sum
     ///      Gas cost: O(n) where n = minterList.length, similar to getAllMinters()
     function getMinterStats() public view returns (uint256 totalMinters, uint256 totalAllowance) {
-        totalMinters = minterList.length;
+        totalMinters = __minterList.length;
         totalAllowance = 0;
         for (uint256 i = 0; i < totalMinters; i++) {
-            totalAllowance += fiatToken.minterAllowance(minterList[i]);
+            totalAllowance += fiatToken.minterAllowance(__minterList[i]);
         }
     }
 
