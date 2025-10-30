@@ -34,7 +34,6 @@ contract GovMinter is GovBaseV2 {
     error InvalidTokenAddress();
     error BeneficiaryNotRegistered();
     error BeneficiaryMismatch();
-    error BeneficiariesLengthMismatch();
     error DuplicateBeneficiary();
     error DepositIdAlreadyUsed();
     error DepositIdInUse();
@@ -192,52 +191,13 @@ contract GovMinter is GovBaseV2 {
     // INITIALIZATION
     // ============================================================
 
-
-    /**
-     * @notice Initialize the contract
-     * @param _members Array of member addresses
-     * @param _quorum Quorum required for proposals
-     * @param _fiatToken Address of the fiat token contract
-     * @param _beneficiaries Array of beneficiary addresses for each member
-     * @dev _members and _beneficiaries must have the same length
-     * @dev Each member's beneficiary is set during initialization
-     * @dev Beneficiaries must be unique (except address(0)) to prevent front-running
-     */
-    function initialize(
-        address[] memory _members,
-        address[] memory _beneficiaries,
-        uint32 _quorum,
-        address _fiatToken
-    ) external {
-        // Validate beneficiaries array length matches members
-        if (_members.length != _beneficiaries.length) revert BeneficiariesLengthMismatch();
-
-        _initializeGovernance(GovernanceConfig({members: _members, quorum: _quorum, proposalExpiry: 7 days}));
-
-        if (_fiatToken == address(0)) revert InvalidTokenAddress();
-        fiatToken = IFiatToken(_fiatToken);
-
-        // Validate uniqueness and set beneficiaries in a single pass
-        // During initialization, all beneficiaries must be set (address(0) not allowed)
-        for (uint256 i = 0; i < _members.length; i++) {
-            address beneficiary = _beneficiaries[i];
-            address member = _members[i];
-
-            // Beneficiary must be set during initialization
-            if (beneficiary == address(0)) revert InvalidBeneficiary();
-
-            // Check for duplicates using reverse mapping (O(1) check)
-            if (beneficiaryToMember[beneficiary] != address(0)) {
-                revert DuplicateBeneficiary();
-            }
-
-            // Set beneficiary mappings (forward and reverse)
-            memberBeneficiaries[member] = beneficiary;
-            beneficiaryToMember[beneficiary] = member;
-
-            emit BeneficiaryRegistered(member, beneficiary);
-        }
-    }
+    /// @notice Initialization is handled by genesis configuration
+    /// @dev See systemcontracts/gov_minter.go for genesis initialization implementation
+    ///
+    /// Genesis initialization sets:
+    /// - GovBase state: members, quorum, proposalExpiry, memberVersion (via gov_base.go)
+    /// - GovMinter state: fiatToken, memberBeneficiaries, beneficiaryToMember
+    /// - All initial beneficiaries must be unique (validated in genesis code)
 
 
     // ============================================================

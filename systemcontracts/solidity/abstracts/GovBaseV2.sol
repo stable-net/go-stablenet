@@ -34,7 +34,6 @@ abstract contract GovBaseV2 {
     // ========== Custom Errors ==========
     error AlreadyAMember();
     error AlreadyApproved();
-    error AlreadyInitialized();
     error DuplicateMember();
     error IndexOutOfBounds();
     error InsufficientApprovals();
@@ -57,12 +56,6 @@ abstract contract GovBaseV2 {
     struct Member {
         bool isActive;
         uint32 joinedAt;
-    }
-
-    struct GovernanceConfig {
-        address[] members;
-        uint32 quorum;
-        uint256 proposalExpiry;
     }
 
     /// @dev Proposal structure with optimized storage layout
@@ -155,8 +148,6 @@ abstract contract GovBaseV2 {
     uint256[38] private __gap; // Slot 12-49: Reserved storage space (reduced by 3 for proposalExecutionCount, memberActiveProposalCount, quorumByVersion)
 
     // ========== Events ==========
-    event GovernanceInitialized(uint256 memberCount, uint32 quorum, uint256 proposalExpiry, uint256 memberVersion);
-
     event ProposalCreated(
         uint256 indexed proposalId,
         address indexed proposer,
@@ -203,142 +194,23 @@ abstract contract GovBaseV2 {
         _nonReentrantAfter();
     }
 
-    // ========== Internal Functions ==========
-
-    /// @dev Initialize governance system with initial members and configuration
-    /// @param config Governance configuration containing members, quorum, and proposal expiry
-    /// @notice Must be called from derived contract's initializer (e.g., GovMinter.initialize)
-    /// @notice Can only be called once - protected by AlreadyInitialized check
-    /// @notice Emits GovernanceInitialized event upon successful initialization
-    ///
-    /// Validation checks (in order):
-    /// - Re-initialization protection (checks memberVersion snapshot)
-    /// - Member count: 1 <= count <= MAX_MEMBER_INDEX (255)
-    /// - Member addresses: no zero addresses, no duplicates (within array or existing members)
-    /// - Quorum range: 2 <= quorum <= member count (or quorum=1 for single-member governance)
-    /// - Proposal expiry: must be non-zero
-    ///
-    /// Implementation uses fail-fast pattern:
-    /// Step 1: Individual member validation (zero address, already active members)
-    /// Step 2: Duplicate detection within input array
-    /// Step 3: Quorum validation (after member validation for proper error precedence)
-    /// Step 4: State changes only after all validations pass
-    ///
-    /// Gas optimization: Uses unchecked increment (safe due to MAX_MEMBER_INDEX = 255)
-
     // ============================================================
     // 1. INITIALIZATION
     // ============================================================
 
-
-    // ========== Internal Functions ==========
-
-    /// @dev Initialize governance system with initial members and configuration
-    /// @param config Governance configuration containing members, quorum, and proposal expiry
-    /// @notice Must be called from derived contract's initializer (e.g., GovMinter.initialize)
-    /// @notice Can only be called once - protected by AlreadyInitialized check
-    /// @notice Emits GovernanceInitialized event upon successful initialization
+    /// @notice Governance initialization is handled by genesis configuration
+    /// @dev Initial state (members, quorum, proposalExpiry) is set via genesis params
+    /// @dev See systemcontracts/gov_base.go for genesis initialization implementation
     ///
-    /// Validation checks (in order):
-    /// - Re-initialization protection (checks memberVersion snapshot)
-    /// - Member count: 1 <= count <= MAX_MEMBER_INDEX (255)
-    /// - Member addresses: no zero addresses, no duplicates (within array or existing members)
-    /// - Quorum range: 2 <= quorum <= member count (or quorum=1 for single-member governance)
-    /// - Proposal expiry: must be non-zero
-    ///
-    /// Implementation uses fail-fast pattern:
-    /// Step 1: Individual member validation (zero address, already active members)
-    /// Step 2: Duplicate detection within input array
-    /// Step 3: Quorum validation (after member validation for proper error precedence)
-    /// Step 4: State changes only after all validations pass
-    ///
-    /// Gas optimization: Uses unchecked increment (safe due to MAX_MEMBER_INDEX = 255)
-    function _initializeGovernance(GovernanceConfig memory config) internal {
-        // Re-initialization protection: Check if already initialized
-        if (versionedMemberList[memberVersion].length > 0) revert AlreadyInitialized();
-
-        // Basic configuration validation
-        uint256 initialMemberCount = config.members.length;
-        if (initialMemberCount == 0) revert InvalidQuorum();
-        if (initialMemberCount > MAX_MEMBER_INDEX) revert MemberIndexOverflow(); // Max 255 members (bitmap safety)
-
-        // Step 1: Individual member validation (fail-fast pattern)
-        // Check each member address for:
-        // - Zero address (invalid)
-        // - Already active in governance (duplicate from existing members)
-        // Must be done BEFORE quorum validation for proper error precedence
-        for (uint256 i = 0; i < initialMemberCount;) {
-            address memberAddress = config.members[i];
-            if (memberAddress == address(0)) revert InvalidMemberAddress();
-            if (members[memberAddress].isActive) revert DuplicateMember();
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        // Step 2: Duplicate detection within input array
-        // Validates that no address appears twice in the members array
-        // Uses nested loop to compare each member with all subsequent members
-        // Must be done BEFORE quorum validation for proper error precedence
-        for (uint256 i = 0; i < initialMemberCount;) {
-            for (uint256 j = i + 1; j < initialMemberCount;) {
-                if (config.members[i] == config.members[j]) revert DuplicateMember();
-                unchecked {
-                    ++j; // Safe: j < initialMemberCount <= 255
-                }
-            }
-            unchecked {
-                ++i; // Safe: i < initialMemberCount <= MAX_MEMBER_INDEX (255)
-            }
-        }
-
-        // Step 3: Quorum validation with security consideration
-        // Security: quorum=1 allows single-member unilateral decisions without peer review
-        // For multi-member governance (>=2 members), enforce minimum quorum of 2
-        if (initialMemberCount == 1) {
-            // Special case: Single member governance (for testing/initial deployment only)
-            // WARNING: Single-member governance is centralized and not recommended for production
-            if (config.quorum != 1) revert InvalidQuorum();
-        } else {
-            // Multi-member governance: Require at least 2 approvals (proposer + 1 reviewer)
-            // This prevents any single member from executing proposals without peer review
-            if (config.quorum < 2 || config.quorum > initialMemberCount) revert InvalidQuorum();
-        }
-
-        if (config.proposalExpiry == 0) revert InvalidProposalExpiry();
-
-        // Step 4: State changes (only executed after all validations pass)
-        // Register all members and set governance parameters
-        address[] storage snapshot = versionedMemberList[memberVersion];
-        for (uint256 i = 0; i < initialMemberCount;) {
-            address memberAddress = config.members[i];
-
-            // Add member to versioned snapshot
-            snapshot.push(memberAddress);
-
-            // Mark member as active with current timestamp
-            members[memberAddress] = Member({isActive: true, joinedAt: uint32(block.timestamp)});
-
-            // Store member index (offset by 1 to distinguish from default value 0)
-            // This allows _getMemberIndexAtVersion to return type(uint256).max for non-existent members
-            // casting to 'uint32' is safe because member count is limited to MAX_MEMBER_INDEX (255)
-            // forge-lint: disable-next-line(unsafe-typecast)
-            memberIndexByVersion[memberVersion][memberAddress] = uint32(i + 1);
-
-            unchecked {
-                ++i; // Safe: i < initialMemberCount <= MAX_MEMBER_INDEX (255)
-            }
-        }
-
-        // Set governance parameters
-        quorum = config.quorum;
-        proposalExpiry = config.proposalExpiry;
-
-        quorumByVersion[memberVersion] = quorum;
-
-        emit GovernanceInitialized(initialMemberCount, config.quorum, config.proposalExpiry, memberVersion);
-    }
+    /// Genesis initialization process:
+    /// 1. Parse genesis params (members, quorum, expiry, memberVersion)
+    /// 2. Directly set storage slots:
+    ///    - versionedMemberList[1]: Initial member addresses
+    ///    - memberIndexByVersion[1][address]: Member index mappings
+    ///    - members[address]: Member status (isActive, joinedAt)
+    ///    - quorum, proposalExpiry: Governance parameters
+    ///    - memberVersion: Always starts at INITIAL_MEMBER_VERSION (1)
+    /// 3. No function call required - pure storage initialization
 
 
     // ============================================================
@@ -537,7 +409,67 @@ abstract contract GovBaseV2 {
         return _createProposal(ACTION_REMOVE_MEMBER, callData);
     }
 
+    /// @notice Allow active member to change their own address (self-service key rotation)
+    /// @param newMember New member address to replace msg.sender's address
+    ///
+    /// @dev Member change flow (Checks-Effects-Interactions):
+    /// 1. Checks: Validate new address (non-zero, not same, not already active)
+    /// 2. Effects:
+    ///    - Find and replace msg.sender with newMember in current version's versionedMemberList
+    ///    - Transfer memberIndexByVersion mapping from old to new address
+    ///    - Update members mapping: activate newMember, deactivate msg.sender
+    /// 3. Interactions: Call _onMemberChanged hook for derived contract logic
+    ///
+    /// @dev Access control: onlyActiveMember modifier ensures msg.sender is active
+    /// @dev Version behavior: Does NOT increment memberVersion, modifies current version in-place
+    /// @dev Index preservation: newMember inherits the exact same index position as msg.sender
+    function changeMember(address newMember) public onlyActiveMember {
+        address oldMember = msg.sender;
 
+        // CHECKS: Validate new address requirements
+        if (newMember == address(0)) revert InvalidMemberAddress();
+        if (oldMember == newMember) revert InvalidMemberAddress();
+        if (members[newMember].isActive) revert AlreadyAMember();
+
+        // Get current version's member list (no new version created)
+        uint256 currentVersion = memberVersion;
+        address[] storage currentMemberList = versionedMemberList[currentVersion];
+        uint256 length = currentMemberList.length;
+
+        // Find and replace oldMember with newMember in current version's list
+        bool found = false;
+        for (uint256 i = 0; i < length; i++) {
+            if (currentMemberList[i] == oldMember) {
+                // Replace address in-place, preserving array position
+                currentMemberList[i] = newMember;
+
+                // Transfer index mapping from old to new address
+                // Note: Index value remains the same (i+1), only the key changes
+                uint32 memberIndex = memberIndexByVersion[currentVersion][oldMember];
+                memberIndexByVersion[currentVersion][newMember] = memberIndex;
+                delete memberIndexByVersion[currentVersion][oldMember];
+                found = true;
+                break;
+            }
+        }
+
+        // This should never happen if the contract state is consistent
+        // (onlyActiveMember ensures msg.sender is active, and active members must exist in versionedMemberList)
+        if (!found) revert NotAMember();
+
+        // Update member states
+        // Activate new member with current timestamp
+        members[newMember] = Member({isActive: true, joinedAt: uint32(block.timestamp)});
+        // Deactivate old member (preserves joinedAt for historical record)
+        members[oldMember].isActive = false;
+
+        // Emit event for off-chain tracking
+        emit MemberChanged(oldMember, newMember);
+
+        // Call hook for derived contract-specific logic
+        // WARNING: Derived contracts must avoid external calls to prevent reentrancy
+        _onMemberChanged(oldMember, newMember);
+    }
 
 
     // ============================================================
@@ -1114,62 +1046,6 @@ abstract contract GovBaseV2 {
 
         quorumByVersion[newVersion] = newQuorum;
     }
-
-
-    /// @dev Change member address (address rotation)
-    /// @param oldMember Current member address to replace
-    /// @param newMember New member address to activate
-    ///
-    /// @notice Member change flow (Checks-Effects-Interactions):
-    /// 1. Checks: Validate addresses and member status
-    /// 2. Effects: Create new version snapshot, replace member, update states
-    /// 3. Interactions: Call _onMemberChanged hook for derived contract logic
-    ///
-    /// @notice Index preservation: New member retains the same index as old member
-    /// @notice Use case: Key rotation, member address migration
-    ///
-    /// @notice Security consideration: _onMemberChanged is called after state changes
-    ///         Derived contracts must avoid external calls in _onMemberChanged to prevent
-    ///         cross-function reentrancy attacks
-    /// @notice Reentrancy protection: Caller (_executeProposal) has nonReentrant guard
-    function _changeMember(address oldMember, address newMember) internal {
-        // CHECKS: Validate addresses and member status
-        if (newMember == address(0)) revert InvalidMemberAddress();
-        if (!members[oldMember].isActive) revert NotAMember();
-        if (members[newMember].isActive) revert AlreadyAMember();
-
-        // Create new version snapshot
-        (address[] storage newSnapshot, address[] storage oldSnapshot, uint256 newVersion) = _prepareNextMemberVersion();
-        uint256 oldLength = oldSnapshot.length;
-
-        // Copy members, replacing oldMember with newMember at same index
-        uint256 newIndex = 0;
-        for (uint256 i = 0; i < oldLength; i++) {
-            address existing = oldSnapshot[i];
-            if (existing == oldMember) {
-                existing = newMember;  // Replace old with new, preserving index
-            }
-            newSnapshot.push(existing);
-            // Safe cast: ++newIndex starts from 1, limited to MAX_MEMBER_INDEX (255) < uint32.max
-            // Note: Indices stored as "index + 1" (0 means "not a member")
-            // forge-lint: disable-next-line(unsafe-typecast)
-            memberIndexByVersion[newVersion][existing] = uint32(++newIndex);
-        }
-
-        // Clean up stale mapping entry
-        delete memberIndexByVersion[newVersion][oldMember];
-
-        // Update member states and emit events
-        members[newMember] = Member({isActive: true, joinedAt: uint32(block.timestamp)});
-        members[oldMember].isActive = false;
-        emit MemberChanged(oldMember, newMember);
-
-        // Call hook for derived contract logic (avoid external calls here)
-        _onMemberChanged(oldMember, newMember);
-
-        quorumByVersion[newVersion] = quorum;
-    }
-
 
     // ============================================================
     // 9. INTERNAL FUNCTIONS - Execution Hooks (Virtual)

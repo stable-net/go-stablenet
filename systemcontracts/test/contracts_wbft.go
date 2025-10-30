@@ -351,6 +351,10 @@ func (g *GovWBFT) BaseTxExecuteProposal(t *testing.T, contract *bind.BoundContra
 	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "executeProposal", proposalId)
 }
 
+func (g *GovWBFT) BaseTxChangeMember(t *testing.T, contract *bind.BoundContract, sender *EOA, newMember common.Address) (*types.Transaction, error) {
+	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "changeMember", newMember)
+}
+
 // GovValidator Contract
 func (g *GovWBFT) ConfigureValidator(t *testing.T, v *TestCandidate) (*types.Transaction, error) {
 	blsPubKey := v.GetBLSPublicKey(t)
