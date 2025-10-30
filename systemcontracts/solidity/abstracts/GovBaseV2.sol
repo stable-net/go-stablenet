@@ -123,6 +123,7 @@ abstract contract GovBaseV2 {
     bytes32 public constant ACTION_ADD_MEMBER = keccak256("ACTION_ADD_MEMBER");
     bytes32 public constant ACTION_REMOVE_MEMBER = keccak256("ACTION_REMOVE_MEMBER");
     bytes32 public constant ACTION_CHANGE_MEMBER = keccak256("ACTION_CHANGE_MEMBER");
+    bytes32 public constant ACTION_CHANGE_QUORUM = keccak256("ACTION_CHANGE_QUORUM");
 
     // ========== State Variables ==========
     // Value types - uint256 (32 bytes each, 1 slot per variable)
@@ -407,6 +408,25 @@ abstract contract GovBaseV2 {
 
         bytes memory callData = abi.encode(member, newQuorum);
         return _createProposal(ACTION_REMOVE_MEMBER, callData);
+    }
+
+    /// @notice Propose to change the quorum requirement for governance proposals
+    /// @param newQuorum New quorum value to set
+    /// @return proposalId The ID of the created proposal
+    /// @dev Requires governance approval to execute
+    /// @dev Quorum must be at least 2 and at most the current number of members
+    function proposeChangeQuorum(uint32 newQuorum) public onlyActiveMember returns (uint256 proposalId) {
+        uint256 memberCount = versionedMemberList[memberVersion].length;
+
+        // Validate quorum requirements
+        if (memberCount == 1) {
+            if (newQuorum != 1) revert InvalidQuorum();
+        } else {
+            if (newQuorum < 2 || newQuorum > memberCount) revert InvalidQuorum();
+        }
+
+        bytes memory callData = abi.encode(newQuorum);
+        return _createProposal(ACTION_CHANGE_QUORUM, callData);
     }
 
     /// @notice Allow active member to change their own address (self-service key rotation)
@@ -983,6 +1003,37 @@ abstract contract GovBaseV2 {
     }
 
 
+    /// @dev Change governance quorum requirement
+    /// @param newQuorum New quorum value to set
+    ///
+    /// @notice Quorum change flow (Checks-Effects):
+    /// 1. Checks: Validate quorum requirements based on current member count
+    /// 2. Effects: Update quorum value and emit QuorumUpdated event
+    ///
+    /// @notice Quorum rules: Single member requires quorum=1, multiple members require quorum≥2
+    /// @notice Quorum cannot exceed current member count
+    ///
+    /// @notice Reentrancy protection: Caller (_executeProposal) has nonReentrant guard
+    function _changeQuorum(uint32 newQuorum) internal {
+        uint256 memberCount = versionedMemberList[memberVersion].length;
+
+        // CHECKS: Validate quorum requirements
+        if (memberCount == 1) {
+            if (newQuorum != 1) revert InvalidQuorum();
+        } else {
+            if (newQuorum < 2 || newQuorum > memberCount) revert InvalidQuorum();
+        }
+
+        // Update quorum value
+        uint32 oldQuorum = quorum;
+        quorum = newQuorum;
+
+        emit QuorumUpdated(oldQuorum, newQuorum);
+
+        // Update snapshot for current version
+        quorumByVersion[memberVersion] = newQuorum;
+    }
+
     /// @dev Remove governance member with quorum update
     /// @param member Address of member to remove
     /// @param newQuorum New quorum requirement (1 for single member, ≥2 for multiple)
@@ -1058,7 +1109,7 @@ abstract contract GovBaseV2 {
     /// @param actionType The type of action to execute
     /// @param callData ABI-encoded parameters for the action
     /// @return success True if the action executed successfully
-    /// @notice Handles ACTION_ADD_MEMBER, ACTION_REMOVE_MEMBER internally
+    /// @notice Handles ACTION_ADD_MEMBER, ACTION_REMOVE_MEMBER, ACTION_CHANGE_QUORUM internally
     /// @notice Delegates unknown actions to _executeCustomAction for derived contract handling
     function _executeInternalAction(bytes32 actionType, bytes memory callData) internal virtual returns (bool success) {
         if (actionType == ACTION_ADD_MEMBER) {
@@ -1068,6 +1119,10 @@ abstract contract GovBaseV2 {
         } else if (actionType == ACTION_REMOVE_MEMBER) {
             (address member, uint32 newQuorum) = abi.decode(callData, (address, uint32));
             _removeMember(member, newQuorum);
+            return true;
+        } else if (actionType == ACTION_CHANGE_QUORUM) {
+            uint32 newQuorum = abi.decode(callData, (uint32));
+            _changeQuorum(newQuorum);
             return true;
         }
 

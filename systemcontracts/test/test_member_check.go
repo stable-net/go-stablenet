@@ -17,7 +17,7 @@ func TestDebugMemberCheck(t *testing.T) {
 	
 	// Try to call proposeAddMember
 	t.Log("Attempting to call proposeAddMember...")
-	tx, err := g.BaseTxProposeAddMember(t, g.govValidator, customValidators[0].Operator, newValidator.Operator.Address, 2)
+	_, tx, err := g.BaseTxProposeAddMember(t, g.govValidator, customValidators[0].Operator, newValidator.Operator.Address, 2)
 	if err != nil {
 		t.Logf("Transaction creation error: %v", err)
 	}

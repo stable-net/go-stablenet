@@ -339,8 +339,32 @@ func (g *GovWBFT) BaseGetProposal(contract *bind.BoundContract, sender *EOA, pro
 	return proposal, nil
 }
 
-func (g *GovWBFT) BaseTxProposeAddMember(t *testing.T, contract *bind.BoundContract, sender *EOA, newMember common.Address, newQuorum uint32) (*types.Transaction, error) {
-	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "proposeAddMember", newMember, newQuorum)
+func (g *GovWBFT) BaseTxProposeAddMember(t *testing.T, contract *bind.BoundContract, sender *EOA, newMember common.Address, newQuorum uint32) (*big.Int, *types.Transaction, error) {
+	// Get current proposal ID before transaction
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address}, &result, "currentProposalId")
+	if err != nil {
+		return nil, nil, err
+	}
+	currentId := result[0].(*big.Int)
+	nextId := new(big.Int).Add(currentId, big.NewInt(1))
+
+	tx, err := contract.Transact(NewTxOptsWithValue(t, sender, nil), "proposeAddMember", newMember, newQuorum)
+	return nextId, tx, err
+}
+
+func (g *GovWBFT) BaseTxProposeChangeQuorum(t *testing.T, contract *bind.BoundContract, sender *EOA, newQuorum uint32) (*big.Int, *types.Transaction, error) {
+	// Get current proposal ID before transaction
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address}, &result, "currentProposalId")
+	if err != nil {
+		return nil, nil, err
+	}
+	currentId := result[0].(*big.Int)
+	nextId := new(big.Int).Add(currentId, big.NewInt(1))
+
+	tx, err := contract.Transact(NewTxOptsWithValue(t, sender, nil), "proposeChangeQuorum", newQuorum)
+	return nextId, tx, err
 }
 
 func (g *GovWBFT) BaseTxApproveProposal(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {

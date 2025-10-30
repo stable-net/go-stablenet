@@ -40,7 +40,7 @@ func TestDebugMembershipSimple(t *testing.T) {
 
 	// Now try to propose adding a new member
 	t.Log("Calling proposeAddMember...")
-	tx, txErr := g.BaseTxProposeAddMember(t, g.govValidator, customValidators[0].Operator, newValidator.Operator.Address, 2)
+	_, tx, txErr := g.BaseTxProposeAddMember(t, g.govValidator, customValidators[0].Operator, newValidator.Operator.Address, 2)
 	if txErr != nil {
 		t.Logf("Transaction creation failed: %v", txErr)
 	}

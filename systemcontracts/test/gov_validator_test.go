@@ -320,11 +320,12 @@ func TestGovValidator_configureValidator(t *testing.T) {
 		)
 
 		// success case 1: register new validator
-		_, err := g.ExpectedOk(g.BaseTxProposeAddMember(t,
+		_, tx, err := g.BaseTxProposeAddMember(t,
 			g.govValidator,
 			customValidators[0].Operator,
 			newValidator.Operator.Address,
-			2))
+			2)
+		_, err = g.ExpectedOk(tx, err)
 		require.NoError(t, err)
 		proposalId, err := g.BaseCurrentProposalId(g.govValidator, customValidators[0].Operator)
 		require.NoError(t, err)
