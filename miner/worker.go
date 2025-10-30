@@ -43,8 +43,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/ethereum/go-ethereum/trie"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
 	"github.com/holiman/uint256"
 )
 
@@ -1235,7 +1235,7 @@ func (w *worker) getGasTipFromContract(state *state.StateDB) *big.Int {
 	govValidatorAddr := w.chainConfig.Anzeon.SystemContracts.GovValidator.Address
 
 	// Read gasTip from contract storage
-	gasTip := govwbft.GetGasTip(govValidatorAddr, state)
+	gasTip := systemcontracts.GetGasTip(govValidatorAddr, state)
 	if gasTip == nil {
 		log.Warn("Failed to get gasTip from GovValidator contract", "gasTip", gasTip)
 		return nil
