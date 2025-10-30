@@ -51,7 +51,7 @@ func TestEthSuite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not make jwt secret: %v", err)
 	}
-	geth, err := runGeth("./testdata", jwtPath)
+	geth, err := runGstable("./testdata", jwtPath)
 	if err != nil {
 		t.Fatalf("could not run geth: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestSnapSuite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not make jwt secret: %v", err)
 	}
-	geth, err := runGeth("./testdata", jwtPath)
+	geth, err := runGstable("./testdata", jwtPath)
 	if err != nil {
 		t.Fatalf("could not run geth: %v", err)
 	}
@@ -99,8 +99,8 @@ func TestSnapSuite(t *testing.T) {
 	}
 }
 
-// runGeth creates and starts a geth node
-func runGeth(dir string, jwtPath string) (*node.Node, error) {
+// runGstable creates and starts a geth node
+func runGstable(dir string, jwtPath string) (*node.Node, error) {
 	stack, err := node.New(&node.Config{
 		AuthAddr: "127.0.0.1",
 		AuthPort: 0,
@@ -116,7 +116,7 @@ func runGeth(dir string, jwtPath string) (*node.Node, error) {
 		return nil, err
 	}
 
-	err = setupGeth(stack, dir)
+	err = setupGstable(stack, dir)
 	if err != nil {
 		stack.Close()
 		return nil, err
@@ -124,7 +124,7 @@ func runGeth(dir string, jwtPath string) (*node.Node, error) {
 	return stack, nil
 }
 
-func setupGeth(stack *node.Node, dir string) error {
+func setupGstable(stack *node.Node, dir string) error {
 	chain, err := NewChain(dir)
 	if err != nil {
 		return err

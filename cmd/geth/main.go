@@ -203,7 +203,7 @@ var (
 var app = flags.NewApp("the go-ethereum command line interface")
 
 func init() {
-	// Initialize the CLI app and start Geth
+	// Initialize the CLI app and start Gstable
 	app.Action = geth
 	app.Commands = []*cli.Command{
 		// See chaincmd.go:
@@ -281,20 +281,20 @@ func prepare(ctx *cli.Context) {
 	// If we're running a known preset, log it for convenience.
 	switch {
 	case ctx.IsSet(utils.WemixTestnetFlag.Name):
-		log.Info("Starting Geth on Wemix testnet...")
+		log.Info("Starting Gstable on Wemix testnet...")
 
 	case ctx.IsSet(utils.GoerliFlag.Name):
-		log.Info("Starting Geth on Görli testnet...")
+		log.Info("Starting Gstable on Görli testnet...")
 
 	case ctx.IsSet(utils.SepoliaFlag.Name):
-		log.Info("Starting Geth on Sepolia testnet...")
+		log.Info("Starting Gstable on Sepolia testnet...")
 
 	case ctx.IsSet(utils.HoleskyFlag.Name):
-		log.Info("Starting Geth on Holesky testnet...")
+		log.Info("Starting Gstable on Holesky testnet...")
 
 	case ctx.IsSet(utils.DeveloperFlag.Name):
-		log.Info("Starting Geth in ephemeral dev mode...")
-		log.Warn(`You are running Geth in --dev mode. Please note the following:
+		log.Info("Starting Gstable in ephemeral dev mode...")
+		log.Warn(`You are running Gstable in --dev mode. Please note the following:
 
   1. This mode is only intended for fast, iterative development without assumptions on
      security or persistence.
@@ -311,7 +311,7 @@ func prepare(ctx *cli.Context) {
 `)
 
 	case !ctx.IsSet(utils.NetworkIdFlag.Name):
-		log.Info("Starting Geth on Ethereum mainnet...")
+		log.Info("Starting Gstable on Ethereum mainnet...")
 	}
 	// If we're a full node on mainnet without --cache specified, bump default cache allowance
 	if !ctx.IsSet(utils.CacheFlag.Name) && !ctx.IsSet(utils.NetworkIdFlag.Name) {

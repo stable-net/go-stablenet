@@ -13,7 +13,7 @@ PageEx license
 PageExEnd
 
 # Install geth binary
-Section "Geth" GETH_IDX
+Section "Gstable" GETH_IDX
   SetOutPath $INSTDIR
   file {{.Geth}}
 

@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type testgeth struct {
+type testgstable struct {
 	*cmdtest.TestCmd
 
 	// template variables for expect
@@ -37,7 +37,7 @@ type testgeth struct {
 }
 
 func init() {
-	// Run the app if we've been exec'd as "geth-test" in runGeth.
+	// Run the app if we've been exec'd as "geth-test" in runGstable.
 	reexec.Register("geth-test", func() {
 		if err := app.Run(os.Args); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -55,10 +55,10 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func initGeth(t *testing.T) string {
+func initGstable(t *testing.T) string {
 	args := []string{"--networkid=42", "init", "./testdata/clique.json"}
 	t.Logf("Initializing geth: %v ", args)
-	g := runGeth(t, args...)
+	g := runGstable(t, args...)
 	datadir := g.Datadir
 	g.WaitExit()
 	return datadir
@@ -66,8 +66,8 @@ func initGeth(t *testing.T) string {
 
 // spawns geth with the given command line args. If the args don't set --datadir, the
 // child g gets a temporary data directory.
-func runGeth(t *testing.T, args ...string) *testgeth {
-	tt := &testgeth{}
+func runGstable(t *testing.T, args ...string) *testgstable {
+	tt := &testgstable{}
 	tt.TestCmd = cmdtest.NewTestCmd(t, tt)
 	for i, arg := range args {
 		switch arg {

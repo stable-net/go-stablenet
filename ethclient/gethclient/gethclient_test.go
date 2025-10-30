@@ -98,7 +98,7 @@ func generateTestChain() (*core.Genesis, []*types.Block) {
 	return genesis, blocks
 }
 
-func TestGethClient(t *testing.T) {
+func TestGstableClient(t *testing.T) {
 	backend, _ := newTestBackend(t)
 	client := backend.Attach()
 	defer backend.Close()

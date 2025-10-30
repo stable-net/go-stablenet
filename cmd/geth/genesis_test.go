@@ -72,7 +72,7 @@ var customGenesisTests = []struct {
 	},
 }
 
-// Tests that initializing Geth with a custom genesis block and chain definitions
+// Tests that initializing Gstable with a custom genesis block and chain definitions
 // work properly.
 func TestCustomGenesis(t *testing.T) {
 	t.Parallel()
@@ -85,10 +85,10 @@ func TestCustomGenesis(t *testing.T) {
 		if err := os.WriteFile(json, []byte(tt.genesis), 0600); err != nil {
 			t.Fatalf("test %d: failed to write genesis file: %v", i, err)
 		}
-		runGeth(t, "--datadir", datadir, "init", json).WaitExit()
+		runGstable(t, "--datadir", datadir, "init", json).WaitExit()
 
 		// Query the custom genesis block
-		geth := runGeth(t, "--networkid", "1337", "--syncmode=full", "--cache", "16",
+		geth := runGstable(t, "--networkid", "1337", "--syncmode=full", "--cache", "16",
 			"--datadir", datadir, "--maxpeers", "0", "--port", "0", "--authrpc.port", "0",
 			"--nodiscover", "--nat", "none", "--ipcdisable",
 			"--exec", tt.query, "console")
@@ -135,7 +135,7 @@ func TestCustomBackend(t *testing.T) {
 		}
 		{ // Init
 			args := append(tt.initArgs, "--datadir", datadir, "init", json)
-			geth := runGeth(t, args...)
+			geth := runGstable(t, args...)
 			geth.ExpectRegexp(tt.initExpect)
 			geth.ExpectExit()
 		}
@@ -144,7 +144,7 @@ func TestCustomBackend(t *testing.T) {
 				"--datadir", datadir, "--maxpeers", "0", "--port", "0", "--authrpc.port", "0",
 				"--nodiscover", "--nat", "none", "--ipcdisable",
 				"--exec", "eth.getBlock(0).nonce", "console")
-			geth := runGeth(t, args...)
+			geth := runGstable(t, args...)
 			geth.ExpectRegexp(tt.execExpect)
 			geth.ExpectExit()
 		}

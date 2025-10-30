@@ -76,7 +76,7 @@ func testReceiveHeaders(t *testing.T, ln net.Listener, gethArgs ...string) {
 		}}}
 	go server.Serve(ln)
 	defer server.Close()
-	runGeth(t, gethArgs...).WaitExit()
+	runGstable(t, gethArgs...).WaitExit()
 	if ok.Load() != 1 {
 		t.Fatal("Test fail, expected invocation to succeed")
 	}

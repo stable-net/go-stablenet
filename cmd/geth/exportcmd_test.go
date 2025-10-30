@@ -30,7 +30,7 @@ func TestExport(t *testing.T) {
 	t.Parallel()
 	outfile := fmt.Sprintf("%v/testExport.out", os.TempDir())
 	defer os.Remove(outfile)
-	geth := runGeth(t, "--datadir", initGeth(t), "export", outfile)
+	geth := runGstable(t, "--datadir", initGstable(t), "export", outfile)
 	geth.WaitExit()
 	if have, want := geth.ExitStatus(), 0; have != want {
 		t.Errorf("exit error, have %d want %d", have, want)
