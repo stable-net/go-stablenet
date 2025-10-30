@@ -19,7 +19,7 @@ jobs:
           go-version: 1.21.4
 
       - name: Build StableNet
-        run: make geth
+        run: make gstable
 
   lint_test:
     strategy:

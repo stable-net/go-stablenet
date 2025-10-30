@@ -23,11 +23,11 @@ jobs:
           sudo apt remove -y bzip2 libbz2-dev zlib1g-dev
 
       - name: Build binary
-        run: make geth
+        run: make gstable
 
       - name: Set version
         run: |
-          GETH_VERSION=$(build/bin/geth version | awk '/^Version/{ print $2 }')
+          GETH_VERSION=$(build/bin/gstable version | awk '/^Version/{ print $2 }')
           COMMIT_HASH=$(echo ${{ github.sha }} | cut -c1-8)
           TAG_NAME="${{ github.ref_name }}"
           echo "RELEASE_VERSION=${GETH_VERSION}-${COMMIT_HASH}" >> "$GITHUB_ENV"
@@ -37,13 +37,13 @@ jobs:
       - name: Create tarball
         run: |
           mkdir -p release
-          cp build/bin/geth release/
+          cp build/bin/gstable release/
           cd release
-          tar -czf "geth-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz" geth
+          tar -czf "gstable-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz" gstable
           cd ..
           ls -la release/
-          mv "release/geth-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz" .
-          ls -la geth-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
+          mv "release/gstable-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz" .
+          ls -la gstable-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
 
       - name: Create Release
         uses: softprops/action-gh-release@v2.0.5
@@ -51,4 +51,4 @@ jobs:
           name: WEMIX Build (${{ env.RELEASE_VERSION }})
           tag_name: ${{ env.TAG_NAME }}
           draft: true
-          files: geth-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
+          files: gstable-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
