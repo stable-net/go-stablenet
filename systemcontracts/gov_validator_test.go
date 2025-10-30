@@ -45,6 +45,11 @@ func TestInitializeValidator(t *testing.T) {
 			param:     map[string]string{},
 			expectErr: "",
 			expectParam: []params.StateParam{
+				{ // maxActiveProposalsPerMember (slot 0xc, default: 3)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000000c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"),
+				},
 				{
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
@@ -84,6 +89,11 @@ func TestInitializeValidator(t *testing.T) {
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // maxActiveProposalsPerMember (slot 0xc, default: 3)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000000c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"),
 				},
 				{ // blsPop (slot 0x32)
 					Address: common.Address{},
@@ -168,6 +178,11 @@ func TestInitializeValidator(t *testing.T) {
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // maxActiveProposalsPerMember (slot 0xc, default: 3)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000000c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"),
 				},
 				{ // blsPop (slot 0x32)
 					Address: common.Address{},

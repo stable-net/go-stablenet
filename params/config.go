@@ -84,6 +84,7 @@ var (
 						"memberVersion": "1",
 						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
+						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -109,6 +110,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"maxProposals":       "3", // Default: 3, Range: 1-50
 					},
 				},
 				GovMinter: &SystemContract{
@@ -120,6 +122,7 @@ var (
 						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"memberVersion": "1",
 						"fiatToken":     "0x0000000000000000000000000000000000001000",
+						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
 				},
 			},
@@ -163,6 +166,7 @@ var (
 						"memberVersion": "1",
 						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
+						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -188,6 +192,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"maxProposals":       "3", // Default: 3, Range: 1-50
 					},
 				},
 				GovMinter: &SystemContract{
@@ -199,6 +204,7 @@ var (
 						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"memberVersion": "1",
 						"fiatToken":     "0x0000000000000000000000000000000000001000",
+						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
 				},
 			},
@@ -376,6 +382,7 @@ var (
 						"memberVersion": "1",
 						"validators":    "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
 						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
+						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -401,6 +408,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"maxProposals":       "3", // Default: 3, Range: 1-50
 					},
 				},
 				GovMinter: &SystemContract{
@@ -412,6 +420,7 @@ var (
 						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"memberVersion": "1",
 						"fiatToken":     "0x0000000000000000000000000000000000001000",
+						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
 				},
 			},
@@ -566,6 +575,7 @@ var (
 						"memberVersion": "1",
 						"validators":    "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
 						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
+						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -591,6 +601,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"maxProposals":       "3", // Default: 3, Range: 1-50
 					},
 				},
 				GovMinter: &SystemContract{
@@ -602,6 +613,7 @@ var (
 						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"memberVersion": "1",
 						"fiatToken":     "0x0000000000000000000000000000000000001000",
+						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
 				},
 			},

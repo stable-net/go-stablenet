@@ -369,6 +369,29 @@ func (g *GovWBFT) BaseTxProposeChangeQuorum(t *testing.T, contract *bind.BoundCo
 	return nextId, tx, err
 }
 
+func (g *GovWBFT) BaseMaxActiveProposalsPerMember(contract *bind.BoundContract, sender *EOA) (*big.Int, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address}, &result, "maxActiveProposalsPerMember")
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) BaseTxProposeChangeMaxProposals(t *testing.T, contract *bind.BoundContract, sender *EOA, newMax *big.Int) (*big.Int, *types.Transaction, error) {
+	// Get current proposal ID before transaction
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address}, &result, "currentProposalId")
+	if err != nil {
+		return nil, nil, err
+	}
+	currentId := result[0].(*big.Int)
+	nextId := new(big.Int).Add(currentId, big.NewInt(1))
+
+	tx, err := contract.Transact(NewTxOptsWithValue(t, sender, nil), "proposeChangeMaxProposals", newMax)
+	return nextId, tx, err
+}
+
 func (g *GovWBFT) BaseTxApproveProposal(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
 	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "approveProposal", proposalId)
 }

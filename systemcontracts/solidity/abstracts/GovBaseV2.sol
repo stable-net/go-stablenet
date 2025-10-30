@@ -38,6 +38,7 @@ abstract contract GovBaseV2 {
     error IndexOutOfBounds();
     error InsufficientApprovals();
     error InvalidMemberAddress();
+    error InvalidMaxProposals();
     error InvalidProposal();
     error InvalidProposalExpiry();
     error InvalidMemberVersion();
@@ -117,13 +118,13 @@ abstract contract GovBaseV2 {
     uint256 public constant MAX_MEMBER_INDEX = 255; // Maximum safe index for bit shifting (1 << 255)
     uint256 public constant MAX_RETRY_COUNT = 3; // Maximum number of execution attempts per proposal (includes initial + retries)
     uint256 public constant INITIAL_MEMBER_VERSION = 1; // Initial version number for member snapshots
-    uint256 public constant MAX_ACTIVE_PROPOSALS_PER_MEMBER = 3; // Maximum concurrent active proposals per member
 
     // Member management action types
     bytes32 public constant ACTION_ADD_MEMBER = keccak256("ACTION_ADD_MEMBER");
     bytes32 public constant ACTION_REMOVE_MEMBER = keccak256("ACTION_REMOVE_MEMBER");
     bytes32 public constant ACTION_CHANGE_MEMBER = keccak256("ACTION_CHANGE_MEMBER");
     bytes32 public constant ACTION_CHANGE_QUORUM = keccak256("ACTION_CHANGE_QUORUM");
+    bytes32 public constant ACTION_CHANGE_MAX_PROPOSALS = keccak256("ACTION_CHANGE_MAX_PROPOSALS");
 
     // ========== State Variables ==========
     // Value types - uint256 (32 bytes each, 1 slot per variable)
@@ -145,8 +146,11 @@ abstract contract GovBaseV2 {
     mapping(uint256 => uint256) public proposalExecutionCount; // Slot 10: Execution attempt count for each proposal
     mapping(address => uint256) public memberActiveProposalCount; // Slot 11: Track active proposals per member
 
+    // Governance parameters
+    uint256 public maxActiveProposalsPerMember; // Slot 12: Maximum concurrent active proposals per member (range: 1-50)
+
     // Reserved storage for future upgrades
-    uint256[38] private __gap; // Slot 12-49: Reserved storage space (reduced by 3 for proposalExecutionCount, memberActiveProposalCount, quorumByVersion)
+    uint256[37] private __gap; // Slot 13-49: Reserved storage space (reduced by 4 for proposalExecutionCount, memberActiveProposalCount, quorumByVersion, maxActiveProposalsPerMember)
 
     // ========== Events ==========
     event ProposalCreated(
@@ -170,6 +174,7 @@ abstract contract GovBaseV2 {
     event MemberRemoved(address indexed member, uint256 totalMembers, uint32 newQuorum);
     event MemberChanged(address indexed oldMember, address indexed newMember);
     event QuorumUpdated(uint32 oldQuorum, uint32 newQuorum);
+    event MaxProposalsPerMemberUpdated(uint256 oldMax, uint256 newMax);
 
     // ========== Modifiers ==========
 
@@ -413,6 +418,19 @@ abstract contract GovBaseV2 {
         return _createProposal(ACTION_CHANGE_QUORUM, callData);
     }
 
+    /// @notice Propose to change the maximum number of active proposals per member
+    /// @param newMax New maximum value to set (must be between 1 and 50)
+    /// @return proposalId The ID of the created proposal
+    /// @dev Requires governance approval to execute
+    /// @dev Valid range: 1 to 50 (inclusive)
+    function proposeChangeMaxProposals(uint256 newMax) public onlyActiveMember returns (uint256 proposalId) {
+        // Validate range: 1 to 50
+        if (newMax < 1 || newMax > 50) revert InvalidMaxProposals();
+
+        bytes memory callData = abi.encode(newMax);
+        return _createProposal(ACTION_CHANGE_MAX_PROPOSALS, callData);
+    }
+
     /// @notice Allow active member to change their own address (self-service key rotation)
     /// @param newMember New member address to replace msg.sender's address
     ///
@@ -623,19 +641,19 @@ abstract contract GovBaseV2 {
     }
 
     /// @notice Get the number of active (non-terminal) proposals for a member
-    /// @dev This count enforces the MAX_ACTIVE_PROPOSALS_PER_MEMBER limit to prevent proposal spam
+    /// @dev This count enforces the maxActiveProposalsPerMember limit to prevent proposal spam
     /// @param member The member address to query for active proposal count
-    /// @return The number of active proposals (range: 0 to MAX_ACTIVE_PROPOSALS_PER_MEMBER)
+    /// @return The number of active proposals (range: 0 to maxActiveProposalsPerMember)
     function getMemberActiveProposalCount(address member) public view returns (uint256) {
         return memberActiveProposalCount[member];
     }
 
     /// @notice Check if a member can create a new proposal
-    /// @dev Verifies whether the member has available capacity (count < MAX_ACTIVE_PROPOSALS_PER_MEMBER)
+    /// @dev Verifies whether the member has available capacity (count < maxActiveProposalsPerMember)
     /// @param member The member address to check for proposal creation eligibility
     /// @return True if member can create a new proposal, false if at capacity limit
     function canCreateProposal(address member) public view returns (bool) {
-        return memberActiveProposalCount[member] < MAX_ACTIVE_PROPOSALS_PER_MEMBER;
+        return memberActiveProposalCount[member] < maxActiveProposalsPerMember;
     }
 
     // ============================================================
@@ -670,7 +688,7 @@ abstract contract GovBaseV2 {
         if (proposalExpiry == 0) revert InvalidProposalExpiry();
 
         // Check proposal spam limit
-        if (memberActiveProposalCount[msg.sender] >= MAX_ACTIVE_PROPOSALS_PER_MEMBER) {
+        if (memberActiveProposalCount[msg.sender] >= maxActiveProposalsPerMember) {
             revert TooManyActiveProposals();
         }
 
@@ -986,6 +1004,28 @@ abstract contract GovBaseV2 {
         _quorumByVersion[memberVersion] = newQuorum;
     }
 
+    /// @dev Change maximum active proposals per member
+    /// @param newMax New maximum value to set (must be between 1 and 50)
+    ///
+    /// @notice Max proposals change flow (Checks-Effects):
+    /// 1. Checks: Validate range (1 to 50 inclusive)
+    /// 2. Effects: Update maxActiveProposalsPerMember value and emit MaxProposalsPerMemberUpdated event
+    ///
+    /// @notice Valid range: 1 to 50 (inclusive)
+    /// @notice Lower values increase security (reduce spam), higher values increase throughput
+    ///
+    /// @notice Reentrancy protection: Caller (_executeProposal) has nonReentrant guard
+    function _changeMaxProposals(uint256 newMax) internal {
+        // CHECKS: Validate range (1 to 50)
+        if (newMax < 1 || newMax > 50) revert InvalidMaxProposals();
+
+        // Update state and emit event
+        uint256 oldMax = maxActiveProposalsPerMember;
+        maxActiveProposalsPerMember = newMax;
+
+        emit MaxProposalsPerMemberUpdated(oldMax, newMax);
+    }
+
     /// @dev Remove governance member with quorum update
     /// @param member Address of member to remove
     /// @param newQuorum New quorum requirement (1 for single member, ≥2 for multiple)
@@ -1060,7 +1100,7 @@ abstract contract GovBaseV2 {
     /// @param actionType The type of action to execute
     /// @param callData ABI-encoded parameters for the action
     /// @return success True if the action executed successfully
-    /// @notice Handles ACTION_ADD_MEMBER, ACTION_REMOVE_MEMBER, ACTION_CHANGE_QUORUM internally
+    /// @notice Handles ACTION_ADD_MEMBER, ACTION_REMOVE_MEMBER, ACTION_CHANGE_QUORUM, ACTION_CHANGE_MAX_PROPOSALS internally
     /// @notice Delegates unknown actions to _executeCustomAction for derived contract handling
     function _executeInternalAction(bytes32 actionType, bytes memory callData) internal virtual returns (bool success) {
         if (actionType == ACTION_ADD_MEMBER) {
@@ -1074,6 +1114,10 @@ abstract contract GovBaseV2 {
         } else if (actionType == ACTION_CHANGE_QUORUM) {
             uint32 newQuorum = abi.decode(callData, (uint32));
             _changeQuorum(newQuorum);
+            return true;
+        } else if (actionType == ACTION_CHANGE_MAX_PROPOSALS) {
+            uint256 newMax = abi.decode(callData, (uint256));
+            _changeMaxProposals(newMax);
             return true;
         }
 
@@ -1256,7 +1300,7 @@ abstract contract GovBaseV2 {
 
     /// @dev Decrement active proposal count for a proposal's creator
     /// @notice Called when proposal reaches terminal state (Executed, Cancelled, Expired, Failed, Rejected)
-    /// @notice Frees up proposal capacity to enforce MAX_ACTIVE_PROPOSALS_PER_MEMBER limit
+    /// @notice Frees up proposal capacity to enforce maxActiveProposalsPerMember limit
     /// @param proposalId The proposal ID that has reached terminal state (validation is caller's responsibility)
     function _decrementActiveProposalCount(uint256 proposalId) internal {
         address proposer = proposals[proposalId].proposer;
