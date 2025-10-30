@@ -18,9 +18,11 @@
 package systemcontracts
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math/big"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -232,9 +234,16 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 			JoinedAt: 0,
 		}.ToHash()
 
-		currentIdx := uint64(0)
-		// Use uniqueMembers map for iteration
+		orderedMembers := make([]common.Address, 0, len(uniqueMembers))
 		for member := range uniqueMembers {
+			orderedMembers = append(orderedMembers, member)
+		}
+		sort.Slice(orderedMembers, func(i, j int) bool {
+			return bytes.Compare(orderedMembers[i].Bytes(), orderedMembers[j].Bytes()) < 0
+		})
+
+		currentIdx := uint64(0)
+		for _, member := range orderedMembers {
 			// Additional overflow check (defensive programming)
 			if currentIdx >= MAX_MEMBERS {
 				return nil, fmt.Errorf("member index overflow: currentIdx (%d) >= MAX_MEMBERS (%d)", currentIdx, MAX_MEMBERS)
