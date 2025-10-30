@@ -1319,6 +1319,10 @@ func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, d
 		if rules.IsShanghai { // EIP-3651: warm coinbase
 			al.AddAddress(coinbase)
 		}
+
+		if rules.IsAnzeon {
+			al.AddAddress(params.NativeCoinManagerAddress)
+		}
 	}
 	// Reset transient storage at the beginning of transaction execution
 	s.transientStorage = newTransientStorage()

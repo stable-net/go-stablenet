@@ -30,7 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	govwbft "github.com/ethereum/go-ethereum/wemixgov/governance-wbft"
+	"github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/naoina/toml"
 )
 
@@ -129,6 +129,15 @@ func (c *Config) GetSystemContracts(blockNumber *big.Int, chainConfig *params.Ch
 			if upgrade.GovValidator != nil {
 				gc.GovValidator = upgrade.GovValidator
 			}
+			if upgrade.NativeCoinAdapter != nil {
+				gc.NativeCoinAdapter = upgrade.NativeCoinAdapter
+			}
+			if upgrade.GovMinter != nil {
+				gc.GovMinter = upgrade.GovMinter
+			}
+			if upgrade.GovMasterMinter != nil {
+				gc.GovMasterMinter = upgrade.GovMasterMinter
+			}
 		})
 	} else {
 		// Normally unreachable since c.SystemContractsUpgrades is set when wbft engine is created,
@@ -188,7 +197,7 @@ func (c *Config) String() string {
 func GetSystemContractsStateTransition(wbftCfg *Config, num *big.Int) (*params.StateTransition, error) {
 	for _, upgrade := range wbftCfg.SystemContractUpgrades {
 		if num.Cmp(upgrade.Block) == 0 {
-			return govwbft.GetSystemContractsTransition(upgrade.SystemContracts)
+			return systemcontracts.GetSystemContractsTransition(upgrade.SystemContracts, nil)
 		} else if num.Cmp(upgrade.Block) < 0 {
 			break
 		}

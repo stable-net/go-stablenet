@@ -197,3 +197,13 @@ var (
 	BLSPoPPrecompileAddress        = common.BytesToAddress([]byte{0xb0, 0x00, 0x01}) // 0x0000000000000000000000000000000000B00001
 	BLSPoPPrecompileGas     uint64 = 45000                                           // set gas cost to ~15× ecrecover, based on benchmarked execution time.
 )
+
+// stable-one parameters
+const (
+	UpdateBalanceGas uint64 = 4500 // StateDB.SetBalance
+)
+
+var (
+	NativeCoinManagerAddress = common.BytesToAddress([]byte{0xb0, 0x00, 0x02})                                        // 0x0000000000000000000000000000000000B00002
+	TransferEventSig         = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef") // crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
+)

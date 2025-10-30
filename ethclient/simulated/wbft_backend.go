@@ -63,6 +63,15 @@ func NewWBFTBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 
 	ethConf.Genesis.Config.Anzeon.Init.Validators = []common.Address{validator}
 	ethConf.Genesis.Config.Anzeon.Init.BLSPublicKeys = []string{hexutil.Encode(blsPubKey)}
+	ethConf.Genesis.Config.Anzeon.SystemContracts.GovValidator.Params = map[string]string{
+		"members":       validator.String(),
+		"quorum":        "1",
+		"expiry":        "604800", // 7 days
+		"memberVersion": "1",
+		"validators":    validator.String(),
+		"blsPublicKeys": hexutil.Encode(blsPubKey),
+	}
+
 	ethConf.Genesis.Config.Anzeon.WBFT.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
 	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey)         // simulated chain block
 	ethConf.SyncMode = downloader.FullSync

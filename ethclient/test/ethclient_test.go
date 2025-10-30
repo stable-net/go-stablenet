@@ -547,7 +547,6 @@ func testStatusFunctions(t *testing.T, client *rpc.Client) {
 
 func testCallContractAtHash(t *testing.T, client *rpc.Client) {
 	ec := ethclient.NewClient(client)
-
 	// EstimateGas
 	msg := ethereum.CallMsg{
 		From:  testAddr,
@@ -574,7 +573,6 @@ func testCallContractAtHash(t *testing.T, client *rpc.Client) {
 
 func testCallContract(t *testing.T, client *rpc.Client) {
 	ec := ethclient.NewClient(client)
-
 	// EstimateGas
 	msg := ethereum.CallMsg{
 		From:  testAddr,

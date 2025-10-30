@@ -183,16 +183,32 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
-	// Fail if we're trying to transfer more than the available balance
-	if !value.IsZero() && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
-		return nil, gas, ErrInsufficientBalance
+	isCoinManager, err := evm.checkCoinManagerCall(CALL, caller, addr)
+	if err != nil {
+		return nil, gas, err
+	}
+	p, isPrecompile := evm.precompile(addr)
+	if !value.IsZero() {
+		// Fail if we're trying to transfer more than the available balance
+		if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+			return nil, gas, ErrInsufficientBalance
+		}
+		if evm.chainConfig.AnzeonEnabled() {
+			// Fail if transferring value to zero address
+			if addr == (common.Address{}) {
+				return nil, gas, ErrZeroAddressTransfer
+			}
+			// Fail if transferring value to a precompiled contract
+			if isCoinManager || isPrecompile {
+				return nil, gas, ErrPrecompileValueTransfer
+			}
+		}
 	}
 	snapshot := evm.StateDB.Snapshot()
-	p, isPrecompile := evm.precompile(addr)
 	debug := evm.Config.Tracer != nil
 
 	if !evm.StateDB.Exist(addr) {
-		if !isPrecompile && evm.chainRules.IsEIP158 && value.IsZero() {
+		if !isPrecompile && !isCoinManager && evm.chainRules.IsEIP158 && value.IsZero() {
 			// Calling a non existing account, don't do anything, but ping the tracer
 			if debug {
 				if evm.depth == 0 {
@@ -208,6 +224,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		evm.StateDB.CreateAccount(addr)
 	}
 	evm.Context.Transfer(evm.StateDB, caller.Address(), addr, value)
+	if !value.IsZero() {
+		evm.AddTransferLog(caller.Address(), addr, value)
+	}
 
 	// Capture the tracer start/end events in debug mode
 	if debug {
@@ -224,8 +243,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			}(gas)
 		}
 	}
-
-	if isPrecompile {
+	if isCoinManager {
+		ret, gas, err = evm.runNativeCoinManager(input, gas)
+	} else if isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
@@ -269,6 +289,9 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
+	}
+	if _, err := evm.checkCoinManagerCall(CALLCODE, caller, addr); err != nil {
+		return nil, gas, err
 	}
 	// Fail if we're trying to transfer more than the available balance
 	// Note although it's noop to transfer X ether to caller itself. But
@@ -318,6 +341,9 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+	if _, err := evm.checkCoinManagerCall(DELEGATECALL, caller, addr); err != nil {
+		return nil, gas, err
+	}
 	var snapshot = evm.StateDB.Snapshot()
 
 	// Invoke tracer hooks that signal entering/exiting a call frame
@@ -360,6 +386,9 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
+	}
+	if _, err := evm.checkCoinManagerCall(STATICCALL, caller, addr); err != nil {
+		return nil, gas, err
 	}
 	// We take a snapshot here. This is a bit counter-intuitive, and could probably be skipped.
 	// However, even a staticcall is considered a 'touch'. On mainnet, static calls were introduced
@@ -452,6 +481,9 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		evm.StateDB.SetNonce(address, 1)
 	}
 	evm.Context.Transfer(evm.StateDB, caller.Address(), address, value)
+	if !value.IsZero() {
+		evm.AddTransferLog(caller.Address(), address, value)
+	}
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
 	// The contract is a scoped environment for this execution context only.
@@ -529,3 +561,27 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
+
+// emit Transfer event for native coin
+func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256.Int) {
+	if !evm.chainConfig.AnzeonEnabled() {
+		return
+	}
+
+	topics := []common.Hash{
+		params.TransferEventSig, // topic0: event signature
+		common.BytesToHash(common.LeftPadBytes(sender.Bytes(), 32)),
+		common.BytesToHash(common.LeftPadBytes(recipient.Bytes(), 32)),
+	}
+
+	// data (amount as 32-byte big-endian)
+	data := common.LeftPadBytes(amount.Bytes(), 32)
+
+	// Add log
+	evm.StateDB.AddLog(&types.Log{
+		Address:     evm.chainConfig.Anzeon.SystemContracts.NativeCoinAdapter.Address,
+		Topics:      topics,
+		Data:        data,
+		BlockNumber: evm.Context.BlockNumber.Uint64(),
+	})
+}

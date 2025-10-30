@@ -199,6 +199,28 @@ func TestGenesisHashes(t *testing.T) {
 	}
 }
 
+// TestStableOneGenesisHashes checks the congruity of default genesis data to
+// corresponding hardcoded genesis hash values.
+func TestStableOneGenesisHashes(t *testing.T) {
+	for i, c := range []struct {
+		genesis *Genesis
+		want    common.Hash
+	}{
+		{DefaultStableOneMainnetGenesisBlock(), params.StableOneMainnetGenesisHash},
+		{DefaultStableOneTestnetGenesisBlock(), params.StableOneTestnetGenesisHash},
+	} {
+		// Test via MustCommit
+		db := rawdb.NewMemoryDatabase()
+		if have := c.genesis.MustCommit(db, triedb.NewDatabase(db, triedb.HashDefaults)).Hash(); have != c.want {
+			t.Errorf("case: %d a), want: %s, got: %s", i, c.want.Hex(), have.Hex())
+		}
+		// Test via ToBlock
+		if have := c.genesis.ToBlock().Hash(); have != c.want {
+			t.Errorf("case: %d a), want: %s, got: %s", i, c.want.Hex(), have.Hex())
+		}
+	}
+}
+
 func TestGenesis_Commit(t *testing.T) {
 	genesis := &Genesis{
 		BaseFee: big.NewInt(params.InitialBaseFee),

@@ -28,8 +28,8 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableOneMainnetGenesisHash = common.HexToHash("0x138a9b6003ea6abe729ea341410a2079afa6e2875810a53d596c34e4948cac63")
-	StableOneTestnetGenesisHash = common.HexToHash("0x138a9b6003ea6abe729ea341410a2079afa6e2875810a53d596c34e4948cac63")
+	StableOneMainnetGenesisHash = common.HexToHash("0x54028f911e89cec83a1f804d03af3d82364bd76dfc8354c2f9cf4c3e8f9335d7")
+	StableOneTestnetGenesisHash = common.HexToHash("0x54028f911e89cec83a1f804d03af3d82364bd76dfc8354c2f9cf4c3e8f9335d7")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash          = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
@@ -86,6 +86,42 @@ var (
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
 					},
 				},
+				NativeCoinAdapter: &SystemContract{
+					Address: DefaultNativeCoinAdapterAddress,
+					Version: DefaultNativeCoinAdapterVersion,
+					Params: map[string]string{
+						"masterMinter":  "0x0000000000000000000000000000000000001002",
+						"minters":       "0x0000000000000000000000000000000000001003",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"name":          "KRC1",
+						"symbol":        "KRC1",
+						"decimals":      "18",
+						"currency":      "KRW",
+					},
+				},
+				GovMasterMinter: &SystemContract{
+					Address: DefaultGovMasterMinterAddress,
+					Version: DefaultGovMasterMinterVersion,
+					Params: map[string]string{
+						"quorum":             "1",
+						"expiry":             "604800", // 7 days
+						"members":            "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion":      "1",
+						"fiatToken":          "0x0000000000000000000000000000000000001000",
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+					},
+				},
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: DefaultGovMinterVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"fiatToken":     "0x0000000000000000000000000000000000001000",
+					},
+				},
 			},
 		},
 	}
@@ -127,6 +163,42 @@ var (
 						"memberVersion": "1",
 						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
+					},
+				},
+				NativeCoinAdapter: &SystemContract{
+					Address: DefaultNativeCoinAdapterAddress,
+					Version: DefaultNativeCoinAdapterVersion,
+					Params: map[string]string{
+						"masterMinter":  "0x0000000000000000000000000000000000001002",
+						"minters":       "0x0000000000000000000000000000000000001003",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"name":          "KRC1",
+						"symbol":        "KRC1",
+						"decimals":      "18",
+						"currency":      "KRW",
+					},
+				},
+				GovMasterMinter: &SystemContract{
+					Address: DefaultGovMasterMinterAddress,
+					Version: DefaultGovMasterMinterVersion,
+					Params: map[string]string{
+						"quorum":             "1",
+						"expiry":             "604800", // 7 days
+						"members":            "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion":      "1",
+						"fiatToken":          "0x0000000000000000000000000000000000001000",
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+					},
+				},
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: DefaultGovMinterVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"fiatToken":     "0x0000000000000000000000000000000000001000",
 					},
 				},
 			},
@@ -306,6 +378,42 @@ var (
 						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
 					},
 				},
+				NativeCoinAdapter: &SystemContract{
+					Address: DefaultNativeCoinAdapterAddress,
+					Version: DefaultNativeCoinAdapterVersion,
+					Params: map[string]string{
+						"masterMinter":  "0x0000000000000000000000000000000000001002",
+						"minters":       "0x0000000000000000000000000000000000001003",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"name":          "KRC1",
+						"symbol":        "KRC1",
+						"decimals":      "18",
+						"currency":      "KRW",
+					},
+				},
+				GovMasterMinter: &SystemContract{
+					Address: DefaultGovMasterMinterAddress,
+					Version: DefaultGovMasterMinterVersion,
+					Params: map[string]string{
+						"quorum":             "1",
+						"expiry":             "604800", // 7 days
+						"members":            "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion":      "1",
+						"fiatToken":          "0x0000000000000000000000000000000000001000",
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+					},
+				},
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: DefaultGovMinterVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"fiatToken":     "0x0000000000000000000000000000000000001000",
+					},
+				},
 			},
 		},
 	}
@@ -458,6 +566,42 @@ var (
 						"memberVersion": "1",
 						"validators":    "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
 						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
+					},
+				},
+				NativeCoinAdapter: &SystemContract{
+					Address: DefaultNativeCoinAdapterAddress,
+					Version: DefaultNativeCoinAdapterVersion,
+					Params: map[string]string{
+						"masterMinter":  "0x0000000000000000000000000000000000001002",
+						"minters":       "0x0000000000000000000000000000000000001003",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"name":          "KRC1",
+						"symbol":        "KRC1",
+						"decimals":      "18",
+						"currency":      "KRW",
+					},
+				},
+				GovMasterMinter: &SystemContract{
+					Address: DefaultGovMasterMinterAddress,
+					Version: DefaultGovMasterMinterVersion,
+					Params: map[string]string{
+						"quorum":             "1",
+						"expiry":             "604800", // 7 days
+						"members":            "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion":      "1",
+						"fiatToken":          "0x0000000000000000000000000000000000001000",
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+					},
+				},
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: DefaultGovMinterVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"fiatToken":     "0x0000000000000000000000000000000000001000",
 					},
 				},
 			},
@@ -692,6 +836,7 @@ func (c *ChainConfig) Description() string {
 		if c.Anzeon.SystemContracts != nil {
 			banner += "   - SystemContracts:\n"
 			banner += fmt.Sprintf("     - GovValidator      %-8v\n", c.Anzeon.SystemContracts.GovValidator)
+			banner += fmt.Sprintf("     - NativeCoinAdapter      %-8v\n", c.Anzeon.SystemContracts.NativeCoinAdapter)
 		}
 	}
 	banner += "\n"
