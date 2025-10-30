@@ -1,9 +1,9 @@
-## Stable One Specification
-This is the official Go implementation of the Stable One protocol, a fork of the WEMIX 4.0 protocol(https://github.com/wemixarchive/go-wemix-wbft).
+## StableNet Specification
+This is the official Go implementation of the StableNet protocol, a fork of the WBFT protocol(https://github.com/wemixarchive/go-wbft).
 
-Stable One is a Chain Protocol with a Proof-of-Authority (PoA) architecture underpinned by a BFT consensus algorithm tailored for stablecoins. Our BFT implementation leverages the WBFT engine, an enhanced version of QBFT, designed for more practical applications. (For an in-depth understanding of WBFT, please refer to: https://github.com/wemixarchive/go-wemix-wbft?tab=readme-ov-file#wbft-protocol-specification-wemix-40)
+StableNet is a Chain Protocol with a Proof-of-Authority (PoA) architecture underpinned by a BFT consensus algorithm tailored for stablecoins. Our BFT implementation leverages the WBFT engine, an enhanced version of QBFT, designed for more practical applications. (For an in-depth understanding of WBFT, please refer to: https://github.com/wemixarchive/go-wbft?tab=readme-ov-file#wbft-protocol-specification)
 
-The core innovation of the Stable One protocol lies in its ability to facilitate gas fee payments using stable tokens. To achieve this, we have implemented the following key features:
+The core innovation of the StableNet protocol lies in its ability to facilitate gas fee payments using stable tokens. To achieve this, we have implemented the following key features:
 
 - Base Coin Policy for Stablecoins: A novel approach to managing the chain's native currency.
 - Comprehensive Governance System: Establishing robust oversight for validators, minters, and master minters.
@@ -27,7 +27,7 @@ Users desire stable and predictable transaction fees when interacting with DApps
 
 While existing blockchains have launched numerous financial services under the guise of "financial innovation," their deepest ambition often remains rooted in the desire for explosive coin price surges. As long as this ambition persists, blockchain's potential for genuine, real-world utility remains constrained. It is now time for the blockchain industry to acknowledge that shedding this ambition is crucial for blockchain to truly integrate into our daily lives.
 
-The Stable One protocol has adopted the following policies to utilize stablecoins as its base coin:
+The StableNet protocol has adopted the following policies to utilize stablecoins as its base coin:
 - Minimal Genesis Pre-issuance: Only the minimum funds required for initial chain operation are pre-issued at genesis.
 - Dynamic Token Management: Authorized Minters can issue and burn gas tokens throughout the chain's operation.
 - Minter as Financial Oracle: Minters function as a form of oracle, verifying traditional financial systems. They are obligated to issue tokens only upon fiat currency deposits and to return fiat currency in proportion to burned tokens.
@@ -58,10 +58,36 @@ This forms the basis for the necessity of governance within our chain. Without c
   - This concept mirrors the master minter role in existing FiatToken implementations.
   - While Minter Governance membership (joining/leaving) is decided by its members' votes, the registration/removal of minters for the base coin is determined by Master Minter Governance.
 
-The governance system is realized through the GovValidator, GovMinter, and GovMasterMinter contracts, which are deployed by the system at genesis without an owner. Upgrades are exclusively possible through hard forks, a testament to Stable One's unwavering commitment to the philosophy of decentralization.
+The governance system is realized through the GovValidator, GovMinter, and GovMasterMinter contracts, which are deployed by the system at genesis without an owner. Upgrades are exclusively possible through hard forks, a testament to StableNet's unwavering commitment to the philosophy of decentralization.
+
+#### Mint/Burn Protocol
+As previously explained, the authority to mint and burn the base coin resides with the GovMinter. The GovMinter is composed of minter members, all of whom possess equal rights and responsibilities.
+
+The protocol that minter members must adhere to when performing a mint operation is as follows:
+- A minter member must be linked to a collateral account designated for token issuance.
+- Upon detecting a deposit into the collateral account, the following information is bound together, forming what is referred to as a "minting proof":
+  - deposit id
+  - amount
+  - beneficiary address
+  - timestamp
+- A minter member may then perform a mint operation for the beneficiary in an amount identical to that specified in the minting proof.
+- If one minter member proposes a mint, the remaining minter members must validate the corresponding minting proof. If no issues are found, they will approve the proposal.
+- The mint operation proceeds once a quorum of minter members have approved.
+
+The protocol that minter members must adhere to when performing a burn operation is as follows:
+- A minter member receives an off-chain burn request.
+- The receiving minter member issues a withdrawal id and, based on this, generates a "burn proof":
+  - withdrawal id
+  - amount
+  - token owner (from)
+  - timestamp
+- It is assumed that the withdrawal id can be shared among minter members off-chain.
+- The receiving minter member proposes the burn using the burn proof.
+- The remaining minter members verify and approve the proposal.
+- The burn operation is executed once a quorum of minter members have approved.
 
 ### NativeCoinAdapter: Enabling ERC20 Compatibility for the Base Coin via a Built-in System Contract
-One of Stable One's most distinctive features, unparalleled in any other chain, is its NativeCoinAdapter. Historically, blockchains have maintained separate APIs for interacting with their base coin and ERC20 tokens. Many established stablecoin services are built on the premise that stablecoins will inherently possess an ERC20 interface. While the concept of using a stablecoin as a base coin is not new and has been implemented by various projects, few have earnestly considered compatibility with legacy services that rely on this ERC20 assumption.
+One of StableNet's most distinctive features, unparalleled in any other chain, is its NativeCoinAdapter. Historically, blockchains have maintained separate APIs for interacting with their base coin and ERC20 tokens. Many established stablecoin services are built on the premise that stablecoins will inherently possess an ERC20 interface. While the concept of using a stablecoin as a base coin is not new and has been implemented by various projects, few have earnestly considered compatibility with legacy services that rely on this ERC20 assumption.
 
 To avoid disrupting these legacy assumptions, we sought a method to transmit and query the base coin via an ERC20 interface. Our solution is to use the base coin through an ERC20 wrapper contract, which we call NativeCoinAdapter.
 
@@ -82,14 +108,14 @@ Ethereum-based blockchains commonly incorporate two primary components in their 
 
 These two fee policies necessitate modifications within a stablecoin chain. Firstly, due to the fundamental premise that stablecoins should never be burned without fiat currency redemption, the base fee cannot be incinerated. While an increased base fee, even when generated for public utility according to a defined protocol, could reasonably be paid to validators, it is not inherently irrational. In an inflation-free chain, allocating the base fee to miners might be more appropriate. Of course, there's a possibility that the base fee increase formula could be manipulated by validator collusion to be more sensitive to block congestion. However, under the assumption of a PoA consensus body, such adjustments would not be easily made if they compromise the chain's success. We have modified the existing Ethereum implementation, where the base fee began to rise when block capacity exceeded half, to now increase only when the block is nearly full (at 90%). The gradient of this increase has also been adjusted to reflect realistic usage. (Todo: Document the specific formula)
 
-The concept of the priority fee is fundamentally misaligned with stablecoins, thus requiring a complete re-evaluation. While in traditional systems miners could freely set maxPriorityFeePerGas, Stable One replaces this with a value determined by validator governance, forcing all miners to use the collectively voted-upon value. This means validators, through consensus and voting, determine the priority fee, and once set, it applies uniformly to all miners, precluding individual maxPriorityFeePerGas settings. Users can still employ EIP-1559 dynamic fee transactions, but any value higher than the set priority fee will be disregarded, and only the mandated fee price will be deducted. Conversely, setting a value lower than the determined fee will result in transaction rejection. Therefore, providing a higher priority fee does not entitle a user to prioritized transaction processing. However, a higher priority fee can be used to replace a previously sent transaction with the same nonce. Stable One has increased the maximum block gas limit to 105,000,000, allowing for approximately 5,000 basic transaction types per block. We assume that, unlike Ethereum, transactions rarely remain in a pending state within the mempool. Given this assumption, the concept of a 'tip' for priority processing is deemed invalid. Should blocks consistently fill with 5,000 transactions, the base fee would continuously rise, leading to a decrease in demand due to increased transaction costs. Nevertheless, we will continue to explore transaction prioritization in a manner suitable for a stable chain, seeking methods to prioritize transactions from a public utility perspective rather than solely through priority fees.
+The concept of the priority fee is fundamentally misaligned with stablecoins, thus requiring a complete re-evaluation. While in traditional systems miners could freely set maxPriorityFeePerGas, StableNet replaces this with a value determined by validator governance, forcing all miners to use the collectively voted-upon value. This means validators, through consensus and voting, determine the priority fee, and once set, it applies uniformly to all miners, precluding individual maxPriorityFeePerGas settings. Users can still employ EIP-1559 dynamic fee transactions, but any value higher than the set priority fee will be disregarded, and only the mandated fee price will be deducted. Conversely, setting a value lower than the determined fee will result in transaction rejection. Therefore, providing a higher priority fee does not entitle a user to prioritized transaction processing. However, a higher priority fee can be used to replace a previously sent transaction with the same nonce. StableNet has increased the maximum block gas limit to 105,000,000, allowing for approximately 5,000 basic transaction types per block. We assume that, unlike Ethereum, transactions rarely remain in a pending state within the mempool. Given this assumption, the concept of a 'tip' for priority processing is deemed invalid. Should blocks consistently fill with 5,000 transactions, the base fee would continuously rise, leading to a decrease in demand due to increased transaction costs. Nevertheless, we will continue to explore transaction prioritization in a manner suitable for a stable chain, seeking methods to prioritize transactions from a public utility perspective rather than solely through priority fees.
 
-### Anzeon WBFT Engine: A Tailored Evolution of WBFT for Stable One
-The Anzeon WBFT Engine is a specially adapted version of the WEMIX Byzantine Fault Tolerance (WBFT) engine, meticulously modified to suit the unique requirements of the Stable One blockchain.
+### Anzeon WBFT Engine: A Tailored Evolution of WBFT for StableNet
+The Anzeon WBFT Engine is a specially adapted version of the WEMIX Byzantine Fault Tolerance (WBFT) engine, meticulously modified to suit the unique requirements of the StableNet blockchain.
 
-The original Byzantine Fault Tolerance (QBFT) engine was inherently limited to Proof-of-Authority (PoA) based systems, as validator participation was restricted to permissioned members. For WEMIX 4.0, the WBFT engine was developed as an evolution of QBFT, introducing concepts such as diligence, staking, and slashing. These additions were crucial for its application in a fully public blockchain environment. Furthermore, WBFT was designed with the versatility to facilitate a seamless transition from existing legacy consensus engines (like PoW or WEMIX 3.0's non-BFT algorithms) to the WBFT engine via a hard fork at a specific block height. The Anzeon WBFT engine refines this general-purpose WBFT for the specific context of the Stable One chain.
+The original Byzantine Fault Tolerance (QBFT) engine was inherently limited to Proof-of-Authority (PoA) based systems, as validator participation was restricted to permissioned members. The WBFT engine was developed as an evolution of QBFT, introducing concepts such as diligence, staking, and slashing. These additions were crucial for its application in a fully public blockchain environment. Furthermore, WBFT was designed with the versatility to facilitate a seamless transition from existing legacy consensus engines (like PoW or WEMIX 3.0's non-BFT algorithms) to the WBFT engine via a hard fork at a specific block height. The Anzeon WBFT engine refines this general-purpose WBFT for the specific context of the StableNet chain.
 
-Given Stable One's emphasis on public utility over pure commercial viability, a Proof-of-Authority (PoA) structure remains essential. Consequently, certain features vital for public blockchains, such as staking and diligence, are not strictly mandatory. Nevertheless, WBFT was chosen over QBFT due to its enhanced Byzantine fault tolerance and the robust framework of its built-in governance contracts. Even if not directly utilized for validator selection, the diligence mechanism can still serve as a valuable monitoring tool for assessing validator operational status.
+Given StableNet's emphasis on public utility over pure commercial viability, a Proof-of-Authority (PoA) structure remains essential. Consequently, certain features vital for public blockchains, such as staking and diligence, are not strictly mandatory. Nevertheless, WBFT was chosen over QBFT due to its enhanced Byzantine fault tolerance and the robust framework of its built-in governance contracts. Even if not directly utilized for validator selection, the diligence mechanism can still serve as a valuable monitoring tool for assessing validator operational status.
 
 Let's delve into the specific modifications implemented in the Anzeon WBFT engine:
 
