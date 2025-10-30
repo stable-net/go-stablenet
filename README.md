@@ -1,5 +1,5 @@
 ## StableNet Specification
-This is the official Go implementation of the StableNet protocol, a fork of the WBFT protocol(https://github.com/wemixarchive/go-wbft).
+This is the official Go implementation of the StableNet protocol, a fork of the WBFT protocol(https://github.com/wemixarchive/go-wbft) which is fully EVM compatible.
 
 StableNet is a Chain Protocol with a Proof-of-Authority (PoA) architecture underpinned by a BFT consensus algorithm tailored for stablecoins. Our BFT implementation leverages the WBFT engine, an enhanced version of QBFT, designed for more practical applications. (For an in-depth understanding of WBFT, please refer to: https://github.com/wemixarchive/go-wbft?tab=readme-ov-file#wbft-protocol-specification)
 
