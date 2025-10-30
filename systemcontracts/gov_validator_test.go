@@ -279,45 +279,50 @@ func TestInitializeValidator(t *testing.T) {
 			},
 		},
 		{
-			name: "1 member, 1 validator, 1 bls key, with gasTip",
+			name: "1 member, 1 validator, 1 bls key, 200Gwei gasTip",
 			param: map[string]string{
 				GOV_BASE_PARAM_MEMBERS:         sampleMemberAddress,
 				GOV_BASE_PARAM_MEMBER_VERSION:  "1",
 				GOV_VALIDATOR_PARAM_VALIDATORS: sampleMemberAddress,
 				GOV_VALIDATOR_PARAM_BLS_KEYS:   sampleBlsKey,
-				GOV_VALIDATOR_PARAM_GAS_TIP:    "200000000000", // 200 Gwei
+				GOV_VALIDATOR_PARAM_GAS_TIP:    "100000000000", // 100 Gwei
 			},
 			expectErr: "",
 			expectParam: []params.StateParam{
-				{ // members
+				{ // members[member]
 					Address: common.Address{},
 					Key:     derivedKeyHashForMembers,
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
-				{ // versionedMemberList.members
+				{ // versionedMemberList[version][0]
 					Address: common.Address{},
-					Key:     common.HexToHash("0x2c644dcf44e265ba93879b2da89e1b16ab48fc5eb8e31bc16b0612d6da8463f1"),
+					Key:     derivedKeyHashForVersionedMemberListValue,
 					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
 				},
-				{ // versionedMemberList.length
+				{ // memberIndexByVersion[version][member] = 1 (NEW in GovBaseV2!)
 					Address: common.Address{},
-					Key:     common.HexToHash("0xa15bc60c955c405d20d9149c709e2460f1c2d9a497496a7f46004d1772c3054c"),
+					Key:     derivedKeyHashForMemberIndexByVersion,
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
-				{ // memberVersion
+				{ // versionedMemberList[version].length
 					Address: common.Address{},
-					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004"),
+					Key:     derivedKeyHashForVersionedMemberListLength,
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
-				{ // blsPop
+				{ // memberVersion (slot 1 in GovBaseV2)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // blsPop (slot 0x32)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // gasTip (200 Gwei = 0x2e90edd000)
+				{ // gasTip
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000002e90edd000"),
+					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
 				},
 				{ // __validators.index
 					Address: common.Address{},
@@ -339,17 +344,17 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0xb47b937a548fdbc8eeb6153348801b91dd067e9110633c5d95d8fde2c500b131"),
 					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
 				},
-				{ // validatorToBlsKey.length | 0x01
+				{ // validatorToBlsKey.length | 0x61 (97 bytes = 48*2 + 1)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x3de6e5bb5ca8d1f2605fc1b641bad3e8725ac54e8e7ef4222ef9361a93df8491"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000061"),
 				},
-				{ // validatorToBlsKey
+				{ // validatorToBlsKey[0] - first 32 bytes of BLS key
 					Address: common.Address{},
 					Key:     common.HexToHash("0x704ccd9af691691ff31c7b42662363b6c5d56eb9d93ac624e6cceda3b8b9af77"),
 					Value:   common.HexToHash("0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6f"),
 				},
-				{ // validatorToBlsKey
+				{ // validatorToBlsKey[1] - remaining bytes of BLS key
 					Address: common.Address{},
 					Key:     common.HexToHash("0x704ccd9af691691ff31c7b42662363b6c5d56eb9d93ac624e6cceda3b8b9af78"),
 					Value:   common.HexToHash("0xbe4f4adc21e1e454bc37522eb3478b9b00000000000000000000000000000000"),
