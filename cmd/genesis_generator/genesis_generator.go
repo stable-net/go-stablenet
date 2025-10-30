@@ -85,8 +85,8 @@ func (g *genesisGenerator) run() {
 func (g *genesisGenerator) makeGenesis() {
 	// Figure out which consensus engine to choose
 	fmt.Println()
-	fmt.Println("Which consensus engine to use? (default = WBFT)")
-	fmt.Println(" 1. WBFT (wemix-byzantine-fault-tolerance)")
+	fmt.Println("Which consensus engine to use? (default = Anzeon)")
+	fmt.Println(" 1. Anzeon (WBFT for StableOne)")
 	fmt.Println(" 2. Ethash (proof-of-work)")
 	fmt.Println(" 3. Beacon (proof-of-stake), merging/merged from Ethash (proof-of-work)")
 	fmt.Println(" 4. Clique (proof-of-authority)")
@@ -183,6 +183,7 @@ func (g *genesisGenerator) wbftChainConfig() {
 	g.Genesis.Config.Anzeon.SystemContracts.GovValidator.Params = map[string]string{
 		"members":       vals,
 		"quorum":        "1",
+		"expiry":        "604800",
 		"memberVersion": "1",
 		"validators":    vals,
 		"blsPublicKeys": blsKeys,
