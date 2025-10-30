@@ -644,7 +644,7 @@ func ReadReceipts(db ethdb.Reader, hash common.Hash, number uint64, time uint64,
 	}
 
 	var gasTip *big.Int
-	if header == nil {
+	if header == nil || header.GasTip() == nil {
 		gasTip = nil
 	} else {
 		gasTip = new(big.Int).Set(header.GasTip())

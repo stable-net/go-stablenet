@@ -55,10 +55,10 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // gasTip (default: InitialGasTip = 100 Gwei)
+				{ // gasTip (default: params.InitialGasTip = 5000 Gwei)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
-					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000048c27395000"),
 				},
 			},
 		},
@@ -105,10 +105,10 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // gasTip (default: InitialGasTip = 100 Gwei)
+				{ // gasTip (default: params.InitialGasTip = 5000 Gwei)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
-					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000048c27395000"),
 				},
 			},
 		},
@@ -157,135 +157,19 @@ func TestInitializeValidator(t *testing.T) {
 		{
 			name: "gasTip with invalid format",
 			param: map[string]string{
-				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
-				GOV_BASE_PARAM_MEMBER_VERSION: "1",
-				GOV_VALIDATOR_PARAM_GAS_TIP:   "invalid_number",
+				GOV_VALIDATOR_PARAM_GAS_TIP: "invalid_number",
 			},
 			expectErr:   "`systemContracts.govValidator.params.gasTip`: invalid value: invalid_number",
 			expectParam: nil,
 		},
 		{
-			name: "gasTip below minimum (0.5 Gwei)",
+			name: "gasTip 100 Gwei",
 			param: map[string]string{
-				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
-				GOV_BASE_PARAM_MEMBER_VERSION: "1",
-				GOV_VALIDATOR_PARAM_GAS_TIP:   "500000000", // 0.5 Gwei (below 1 Gwei minimum)
-			},
-			expectErr:   "`systemContracts.govValidator.params.gasTip`: value 500000000 is below minimum 1000000000 wei",
-			expectParam: nil,
-		},
-		{
-			name: "gasTip at exact minimum (1 Gwei)",
-			param: map[string]string{
-				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
-				GOV_BASE_PARAM_MEMBER_VERSION: "1",
-				GOV_VALIDATOR_PARAM_GAS_TIP:   "1000000000", // 1 Gwei (exact minimum)
+				GOV_VALIDATOR_PARAM_GAS_TIP: "100000000000", // 100 Gwei
 			},
 			expectErr: "",
 			expectParam: []params.StateParam{
-				{ // members
-					Address: common.Address{},
-					Key:     derivedKeyHashForMembers,
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-				},
-				{ // versionedMemberList.members
-					Address: common.Address{},
-					Key:     common.HexToHash("0x2c644dcf44e265ba93879b2da89e1b16ab48fc5eb8e31bc16b0612d6da8463f1"),
-					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
-				},
-				{ // versionedMemberList.length
-					Address: common.Address{},
-					Key:     common.HexToHash("0xa15bc60c955c405d20d9149c709e2460f1c2d9a497496a7f46004d1772c3054c"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-				},
-				{ // memberVersion
-					Address: common.Address{},
-					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-				},
-				{ // blsPop
-					Address: common.Address{},
-					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
-				},
-				{ // gasTip
-					Address: common.Address{},
-					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
-					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000003b9aca00"), // 1 Gwei
-				},
-			},
-		},
-		{
-			name: "gasTip not provided (should use InitialGasTip default)",
-			param: map[string]string{
-				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
-				GOV_BASE_PARAM_MEMBER_VERSION: "1",
-				// gasTip not provided - should default to InitialGasTip (100 Gwei)
-			},
-			expectErr: "",
-			expectParam: []params.StateParam{
-				{ // members
-					Address: common.Address{},
-					Key:     derivedKeyHashForMembers,
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-				},
-				{ // versionedMemberList.members
-					Address: common.Address{},
-					Key:     common.HexToHash("0x2c644dcf44e265ba93879b2da89e1b16ab48fc5eb8e31bc16b0612d6da8463f1"),
-					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
-				},
-				{ // versionedMemberList.length
-					Address: common.Address{},
-					Key:     common.HexToHash("0xa15bc60c955c405d20d9149c709e2460f1c2d9a497496a7f46004d1772c3054c"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-				},
-				{ // memberVersion
-					Address: common.Address{},
-					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-				},
-				{ // blsPop
-					Address: common.Address{},
-					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
-				},
-				{ // gasTip (default: InitialGasTip = 100 Gwei = 100000000000 = 0x174876e800)
-					Address: common.Address{},
-					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
-					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
-				},
-			},
-		},
-		{
-			name: "gasTip with valid value (100 Gwei)",
-			param: map[string]string{
-				GOV_BASE_PARAM_MEMBERS:        sampleMemberAddress,
-				GOV_BASE_PARAM_MEMBER_VERSION: "1",
-				GOV_VALIDATOR_PARAM_GAS_TIP:   "100000000000", // 100 Gwei
-			},
-			expectErr: "",
-			expectParam: []params.StateParam{
-				{ // members
-					Address: common.Address{},
-					Key:     derivedKeyHashForMembers,
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-				},
-				{ // versionedMemberList.members
-					Address: common.Address{},
-					Key:     common.HexToHash("0x2c644dcf44e265ba93879b2da89e1b16ab48fc5eb8e31bc16b0612d6da8463f1"),
-					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
-				},
-				{ // versionedMemberList.length
-					Address: common.Address{},
-					Key:     common.HexToHash("0xa15bc60c955c405d20d9149c709e2460f1c2d9a497496a7f46004d1772c3054c"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-				},
-				{ // memberVersion
-					Address: common.Address{},
-					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
-				},
-				{ // blsPop
+				{
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
@@ -342,10 +226,10 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // gasTip (default: InitialGasTip = 100 Gwei)
+				{ // gasTip (default: params.InitialGasTip = 5000 Gwei)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
-					Value:   common.HexToHash("0x000000000000000000000000000000000000000000000000000000174876e800"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000048c27395000"),
 				},
 				{ // __validators.index
 					Address: common.Address{},

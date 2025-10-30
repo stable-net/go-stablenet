@@ -17,7 +17,7 @@ import (
 func simTestWbftBackend(testAddr common.Address) *WBFTBackend {
 	return NewWBFTBackend(
 		types.GenesisAlloc{
-			testAddr: {Balance: big.NewInt(25000000000000000)},
+			testAddr: {Balance: big.NewInt(1000000000000000000)},
 		},
 	)
 }

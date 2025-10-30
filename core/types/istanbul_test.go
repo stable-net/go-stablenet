@@ -56,7 +56,7 @@ func TestExtractToWBFTExtra(t *testing.T) {
 	}{
 		{
 			// normal case
-			hexutil.MustDecode("0xf87e808080c0c080c0c0f874f868d99444add0ec310f115a0e603b2d7db9f067778eaf8a831cfde0d994294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212831cfde0d9946beaaed781d2d2ab6350f5c4566a2c6eaac407a6831cfde0d9948be76812f765c24641ec63dc2852b378aba2b440831cfde0c480010203c480808080"),
+			hexutil.MustDecode("0xf89a9b57454d49582043726f697373616e7420636861696e20626c6f636b8080c0c080c0c0f874f868d99444add0ec310f115a0e603b2d7db9f067778eaf8a831cfde0d994294fc7e8f22b3bcdcf955dd7ff3ba2ed833f8212831cfde0d9946beaaed781d2d2ab6350f5c4566a2c6eaac407a6831cfde0d9948be76812f765c24641ec63dc2852b378aba2b440831cfde0c480010203c48080808080"),
 			&WBFTExtra{
 				VanityData:   []byte("Anzeon chain block"),
 				RandaoReveal: []byte{},
@@ -83,8 +83,8 @@ func TestExtractToWBFTExtra(t *testing.T) {
 	}
 	for _, test := range testCases {
 		// use this code to generate extra
-		//x, _ := rlp.EncodeToBytes(test.expectedResult)
-		//fmt.Printf("expected: %s\n", hexutil.Encode(x))
+		// x, _ := rlp.EncodeToBytes(test.expectedResult)
+		// fmt.Printf("expected: %s\n", hexutil.Encode(x))
 		h := &Header{Extra: test.istRawData}
 		istanbulExtra, err := ExtractWBFTExtra(h)
 		if err != test.expectedErr {

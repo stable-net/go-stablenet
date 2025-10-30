@@ -49,7 +49,7 @@ func TestGeneratingGenesisExtra(t *testing.T) {
 			Validators:    []uint32{0, 1, 2, 3},
 			BLSPublicKeys: [][]byte{{}, {}, {}, {}},
 		},
-		GasTip: big.NewInt(100 * params.GWei),
+		GasTip: big.NewInt(int64(params.InitialGasTip)),
 	}
 	genesis := GenesisWithSeals(WBFTExtra.EpochInfo.GetCandidates(), WBFTExtra.EpochInfo.BLSPublicKeys)
 	t.Log("Genesis Extra Data: ", hex.EncodeToString(genesis.ExtraData))

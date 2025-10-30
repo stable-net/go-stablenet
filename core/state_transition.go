@@ -153,7 +153,7 @@ type Message struct {
 // TransactionToMessage converts a transaction into a Message.
 func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, gasTip *big.Int) (*Message, error) {
 	gasTipCap := new(big.Int).Set(tx.GasTipCap())
-	if gasTip != nil && gasTip.Sign() > 0 {
+	if gasTip != nil {
 		gasTipCap = new(big.Int).Set(gasTip)
 	}
 

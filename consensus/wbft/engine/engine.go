@@ -1049,6 +1049,7 @@ func getExtra(header *types.Header) (*types.WBFTExtra, error) {
 			PreparedSeal:      nil,
 			CommittedSeal:     nil,
 			EpochInfo:         nil,
+			GasTip:            nil,
 		}, nil
 	}
 

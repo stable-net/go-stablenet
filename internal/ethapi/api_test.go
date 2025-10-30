@@ -638,8 +638,8 @@ func TestEstimateGas(t *testing.T) {
 		genesis    = &core.Genesis{
 			Config: params.AllDevChainProtocolChanges,
 			Alloc: types.GenesisAlloc{
-				accounts[0].addr: {Balance: big.NewInt(params.Ether)},
-				accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+				accounts[0].addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
+				accounts[1].addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
 			},
 			Difficulty: big.NewInt(1),
 			ExtraData:  genExtraData(nodeKey),
@@ -731,7 +731,7 @@ func TestEstimateGas(t *testing.T) {
 			call: TransactionArgs{
 				From:     &accounts[0].addr,
 				Input:    hex2Bytes("6080604052348015600f57600080fd5b50483a1015601c57600080fd5b60003a111560315760004811603057600080fd5b5b603f80603e6000396000f3fe6080604052600080fdfea264697066735822122060729c2cee02b10748fae5200f1c9da4661963354973d9154c13a8e9ce9dee1564736f6c63430008130033"),
-				GasPrice: (*hexutil.Big)(big.NewInt(1_000_000_000)), // Legacy as pricing
+				GasPrice: (*hexutil.Big)(big.NewInt(5_000_000_000_000)), // Legacy as pricing
 			},
 			expectErr: nil,
 			want:      67617,
@@ -741,7 +741,7 @@ func TestEstimateGas(t *testing.T) {
 			call: TransactionArgs{
 				From:         &accounts[0].addr,
 				Input:        hex2Bytes("6080604052348015600f57600080fd5b50483a1015601c57600080fd5b60003a111560315760004811603057600080fd5b5b603f80603e6000396000f3fe6080604052600080fdfea264697066735822122060729c2cee02b10748fae5200f1c9da4661963354973d9154c13a8e9ce9dee1564736f6c63430008130033"),
-				MaxFeePerGas: (*hexutil.Big)(big.NewInt(1_000_000_000)), // 1559 gas pricing
+				MaxFeePerGas: (*hexutil.Big)(big.NewInt(5_000_000_000_000)), // 1559 gas pricing
 			},
 			expectErr: nil,
 			want:      67617,
@@ -802,9 +802,9 @@ func TestCall(t *testing.T) {
 		genesis    = &core.Genesis{
 			Config: params.AllDevChainProtocolChanges,
 			Alloc: types.GenesisAlloc{
-				accounts[0].addr: {Balance: big.NewInt(params.Ether)},
-				accounts[1].addr: {Balance: big.NewInt(params.Ether)},
-				accounts[2].addr: {Balance: big.NewInt(params.Ether)},
+				accounts[0].addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
+				accounts[1].addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
+				accounts[2].addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
 			},
 			Difficulty: big.NewInt(1),
 			ExtraData:  genExtraData(nodeKey),
@@ -1030,7 +1030,7 @@ func TestSignTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expect := `{"type":"0x2","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x684ee180","value":"0x1","input":"0x","accessList":[],"v":"0x0","r":"0x9677c1288c12e7777a4cf1e2a7210d038e72bb60f459bb7a8cb3effed8dfeee5","s":"0x35c797336f0ca127d33afdf68fea5fa7313a77e1128a625647901fc6f5768d31","yParity":"0x0","hash":"0xa684942a3471a1b9fad98f184536ad189bf5e77064000417c7e6b5d6effd4885"}`
+	expect := `{"type":"0x2","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x9184e72a000","value":"0x1","input":"0x","accessList":[],"v":"0x1","r":"0x1f61649e5c3f08684b9dbf78622079f3b2e03c68ad0d15a296a1783c6372c9c","s":"0x6108f5358cad936b6e1a13421611703c4d687f3fb9cadbd08e42eb1e601b894a","yParity":"0x1","hash":"0xdd64a6fceb34f502ac9ca01f0886c3b93cd765d1736d6a9070589786de5c4dad"}`
 	if !bytes.Equal(tx, []byte(expect)) {
 		t.Errorf("result mismatch. Have:\n%s\nWant:\n%s\n", tx, expect)
 	}
@@ -1568,8 +1568,8 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 		genesis    = &core.Genesis{
 			Config: params.AllDevChainProtocolChanges,
 			Alloc: types.GenesisAlloc{
-				acc1Addr: {Balance: big.NewInt(params.Ether)},
-				acc2Addr: {Balance: big.NewInt(params.Ether)},
+				acc1Addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
+				acc2Addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
 			},
 			Difficulty: big.NewInt(1),
 			ExtraData:  genExtraData(nodeKey),

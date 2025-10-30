@@ -1501,7 +1501,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 //	price = min(gasTipCap + baseFee, gasFeeCap)
 func effectiveGasPrice(tx *types.Transaction, baseFee, gasTip *big.Int) *big.Int {
 	var fee *big.Int
-	if gasTip != nil && gasTip.Sign() > 0 {
+	if gasTip != nil {
 		fee = new(big.Int).Set(gasTip)
 	} else {
 		fee = tx.GasTipCap()

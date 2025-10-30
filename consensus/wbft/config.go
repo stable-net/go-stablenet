@@ -211,8 +211,21 @@ func CreateInitialExtraData(config *params.AnzeonConfig) ([]byte, error) {
 		return nil, err
 	}
 
+	var gasTip *big.Int
+
+	if gasTipStr, ok := config.SystemContracts.GovValidator.Params["gasTip"]; ok && gasTipStr != "" {
+		var parseOk bool
+		gasTip, parseOk = new(big.Int).SetString(gasTipStr, 10)
+		if !parseOk {
+			gasTip = new(big.Int).SetUint64(params.InitialGasTip)
+		}
+	} else {
+		gasTip = new(big.Int).SetUint64(params.InitialGasTip)
+	}
+
 	extraData := &types.WBFTExtra{
 		EpochInfo: epochInfo,
+		GasTip:    new(big.Int).Set(gasTip),
 	}
 
 	extraDataBytes, err := rlp.EncodeToBytes(extraData)

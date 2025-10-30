@@ -73,7 +73,8 @@ func NewWBFTBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 	}
 
 	ethConf.Genesis.Config.Anzeon.WBFT.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )
-	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey)         // simulated chain block
+	ethConf.Genesis.Config.Anzeon.SystemContracts.GovValidator.Params["gasTip"] = "1"
+	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey) // simulated chain block
 	ethConf.SyncMode = downloader.FullSync
 	ethConf.Miner.GasPrice = big.NewInt(1)
 	ethConf.Miner.SimulatedEnabled = true

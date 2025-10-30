@@ -327,7 +327,7 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		}
 		return sb.Start(chain, currentBlock, hasBadBlock, notifyNewRound)
 	case "InheritExtra":
-		if len(args) != 2 {
+		if len(args) != 3 {
 			return wbftcommon.ErrInvalidSpecificCall
 		}
 		parent, ok := args[0].(*types.Header)
@@ -336,6 +336,10 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		}
 		header, ok := args[1].(*types.Header)
 		if !ok {
+			return wbftcommon.ErrInvalidSpecificCall
+		}
+		tip, ok := args[2].(*big.Int)
+		if !ok || tip == nil {
 			return wbftcommon.ErrInvalidSpecificCall
 		}
 		extra, err := types.ExtractWBFTExtra(parent)
@@ -359,7 +363,9 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		wbftengine.ApplyHeaderWBFTExtra(
 			header,
 			sb.Engine().WriteRandao(sb.chain.Config(), header),
-			wbftengine.WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal))
+			wbftengine.WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
+			wbftengine.WriteGasTip(tip))
+
 		return nil
 
 	case "SetMixDigest":

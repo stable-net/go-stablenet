@@ -305,7 +305,7 @@ func (t *Transaction) EffectiveGasPrice(ctx context.Context) (*hexutil.Big, erro
 
 	gasTip := header.GasTip()
 
-	if gasTip != nil && gasTip.Sign() > 0 {
+	if gasTip != nil {
 		return (*hexutil.Big)(new(big.Int).Add(new(big.Int).Set(gasTip), header.BaseFee)), nil
 	}
 

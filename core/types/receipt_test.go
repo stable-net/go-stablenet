@@ -245,7 +245,7 @@ var (
 			// derived fields:
 			TxHash:            txs[3].Hash(),
 			GasUsed:           4,
-			EffectiveGasPrice: big.NewInt(1044),
+			EffectiveGasPrice: big.NewInt(2000),
 			BlockHash:         blockHash,
 			BlockNumber:       blockNumber,
 			TransactionIndex:  3,
@@ -258,7 +258,7 @@ var (
 			// derived fields:
 			TxHash:            txs[4].Hash(),
 			GasUsed:           5,
-			EffectiveGasPrice: big.NewInt(1055),
+			EffectiveGasPrice: big.NewInt(2000),
 			BlockHash:         blockHash,
 			BlockNumber:       blockNumber,
 			TransactionIndex:  4,
@@ -271,7 +271,7 @@ var (
 			// derived fields:
 			TxHash:            txs[5].Hash(),
 			GasUsed:           6,
-			EffectiveGasPrice: big.NewInt(1066),
+			EffectiveGasPrice: big.NewInt(2000),
 			BlobGasUsed:       params.BlobTxBlobGasPerBlob,
 			BlobGasPrice:      big.NewInt(920),
 			BlockHash:         blockHash,
@@ -286,7 +286,7 @@ var (
 			// derived fields:
 			TxHash:            txs[6].Hash(),
 			GasUsed:           7,
-			EffectiveGasPrice: big.NewInt(1077),
+			EffectiveGasPrice: big.NewInt(2000),
 			BlobGasUsed:       3 * params.BlobTxBlobGasPerBlob,
 			BlobGasPrice:      big.NewInt(920),
 			BlockHash:         blockHash,

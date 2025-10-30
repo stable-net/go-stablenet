@@ -1218,7 +1218,7 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 // This is called asynchronously via goroutine to avoid deadlock issues.
 func (w *worker) updateGasTipFromContract(state *state.StateDB) {
 	gasTip := w.getGasTipFromContract(state)
-	if gasTip != nil && gasTip.Sign() > 0 {
+	if gasTip != nil {
 		go func() {
 			w.setGasTip(gasTip)
 		}()
@@ -1236,7 +1236,7 @@ func (w *worker) getGasTipFromContract(state *state.StateDB) *big.Int {
 
 	// Read gasTip from contract storage
 	gasTip := govwbft.GetGasTip(govValidatorAddr, state)
-	if gasTip == nil || gasTip.Sign() <= 0 {
+	if gasTip == nil {
 		log.Warn("Failed to get gasTip from GovValidator contract", "gasTip", gasTip)
 		return nil
 	}

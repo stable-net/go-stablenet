@@ -481,7 +481,7 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 		panic("invalid call of SetCoinbase")
 	}
 
-	err = engine.CallEngineSpecific("InheritExtra", parent.Header(), header)
+	err = engine.CallEngineSpecific("InheritExtra", parent.Header(), header, new(big.Int).SetUint64(params.InitialGasTip))
 	if err != nil {
 		panic("invalid call of InheritExtra")
 	}

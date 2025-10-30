@@ -41,12 +41,12 @@ var waitDeployedTests = map[string]struct {
 }{
 	"successful deploy": {
 		code:        `6060604052600a8060106000396000f360606040526008565b00`,
-		gas:         3000000,
+		gas:         60000,
 		wantAddress: common.HexToAddress("0x3a220f351252089d385b29beca14e27f204c296a"),
 	},
 	"empty code": {
 		code:        ``,
-		gas:         300000,
+		gas:         60000,
 		wantErr:     bind.ErrNoCodeAfterDeploy,
 		wantAddress: common.HexToAddress("0x3a220f351252089d385b29beca14e27f204c296a"),
 	},
@@ -57,7 +57,7 @@ func TestWaitDeployed(t *testing.T) {
 	for name, test := range waitDeployedTests {
 		backend := simulated.NewWBFTBackend(
 			types.GenesisAlloc{
-				crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
+				crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(1000000000000000000)},
 			},
 		)
 		defer backend.Close()
@@ -72,7 +72,7 @@ func TestWaitDeployed(t *testing.T) {
 
 		// Create the transaction
 		head, _ := backend.Client().HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-		gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(params.GWei))
+		gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
 
 		tx := types.NewContractCreation(0, big.NewInt(0), test.gas, gasPrice, common.FromHex(test.code))
 		tx, _ = types.SignTx(tx, types.LatestSignerForChainID(chainID), testKey)

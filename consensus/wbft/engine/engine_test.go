@@ -94,7 +94,7 @@ func toTestAccount(prvKey string) account {
 }
 
 func TestWriteCommittedSeals(t *testing.T) {
-	istRawData := hexutil.MustDecode("0xf901a6808080c0c080c0f86301b860a7c28d1668faa74b00d7edb22fb059478b453064c892c6a5fe71063dbdf82b24d64e989a47f7e74274704723e1f163b10d2a32d600bef81b08694f6b75dd0586ed634248bbf16fb4081f847ba5d1ca90ad7a1898f60e46b45ba88c657e04342ff90136f868d99438007fcf6b864660f6609a78b234c3ed2dda0165831cfde0d9942348a3100ba18e638b9fbdc71fc30a270da842fe831cfde0d994a2ae7388bbc7ba8cb7077d286a777ff944f75323831cfde0d9946726d67c31f91c8f2312f0d34edc71deb9478653831cfde0c480010203f8c4b0a22bf1dba4afc80a1783fb8f1870d1ff03e360284c2127db01abc0f5c4f810420968d5de337464d53dd926238c2984efb0b324470b778f2b89fee03494ba1e372916afd91d3711e99dd4bccab89b706ee814fbbf9770c14c31da1479beda9a054db0afd075d669527722dde94cb8664e54ae53becf8dd56801ec87c6893351a1691fabb9d2a39c6a864b903f10965bb16bafb08220645a1a3eebe953059de9164d9fec6c30c0dcd22d650f8de907d4c2cd74423312cdb56150019ede5ec1cec43bc8a10180")
+	istRawData := hexutil.MustDecode("0xf901a5808080c0c080c0f86301b860a7c28d1668faa74b00d7edb22fb059478b453064c892c6a5fe71063dbdf82b24d64e989a47f7e74274704723e1f163b10d2a32d600bef81b08694f6b75dd0586ed634248bbf16fb4081f847ba5d1ca90ad7a1898f60e46b45ba88c657e04342ff90135f868d99438007fcf6b864660f6609a78b234c3ed2dda0165831cfde0d9942348a3100ba18e638b9fbdc71fc30a270da842fe831cfde0d994a2ae7388bbc7ba8cb7077d286a777ff944f75323831cfde0d9946726d67c31f91c8f2312f0d34edc71deb9478653831cfde0c480010203f8c4b0a22bf1dba4afc80a1783fb8f1870d1ff03e360284c2127db01abc0f5c4f810420968d5de337464d53dd926238c2984efb0b324470b778f2b89fee03494ba1e372916afd91d3711e99dd4bccab89b706ee814fbbf9770c14c31da1479beda9a054db0afd075d669527722dde94cb8664e54ae53becf8dd56801ec87c6893351a1691fabb9d2a39c6a864b903f10965bb16bafb08220645a1a3eebe953059de9164d9fec6c30c0dcd22d650f8de907d4c2cd74423312cdb56150019ede5ec1cec43bc8a180")
 	expectedCommittedSeal := testAccount1.blsKey.Sign(append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)).Marshal()
 	expectedIstExtra := &types.WBFTExtra{
 		VanityData:        []byte{},
@@ -123,8 +123,8 @@ func TestWriteCommittedSeals(t *testing.T) {
 		GasTip: big.NewInt(0),
 	}
 	// use this to generate istRawData
-	//encodedIstExtra, _ := rlp.EncodeToBytes(expectedIstExtra)
-	//fmt.Printf("encodedIstExtra: %s\n", hexutil.Encode(encodedIstExtra))
+	// encodedIstExtra, _ := rlp.EncodeToBytes(expectedIstExtra)
+	// fmt.Printf("encodedIstExtra: %s\n", hexutil.Encode(encodedIstExtra))
 
 	h := &types.Header{
 		Extra: istRawData,
@@ -168,7 +168,7 @@ func TestWriteCommittedSeals(t *testing.T) {
 }
 
 func TestWritePreparedSeals(t *testing.T) {
-	istRawData := hexutil.MustDecode("0xf901a6808080c0c080f86301b860a7c28d1668faa74b00d7edb22fb059478b453064c892c6a5fe71063dbdf82b24d64e989a47f7e74274704723e1f163b10d2a32d600bef81b08694f6b75dd0586ed634248bbf16fb4081f847ba5d1ca90ad7a1898f60e46b45ba88c657e04342fc0f90136f868d99438007fcf6b864660f6609a78b234c3ed2dda0165831cfde0d9942348a3100ba18e638b9fbdc71fc30a270da842fe831cfde0d994a2ae7388bbc7ba8cb7077d286a777ff944f75323831cfde0d9946726d67c31f91c8f2312f0d34edc71deb9478653831cfde0c480010203f8c4b0a22bf1dba4afc80a1783fb8f1870d1ff03e360284c2127db01abc0f5c4f810420968d5de337464d53dd926238c2984efb0b324470b778f2b89fee03494ba1e372916afd91d3711e99dd4bccab89b706ee814fbbf9770c14c31da1479beda9a054db0afd075d669527722dde94cb8664e54ae53becf8dd56801ec87c6893351a1691fabb9d2a39c6a864b903f10965bb16bafb08220645a1a3eebe953059de9164d9fec6c30c0dcd22d650f8de907d4c2cd74423312cdb56150019ede5ec1cec43bc8a10180")
+	istRawData := hexutil.MustDecode("0xf901a5808080c0c080f86301b860a7c28d1668faa74b00d7edb22fb059478b453064c892c6a5fe71063dbdf82b24d64e989a47f7e74274704723e1f163b10d2a32d600bef81b08694f6b75dd0586ed634248bbf16fb4081f847ba5d1ca90ad7a1898f60e46b45ba88c657e04342fc0f90135f868d99438007fcf6b864660f6609a78b234c3ed2dda0165831cfde0d9942348a3100ba18e638b9fbdc71fc30a270da842fe831cfde0d994a2ae7388bbc7ba8cb7077d286a777ff944f75323831cfde0d9946726d67c31f91c8f2312f0d34edc71deb9478653831cfde0c480010203f8c4b0a22bf1dba4afc80a1783fb8f1870d1ff03e360284c2127db01abc0f5c4f810420968d5de337464d53dd926238c2984efb0b324470b778f2b89fee03494ba1e372916afd91d3711e99dd4bccab89b706ee814fbbf9770c14c31da1479beda9a054db0afd075d669527722dde94cb8664e54ae53becf8dd56801ec87c6893351a1691fabb9d2a39c6a864b903f10965bb16bafb08220645a1a3eebe953059de9164d9fec6c30c0dcd22d650f8de907d4c2cd74423312cdb56150019ede5ec1cec43bc8a180")
 	expectedPreparedSeal := testAccount1.blsKey.Sign(append([]byte{1, 2, 3}, bytes.Repeat([]byte{0x00}, types.IstanbulExtraSeal-3)...)).Marshal()
 	expectedIstExtra := &types.WBFTExtra{
 		VanityData:        []byte{},
@@ -197,8 +197,8 @@ func TestWritePreparedSeals(t *testing.T) {
 		GasTip: big.NewInt(0),
 	}
 	// use this to generate istRawData
-	//encodedIstExtra, _ := rlp.EncodeToBytes(expectedIstExtra)
-	//fmt.Printf("TestWritePreparedSeals encodedIstExtra: %s\n", hexutil.Encode(encodedIstExtra))
+	// encodedIstExtra, _ := rlp.EncodeToBytes(expectedIstExtra)
+	// fmt.Printf("TestWritePreparedSeals encodedIstExtra: %s\n", hexutil.Encode(encodedIstExtra))
 
 	h := &types.Header{
 		Extra: istRawData,
@@ -242,7 +242,7 @@ func TestWritePreparedSeals(t *testing.T) {
 }
 
 func TestWriteRoundNumber(t *testing.T) {
-	istRawData := hexutil.MustDecode("0xf90142808080c0c080c0c0f90136f868d99438007fcf6b864660f6609a78b234c3ed2dda0165831cfde0d9942348a3100ba18e638b9fbdc71fc30a270da842fe831cfde0d994a2ae7388bbc7ba8cb7077d286a777ff944f75323831cfde0d9946726d67c31f91c8f2312f0d34edc71deb9478653831cfde0c480010203f8c4b0a22bf1dba4afc80a1783fb8f1870d1ff03e360284c2127db01abc0f5c4f810420968d5de337464d53dd926238c2984efb0b324470b778f2b89fee03494ba1e372916afd91d3711e99dd4bccab89b706ee814fbbf9770c14c31da1479beda9a054db0afd075d669527722dde94cb8664e54ae53becf8dd56801ec87c6893351a1691fabb9d2a39c6a864b903f10965bb16bafb08220645a1a3eebe953059de9164d9fec6c30c0dcd22d650f8de907d4c2cd74423312cdb56150019ede5ec1cec43bc8a10180")
+	istRawData := hexutil.MustDecode("0xf90141808080c0c080c0c0f90135f868d99438007fcf6b864660f6609a78b234c3ed2dda0165831cfde0d9942348a3100ba18e638b9fbdc71fc30a270da842fe831cfde0d994a2ae7388bbc7ba8cb7077d286a777ff944f75323831cfde0d9946726d67c31f91c8f2312f0d34edc71deb9478653831cfde0c480010203f8c4b0a22bf1dba4afc80a1783fb8f1870d1ff03e360284c2127db01abc0f5c4f810420968d5de337464d53dd926238c2984efb0b324470b778f2b89fee03494ba1e372916afd91d3711e99dd4bccab89b706ee814fbbf9770c14c31da1479beda9a054db0afd075d669527722dde94cb8664e54ae53becf8dd56801ec87c6893351a1691fabb9d2a39c6a864b903f10965bb16bafb08220645a1a3eebe953059de9164d9fec6c30c0dcd22d650f8de907d4c2cd74423312cdb56150019ede5ec1cec43bc8a180")
 	expectedIstExtra := &types.WBFTExtra{
 		VanityData:        []byte{},
 		RandaoReveal:      []byte{},
@@ -270,8 +270,8 @@ func TestWriteRoundNumber(t *testing.T) {
 		GasTip: big.NewInt(0),
 	}
 	// use this to generate istRawData
-	//encodedIstExtra, _ := rlp.EncodeToBytes(expectedIstExtra)
-	//fmt.Printf("TestWriteRoundNumber encodedIstExtra: %s\n", hexutil.Encode(encodedIstExtra))
+	// encodedIstExtra, _ := rlp.EncodeToBytes(expectedIstExtra)
+	// fmt.Printf("TestWriteRoundNumber encodedIstExtra: %s\n", hexutil.Encode(encodedIstExtra))
 
 	var expectedErr error
 
@@ -297,6 +297,67 @@ func TestWriteRoundNumber(t *testing.T) {
 		t.Errorf("writing round does not effected")
 	}
 	istExtra.Round = expectedIstExtra.Round
+	if !reflect.DeepEqual(istExtra, expectedIstExtra) {
+		t.Errorf("extra data mismatch: have %v, want %v", istExtra.VanityData, expectedIstExtra.VanityData)
+	}
+}
+
+func TestWriteGasTip(t *testing.T) {
+	istRawData := hexutil.MustDecode("0xf90141808080c0c080c0c0f90135f868d99438007fcf6b864660f6609a78b234c3ed2dda0165831cfde0d9942348a3100ba18e638b9fbdc71fc30a270da842fe831cfde0d994a2ae7388bbc7ba8cb7077d286a777ff944f75323831cfde0d9946726d67c31f91c8f2312f0d34edc71deb9478653831cfde0c480010203f8c4b0a22bf1dba4afc80a1783fb8f1870d1ff03e360284c2127db01abc0f5c4f810420968d5de337464d53dd926238c2984efb0b324470b778f2b89fee03494ba1e372916afd91d3711e99dd4bccab89b706ee814fbbf9770c14c31da1479beda9a054db0afd075d669527722dde94cb8664e54ae53becf8dd56801ec87c6893351a1691fabb9d2a39c6a864b903f10965bb16bafb08220645a1a3eebe953059de9164d9fec6c30c0dcd22d650f8de907d4c2cd74423312cdb56150019ede5ec1cec43bc8a180")
+	expectedIstExtra := &types.WBFTExtra{
+		VanityData:        []byte{},
+		RandaoReveal:      []byte{},
+		PrevRound:         0,
+		PrevCommittedSeal: nil,
+		PrevPreparedSeal:  nil,
+		Round:             0,
+		CommittedSeal:     nil,
+		PreparedSeal:      nil,
+		EpochInfo: &types.EpochInfo{
+			Candidates: []*types.Candidate{
+				{Addr: testAccount1.addr, Diligence: 1_900_000},
+				{Addr: testAccount2.addr, Diligence: 1_900_000},
+				{Addr: testAccount3.addr, Diligence: 1_900_000},
+				{Addr: testAccount4.addr, Diligence: 1_900_000},
+			},
+			Validators: []uint32{0, 1, 2, 3},
+			BLSPublicKeys: [][]byte{
+				testAccount1.blsKey.PublicKey().Marshal(),
+				testAccount2.blsKey.PublicKey().Marshal(),
+				testAccount3.blsKey.PublicKey().Marshal(),
+				testAccount4.blsKey.PublicKey().Marshal(),
+			},
+		},
+		GasTip: big.NewInt(0),
+	}
+	// use this to generate istRawData
+	// encodedIstExtra, _ := rlp.EncodeToBytes(expectedIstExtra)
+	// fmt.Printf("TestWriteRoundNumber encodedIstExtra: %s\n", hexutil.Encode(encodedIstExtra))
+
+	var expectedErr error
+
+	h := &types.Header{
+		Extra: istRawData,
+	}
+
+	// normal case
+	_, err := ApplyHeaderWBFTExtra(
+		h,
+		WriteGasTip(big.NewInt(int64(params.InitialGasTip))),
+	)
+	if err != expectedErr {
+		t.Errorf("error mismatch: have %v, want %v", err, expectedErr)
+	}
+
+	// verify wbft extra-data
+	istExtra, err := getExtra(h)
+	if err != nil {
+		t.Errorf("error mismatch: have %v, want nil", err)
+	}
+	if istExtra.GasTip.Cmp(big.NewInt(int64(params.InitialGasTip))) != 0 {
+		t.Errorf("writing gas tip does not effected")
+	}
+	istExtra.GasTip = expectedIstExtra.GasTip
 	if !reflect.DeepEqual(istExtra, expectedIstExtra) {
 		t.Errorf("extra data mismatch: have %v, want %v", istExtra.VanityData, expectedIstExtra.VanityData)
 	}
