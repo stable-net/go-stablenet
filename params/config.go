@@ -120,7 +120,6 @@ var (
 						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"memberVersion": "1",
 						"fiatToken":     "0x0000000000000000000000000000000000001000",
-						"beneficiaries": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697", // minted token received address by each member
 					},
 				},
 			},
@@ -200,7 +199,6 @@ var (
 						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"memberVersion": "1",
 						"fiatToken":     "0x0000000000000000000000000000000000001000",
-						"beneficiaries": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697", // minted token received address by each member
 					},
 				},
 			},
@@ -414,7 +412,6 @@ var (
 						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"memberVersion": "1",
 						"fiatToken":     "0x0000000000000000000000000000000000001000",
-						"beneficiaries": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697", // minted token received address by each member
 					},
 				},
 			},
@@ -605,7 +602,6 @@ var (
 						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"memberVersion": "1",
 						"fiatToken":     "0x0000000000000000000000000000000000001000",
-						"beneficiaries": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697", // minted token received address by each member
 					},
 				},
 			},
