@@ -471,15 +471,6 @@ func (g *GovWBFT) FiatToken(sender *EOA) (common.Address, error) {
 	return result[0].(common.Address), nil
 }
 
-func (g *GovWBFT) GetMemberBeneficiary(sender *EOA, member common.Address) (common.Address, error) {
-	var result []interface{}
-	err := g.minterCall("memberBeneficiaries", sender, &result, member)
-	if err != nil {
-		return common.Address{}, err
-	}
-	return result[0].(common.Address), nil
-}
-
 func (g *GovWBFT) GetBurnBalance(sender *EOA, member common.Address) (*big.Int, error) {
 	var result []interface{}
 	err := g.minterCall("burnBalance", sender, &result, member)
@@ -492,17 +483,11 @@ func (g *GovWBFT) GetBurnBalance(sender *EOA, member common.Address) (*big.Int, 
 func (g *GovWBFT) TxProposeMint(t *testing.T, sender *EOA, recipient common.Address, amount *big.Int) (*types.Transaction, error) {
 	// Encode MintProof as bytes
 	// MintProof: (address beneficiary, uint256 amount, uint256 timestamp, string depositId, string bankReference, string memo)
-	// Note: beneficiary must be the sender's registered beneficiary to prevent front-running
+	// Note: Beneficiary validation is performed off-chain
 
-	// Get the sender's registered beneficiary
-	beneficiary, err := g.GetMemberBeneficiary(sender, sender.Address)
-	if err != nil {
-		return nil, err
-	}
-
-	// Use beneficiary instead of recipient for the proof
+	// Use recipient as beneficiary
 	timestamp := big.NewInt(time.Now().Unix())
-	depositId := "deposit-" + beneficiary.Hex()[:10]
+	depositId := "deposit-" + recipient.Hex()[:10]
 	bankReference := "bank-ref-001"
 	memo := "test mint"
 
@@ -513,7 +498,7 @@ func (g *GovWBFT) TxProposeMint(t *testing.T, sender *EOA, recipient common.Addr
 		{Type: mustParseType("string")},
 		{Type: mustParseType("string")},
 		{Type: mustParseType("string")},
-	}.Pack(beneficiary, amount, timestamp, depositId, bankReference, memo)
+	}.Pack(recipient, amount, timestamp, depositId, bankReference, memo)
 
 	if err != nil {
 		return nil, err
@@ -551,11 +536,6 @@ func (g *GovWBFT) TxProposeBurn(t *testing.T, sender *EOA, from common.Address, 
 
 	// Send amount as msg.value (proposeBurn is now payable)
 	return g.govMinter.Transact(NewTxOptsWithValue(t, sender, amount), "proposeBurn", proofData)
-}
-
-func (g *GovWBFT) TxRegisterBeneficiary(t *testing.T, sender *EOA, beneficiary common.Address) (*types.Transaction, error) {
-	// registerBeneficiary is called directly, not through proposal
-	return g.minterContractTx(t, "registerBeneficiary", sender, beneficiary)
 }
 
 func (g *GovWBFT) minterContractTx(t *testing.T, method string, sender *EOA, params ...interface{}) (*types.Transaction, error) {

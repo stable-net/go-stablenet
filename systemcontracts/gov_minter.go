@@ -20,43 +20,37 @@ package systemcontracts
 import (
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 )
 
 const (
-	GOV_MINTER_PARAM_FIAT_TOKEN    = "fiatToken"
-	GOV_MINTER_PARAM_BENEFICIARIES = "beneficiaries"
+	GOV_MINTER_PARAM_FIAT_TOKEN = "fiatToken"
 
 	// GovMinter Storage Layout (extends GovBaseV2):
 	// Slots 0x0-0xb: GovBaseV2 base storage
 	// Slots 0xc-0x31: __gap (reserved)
 	// Slot 0x32: fiatToken (address, 20 bytes) + emergencyPaused (bool, 1 byte)
-	// Slot 0x33: memberBeneficiaries (mapping(address => address))
-	// Slot 0x34: beneficiaryToMember (mapping(address => address)) - reverse mapping
-	// Slot 0x35: usedProofHashes (mapping(bytes32 => bool))
-	// Slot 0x36: depositIdToProposalId (mapping(string => uint256))
-	// Slot 0x37: executedDepositIds (mapping(string => bool))
-	// Slot 0x38: withdrawalIdToProposalId (mapping(string => uint256))
-	// Slot 0x39: executedWithdrawalIds (mapping(string => bool))
-	// Slot 0x3a: burnProposals (mapping(uint256 => BurnProposalData))
-	// Slot 0x3b: reservedMintAmount (uint256) - P0-1 security fix
-	// Slot 0x3c: mintProposalAmounts (mapping(uint256 => uint256))
-	// Slot 0x3d: burnBalance (mapping(address => uint256))
+	// Slot 0x33: usedProofHashes (mapping(bytes32 => bool))
+	// Slot 0x34: depositIdToProposalId (mapping(string => uint256))
+	// Slot 0x35: executedDepositIds (mapping(string => bool))
+	// Slot 0x36: withdrawalIdToProposalId (mapping(string => uint256))
+	// Slot 0x37: executedWithdrawalIds (mapping(string => bool))
+	// Slot 0x38: burnProposals (mapping(uint256 => BurnProposalData))
+	// Slot 0x39: reservedMintAmount (uint256) - P0-1 security fix
+	// Slot 0x3a: mintProposalAmounts (mapping(uint256 => uint256))
+	// Slot 0x3b: burnBalance (mapping(address => uint256))
 	SLOT_GOV_MINTER_fiatToken                = "0x32"
-	SLOT_GOV_MINTER_memberBeneficiaries      = "0x33"
-	SLOT_GOV_MINTER_beneficiaryToMember      = "0x34"
-	SLOT_GOV_MINTER_usedProofHashes          = "0x35"
-	SLOT_GOV_MINTER_depositIdToProposalId    = "0x36"
-	SLOT_GOV_MINTER_executedDepositIds       = "0x37"
-	SLOT_GOV_MINTER_withdrawalIdToProposalId = "0x38"
-	SLOT_GOV_MINTER_executedWithdrawalIds    = "0x39"
-	SLOT_GOV_MINTER_burnProposals            = "0x3a"
-	SLOT_GOV_MINTER_reservedMintAmount       = "0x3b"
-	SLOT_GOV_MINTER_mintProposalAmounts      = "0x3c"
-	SLOT_GOV_MINTER_burnBalance              = "0x3d"
+	SLOT_GOV_MINTER_usedProofHashes          = "0x33"
+	SLOT_GOV_MINTER_depositIdToProposalId    = "0x34"
+	SLOT_GOV_MINTER_executedDepositIds       = "0x35"
+	SLOT_GOV_MINTER_withdrawalIdToProposalId = "0x36"
+	SLOT_GOV_MINTER_executedWithdrawalIds    = "0x37"
+	SLOT_GOV_MINTER_burnProposals            = "0x38"
+	SLOT_GOV_MINTER_reservedMintAmount       = "0x39"
+	SLOT_GOV_MINTER_mintProposalAmounts      = "0x3a"
+	SLOT_GOV_MINTER_burnBalance              = "0x3b"
 )
 
 // MintProof represents the proof data for minting operations
@@ -110,60 +104,7 @@ func initializeMinter(govMinterAddress common.Address, param map[string]string) 
 		})
 	}
 
-	// Initialize memberBeneficiaries and beneficiaryToMember
-	if beneficiariesStr, ok := param[GOV_MINTER_PARAM_BENEFICIARIES]; ok {
-		memberAddresses := strings.Split(param[GOV_BASE_PARAM_MEMBERS], ",")
-		beneficiaryAddresses := strings.Split(beneficiariesStr, ",")
-
-		if len(memberAddresses) != len(beneficiaryAddresses) {
-			return nil, fmt.Errorf("`systemContracts.govMinter.params`: the number of members and beneficiaries must be the same")
-		}
-
-		memberBeneficiariesSlot := common.HexToHash(SLOT_GOV_MINTER_memberBeneficiaries)
-		beneficiaryToMemberSlot := common.HexToHash(SLOT_GOV_MINTER_beneficiaryToMember)
-
-		// Track unique beneficiaries for duplicate check
-		seenBeneficiaries := make(map[common.Address]bool)
-
-		for i, memberAddr := range memberAddresses {
-			member := common.HexToAddress(memberAddr)
-			beneficiary := common.HexToAddress(beneficiaryAddresses[i])
-
-			if beneficiary == (common.Address{}) {
-				return nil, fmt.Errorf("`systemContracts.govMinter.params.beneficiaries[%d]`: invalid address", i)
-			}
-
-			// Check for duplicate beneficiaries (matches Solidity validation)
-			if seenBeneficiaries[beneficiary] {
-				return nil, fmt.Errorf("`systemContracts.govMinter.params.beneficiaries[%d]`: duplicate beneficiary address %s", i, beneficiary.Hex())
-			}
-			seenBeneficiaries[beneficiary] = true
-
-			// Set memberBeneficiaries[member] = beneficiary
-			sp = append(sp, params.StateParam{
-				Address: govMinterAddress,
-				Key:     CalculateMappingSlot(memberBeneficiariesSlot, member),
-				Value:   common.BytesToHash(beneficiary.Bytes()),
-			})
-
-			// Set beneficiaryToMember[beneficiary] = member (reverse mapping)
-			sp = append(sp, params.StateParam{
-				Address: govMinterAddress,
-				Key:     CalculateMappingSlot(beneficiaryToMemberSlot, beneficiary),
-				Value:   common.BytesToHash(member.Bytes()),
-			})
-		}
-	}
-
 	return sp, nil
-}
-
-// GetMemberBeneficiary returns the beneficiary address for a given member
-func GetMemberBeneficiary(govMinterAddress common.Address, state StateReader, member common.Address) common.Address {
-	memberBeneficiariesSlot := common.HexToHash(SLOT_GOV_MINTER_memberBeneficiaries)
-	key := CalculateMappingSlot(memberBeneficiariesSlot, member)
-	value := state.GetState(govMinterAddress, key)
-	return common.BytesToAddress(value.Bytes())
 }
 
 // GetReservedMintAmount returns the total reserved mint amount

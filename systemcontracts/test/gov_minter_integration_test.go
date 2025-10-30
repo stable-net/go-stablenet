@@ -72,18 +72,13 @@ func initGovMinter(t *testing.T) {
 			"blsPublicKeys": blsPubKeys,
 		}
 	}, nil, func(govMinter *params.SystemContract) {
-		// Initialize GovMinter with fiatToken address and beneficiaries
-		beneficiary1 := minterMembers[0].Operator.Address
-		beneficiary2 := minterMembers[1].Operator.Address
-		beneficiary3 := minterMembers[2].Operator.Address
-
+		// Initialize GovMinter with fiatToken address (beneficiary validation moved off-chain)
 		govMinter.Params = map[string]string{
-			sc.GOV_MINTER_PARAM_FIAT_TOKEN:    fiatTokenAddress.String(),
-			sc.GOV_BASE_PARAM_MEMBERS:         minterMembers[0].Operator.Address.String() + "," + minterMembers[1].Operator.Address.String() + "," + minterMembers[2].Operator.Address.String(),
-			sc.GOV_MINTER_PARAM_BENEFICIARIES: beneficiary1.String() + "," + beneficiary2.String() + "," + beneficiary3.String(),
-			sc.GOV_BASE_PARAM_QUORUM:          "2",
-			sc.GOV_BASE_PARAM_EXPIRY:          "604800",
-			sc.GOV_BASE_PARAM_MEMBER_VERSION:  "1",
+			sc.GOV_MINTER_PARAM_FIAT_TOKEN:   fiatTokenAddress.String(),
+			sc.GOV_BASE_PARAM_MEMBERS:        minterMembers[0].Operator.Address.String() + "," + minterMembers[1].Operator.Address.String() + "," + minterMembers[2].Operator.Address.String(),
+			sc.GOV_BASE_PARAM_QUORUM:         "2",
+			sc.GOV_BASE_PARAM_EXPIRY:         "604800",
+			sc.GOV_BASE_PARAM_MEMBER_VERSION: "1",
 		}
 	}, nil, func(fiatToken *params.SystemContract) {
 		// Deploy MockFiatToken at genesis for testing
@@ -132,11 +127,6 @@ func TestGovMinter_Initialize(t *testing.T) {
 			member, err := gMinter.BaseMembers(gMinter.govMinter, minterNonMember, m.Operator.Address)
 			require.NoError(t, err, "Member %d should be initialized", i)
 			require.True(t, member.IsActive, "Member %d should be active", i)
-
-			// Check beneficiary is set
-			beneficiary, err := gMinter.GetMemberBeneficiary(minterNonMember, m.Operator.Address)
-			require.NoError(t, err)
-			require.Equal(t, m.Operator.Address, beneficiary, "Beneficiary for member %d should be set", i)
 		}
 
 		// Check non-member is not initialized
@@ -225,36 +215,6 @@ func TestGovMinter_ProposeBurn(t *testing.T) {
 		burnBalance, err := gMinter.GetBurnBalance(minterNonMember, minterMembers[0].Operator.Address)
 		require.NoError(t, err)
 		require.Equal(t, 0, burnBalance.Cmp(big.NewInt(0)))
-	})
-}
-
-func TestGovMinter_RegisterBeneficiary(t *testing.T) {
-	t.Run("member can register beneficiary", func(t *testing.T) {
-		initGovMinter(t)
-		defer gMinter.backend.Close()
-
-		newBeneficiary := NewEOA().Address
-
-		// Member registers beneficiary (direct call, not a proposal)
-		tx, err := gMinter.TxRegisterBeneficiary(t, minterMembers[0].Operator, newBeneficiary)
-		receipt, err := gMinter.ExpectedOk(tx, err)
-		require.NoError(t, err)
-		require.Equal(t, uint64(1), receipt.Status)
-
-		// Check beneficiary was updated
-		beneficiary, err := gMinter.GetMemberBeneficiary(minterNonMember, minterMembers[0].Operator.Address)
-		require.NoError(t, err)
-		require.Equal(t, newBeneficiary, beneficiary)
-	})
-
-	t.Run("beneficiary persists after setting", func(t *testing.T) {
-		initGovMinter(t)
-		defer gMinter.backend.Close()
-
-		// Check initial beneficiary
-		beneficiary, err := gMinter.GetMemberBeneficiary(minterNonMember, minterMembers[0].Operator.Address)
-		require.NoError(t, err)
-		require.Equal(t, minterMembers[0].Operator.Address, beneficiary)
 	})
 }
 
@@ -353,64 +313,6 @@ func TestGovMinter_CRITICAL_BurnTransfersNativeCoins(t *testing.T) {
 		// 6. Verify user received ETH back
 		// 7. Verify burnBalance is 0
 		// 8. Verify withdrawalId is marked executed
-	})
-}
-
-// ========================================
-// HIGH-1: Beneficiary Front-Running Tests
-// ========================================
-
-func TestGovMinter_HIGH_DuplicateBeneficiaryPrevention(t *testing.T) {
-	t.Run("HIGH-1: duplicate beneficiary should be prevented", func(t *testing.T) {
-		initGovMinter(t)
-		defer gMinter.backend.Close()
-
-		member1 := minterMembers[0]
-		member2 := minterMembers[1]
-
-		// Member1's beneficiary is already set during initialization
-		beneficiary1, err := gMinter.GetMemberBeneficiary(minterNonMember, member1.Operator.Address)
-		require.NoError(t, err)
-
-		// Try to set member2's beneficiary to the same as member1 (should fail)
-		tx, err := gMinter.TxRegisterBeneficiary(t, member2.Operator, beneficiary1)
-		err = gMinter.ExpectedFail(tx, err)
-		require.Error(t, err, "Duplicate beneficiary should be rejected")
-	})
-
-	t.Run("HIGH-1: beneficiary change should clear old mapping", func(t *testing.T) {
-		initGovMinter(t)
-		defer gMinter.backend.Close()
-
-		member1 := minterMembers[0]
-		member2 := minterMembers[1]
-
-		// Get member1's original beneficiary
-		oldBeneficiary, err := gMinter.GetMemberBeneficiary(minterNonMember, member1.Operator.Address)
-		require.NoError(t, err)
-
-		// Member1 changes beneficiary to a new address
-		newBeneficiary := NewEOA().Address
-		tx, err := gMinter.TxRegisterBeneficiary(t, member1.Operator, newBeneficiary)
-		_, err = gMinter.ExpectedOk(tx, err)
-		require.NoError(t, err)
-
-		// Verify new beneficiary is set
-		currentBeneficiary, err := gMinter.GetMemberBeneficiary(minterNonMember, member1.Operator.Address)
-		require.NoError(t, err)
-		require.Equal(t, newBeneficiary, currentBeneficiary)
-
-		// NOW: member2 should be able to register oldBeneficiary
-		// WITH CURRENT IMPLEMENTATION (O(n) loop), this might fail due to stale check
-		// AFTER FIX (reverse mapping), this should succeed
-		tx, err = gMinter.TxRegisterBeneficiary(t, member2.Operator, oldBeneficiary)
-		_, err = gMinter.ExpectedOk(tx, err)
-		require.NoError(t, err, "After member1 changes beneficiary, member2 should be able to use the old one")
-
-		// Verify member2's beneficiary is set
-		member2Beneficiary, err := gMinter.GetMemberBeneficiary(minterNonMember, member2.Operator.Address)
-		require.NoError(t, err)
-		require.Equal(t, oldBeneficiary, member2Beneficiary)
 	})
 }
 

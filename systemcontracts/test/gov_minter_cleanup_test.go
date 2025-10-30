@@ -258,9 +258,8 @@ func TestGovMinter_CleanupMultipleProposals(t *testing.T) {
 	amount2 := big.NewInt(2_000_000)
 	amount3 := big.NewInt(3_000_000)
 
-	// Get beneficiary for proof creation
-	beneficiary, err := gMinter.GetMemberBeneficiary(member0, member0.Address)
-	require.NoError(t, err)
+	// Use member address as beneficiary (off-chain validation)
+	beneficiary := member0.Address
 
 	// Create 3 proposals with unique depositIds
 	proofData1, err := CreateMintProof(beneficiary, amount1, "deposit-001", "bank-ref-001", "test mint 1")

@@ -65,17 +65,14 @@ func TestInitializeMinter(t *testing.T) {
 	fiatTokenAddr := common.HexToAddress("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd")
 	member1 := common.HexToAddress("0x1111111111111111111111111111111111111111")
 	member2 := common.HexToAddress("0x2222222222222222222222222222222222222222")
-	beneficiary1 := common.HexToAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	beneficiary2 := common.HexToAddress("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 
-	t.Run("initialize with fiatToken and beneficiaries", func(t *testing.T) {
+	t.Run("initialize with fiatToken", func(t *testing.T) {
 		params := map[string]string{
 			GOV_BASE_PARAM_MEMBERS:        member1.Hex() + "," + member2.Hex(),
 			GOV_BASE_PARAM_QUORUM:         "2",
 			GOV_BASE_PARAM_EXPIRY:         "604800",
 			GOV_BASE_PARAM_MEMBER_VERSION: "1",
 			GOV_MINTER_PARAM_FIAT_TOKEN:   fiatTokenAddr.Hex(),
-			GOV_MINTER_PARAM_BENEFICIARIES: beneficiary1.Hex() + "," + beneficiary2.Hex(),
 		}
 
 		sp, err := initializeMinter(govMinterAddr, params)
@@ -84,45 +81,15 @@ func TestInitializeMinter(t *testing.T) {
 
 		// Verify fiatToken is set
 		foundFiatToken := false
-		foundBeneficiary1 := false
-		foundBeneficiary2 := false
-		foundReverseBeneficiary1 := false
-		foundReverseBeneficiary2 := false
 
 		for _, param := range sp {
 			if param.Address == govMinterAddr && param.Key == common.HexToHash(SLOT_GOV_MINTER_fiatToken) {
 				foundFiatToken = true
 				require.Equal(t, common.BytesToHash(fiatTokenAddr.Bytes()), param.Value)
 			}
-			// Check forward beneficiary mappings (memberBeneficiaries[member] = beneficiary)
-			expectedKey1 := CalculateMappingSlot(common.HexToHash(SLOT_GOV_MINTER_memberBeneficiaries), member1)
-			if param.Address == govMinterAddr && param.Key == expectedKey1 {
-				foundBeneficiary1 = true
-				require.Equal(t, common.BytesToHash(beneficiary1.Bytes()), param.Value)
-			}
-			expectedKey2 := CalculateMappingSlot(common.HexToHash(SLOT_GOV_MINTER_memberBeneficiaries), member2)
-			if param.Address == govMinterAddr && param.Key == expectedKey2 {
-				foundBeneficiary2 = true
-				require.Equal(t, common.BytesToHash(beneficiary2.Bytes()), param.Value)
-			}
-			// Check reverse beneficiary mappings (beneficiaryToMember[beneficiary] = member)
-			expectedReverseKey1 := CalculateMappingSlot(common.HexToHash(SLOT_GOV_MINTER_beneficiaryToMember), beneficiary1)
-			if param.Address == govMinterAddr && param.Key == expectedReverseKey1 {
-				foundReverseBeneficiary1 = true
-				require.Equal(t, common.BytesToHash(member1.Bytes()), param.Value)
-			}
-			expectedReverseKey2 := CalculateMappingSlot(common.HexToHash(SLOT_GOV_MINTER_beneficiaryToMember), beneficiary2)
-			if param.Address == govMinterAddr && param.Key == expectedReverseKey2 {
-				foundReverseBeneficiary2 = true
-				require.Equal(t, common.BytesToHash(member2.Bytes()), param.Value)
-			}
 		}
 
 		require.True(t, foundFiatToken, "fiatToken should be initialized")
-		require.True(t, foundBeneficiary1, "beneficiary1 should be initialized")
-		require.True(t, foundBeneficiary2, "beneficiary2 should be initialized")
-		require.True(t, foundReverseBeneficiary1, "reverse mapping for beneficiary1 should be initialized")
-		require.True(t, foundReverseBeneficiary2, "reverse mapping for beneficiary2 should be initialized")
 	})
 
 	t.Run("initialize without fiatToken", func(t *testing.T) {
@@ -160,57 +127,6 @@ func TestInitializeMinter(t *testing.T) {
 		require.Contains(t, err.Error(), "invalid address")
 	})
 
-	t.Run("initialize with mismatched member and beneficiary count", func(t *testing.T) {
-		params := map[string]string{
-			GOV_BASE_PARAM_MEMBERS:          member1.Hex() + "," + member2.Hex(),
-			GOV_BASE_PARAM_QUORUM:           "2",
-			GOV_BASE_PARAM_EXPIRY:           "604800",
-			GOV_BASE_PARAM_MEMBER_VERSION:   "1",
-			GOV_MINTER_PARAM_FIAT_TOKEN:     fiatTokenAddr.Hex(),
-			GOV_MINTER_PARAM_BENEFICIARIES:  beneficiary1.Hex(), // Only one beneficiary
-		}
-
-		_, err := initializeMinter(govMinterAddr, params)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "members and beneficiaries")
-	})
-
-	t.Run("initialize with invalid beneficiary address", func(t *testing.T) {
-		params := map[string]string{
-			GOV_BASE_PARAM_MEMBERS:        member1.Hex(),
-			GOV_BASE_PARAM_QUORUM:         "1",
-			GOV_BASE_PARAM_EXPIRY:         "604800",
-			GOV_BASE_PARAM_MEMBER_VERSION: "1",
-			GOV_MINTER_PARAM_BENEFICIARIES: "0x0000000000000000000000000000000000000000",
-		}
-
-		_, err := initializeMinter(govMinterAddr, params)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "beneficiaries")
-		require.Contains(t, err.Error(), "invalid address")
-	})
-
-	t.Run("initialize without beneficiaries", func(t *testing.T) {
-		params := map[string]string{
-			GOV_BASE_PARAM_MEMBERS:        member1.Hex(),
-			GOV_BASE_PARAM_QUORUM:         "1",
-			GOV_BASE_PARAM_EXPIRY:         "604800",
-			GOV_BASE_PARAM_MEMBER_VERSION: "1",
-			GOV_MINTER_PARAM_FIAT_TOKEN:   fiatTokenAddr.Hex(),
-		}
-
-		sp, err := initializeMinter(govMinterAddr, params)
-		require.NoError(t, err)
-		require.NotEmpty(t, sp)
-
-		// Verify no beneficiary mappings are set
-		for _, param := range sp {
-			if param.Address == govMinterAddr && param.Key.Big().Cmp(common.HexToHash(SLOT_GOV_MINTER_memberBeneficiaries).Big()) == 0 {
-				t.Fatal("No beneficiary mappings should be initialized")
-			}
-		}
-	})
-
 	t.Run("initialize with base param error", func(t *testing.T) {
 		params := map[string]string{
 			GOV_BASE_PARAM_MEMBERS:        member1.Hex(),
@@ -222,46 +138,6 @@ func TestInitializeMinter(t *testing.T) {
 		_, err := initializeMinter(govMinterAddr, params)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "quorum")
-	})
-
-	t.Run("initialize with duplicate beneficiary", func(t *testing.T) {
-		// Both members have the same beneficiary - should fail
-		params := map[string]string{
-			GOV_BASE_PARAM_MEMBERS:          member1.Hex() + "," + member2.Hex(),
-			GOV_BASE_PARAM_QUORUM:           "2",
-			GOV_BASE_PARAM_EXPIRY:           "604800",
-			GOV_BASE_PARAM_MEMBER_VERSION:   "1",
-			GOV_MINTER_PARAM_FIAT_TOKEN:     fiatTokenAddr.Hex(),
-			GOV_MINTER_PARAM_BENEFICIARIES:  beneficiary1.Hex() + "," + beneficiary1.Hex(), // Duplicate!
-		}
-
-		_, err := initializeMinter(govMinterAddr, params)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "duplicate beneficiary")
-	})
-}
-
-func TestGetMemberBeneficiary(t *testing.T) {
-	govMinterAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
-	member := common.HexToAddress("0x1111111111111111111111111111111111111111")
-	beneficiary := common.HexToAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-
-	t.Run("get existing beneficiary", func(t *testing.T) {
-		mockState := newMockStateReader()
-
-		// Set beneficiary mapping
-		key := CalculateMappingSlot(common.HexToHash(SLOT_GOV_MINTER_memberBeneficiaries), member)
-		mockState.SetState(govMinterAddr, key, common.BytesToHash(beneficiary.Bytes()))
-
-		result := GetMemberBeneficiary(govMinterAddr, mockState, member)
-		require.Equal(t, beneficiary, result)
-	})
-
-	t.Run("get non-existing beneficiary", func(t *testing.T) {
-		mockState := newMockStateReader()
-
-		result := GetMemberBeneficiary(govMinterAddr, mockState, member)
-		require.Equal(t, common.Address{}, result)
 	})
 }
 

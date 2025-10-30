@@ -22,8 +22,8 @@ import {IFiatToken} from "../interfaces/IFiatToken.sol";
 
 /**
  * @title GovMinter
- * @notice Governance-controlled minting with front-running prevention
- * @dev One-to-one member-beneficiary binding prevents front-running attacks
+ * @notice Governance-controlled minting and burning with off-chain validation
+ * @dev Beneficiary validation is performed off-chain before proposal submission
  */
 contract GovMinter is GovBaseV2 {
     // ========== Custom Errors ==========
@@ -32,9 +32,6 @@ contract GovMinter is GovBaseV2 {
     error InvalidDepositId();
     error InvalidBankReference();
     error InvalidTokenAddress();
-    error BeneficiaryNotRegistered();
-    error BeneficiaryMismatch();
-    error DuplicateBeneficiary();
     error DepositIdAlreadyUsed();
     error DepositIdInUse();
     error ProofAlreadyUsed();
@@ -111,13 +108,6 @@ contract GovMinter is GovBaseV2 {
     IFiatToken public fiatToken;
     bool public emergencyPaused;
 
-    /// @dev Prevents front-running by binding each member to a single beneficiary
-    mapping(address => address) public memberBeneficiaries;
-
-    /// @dev Reverse mapping for O(1) duplicate beneficiary check
-    /// Maps beneficiary address to the member who registered it
-    mapping(address => address) public beneficiaryToMember;
-
     // Replay attack prevention
     mapping(bytes32 => bool) public usedProofHashes;
 
@@ -149,9 +139,6 @@ contract GovMinter is GovBaseV2 {
         uint256 amount,
         string bankReference
     );
-
-    /// @notice Emitted when a member registers their beneficiary
-    event BeneficiaryRegistered(address indexed member, address indexed beneficiary);
 
     /// @notice Emitted when a user prepays for burn operations
     event BurnPrepaid(address indexed user, uint256 amount);
@@ -196,47 +183,7 @@ contract GovMinter is GovBaseV2 {
     ///
     /// Genesis initialization sets:
     /// - GovBase state: members, quorum, proposalExpiry, memberVersion (via gov_base.go)
-    /// - GovMinter state: fiatToken, memberBeneficiaries, beneficiaryToMember
-    /// - All initial beneficiaries must be unique (validated in genesis code)
-
-
-    // ============================================================
-    // PUBLIC FUNCTIONS - Beneficiary Management
-    // ============================================================
-
-
-    // ========== Beneficiary Management ==========
-
-    /**
-     * @notice Register or update beneficiary address for the calling member
-     * @param beneficiary The beneficiary address to register
-     * @dev Only callable by active members
-     * @dev Reverts if beneficiary is already registered by another member (prevents front-running)
-     * @dev Members can change their own beneficiary to a different address
-     * @dev Used for members added after initialization via proposeAddMember
-     * @dev Uses O(1) reverse mapping for efficient duplicate check (prevents DoS)
-     */
-    function registerBeneficiary(address beneficiary) external onlyActiveMember {
-        if (beneficiary == address(0)) revert InvalidBeneficiary();
-
-        // O(1) duplicate check using reverse mapping
-        address existingMember = beneficiaryToMember[beneficiary];
-        if (existingMember != address(0) && existingMember != msg.sender) {
-            revert DuplicateBeneficiary();
-        }
-
-        // Clear old beneficiary mapping if member is changing beneficiary
-        address oldBeneficiary = memberBeneficiaries[msg.sender];
-        if (oldBeneficiary != address(0) && oldBeneficiary != beneficiary) {
-            delete beneficiaryToMember[oldBeneficiary];
-        }
-
-        // Set new beneficiary mappings (forward and reverse)
-        memberBeneficiaries[msg.sender] = beneficiary;
-        beneficiaryToMember[beneficiary] = msg.sender;
-
-        emit BeneficiaryRegistered(msg.sender, beneficiary);
-    }
+    /// - GovMinter state: fiatToken
 
 
     // ============================================================
@@ -252,10 +199,10 @@ contract GovMinter is GovBaseV2 {
      * @return proposalId The ID of the created proposal
      * @dev Proof structure: (address beneficiary, uint256 amount, uint256 timestamp,
      *      string depositId, string bankReference, string memo)
-     * @dev Front-running prevention: beneficiary must match the member's registered beneficiary
      * @dev Replay prevention: depositId and proof hash must be unique
      * @dev Only active members can propose mints when contract is not paused
      * @dev Reverts with ContractPaused if emergency pause is active
+     * @dev Beneficiary validation is performed off-chain
      */
     function proposeMint(bytes memory proofData) external onlyActiveMember whenNotPaused returns (uint256) {
         // Decode proof data
@@ -272,11 +219,6 @@ contract GovMinter is GovBaseV2 {
         uint256 totalAllowance = fiatToken.minterAllowance(address(this));
         uint256 availableAllowance = totalAllowance - reservedMintAmount;
         if (proof.amount > availableAllowance) revert InsufficientMinterAllowance();
-
-        // Front-running prevention: verify beneficiary matches registered beneficiary
-        address registeredBeneficiary = memberBeneficiaries[msg.sender];
-        if (registeredBeneficiary == address(0)) revert BeneficiaryNotRegistered();
-        if (proof.beneficiary != registeredBeneficiary) revert BeneficiaryMismatch();
 
         // Replay attack prevention - State-based depositId validation
         _validateDepositIdAvailability(proof.depositId);
@@ -1036,14 +978,13 @@ contract GovMinter is GovBaseV2 {
     ///         special handling for new members.
     ///
     ///         New members must:
-    ///         - Register beneficiary via registerBeneficiary() before proposing mints
     ///         - Deposit native coins via receive() before proposing burns
+    ///         - Beneficiary validation is performed off-chain before proposing mints
     ///
     /// @custom:parameters
     ///      - newMember: Address of the newly added member (unused in this implementation)
     ///
     /// @custom:design Empty Implementation
-    ///      - No automatic beneficiary registration (members must call registerBeneficiary)
     ///      - No automatic burn balance allocation (members must deposit via receive)
     ///      - Keeps governance flexible and explicit
     function _onMemberAdded(address /* newMember */) internal override {}
@@ -1057,7 +998,6 @@ contract GovMinter is GovBaseV2 {
     ///         member state to preserve historical data.
     ///
     ///         Removed member state:
-    ///         - memberBeneficiaries[member] remains unchanged (historical record)
     ///         - burnBalance[member] remains unchanged (can be withdrawn manually if needed)
     ///         - Active proposals remain valid (executed by remaining members)
     ///
@@ -1065,7 +1005,6 @@ contract GovMinter is GovBaseV2 {
     ///      - member: Address of the removed member (unused in this implementation)
     ///
     /// @custom:design No State Cleanup
-    ///      - Preserves beneficiary mapping for audit trail
     ///      - Preserves burn balance for potential withdrawal
     ///      - Does not cancel active proposals (governance decision)
     function _onMemberRemoved(address /* member */) internal override {}
@@ -1079,17 +1018,15 @@ contract GovMinter is GovBaseV2 {
     ///         automatically migrate state from old to new address.
     ///
     ///         State migration considerations:
-    ///         - memberBeneficiaries[oldMember] NOT migrated to newMember
     ///         - burnBalance[oldMember] NOT migrated to newMember
-    ///         - New member must register beneficiary via registerBeneficiary()
     ///         - New member must deposit for burns via receive()
+    ///         - Beneficiary validation is performed off-chain
     ///
     /// @custom:parameters
     ///      - oldMember: Old member address (unused in this implementation)
     ///      - newMember: New member address (unused in this implementation)
     ///
     /// @custom:design No Automatic Migration
-    ///      - Explicit beneficiary registration required (prevents errors)
     ///      - Explicit burn balance deposit required (clear accounting)
     ///      - Old member data preserved (audit trail)
     ///      - Governance can manually handle special cases if needed
