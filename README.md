@@ -282,9 +282,9 @@ Recommended:
 * High-performance SSD with at least 1TB of free space
 * 25+ MBit/sec download Internet service
 
-### Full node on the main Ethereum network
+### Full node on the main StableNet network
 
-By far the most common scenario is people wanting to simply interact with the Ethereum
+By far the most common scenario is people wanting to simply interact with the StableNet
 network: create accounts; transfer funds; deploy and interact with contracts. For this
 particular use case, the user doesn't care about years-old historical data, so we can
 sync quickly to the current state of the network. To do so:
@@ -302,25 +302,25 @@ This command will:
    (note: the `web3` version bundled within `gstable` is very old, and not up to date with official docs),
    as well as `gstable`'s own [management APIs](https://geth.ethereum.org/docs/interacting-with-geth/rpc).
    This tool is optional and if you leave it out you can always attach it to an already running
-   `geth` instance with `geth attach`.
+   `gstable` instance with `gstable attach`.
 
 ### Configuration
 
-As an alternative to passing the numerous flags to the `geth` binary, you can also pass a
+As an alternative to passing the numerous flags to the `gstable` binary, you can also pass a
 configuration file via:
 
 ```shell
-$ geth --config /path/to/your_config.toml
+$ gstable --config /path/to/your_config.toml
 ```
 
 To get an idea of how the file should look like you can use the `dumpconfig` subcommand to
 export your existing configuration:
 
 ```shell
-$ geth --your-favourite-flags dumpconfig
+$ gstable --your-favourite-flags dumpconfig
 ```
 
-*Note: This works only with `geth` v1.6.0 and above.*
+*Note: This works only with `gstable` v1.6.0 and above.*
 
 #### Docker quick start
 
@@ -333,20 +333,20 @@ docker run -d --name ethereum-node -v /Users/alice/ethereum:/root \
            ethereum/client-go
 ```
 
-This will start `geth` in snap-sync mode with a DB memory allowance of 1GB, as the
+This will start `gstable` in snap-sync mode with a DB memory allowance of 1GB, as the
 above command does.  It will also create a persistent volume in your home directory for
 saving your blockchain as well as map the default ports. There is also an `alpine` tag
 available for a slim version of the image.
 
 Do not forget `--http.addr 0.0.0.0`, if you want to access RPC from other containers
-and/or hosts. By default, `geth` binds to the local interface and RPC endpoints are not
+and/or hosts. By default, `gstable` binds to the local interface and RPC endpoints are not
 accessible from the outside.
 
-### Programmatically interfacing `geth` nodes
+### Programmatically interfacing `gstable` nodes
 
-As a developer, sooner rather than later you'll want to start interacting with `geth` and the
+As a developer, sooner rather than later you'll want to start interacting with `gstable` and the
 Ethereum network via your own programs and not manually through the console. To aid
-this, `geth` has built-in support for a JSON-RPC based APIs ([standard APIs](https://ethereum.github.io/execution-apis/api-documentation/)
+this, `gstable` has built-in support for a JSON-RPC based APIs ([standard APIs](https://ethereum.github.io/execution-apis/api-documentation/)
 and [`geth` specific APIs](https://geth.ethereum.org/docs/interacting-with-geth/rpc)).
 These can be exposed via HTTP, WebSockets and IPC (UNIX sockets on UNIX based
 platforms, and named pipes on Windows).
@@ -373,7 +373,7 @@ HTTP based JSON-RPC API options:
   * `--ipcpath` Filename for IPC socket/pipe within the datadir (explicit paths escape it)
 
 You'll need to use your own programming environments' capabilities (libraries, tools, etc) to
-connect via HTTP, WS or IPC to a `geth` node configured with the above flags and you'll
+connect via HTTP, WS or IPC to a `gstable` node configured with the above flags and you'll
 need to speak [JSON-RPC](https://www.jsonrpc.org/specification) on all transports. You
 can reuse the same connection for multiple requests!
 
@@ -503,11 +503,11 @@ If you want more specific genesis file settings, simply modify the desired field
 
 
 With the genesis state defined in the above JSON file, you'll need to initialize **every**
-`geth` node with it prior to starting it up to ensure all blockchain parameters are correctly
+`gstable` node with it prior to starting it up to ensure all blockchain parameters are correctly
 set:
 
 ```shell
-$ geth init path/to/genesis.json
+$ gstable init path/to/genesis.json
 ```
 
 #### Setting local private chain with wbft engine
@@ -517,16 +517,16 @@ Note that this setting is not recommended for production.
  
 1. Make `working directory`  
   <br>
-2. Make geth folder inside `working directory`
+2. Make gstable folder inside `working directory`
 
     ```shell
-    $ mkdir {working directory}/geth
+    $ mkdir {working directory}/gstable
     ```
 
-2. Clone `go-wemix-wbft` inside `working directory` ( not mandatory. you can clone wherever you want. ) and move to `go-wemix-wbft`
+2. Clone `go-stablenet` inside `working directory` ( not mandatory. you can clone wherever you want. ) and move to `go-stablenet`
 
     ```shell
-    $ cd {path you clone go-wemix-wbft}/go-wemix-wbft
+    $ cd {path you clone go-stablenet}/go-stablenet
     ```
 
 3. Make build file
@@ -535,16 +535,16 @@ Note that this setting is not recommended for production.
     $ make all
     ```
 
-4. Make `nodekey` inside `geth`
+4. Make `nodekey` inside `gstable`
 
     ```shell
-    $ ./build/bin/bootnode --genkey {working directory}/geth/nodekey
+    $ ./build/bin/bootnode --genkey {working directory}/gstable/nodekey
     ```
 
 5. Check your enode address
 
     ```shell
-    $ ./build/bin/bootnode -nodekey {working directory}/geth/nodekey
+    $ ./build/bin/bootnode -nodekey {working directory}/gstable/nodekey
     
     Example)
     enode://adc70110af20a4e06b63c1b7c94bcaf61cd91f610afbdaf15d16cd279279438eded69763da2c7f861eb682594150d76900c126a15e50ccfb7989d1028fe26baf@127.0.0.1:0?discport=30301
@@ -596,13 +596,13 @@ Note that this setting is not recommended for production.
 7. init genesis block
 
     ```shell
-    $ ./build/bin/geth --datadir {working directory} init {working directory}/genesis.json
+    $ ./build/bin/gstable --datadir {working directory} init {working directory}/genesis.json
     ```
 
-8. run geth
+8. run gstable
 
     ```shell
-    $ ./build/bin/geth --datadir {working directory} --http --http.addr "0.0.0.0" --http.port {httpPortNum}  --syncmode full --port {portNum}  --mine 
+    $ ./build/bin/gstable --datadir {working directory} --http --http.addr "0.0.0.0" --http.port {httpPortNum}  --syncmode full --port {portNum}  --mine 
     ```
 
 #### Creating the rendezvous point
@@ -621,19 +621,19 @@ that other nodes can use to connect to it and exchange peer information. Make su
 replace the displayed IP address information (most probably `[::]`) with your externally
 accessible IP to get the actual `enode` URL.
 
-*Note: You could also use a full-fledged `geth` node as a bootnode, but it's the less
+*Note: You could also use a full-fledged `gstable` node as a bootnode, but it's the less
 recommended way.*
 
 #### Starting up your member nodes
 
 With the bootnode operational and externally reachable (you can try
-`telnet <ip> <port>` to ensure it's indeed reachable), start every subsequent `geth`
+`telnet <ip> <port>` to ensure it's indeed reachable), start every subsequent `gstable`
 node pointed to the bootnode for peer discovery via the `--bootnodes` flag. It will
 probably also be desirable to keep the data directory of your private network separated, so
 do also specify a custom `--datadir` flag.
 
 ```shell
-$ geth --datadir=path/to/custom/data/folder --bootnodes=<bootnode-enode-url-from-above>
+$ gstable --datadir=path/to/custom/data/folder --bootnodes=<bootnode-enode-url-from-above>
 ```
 
 *Note: Since your network will be completely cut off from the main and test networks, you'll
@@ -645,11 +645,11 @@ also need to configure a miner to process transactions and create new blocks for
 In a private network setting a single CPU miner instance is more than enough for
 practical purposes as it can produce a stable stream of blocks at the correct intervals
 without needing heavy resources (consider running on a single thread, no need for multiple
-ones either). To start a `geth` instance for mining, run it with all your usual flags, extended
+ones either). To start a `gstable` instance for mining, run it with all your usual flags, extended
 by:
 
 ```shell
-$ geth <usual-flags> --mine --miner.threads=1 --miner.etherbase=0x0000000000000000000000000000000000000000
+$ gstable <usual-flags> --mine --miner.threads=1 --miner.etherbase=0x0000000000000000000000000000000000000000
 ```
 
 Which will start mining blocks and transactions on a single CPU thread, crediting all
@@ -662,7 +662,7 @@ transactions are accepted at (`--miner.gasprice`).
 Thank you for considering helping out with the source code! We welcome contributions
 from anyone on the internet, and are grateful for even the smallest of fixes!
 
-If you'd like to contribute to go-wemix-wbft, please fork, fix, commit and send a pull request
+If you'd like to contribute to go-stablenet, please fork, fix, commit and send a pull request
 for the maintainers to review and merge into the main code base. If you wish to submit
 more complex changes though, please check up with the core devs first on [our team](mailto:developer@wemix.com)
 to ensure those changes are in line with the general philosophy of the project and/or get
