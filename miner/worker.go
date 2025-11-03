@@ -377,24 +377,12 @@ func (w *worker) setGasTipUnsafe(tip *big.Int) bool {
 	if w.tip.Cmp(uint256.MustFromBig(tip)) == 0 {
 		return false // No change needed
 	}
-
-	// Apply governance-defined tip (GasTip) to the WBFT engine
-	if wbftEngine, ok := w.engine.(*wbftBackend.Backend); ok {
-		if res := wbftEngine.CallEngineSpecific("SetGasTip", tip); res != nil {
-			if err, ok := res.(error); ok {
-				log.Warn("failed to set new GasTip via CallEngineSpecific", "err", err)
-				return false // Don't update if WBFT engine failed
-			}
-		}
-	}
-
 	w.tip = uint256.MustFromBig(tip)
 
 	// Update txPool's gas tip to filter pending transactions accordingly
 	w.eth.TxPool().SetGasTip(tip)
 
-	log.Trace("Updated gasTip from GovValidator contract", "newTip", tip)
-
+	log.Debug("Updated gasTip from GovValidator contract", "newTip", tip)
 	return true
 }
 

@@ -453,9 +453,10 @@ func (f *fakeChain) CurrentHeader() *types.Header { return nil }
 func (f *fakeChain) GetHeader(hash common.Hash, number uint64) *types.Header {
 	return f.headers[number]
 }
-func (f *fakeChain) GetHeaderByNumber(number uint64) *types.Header  { return nil }
-func (f *fakeChain) GetHeaderByHash(hash common.Hash) *types.Header { return nil }
-func (f *fakeChain) GetTd(hash common.Hash, number uint64) *big.Int { return nil }
+func (f *fakeChain) GetHeaderByNumber(number uint64) *types.Header    { return nil }
+func (f *fakeChain) GetHeaderByHash(hash common.Hash) *types.Header   { return nil }
+func (f *fakeChain) GetTd(hash common.Hash, number uint64) *big.Int   { return nil }
+func (f *fakeChain) StateAt(root common.Hash) (*state.StateDB, error) { return nil, nil }
 
 func (f *fakeChain) insertHeader(h *types.Header) {
 	f.headers = append(f.headers, h)

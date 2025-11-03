@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -431,6 +432,10 @@ func (hc *HeaderChain) GetTd(hash common.Hash, number uint64) *big.Int {
 	// Cache the found body for next time and return
 	hc.tdCache.Add(hash, td)
 	return td
+}
+
+func (hc *HeaderChain) StateAt(root common.Hash) (*state.StateDB, error) {
+	return nil, fmt.Errorf("HeaderChain.StateAt not implemented: root=%s", root.Hex())
 }
 
 // GetHeader retrieves a block header from the database by hash and number,

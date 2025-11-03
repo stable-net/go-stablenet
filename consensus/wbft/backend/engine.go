@@ -365,8 +365,6 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 			sb.Engine().WriteRandao(sb.chain.Config(), header),
 			wbftengine.WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
 			wbftengine.WriteGasTip(tip))
-
-		sb.Engine().SetGasTip(tip)
 		return nil
 
 	case "SetMixDigest":
@@ -388,16 +386,6 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 
 		header.MixDigest = wbftengine.CalculateRandaoMix(parent.MixDigest, extra.RandaoReveal)
 		return nil
-
-	case "SetGasTip":
-		if len(args) != 1 {
-			return wbftcommon.ErrInvalidSpecificCall
-		}
-		tip, ok := args[0].(*big.Int)
-		if !ok || tip == nil {
-			return wbftcommon.ErrInvalidSpecificCall
-		}
-		return sb.Engine().SetGasTip(tip)
 
 	case "NewChainHead":
 		return sb.NewChainHead()
