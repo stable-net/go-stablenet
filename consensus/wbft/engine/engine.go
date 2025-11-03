@@ -878,7 +878,7 @@ func (e *Engine) buildEpochInfo(chain consensus.ChainHeaderReader, header *types
 // Note, the block header and state database might be updated to reflect any
 // consensus rules that happen at finalization (e.g. block rewards).
 func (e *Engine) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) error {
-	return e.processFinalize(chain, header, state, txs, uncles, verifyEpoch, verifyGasTip)
+	return e.processFinalize(chain, header, state, txs, uncles, verifyEpoch)
 }
 
 // processFinalize is the internal implementation of Finalize.
@@ -887,7 +887,7 @@ func (e *Engine) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 //   - epochHandler: A function that is executed when the block is an EpochBlock.
 //     It processes actions specific to the EpochBlock, which records the ValidatorList for the next Epoch,
 //     and is the last block of the (N-1)th Epoch for the (N)th Epoch.
-func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, epochHandler func(*Engine, consensus.ChainHeaderReader, *types.Header, systemcontracts.StateReader) error, gasTipHandler func(*Engine, consensus.ChainHeaderReader, *types.Header) error) error {
+func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, epochHandler func(*Engine, consensus.ChainHeaderReader, *types.Header, systemcontracts.StateReader) error) error {
 	if st, err := wbft.GetSystemContractsStateTransition(e.cfg, header.Number); err != nil {
 		return err
 	} else if st != nil {
@@ -914,10 +914,8 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 		}
 	}
 
-	if gasTipHandler != nil {
-		if err := gasTipHandler(e, chain, header); err != nil {
-			return err
-		}
+	if err := e.verifyGasTip(chain, header); err != nil {
+		return err
 	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
@@ -929,7 +927,7 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 // nor block rewards given, and returns the final block.
 func (e *Engine) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// Add the validatorList to the extra field of the header.
-	if err := e.processFinalize(chain, header, state, txs, uncles, writeEpoch, nil); err != nil {
+	if err := e.processFinalize(chain, header, state, txs, uncles, writeEpoch); err != nil {
 		return nil, err
 	}
 
@@ -1148,7 +1146,22 @@ func verifyEpoch(e *Engine, chain consensus.ChainHeaderReader, header *types.Hea
 	return nil
 }
 
-func verifyGasTip(e *Engine, chain consensus.ChainHeaderReader, header *types.Header) error {
+func (e *Engine) decideValidators(header *types.Header, newStakers []PoweredCandidate) ([]uint32, error) {
+	indices := sortCandidates(newStakers)
+	validators := make([]uint32, len(indices))
+	for i := range indices {
+		// Convert the index to uint32 and store it in the validators slice.
+		shuffledIdx, err := computeShuffledIndex(uint64(i), uint64(len(validators)), header.MixDigest, true)
+		if err != nil {
+			log.Error("WBFT: Failed to compute shuffled index", "index", i, "err", err)
+			return nil, err
+		}
+		validators[i] = uint32(indices[shuffledIdx])
+	}
+	return validators, nil
+}
+
+func (e *Engine) verifyGasTip(chain consensus.ChainHeaderReader, header *types.Header) error {
 	extra, err := types.ExtractWBFTExtra(header)
 	if err != nil {
 		return err
@@ -1163,21 +1176,6 @@ func verifyGasTip(e *Engine, chain consensus.ChainHeaderReader, header *types.He
 		return fmt.Errorf("invalid gas tip: have %d, want %d", extra.GasTip, gastip)
 	}
 	return nil
-}
-
-func (e *Engine) decideValidators(header *types.Header, newStakers []PoweredCandidate) ([]uint32, error) {
-	indices := sortCandidates(newStakers)
-	validators := make([]uint32, len(indices))
-	for i := range indices {
-		// Convert the index to uint32 and store it in the validators slice.
-		shuffledIdx, err := computeShuffledIndex(uint64(i), uint64(len(validators)), header.MixDigest, true)
-		if err != nil {
-			log.Error("WBFT: Failed to compute shuffled index", "index", i, "err", err)
-			return nil, err
-		}
-		validators[i] = uint32(indices[shuffledIdx])
-	}
-	return validators, nil
 }
 
 func sortCandidates(candidates []PoweredCandidate) []int {
