@@ -50,19 +50,19 @@ const (
 	// Slot 11: memberActiveProposalCount (mapping(address => uint256))
 	// Slot 12: maxActiveProposalsPerMember (uint256)
 	// Slot 13-49: __gap (reserved storage)
-	SLOT_GOV_BASE_proposalExpiry               = "0x0"
-	SLOT_GOV_BASE_version                      = "0x1"
-	SLOT_GOV_BASE_currentProposalId            = "0x2"
-	SLOT_GOV_BASE_reentrancyGuard              = "0x3"
-	SLOT_GOV_BASE_quorum                       = "0x4"
-	SLOT_GOV_BASE_members                      = "0x5"
-	SLOT_GOV_BASE_versionedMemberList          = "0x6"
-	SLOT_GOV_BASE_proposals                    = "0x7"
-	SLOT_GOV_BASE_memberIndexByVersion         = "0x8"
-	SLOT_GOV_BASE_quorumByVersion              = "0x9"
-	SLOT_GOV_BASE_proposalExecutionCount       = "0xa"
-	SLOT_GOV_BASE_memberActiveProposalCount    = "0xb"
-	SLOT_GOV_BASE_maxActiveProposalsPerMember  = "0xc"
+	SLOT_GOV_BASE_proposalExpiry              = "0x0"
+	SLOT_GOV_BASE_version                     = "0x1"
+	SLOT_GOV_BASE_currentProposalId           = "0x2"
+	SLOT_GOV_BASE_reentrancyGuard             = "0x3"
+	SLOT_GOV_BASE_quorum                      = "0x4"
+	SLOT_GOV_BASE_members                     = "0x5"
+	SLOT_GOV_BASE_versionedMemberList         = "0x6"
+	SLOT_GOV_BASE_proposals                   = "0x7"
+	SLOT_GOV_BASE_memberIndexByVersion        = "0x8"
+	SLOT_GOV_BASE_quorumByVersion             = "0x9"
+	SLOT_GOV_BASE_proposalExecutionCount      = "0xa"
+	SLOT_GOV_BASE_memberActiveProposalCount   = "0xb"
+	SLOT_GOV_BASE_maxActiveProposalsPerMember = "0xc"
 )
 
 type Member struct {

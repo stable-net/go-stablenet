@@ -110,7 +110,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
-						"maxProposals":       "3", // Default: 3, Range: 1-50
+						"maxProposals":       "3",                             // Default: 3, Range: 1-50
 					},
 				},
 				GovMinter: &SystemContract{
@@ -192,7 +192,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
-						"maxProposals":       "3", // Default: 3, Range: 1-50
+						"maxProposals":       "3",                             // Default: 3, Range: 1-50
 					},
 				},
 				GovMinter: &SystemContract{
@@ -408,7 +408,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
-						"maxProposals":       "3", // Default: 3, Range: 1-50
+						"maxProposals":       "3",                             // Default: 3, Range: 1-50
 					},
 				},
 				GovMinter: &SystemContract{
@@ -601,7 +601,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
-						"maxProposals":       "3", // Default: 3, Range: 1-50
+						"maxProposals":       "3",                             // Default: 3, Range: 1-50
 					},
 				},
 				GovMinter: &SystemContract{
