@@ -117,9 +117,12 @@ func readDefaultBigInt(def *big.Int) *big.Int {
 // it to an Ethereum address.
 func readAddress() *common.Address {
 	for {
-		text := promptInput("> 0x")
+		text := promptInput("> ")
 		if text = strings.TrimSpace(text); text == "" {
 			return nil
+		}
+		if strings.HasPrefix(text, "0x") {
+			text = text[2:]
 		}
 		// Make sure it looks ok and return it if so
 		if len(text) != 40 {
