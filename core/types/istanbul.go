@@ -87,8 +87,8 @@ type WBFTExtra struct {
 	Round             uint32
 	PreparedSeal      *WBFTAggregatedSeal
 	CommittedSeal     *WBFTAggregatedSeal
-	EpochInfo         *EpochInfo // epoch info is filled only for last block of epoch
 	GasTip            *big.Int   // tip value agreed through governance voting (in Wei)
+	EpochInfo         *EpochInfo // epoch info is filled only for last block of epoch
 }
 
 type Candidate struct {
@@ -113,8 +113,8 @@ func (qst *WBFTExtra) EncodeRLP(w io.Writer) error {
 		qst.Round,
 		qst.PreparedSeal,
 		qst.CommittedSeal,
-		qst.EpochInfo,
 		qst.GasTip,
+		qst.EpochInfo,
 	})
 }
 
@@ -129,8 +129,8 @@ func (qst *WBFTExtra) DecodeRLP(s *rlp.Stream) error {
 		Round             uint32
 		PreparedSeal      *WBFTAggregatedSeal `rlp:"nil"`
 		CommittedSeal     *WBFTAggregatedSeal `rlp:"nil"`
-		EpochInfo         *EpochInfo          `rlp:"nil"`
 		GasTip            *big.Int            `rlp:"nil"`
+		EpochInfo         *EpochInfo          `rlp:"nil"`
 	}
 	if err := s.Decode(&wbftExtra); err != nil {
 		return err
@@ -143,8 +143,8 @@ func (qst *WBFTExtra) DecodeRLP(s *rlp.Stream) error {
 	qst.Round = wbftExtra.Round
 	qst.PreparedSeal = wbftExtra.PreparedSeal
 	qst.CommittedSeal = wbftExtra.CommittedSeal
-	qst.EpochInfo = wbftExtra.EpochInfo
 	qst.GasTip = wbftExtra.GasTip
+	qst.EpochInfo = wbftExtra.EpochInfo
 	return nil
 }
 
