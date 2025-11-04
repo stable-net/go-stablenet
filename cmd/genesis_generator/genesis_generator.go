@@ -188,6 +188,31 @@ func (g *genesisGenerator) wbftChainConfig() {
 		"validators":    vals,
 		"blsPublicKeys": blsKeys,
 	}
+	g.Genesis.Config.Anzeon.SystemContracts.NativeCoinAdapter.Params = map[string]string{
+		"masterMinter":  "0x0000000000000000000000000000000000001002",
+		"minters":       "0x0000000000000000000000000000000000001003",
+		"minterAllowed": "10000000000000000000000000000",
+		"name":          "KRC1",
+		"symbol":        "KRC1",
+		"decimals":      "18",
+		"currency":      "KRW",
+	}
+	g.Genesis.Config.Anzeon.SystemContracts.GovMasterMinter.Params = map[string]string{
+		"quorum":             "1",
+		"expiry":             "604800",
+		"members":            vals,
+		"memberVersion":      "1",
+		"fiatToken":          "0x0000000000000000000000000000000000001000",
+		"maxMinterAllowance": "10000000000000000000000000000",
+	}
+	g.Genesis.Config.Anzeon.SystemContracts.GovMinter.Params = map[string]string{
+		"quorum":        "1",
+		"expiry":        "604800",
+		"members":       vals,
+		"memberVersion": "1",
+		"fiatToken":     "0x0000000000000000000000000000000000001000",
+	}
+
 	// you can add config file for static nodes if you want
 	fmt.Println()
 	fmt.Println("Want to generate config.toml file to configure static nodes to connect?")
