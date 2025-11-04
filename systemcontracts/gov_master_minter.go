@@ -19,14 +19,16 @@ package systemcontracts
 
 import (
 	"fmt"
-	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
+	"math/big"
 )
 
 const (
 	GOV_MASTER_MINTER_PARAM_FIAT_TOKEN           = "fiatToken"
+	GOV_MASTER_MINTER_PARAM_MINTERS              = "minters"
 	GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE = "maxMinterAllowance"
 
 	// GovMasterMinter Storage Layout (extends GovBaseV2):
@@ -76,6 +78,61 @@ func initializeMasterMinter(govMasterMinterAddress common.Address, param map[str
 		})
 	}
 
+	// Initialize minters (comma-separated addresses)
+	if mintersStr, ok := param[GOV_MASTER_MINTER_PARAM_MINTERS]; ok {
+		minterAddressStrs := strings.Split(mintersStr, ",")
+		if len(minterAddressStrs) == 0 {
+			return nil, fmt.Errorf("`systemContracts.govMasterMinter.params.minters`: no addresses provided")
+		}
+
+		// Parse and validate all addresses
+		var minterAddresses []common.Address
+		for i, addrStr := range minterAddressStrs {
+			minter := common.HexToAddress(strings.TrimSpace(addrStr))
+			if minter == (common.Address{}) {
+				return nil, fmt.Errorf("`systemContracts.govMasterMinter.params.minters[%d]`: invalid address %q", i, addrStr)
+			}
+			minterAddresses = append(minterAddresses, minter)
+		}
+
+		// Set minterList length (slot 0x36)
+		minterListSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_minterList)
+		sp = append(sp, params.StateParam{
+			Address: govMasterMinterAddress,
+			Key:     minterListSlot,
+			Value:   common.BigToHash(big.NewInt(int64(len(minterAddresses)))),
+		})
+
+		// Set each minter in the array and mappings
+		for i, minter := range minterAddresses {
+			// Set minterList[i] = minter (keccak256(0x36) + i)
+			arrayElementKey := CalculateDynamicSlot(minterListSlot, big.NewInt(int64(i)))
+			sp = append(sp, params.StateParam{
+				Address: govMasterMinterAddress,
+				Key:     arrayElementKey,
+				Value:   common.BytesToHash(minter.Bytes()),
+			})
+
+			// Set isMinter[minter] = true (slot 0x35)
+			isMinterSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_isMinter)
+			isMinterKey := CalculateMappingSlot(isMinterSlot, minter)
+			sp = append(sp, params.StateParam{
+				Address: govMasterMinterAddress,
+				Key:     isMinterKey,
+				Value:   common.BigToHash(big.NewInt(1)),
+			})
+
+			// Set minterIndex[minter] = i + 1 (1-based indexing, slot 0x37)
+			minterIndexSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_minterIndex)
+			minterIndexKey := CalculateMappingSlot(minterIndexSlot, minter)
+			sp = append(sp, params.StateParam{
+				Address: govMasterMinterAddress,
+				Key:     minterIndexKey,
+				Value:   common.BigToHash(big.NewInt(int64(i + 1))),
+			})
+		}
+	}
+
 	// Initialize maxMinterAllowance (optional, defaults to 10B tokens)
 	maxMinterAllowance := DefaultMaxMinterAllowance
 	if maxAllowanceStr, ok := param[GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE]; ok {
@@ -97,7 +154,7 @@ func initializeMasterMinter(govMasterMinterAddress common.Address, param map[str
 	})
 
 	// emergencyPaused defaults to false in slot 0x33 (no initialization needed)
-	// minterList defaults to empty array (no initialization needed)
+	// All uninitialized storage slots default to 0/false, so explicit initialization is not required
 
 	return sp, nil
 }
