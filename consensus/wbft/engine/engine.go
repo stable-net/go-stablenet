@@ -523,9 +523,7 @@ func makeRandaoData(config *params.ChainConfig, number *big.Int) []byte {
 	var data []byte
 	chainId := config.ChainID
 	randaoVersion := new(big.Int)
-	if config.AnzeonEnabled() {
-		randaoVersion.SetUint64(1) // anzeon randao version is 1
-	}
+	randaoVersion.SetUint64(1) // anzeon randao version is 1
 	data = append(data, chainId.Bytes()...)
 	data = append(data, randaoVersion.Bytes()...)
 	data = append(data, number.Bytes()...)
@@ -946,10 +944,6 @@ func (e *Engine) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, 
 // IsEpochBlockNumber returns whether the given block number is an epoch block.
 // it returns whether the given block number is an epoch block and the last epoch block number.
 func (e *Engine) IsEpochBlockNumber(config *params.ChainConfig, number *big.Int) (bool, *big.Int, error) {
-	if !config.AnzeonEnabled() {
-		return false, nil, wbftcommon.ErrIsNotWBFTBlock
-	}
-
 	epochLength := new(big.Int).SetUint64(e.cfg.Epoch)
 	firstNewEpoch := new(big.Int).SetUint64(0)
 	for _, transition := range e.cfg.Transitions {
@@ -975,10 +969,6 @@ func (e *Engine) IsEpochBlockNumber(config *params.ChainConfig, number *big.Int)
 // it returns the validators from chain config.
 func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *big.Int, parentHash common.Hash, parents []*types.Header) (wbft.ValidatorSet, error) {
 	chainConfig := chain.Config()
-	// 1. Check if the block is not a WBFT block
-	if !chainConfig.AnzeonEnabled() {
-		return nil, wbftcommon.ErrIsNotWBFTBlock
-	}
 
 	var (
 		epochInfo *types.EpochInfo
