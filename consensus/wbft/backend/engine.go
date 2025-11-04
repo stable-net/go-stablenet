@@ -327,9 +327,18 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		}
 		return sb.Start(chain, currentBlock, hasBadBlock, notifyNewRound)
 	case "InheritExtra":
-		if len(args) != 3 {
-			return wbftcommon.ErrInvalidSpecificCall
+		if sb.chain.Config().AnzeonEnabled() {
+			if len(args) != 3 {
+				return wbftcommon.ErrInvalidSpecificCall
+			}
+		} else {
+			if len(args) != 2 {
+				return wbftcommon.ErrInvalidSpecificCall
+			}
 		}
+
+		var gasTip *big.Int
+
 		parent, ok := args[0].(*types.Header)
 		if !ok {
 			return wbftcommon.ErrInvalidSpecificCall
@@ -338,9 +347,12 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 		if !ok {
 			return wbftcommon.ErrInvalidSpecificCall
 		}
-		tip, ok := args[2].(*big.Int)
-		if !ok || tip == nil {
-			return wbftcommon.ErrInvalidSpecificCall
+		if sb.chain.Config().AnzeonEnabled() {
+			tip, ok := args[2].(*big.Int)
+			if !ok || tip == nil {
+				return wbftcommon.ErrInvalidSpecificCall
+			}
+			gasTip = tip
 		}
 		extra, err := types.ExtractWBFTExtra(parent)
 		if err != nil {
@@ -358,13 +370,28 @@ func (sb *Backend) CallEngineSpecific(method string, args ...interface{}) interf
 
 		prevPreparedSeal := extra.PreparedSeal
 		prevCommittedSeal := extra.CommittedSeal
-		// add lastBlock committers to extraData's prevCommittedSeal section
-		// validators are stored in genesis block
-		wbftengine.ApplyHeaderWBFTExtra(
-			header,
-			sb.Engine().WriteRandao(sb.chain.Config(), header),
-			wbftengine.WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
-			wbftengine.WriteGasTip(tip))
+
+		if sb.chain.Config().AnzeonEnabled() {
+			// add gas tip and last block committers information to the header extraData.
+			// - gastip is written via WriteGasTip()
+			// - prepared seals (prevPreparedSeal) are written via WritePrevSeals()
+			// - committed seals (prevCommittedSeal) are written via WritePrevSeals()
+			// Note: Validators are defined in the genesis block.
+			wbftengine.ApplyHeaderWBFTExtra(
+				header,
+				sb.Engine().WriteRandao(sb.chain.Config(), header),
+				wbftengine.WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
+				wbftengine.WriteGasTip(gasTip))
+		} else {
+			// add last block committers information to the header extraData.
+			// - prepared seals (prevPreparedSeal) are written via WritePrevSeals()
+			// - committed seals (prevCommittedSeal) are written via WritePrevSeals()
+			// Note: Validators are defined in the genesis block.
+			wbftengine.ApplyHeaderWBFTExtra(
+				header,
+				sb.Engine().WriteRandao(sb.chain.Config(), header),
+				wbftengine.WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal))
+		}
 		return nil
 
 	case "SetMixDigest":

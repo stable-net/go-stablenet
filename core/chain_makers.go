@@ -382,8 +382,11 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 	triedb := triedb.NewDatabase(db, triedb.HashDefaults)
 	defer triedb.Close()
 
+	// Initialize stateCache for chainMaker
+	cm.stateCache = state.NewDatabaseWithNodeDB(db, triedb)
+
 	for i := 0; i < n; i++ {
-		statedb, err := state.New(parent.Root(), state.NewDatabaseWithNodeDB(db, triedb), nil)
+		statedb, err := state.New(parent.Root(), cm.stateCache, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -481,9 +484,16 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 		panic("invalid call of SetCoinbase")
 	}
 
-	err = engine.CallEngineSpecific("InheritExtra", parent.Header(), header, new(big.Int).SetUint64(params.InitialGasTip))
-	if err != nil {
-		panic("invalid call of InheritExtra")
+	if cm.config.AnzeonEnabled() {
+		err = engine.CallEngineSpecific("InheritExtra", parent.Header(), header, new(big.Int).SetUint64(params.InitialGasTip))
+		if err != nil {
+			panic("invalid call of InheritExtra")
+		}
+	} else {
+		err = engine.CallEngineSpecific("InheritExtra", parent.Header(), header)
+		if err != nil {
+			panic("invalid call of InheritExtra")
+		}
 	}
 
 	err = engine.CallEngineSpecific("SetMixDigest", parent.Header(), header)
@@ -538,6 +548,7 @@ type chainMaker struct {
 	chain       []*types.Block
 	chainByHash map[common.Hash]*types.Block
 	receipts    []types.Receipts
+	stateCache  state.Database
 }
 
 func newChainMaker(bottom *types.Block, config *params.ChainConfig, engine consensus.Engine) *chainMaker {
@@ -626,5 +637,8 @@ func (cm *chainMaker) GetTd(hash common.Hash, number uint64) *big.Int {
 }
 
 func (cm *chainMaker) StateAt(root common.Hash) (*state.StateDB, error) {
-	return nil, nil
+	if cm.stateCache == nil {
+		return nil, fmt.Errorf("stateCache is not initialized")
+	}
+	return state.New(root, cm.stateCache, nil)
 }

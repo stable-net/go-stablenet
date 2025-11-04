@@ -379,6 +379,7 @@ func (w *worker) setGasTipUnsafe(tip *big.Int) bool {
 	}
 	w.tip = uint256.MustFromBig(tip)
 
+	// TODO: This part will be refactored to implement Minter transaction prioritization.
 	// Update txPool's gas tip to filter pending transactions accordingly
 	w.eth.TxPool().SetGasTip(tip)
 
