@@ -319,6 +319,8 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 				log.Warn("Failed to get state from current block", "err", err)
 			}
 		}
+		// Set callback to update gas tip in worker when blockchain imports new blocks
+		worker.chain.SetGasTipUpdater(worker.setGasTip)
 	}
 
 	worker.wg.Add(4)
@@ -654,15 +656,6 @@ func (w *worker) newWorkLoopWBFT() {
 			err := handler.NewChainHead()
 			clearPending(head.Block.NumberU64())
 
-			if w.chainConfig.AnzeonEnabled() {
-				// Update gasTip from contract when new block is imported
-				if state, stateErr := w.chain.StateAt(head.Block.Root()); stateErr == nil {
-					w.updateGasTipFromContract(state)
-				} else {
-					log.Warn("Failed to get state from new block", "err", stateErr)
-				}
-			}
-
 			if errors.Is(err, wbft.ErrStoppedEngine) {
 				// If WBFT engine is running, we don't need to commit new work here because
 				// it will triggered by readyToCommitCh
@@ -879,6 +872,16 @@ func (w *worker) resultLoop() {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
 			}
+
+			if w.chainConfig.AnzeonEnabled() {
+				// Update gasTip from contract when new block is imported
+				if state, stateErr := w.chain.StateAt(block.Root()); stateErr == nil {
+					w.updateGasTipFromContract(state)
+				} else {
+					log.Error("Failed to get state from new block", "err", stateErr)
+				}
+			}
+
 			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash,
 				"elapsed", common.PrettyDuration(time.Since(task.createdAt)))
 
@@ -1171,15 +1174,6 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 		header.BlobGasUsed = new(uint64)
 		header.ExcessBlobGas = &excessBlobGas
 		header.ParentBeaconRoot = genParams.beaconRoot
-	}
-
-	// Update gasTip from GovValidator contract before filling transactions
-	if w.chainConfig.AnzeonEnabled() {
-		if state, err := w.chain.StateAt(parent.Root); err == nil {
-			w.updateGasTipFromContract(state)
-		} else {
-			return nil, err
-		}
 	}
 
 	// Run the consensus preparation with the default or customized consensus engine.

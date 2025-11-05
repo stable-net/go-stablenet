@@ -47,6 +47,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
 	"github.com/ethereum/go-ethereum/triedb/pathdb"
@@ -259,6 +260,8 @@ type BlockChain struct {
 	processor  Processor // Block transaction processor interface
 	forker     *ForkChoice
 	vmConfig   vm.Config
+
+	gasTipUpdater func(*big.Int) // Callback to update gas tip in worker
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -1847,6 +1850,23 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 			return it.index, nil // Direct block insertion of a single block
 		}
+
+		// hmlee here
+		if bc.chainConfig.AnzeonEnabled() {
+			// Update gasTip from contract when new block is imported
+			if state, stateErr := bc.StateAt(block.Root()); stateErr == nil {
+				gasTip := bc.getGasTipFromContract(state)
+				if gasTip != nil && bc.gasTipUpdater != nil {
+					// Update gasTip asynchronously to avoid deadlock
+					go func() {
+						bc.gasTipUpdater(gasTip)
+					}()
+				}
+			} else {
+				log.Error("Failed to get state from new block", "err", stateErr)
+			}
+		}
+
 		switch status {
 		case CanonStatTy:
 			log.Debug("Inserted new block", "number", block.Number(), "hash", block.Hash(),
@@ -2465,4 +2485,28 @@ func (bc *BlockChain) SetTrieFlushInterval(interval time.Duration) {
 // GetTrieFlushInterval gets the in-memory tries flushAlloc interval
 func (bc *BlockChain) GetTrieFlushInterval() time.Duration {
 	return time.Duration(bc.flushInterval.Load())
+}
+
+// SetGasTipUpdater sets the callback function to update gas tip in worker
+func (bc *BlockChain) SetGasTipUpdater(updater func(*big.Int)) {
+	bc.gasTipUpdater = updater
+}
+
+// getGasTipFromContract reads the current gasTip from GovValidator contract
+func (bc *BlockChain) getGasTipFromContract(state *state.StateDB) *big.Int {
+	if bc.chainConfig.Anzeon.SystemContracts == nil {
+		log.Warn("GovValidator contract is not enabled")
+		return nil
+	}
+
+	govValidatorAddr := bc.chainConfig.Anzeon.SystemContracts.GovValidator.Address
+
+	// Read gasTip from contract storage
+	gasTip := systemcontracts.GetGasTip(govValidatorAddr, state)
+	if gasTip == nil {
+		log.Warn("Failed to get gasTip from GovValidator contract", "gasTip", gasTip)
+		return nil
+	}
+
+	return gasTip
 }
