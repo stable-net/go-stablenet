@@ -42,11 +42,11 @@ const (
 	// Slot 0x37: minterIndex (mapping(address => uint256))
 	// Note: minterAllowances and totalMinterAllowance removed - FiatToken is source of truth
 	SLOT_GOV_MASTER_MINTER_fiatToken          = "0x32"
-	SLOT_GOV_MASTER_MINTER_emergencyPaused    = "0x33"
-	SLOT_GOV_MASTER_MINTER_maxMinterAllowance = "0x34"
-	SLOT_GOV_MASTER_MINTER_isMinter           = "0x35"
-	SLOT_GOV_MASTER_MINTER_minterList         = "0x36"
-	SLOT_GOV_MASTER_MINTER_minterIndex        = "0x37"
+	SLOT_GOV_MASTER_MINTER_maxMinterAllowance = "0x33"
+	SLOT_GOV_MASTER_MINTER_isMinter           = "0x34"
+	SLOT_GOV_MASTER_MINTER_minterList         = "0x35"
+	SLOT_GOV_MASTER_MINTER_minterIndex        = "0x36"
+	SLOT_GOV_MASTER_MINTER_emergencyPaused    = "0x37"
 )
 
 // Default maxMinterAllowance: 10B tokens (10000000000 * 10^18)

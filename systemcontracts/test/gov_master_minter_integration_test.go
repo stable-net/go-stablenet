@@ -99,12 +99,10 @@ func TestGovMasterMinter_Initialize(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, mockFiatToken, token)
 
-		// Check maxMinterAllowance - Note: Genesis state initialization not working in simulated backend
-		// State variable initial values in Solidity don't work with system contracts (no constructor execution)
-		// Therefore maxMinterAllowance will be 0 until set via governance proposal
+		// Check maxMinterAllowance
 		maxAllowance, err := gMasterMinter.MaxMinterAllowance(masterMinterNonMember)
 		require.NoError(t, err)
-		require.Equal(t, 0, maxAllowance.Cmp(big.NewInt(0)), "maxMinterAllowance should be 0 initially (Genesis state not applied)")
+		require.Equal(t, 0, maxAllowance.Cmp(defaultMaxAllowance), "maxMinterAllowance should be 0 initially (Genesis state not applied)")
 
 		// Check governance base parameters
 		quorum, err := gMasterMinter.BaseQuorum(gMasterMinter.govMasterMinter, masterMinterNonMember)
@@ -162,7 +160,7 @@ func TestGovMasterMinter_ProposeConfigureMinter(t *testing.T) {
 		initGovMasterMinter(t)
 		defer gMasterMinter.backend.Close()
 
-		// First set maxMinterAllowance since Genesis state initialization doesn't work
+		// set maxMinterAllowance
 		setMaxMinterAllowanceHelper(t, big.NewInt(1000000))
 
 		minter := NewEOA().Address
@@ -287,7 +285,7 @@ func TestGovMasterMinter_GovernanceWorkflow(t *testing.T) {
 		initGovMasterMinter(t)
 		defer gMasterMinter.backend.Close()
 
-		// First set maxMinterAllowance since Genesis state initialization doesn't work
+		// set maxMinterAllowance
 		setMaxMinterAllowanceHelper(t, big.NewInt(1000000))
 
 		minter := NewEOA().Address
@@ -323,7 +321,7 @@ func TestGovMasterMinter_GovernanceWorkflow(t *testing.T) {
 		initGovMasterMinter(t)
 		defer gMasterMinter.backend.Close()
 
-		// First set maxMinterAllowance since Genesis state initialization doesn't work
+		// set maxMinterAllowance
 		setMaxMinterAllowanceHelper(t, big.NewInt(1000000))
 
 		minter1 := NewEOA().Address

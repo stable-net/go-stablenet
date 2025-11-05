@@ -17,8 +17,8 @@
 
 pragma solidity ^0.8.14;
 
-import {GovBaseV2} from "../abstracts/GovBaseV2.sol";
-import {IFiatToken} from "../interfaces/IFiatToken.sol";
+import { GovBaseV2 } from "../abstracts/GovBaseV2.sol";
+import { IFiatToken } from "../interfaces/IFiatToken.sol";
 
 /**
  * @title GovMinter
@@ -67,14 +67,13 @@ contract GovMinter is GovBaseV2 {
      */
     struct MintProof {
         // 32-byte fields (slots 0-2)
-        address beneficiary;  // slot 0 (20 bytes + 12 bytes padding)
-        uint256 amount;       // slot 1 (32 bytes)
-        uint256 timestamp;    // slot 2 (32 bytes)
-
+        address beneficiary; // slot 0 (20 bytes + 12 bytes padding)
+        uint256 amount; // slot 1 (32 bytes)
+        uint256 timestamp; // slot 2 (32 bytes)
         // Dynamic fields (stored separately)
-        string depositId;     // slot 3 (offset + length)
+        string depositId; // slot 3 (offset + length)
         string bankReference; // slot 4 (offset + length)
-        string memo;          // slot 5 (offset + length)
+        string memo; // slot 5 (offset + length)
     }
 
     /**
@@ -89,14 +88,13 @@ contract GovMinter is GovBaseV2 {
      */
     struct BurnProof {
         // 32-byte fields (slots 0-2)
-        address from;         // slot 0 (20 bytes + 12 bytes padding)
-        uint256 amount;       // slot 1 (32 bytes)
-        uint256 timestamp;    // slot 2 (32 bytes)
-
+        address from; // slot 0 (20 bytes + 12 bytes padding)
+        uint256 amount; // slot 1 (32 bytes)
+        uint256 timestamp; // slot 2 (32 bytes)
         // Dynamic fields (stored separately)
-        string withdrawalId;  // slot 3 (offset + length)
-        string referenceId;   // slot 4 (offset + length)
-        string memo;          // slot 5 (offset + length)
+        string withdrawalId; // slot 3 (offset + length)
+        string referenceId; // slot 4 (offset + length)
+        string memo; // slot 5 (offset + length)
     }
 
     struct BurnProposalData {
@@ -106,7 +104,6 @@ contract GovMinter is GovBaseV2 {
 
     // ========== State Variables ==========
     IFiatToken public fiatToken;
-    bool public emergencyPaused;
 
     // Replay attack prevention
     mapping(bytes32 => bool) public usedProofHashes;
@@ -128,6 +125,8 @@ contract GovMinter is GovBaseV2 {
 
     // Burn balance tracking
     mapping(address => uint256) public burnBalance;
+
+    bool public emergencyPaused;
 
     // ========== Events ==========
     /// @notice Emitted when a deposit mint proposal is created
@@ -156,7 +155,6 @@ contract GovMinter is GovBaseV2 {
     // ========== Constructor & Initialization ==========
     constructor() {}
 
-
     // ========== Modifiers ==========
 
     /// @notice Modifier to check if contract is not paused
@@ -173,7 +171,6 @@ contract GovMinter is GovBaseV2 {
         _;
     }
 
-
     // ============================================================
     // INITIALIZATION
     // ============================================================
@@ -185,11 +182,9 @@ contract GovMinter is GovBaseV2 {
     /// - GovBase state: members, quorum, proposalExpiry, memberVersion (via gov_base.go)
     /// - GovMinter state: fiatToken
 
-
     // ============================================================
     // PUBLIC FUNCTIONS - Proposal Operations
     // ============================================================
-
 
     // ========== Proposal Functions ==========
 
@@ -243,13 +238,10 @@ contract GovMinter is GovBaseV2 {
         depositIdToProposalId[proof.depositId] = proposalId;
 
         // Emit event
-        emit DepositMintProposed(
-            proposalId, proof.depositId, msg.sender, proof.beneficiary, proof.amount, proof.bankReference
-        );
+        emit DepositMintProposed(proposalId, proof.depositId, msg.sender, proof.beneficiary, proof.amount, proof.bankReference);
 
         return proposalId;
     }
-
 
     /**
      * @notice Propose burn with burn proof
@@ -311,11 +303,10 @@ contract GovMinter is GovBaseV2 {
         // Link withdrawalId to proposalId for state tracking
         withdrawalIdToProposalId[proof.withdrawalId] = proposalId;
 
-        burnProposals[proposalId] = BurnProposalData({amount: proof.amount, requester: proof.from});
+        burnProposals[proposalId] = BurnProposalData({ amount: proof.amount, requester: proof.from });
 
         return proposalId;
     }
-
 
     /**
      * @notice Propose emergency pause of all mint and burn operations
@@ -331,7 +322,6 @@ contract GovMinter is GovBaseV2 {
         return _createProposal(ACTION_PAUSE, callData);
     }
 
-
     /**
      * @notice Propose resumption of mint and burn operations
      * @return proposalId The ID of the created proposal
@@ -346,11 +336,9 @@ contract GovMinter is GovBaseV2 {
         return _createProposal(ACTION_UNPAUSE, callData);
     }
 
-
     // ============================================================
     // INTERNAL FUNCTIONS - Action Execution Router
     // ============================================================
-
 
     // ========== Internal Action Implementation ==========
 
@@ -388,14 +376,12 @@ contract GovMinter is GovBaseV2 {
     ///      4. Return success status to update proposal state
     function _executeCustomAction(bytes32 actionType, bytes memory callData) internal override returns (bool) {
         if (actionType == ACTION_MINT_WITH_DEPOSIT) {
-            (address beneficiary, uint256 amount, string memory depositId) =
-                abi.decode(callData, (address, uint256, string));
+            (address beneficiary, uint256 amount, string memory depositId) = abi.decode(callData, (address, uint256, string));
             return _executeMint(beneficiary, amount, depositId);
         }
 
         if (actionType == ACTION_BURN) {
-            (address from, uint256 amount, string memory withdrawalId) =
-                abi.decode(callData, (address, uint256, string));
+            (address from, uint256 amount, string memory withdrawalId) = abi.decode(callData, (address, uint256, string));
             return _safeBurn(from, amount, withdrawalId);
         }
 
@@ -410,11 +396,9 @@ contract GovMinter is GovBaseV2 {
         return false;
     }
 
-
     // ============================================================
     // INTERNAL FUNCTIONS - Action Executors
     // ============================================================
-
 
     /// @dev Execute mint action - mint tokens to beneficiary
     /// @notice Mints fiat tokens and marks depositId as permanently executed
@@ -471,7 +455,6 @@ contract GovMinter is GovBaseV2 {
             return false;
         }
     }
-
 
     /// @dev Execute burn action - burn fiat tokens from GovMinter balance
     /// @notice Burns fiat tokens held by GovMinter contract
@@ -542,7 +525,6 @@ contract GovMinter is GovBaseV2 {
         }
     }
 
-
     /// @dev Execute emergency pause action
     /// @notice Activates emergency pause to block all mint and burn operations
     ///
@@ -584,7 +566,6 @@ contract GovMinter is GovBaseV2 {
         emit EmergencyPaused(currentProposalId);
         return true;
     }
-
 
     /// @dev Execute emergency unpause action
     /// @notice Deactivates emergency pause to resume mint and burn operations
@@ -633,11 +614,9 @@ contract GovMinter is GovBaseV2 {
         return true;
     }
 
-
     // ============================================================
     // INTERNAL FUNCTIONS - Proof Decoding
     // ============================================================
-
 
     // ========== Proof Management Functions ==========
 
@@ -667,25 +646,19 @@ contract GovMinter is GovBaseV2 {
     function _decodeMintProof(bytes memory data) internal pure returns (MintProof memory) {
         if (data.length == 0) revert InvalidProofData();
 
-        (
-            address beneficiary,
-            uint256 amount,
-            uint256 timestamp,
-            string memory depositId,
-            string memory bankReference,
-            string memory memo
-        ) = abi.decode(data, (address, uint256, uint256, string, string, string));
+        (address beneficiary, uint256 amount, uint256 timestamp, string memory depositId, string memory bankReference, string memory memo) = abi
+            .decode(data, (address, uint256, uint256, string, string, string));
 
-        return MintProof({
-            beneficiary: beneficiary,
-            amount: amount,
-            timestamp: timestamp,
-            depositId: depositId,
-            bankReference: bankReference,
-            memo: memo
-        });
+        return
+            MintProof({
+                beneficiary: beneficiary,
+                amount: amount,
+                timestamp: timestamp,
+                depositId: depositId,
+                bankReference: bankReference,
+                memo: memo
+            });
     }
-
 
     /// @dev Decode ABI-encoded burn proof data
     /// @notice Converts bytes to BurnProof struct
@@ -713,30 +686,17 @@ contract GovMinter is GovBaseV2 {
     function _decodeBurnProof(bytes memory data) internal pure returns (BurnProof memory) {
         if (data.length == 0) revert InvalidProofData();
 
-        (
-            address from,
-            uint256 amount,
-            uint256 timestamp,
-            string memory withdrawalId,
-            string memory referenceId,
-            string memory memo
-        ) = abi.decode(data, (address, uint256, uint256, string, string, string));
+        (address from, uint256 amount, uint256 timestamp, string memory withdrawalId, string memory referenceId, string memory memo) = abi.decode(
+            data,
+            (address, uint256, uint256, string, string, string)
+        );
 
-        return BurnProof({
-            from: from,
-            amount: amount,
-            timestamp: timestamp,
-            withdrawalId: withdrawalId,
-            referenceId: referenceId,
-            memo: memo
-        });
+        return BurnProof({ from: from, amount: amount, timestamp: timestamp, withdrawalId: withdrawalId, referenceId: referenceId, memo: memo });
     }
-
 
     // ============================================================
     // INTERNAL FUNCTIONS - Replay Prevention (Validation)
     // ============================================================
-
 
     // ========== Replay Attack Prevention ==========
 
@@ -775,7 +735,6 @@ contract GovMinter is GovBaseV2 {
         // (Executed is already blocked by executedDepositIds check above)
     }
 
-
     /**
      * @notice Validate withdrawalId availability based on proposal state
      * @param withdrawalId The withdrawal identifier to validate
@@ -808,7 +767,6 @@ contract GovMinter is GovBaseV2 {
         // (Executed is already blocked by executedWithdrawalIds check above)
     }
 
-
     /// @dev Check if proof hash has been used before
     /// @notice Validates that the proof hash is unique and not replayed
     ///
@@ -835,11 +793,9 @@ contract GovMinter is GovBaseV2 {
         if (usedProofHashes[proofHash]) revert ProofAlreadyUsed();
     }
 
-
     // ============================================================
     // INTERNAL FUNCTIONS - Replay Prevention (State Updates)
     // ============================================================
-
 
     /// @dev Mark depositId as permanently executed
     /// @notice Permanently consumes depositId to prevent replay attacks
@@ -865,7 +821,6 @@ contract GovMinter is GovBaseV2 {
         executedDepositIds[depositId] = true;
     }
 
-
     /// @dev Mark withdrawalId as permanently executed
     /// @notice Permanently consumes withdrawalId to prevent replay attacks
     ///
@@ -889,7 +844,6 @@ contract GovMinter is GovBaseV2 {
     function _markWithdrawalIdExecuted(string memory withdrawalId) internal {
         executedWithdrawalIds[withdrawalId] = true;
     }
-
 
     /// @dev Mark proof hash as used to prevent replay attacks
     /// @notice Permanently stores proof hash to detect duplicates
@@ -916,11 +870,9 @@ contract GovMinter is GovBaseV2 {
         usedProofHashes[proofHash] = true;
     }
 
-
     // ============================================================
     // INTERNAL FUNCTIONS - Cleanup & Lifecycle Hooks
     // ============================================================
-
 
     /// @dev Internal function to release reserved mint allowance
     /// @notice Automatically cleans up reservation when proposal reaches terminal state
@@ -932,7 +884,6 @@ contract GovMinter is GovBaseV2 {
             delete mintProposalAmounts[proposalId];
         }
     }
-
 
     /// @dev Hook implementation for proposal finalization
     /// @notice Called automatically by GovBaseV2 when proposal reaches terminal state
@@ -967,7 +918,6 @@ contract GovMinter is GovBaseV2 {
         _cleanupMintReservation(proposalId);
     }
 
-
     // ========== Hook Implementations ==========
 
     /// @dev Hook called when a new member is added to governance
@@ -989,7 +939,6 @@ contract GovMinter is GovBaseV2 {
     ///      - Keeps governance flexible and explicit
     function _onMemberAdded(address /* newMember */) internal override {}
 
-
     /// @dev Hook called when a member is removed from governance
     /// @notice Currently empty - no cleanup needed for removed members
     ///
@@ -1008,7 +957,6 @@ contract GovMinter is GovBaseV2 {
     ///      - Preserves burn balance for potential withdrawal
     ///      - Does not cancel active proposals (governance decision)
     function _onMemberRemoved(address /* member */) internal override {}
-
 
     /// @dev Hook called when a member address is changed in governance
     /// @notice Currently empty - no state migration needed
@@ -1031,5 +979,4 @@ contract GovMinter is GovBaseV2 {
     ///      - Old member data preserved (audit trail)
     ///      - Governance can manually handle special cases if needed
     function _onMemberChanged(address /* oldMember */, address /* newMember */) internal override {}
-
 }

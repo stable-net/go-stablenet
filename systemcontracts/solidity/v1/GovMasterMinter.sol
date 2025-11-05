@@ -53,23 +53,23 @@ contract GovMasterMinter is GovBaseV2 {
     // Slot 0x32: fiatToken (address, 20 bytes)
     IFiatToken public fiatToken; // The FiatToken contract
 
-    // Slot 0x33: emergencyPaused (bool, 1 byte)
-    bool public emergencyPaused; // Emergency pause state
-
-    // Slot 0x34: maxMinterAllowance (uint256, 32 bytes)
+    // Slot 0x33: maxMinterAllowance (uint256, 32 bytes)
     // Note: Default value 10B tokens (10000000000 * 10^18 = 10000000000000000000000000000 wei)
     // Genesis state should override this via initializeMasterMinter() but due to simulated backend limitation,
     // this fallback value is used
     uint256 public maxMinterAllowance = 10000000000000000000000000000;
 
-    // Slot 0x35: isMinter mapping (base slot)
+    // Slot 0x34: isMinter mapping (base slot)
     mapping(address => bool) public isMinter; // Minter status
 
-    // Slot 0x36: minterList array (length slot, elements stored at keccak256(0x36))
+    // Slot 0x35: minterList array (length slot, elements stored at keccak256(0x36))
     address[] private __minterList; // List of all minters
 
-    // Slot 0x37: minterIndex mapping (base slot)
+    // Slot 0x36: minterIndex mapping (base slot)
     mapping(address => uint256) private __minterIndex; // Index in minterList + 1 (1-based indexing)
+
+    // Slot 0x37: emergencyPaused (bool, 1 byte)
+    bool public emergencyPaused; // Emergency pause state
 
     // ========== Events ==========
 
