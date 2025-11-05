@@ -20,14 +20,14 @@ import (
 // EdgeCaseTestContext holds the test environment state for edge case verification
 type EdgeCaseTestContext struct {
 	*GovWBFT
-	Members                        []*EOA
-	NonMember                      *EOA
-	MaxActiveProposalsPerMember    *big.Int
-	InitialActiveProposalCounts    map[common.Address]*big.Int
-	InitialReservedMintAmounts     map[common.Address]*big.Int
-	InitialBurnBalances            map[common.Address]*big.Int
-	InitialMinterAllowance         *big.Int
-	InitialMockFiatTokenAllowance  *big.Int
+	Members                         []*EOA
+	NonMember                       *EOA
+	MaxActiveProposalsPerMember     *big.Int
+	InitialActiveProposalCounts     map[common.Address]*big.Int
+	InitialReservedMintAmounts      map[common.Address]*big.Int
+	InitialBurnBalances             map[common.Address]*big.Int
+	InitialMinterAllowance          *big.Int
+	InitialMockFiatTokenAllowance   *big.Int
 	InitialMockFiatTokenTotalSupply *big.Int
 }
 
@@ -100,13 +100,13 @@ func setupEdgeCaseTest(t *testing.T) *EdgeCaseTestContext {
 
 // ProposalCreationExpectation defines expected state after proposal creation
 type ProposalCreationExpectation struct {
-	ProposalId               *big.Int
-	Member                   *EOA
-	ProposalType             string // "Mint" or "Burn"
-	Amount                   *big.Int
-	ActiveCountIncremented   bool
+	ProposalId                *big.Int
+	Member                    *EOA
+	ProposalType              string // "Mint" or "Burn"
+	Amount                    *big.Int
+	ActiveCountIncremented    bool
 	ReservedAmountIncremented bool // Mint proposals only
-	BurnBalanceSufficient    bool // Burn proposals only
+	BurnBalanceSufficient     bool // Burn proposals only
 }
 
 // assertProposalCreation verifies state at proposal creation
@@ -245,11 +245,11 @@ func createApprovedBurnProposal(t *testing.T, ctx *EdgeCaseTestContext, proposer
 
 // StateSnapshot captures current state for comparison
 type StateSnapshot struct {
-	ReservedMintAmounts     map[common.Address]*big.Int
-	BurnBalances            map[common.Address]*big.Int
-	MinterAllowance         *big.Int
+	ReservedMintAmounts      map[common.Address]*big.Int
+	BurnBalances             map[common.Address]*big.Int
+	MinterAllowance          *big.Int
 	MockFiatTokenTotalSupply *big.Int
-	ActiveProposalCounts    map[common.Address]*big.Int
+	ActiveProposalCounts     map[common.Address]*big.Int
 }
 
 // captureStateSnapshot captures current state
@@ -377,14 +377,14 @@ func assertInvariantsHold(t *testing.T, ctx *EdgeCaseTestContext, description st
 
 // TerminalStateExpectation defines expected terminal state
 type TerminalStateExpectation struct {
-	ProposalId               *big.Int
-	Member                   *EOA
-	ExpectedStatus           sc.ProposalStatus
-	ProposalType             string // "Mint" or "Burn"
-	Amount                   *big.Int
-	ReservationCleaned       bool
-	BurnBalanceUpdated       bool
-	ActiveCountDecremented   bool
+	ProposalId             *big.Int
+	Member                 *EOA
+	ExpectedStatus         sc.ProposalStatus
+	ProposalType           string // "Mint" or "Burn"
+	Amount                 *big.Int
+	ReservationCleaned     bool
+	BurnBalanceUpdated     bool
+	ActiveCountDecremented bool
 }
 
 // assertProposalTerminalState verifies terminal state after proposal completion

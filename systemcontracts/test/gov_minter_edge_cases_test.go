@@ -723,7 +723,7 @@ func TestEdgeCase_C2_ConcurrentApprovalAndExpiry(t *testing.T) {
 
 	// 2. Advance time close to expiry (but not past)
 	// Get voting duration and advance to just before expiry
-	votingDuration := uint64(7 * 24 * 60 * 60) // 7 days in seconds (typical)
+	votingDuration := uint64(7 * 24 * 60 * 60)                             // 7 days in seconds (typical)
 	ctx.backend.AdjustTime(time.Duration(votingDuration-60) * time.Second) // 1 minute before expiry
 	ctx.backend.Commit()
 	t.Logf("Advanced time to 1 minute before expiry")
@@ -796,7 +796,7 @@ func TestEdgeCase_C3_MultipleMembersSimultaneousProposals(t *testing.T) {
 	memberAmounts := make(map[common.Address]*big.Int)
 
 	for i, member := range ctx.Members {
-		amount := big.NewInt(int64((i+1) * 10_000_000))
+		amount := big.NewInt(int64((i + 1) * 10_000_000))
 		memberAmounts[member.Address] = amount
 
 		tx, err := ctx.TxProposeMint(t, member, member.Address, amount)
@@ -858,7 +858,7 @@ func TestEdgeCase_C3_MultipleMembersSimultaneousProposals(t *testing.T) {
 
 	// 7. Verify no state leakage - each member can create new proposals independently
 	for i, member := range ctx.Members {
-		amount := big.NewInt(int64((i+1) * 5_000_000))
+		amount := big.NewInt(int64((i + 1) * 5_000_000))
 		tx, err := ctx.TxProposeMint(t, member, member.Address, amount)
 		_, err = ctx.ExpectedOk(tx, err)
 		require.NoError(t, err)
@@ -2045,13 +2045,13 @@ func TestEdgeCase_HelperFunctionsVerification(t *testing.T) {
 
 		// Verify with assertProposalCreation
 		assertProposalCreation(t, ctx, ProposalCreationExpectation{
-			ProposalId:               proposalId,
-			Member:                   member,
-			ProposalType:             "Mint",
-			Amount:                   amount,
-			ActiveCountIncremented:   true,
+			ProposalId:                proposalId,
+			Member:                    member,
+			ProposalType:              "Mint",
+			Amount:                    amount,
+			ActiveCountIncremented:    true,
 			ReservedAmountIncremented: true,
-			BurnBalanceSufficient:    false,
+			BurnBalanceSufficient:     false,
 		})
 
 		t.Logf("✓ assertProposalCreation verified")
