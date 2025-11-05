@@ -76,7 +76,6 @@ func NewWBFTBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 	ethConf.Genesis.Config.Anzeon.SystemContracts.GovValidator.Params["gasTip"] = "1"
 	ethConf.Genesis.ExtraData = genExtraData(validator, blsPubKey) // simulated chain block
 	ethConf.SyncMode = downloader.FullSync
-	ethConf.Miner.GasPrice = big.NewInt(1)
 	ethConf.Miner.SimulatedEnabled = true
 	ethConf.Miner.Recommit = common.Duration(10 * time.Second) // prevent block interruption
 	ethConf.TxPool.NoLocals = true

@@ -52,7 +52,8 @@ func WithMinerMinTip(tip *big.Int) func(nodeConf *node.Config, ethConf *ethconfi
 		panic("invalid miner minimum tip")
 	}
 	return func(nodeConf *node.Config, ethConf *ethconfig.Config) {
-		ethConf.Miner.GasPrice = tip
+		// ethConf.Miner.GasPrice = tip
+		log.Debug("ethConf.Miner.GasPrice is not supported for anzeon")
 	}
 }
 
