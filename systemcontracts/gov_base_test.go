@@ -104,7 +104,7 @@ func TestInitializeBase(t *testing.T) {
 			name:          "empty param",
 			param:         map[string]string{},
 			expectErr:     "",
-			validateCount: 0,
+			validateCount: 1, // maxProposals is always initialized with default value 3
 		},
 		{
 			name: "member without version - should fail",
@@ -153,7 +153,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_MEMBER_VERSION: "1",
 			},
 			expectErr:     "",
-			validateCount: 5, // members, versionedMemberList[v][0], memberIndexByVersion, versionedMemberList.length, memberVersion
+			validateCount: 6, // members, versionedMemberList[v][0], memberIndexByVersion, versionedMemberList.length, memberVersion, maxProposals
 			validateFunc: func(t *testing.T, sp []params.StateParam) {
 				// Verify memberVersion is set correctly
 				found := false
@@ -178,7 +178,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_QUORUM:         "1",
 			},
 			expectErr:     "",
-			validateCount: 7, // +quorum, +quorumByVersion
+			validateCount: 8, // +quorum, +quorumByVersion, +maxProposals
 			validateFunc: func(t *testing.T, sp []params.StateParam) {
 				// Verify quorum is set
 				foundQuorum := false
@@ -212,7 +212,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_EXPIRY:         "604800",
 			},
 			expectErr:     "",
-			validateCount: 6, // +proposalExpiry
+			validateCount: 7, // +proposalExpiry, +maxProposals
 			validateFunc: func(t *testing.T, sp []params.StateParam) {
 				// Verify expiry is set
 				found := false
@@ -237,7 +237,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_QUORUM:         "2",
 			},
 			expectErr:     "",
-			validateCount: 13, // 3*(members+versionedMemberList+memberIndexByVersion) + versionedMemberList.length + memberVersion + quorum + quorumByVersion
+			validateCount: 14, // 3*(members+versionedMemberList+memberIndexByVersion) + versionedMemberList.length + memberVersion + quorum + quorumByVersion + maxProposals
 			validateFunc: func(t *testing.T, sp []params.StateParam) {
 				// Verify length is 3
 				versionedMemberListSlot := CalculateMappingSlot(common.HexToHash(SLOT_GOV_BASE_versionedMemberList), big.NewInt(1))
@@ -263,7 +263,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_QUORUM:         "2",
 			},
 			expectErr:     "",
-			validateCount: 10, // 2 unique members
+			validateCount: 11, // 2 unique members + maxProposals
 			validateFunc: func(t *testing.T, sp []params.StateParam) {
 				// Verify length is 2 (not 3)
 				versionedMemberListSlot := CalculateMappingSlot(common.HexToHash(SLOT_GOV_BASE_versionedMemberList), big.NewInt(1))
@@ -287,7 +287,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_QUORUM: "3",
 			},
 			expectErr:     "",
-			validateCount: 1,
+			validateCount: 2, // quorum + maxProposals
 		},
 		{
 			name: "expiry without members",
@@ -295,7 +295,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_EXPIRY: "86400",
 			},
 			expectErr:     "",
-			validateCount: 1,
+			validateCount: 2, // expiry + maxProposals
 		},
 		{
 			name: "quorum=0 should be rejected (SECURITY FIX)",
@@ -332,7 +332,7 @@ func TestInitializeBase(t *testing.T) {
 				GOV_BASE_PARAM_QUORUM:         "1",
 			},
 			expectErr:     "",
-			validateCount: 7, // members, versionedMemberList[v][0], memberIndexByVersion, versionedMemberList.length, memberVersion, quorum, quorumByVersion
+			validateCount: 8, // members, versionedMemberList[v][0], memberIndexByVersion, versionedMemberList.length, memberVersion, quorum, quorumByVersion, maxProposals
 			validateFunc: func(t *testing.T, sp []params.StateParam) {
 				// Verify single member governance is properly configured
 				foundMember := false
@@ -458,7 +458,7 @@ func TestGovernanceConfig(t *testing.T) {
 	}
 }
 
-// TestStorageSlotConstants verifies that storage slot constants match GovBaseV2.sol
+// TestStorageSlotConstants verifies that storage slot constants match GovBase.sol
 func TestStorageSlotConstants(t *testing.T) {
 	tests := []struct {
 		name     string

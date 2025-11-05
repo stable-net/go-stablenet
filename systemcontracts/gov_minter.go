@@ -28,10 +28,10 @@ import (
 const (
 	GOV_MINTER_PARAM_FIAT_TOKEN = "fiatToken"
 
-	// GovMinter Storage Layout (extends GovBaseV2):
-	// Slots 0x0-0xb: GovBaseV2 base storage
+	// GovMinter Storage Layout (extends GovBase):
+	// Slots 0x0-0xb: GovBase base storage
 	// Slots 0xc-0x31: __gap (reserved)
-	// Slot 0x32: fiatToken (address, 20 bytes) + emergencyPaused (bool, 1 byte)
+	// Slot 0x32: fiatToken (address, 20 bytes)
 	// Slot 0x33: usedProofHashes (mapping(bytes32 => bool))
 	// Slot 0x34: depositIdToProposalId (mapping(string => uint256))
 	// Slot 0x35: executedDepositIds (mapping(string => bool))
@@ -41,6 +41,7 @@ const (
 	// Slot 0x39: reservedMintAmount (uint256) - P0-1 security fix
 	// Slot 0x3a: mintProposalAmounts (mapping(uint256 => uint256))
 	// Slot 0x3b: burnBalance (mapping(address => uint256))
+	// Slot 0x3c: emergencyPaused (bool, 1 byte)
 	SLOT_GOV_MINTER_fiatToken                = "0x32"
 	SLOT_GOV_MINTER_usedProofHashes          = "0x33"
 	SLOT_GOV_MINTER_depositIdToProposalId    = "0x34"
@@ -51,6 +52,7 @@ const (
 	SLOT_GOV_MINTER_reservedMintAmount       = "0x39"
 	SLOT_GOV_MINTER_mintProposalAmounts      = "0x3a"
 	SLOT_GOV_MINTER_burnBalance              = "0x3b"
+	SLOT_GOV_MINTER_emergencyPaused          = "0x3c"
 )
 
 // MintProof represents the proof data for minting operations

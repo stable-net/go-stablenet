@@ -28,7 +28,7 @@ func TestInitializeValidator(t *testing.T) {
 	sampleMemberAddress := "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
 	sampleBlsKey := "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
 
-	// GovBaseV2 storage slot hashes
+	// GovBase storage slot hashes
 	derivedKeyHashForMembers := common.HexToHash("0xc5bf0b43996652ebb07e1eef6bb68843c0016b1460382151aab82e3a0a3ce0b1")
 	derivedKeyHashForVersionedMemberListValue := common.HexToHash("0x80497882cf9008f7f796a89e5514a7b55bd96eab88ecb66aee4fb0a6fd34811c")
 	derivedKeyHashForMemberIndexByVersion := common.HexToHash("0xa87e5136857a891a632605200dcfbc813f39658b4f3dc67541d276f8cd1d6534")
@@ -45,6 +45,11 @@ func TestInitializeValidator(t *testing.T) {
 			param:     map[string]string{},
 			expectErr: "",
 			expectParam: []params.StateParam{
+				{ // maxActiveProposalsPerMember (slot 0xc, default: 3)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000000c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"),
+				},
 				{
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
@@ -70,7 +75,7 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     derivedKeyHashForVersionedMemberListValue,
 					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
 				},
-				{ // memberIndexByVersion[version][member] = 1 (NEW in GovBaseV2!)
+				{ // memberIndexByVersion[version][member] = 1 (NEW in GovBase!)
 					Address: common.Address{},
 					Key:     derivedKeyHashForMemberIndexByVersion,
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
@@ -80,10 +85,15 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     derivedKeyHashForVersionedMemberListLength,
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
-				{ // memberVersion (slot 1 in GovBaseV2)
+				{ // memberVersion (slot 1 in GovBase)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // maxActiveProposalsPerMember (slot 0xc, default: 3)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000000c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"),
 				},
 				{ // blsPop (slot 0x32)
 					Address: common.Address{},
@@ -154,7 +164,7 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     derivedKeyHashForVersionedMemberListValue,
 					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
 				},
-				{ // memberIndexByVersion[version][member] = 1 (NEW in GovBaseV2!)
+				{ // memberIndexByVersion[version][member] = 1 (NEW in GovBase!)
 					Address: common.Address{},
 					Key:     derivedKeyHashForMemberIndexByVersion,
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
@@ -164,10 +174,15 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     derivedKeyHashForVersionedMemberListLength,
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
-				{ // memberVersion (slot 1 in GovBaseV2)
+				{ // memberVersion (slot 1 in GovBase)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // maxActiveProposalsPerMember (slot 0xc, default: 3)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000000c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"),
 				},
 				{ // blsPop (slot 0x32)
 					Address: common.Address{},

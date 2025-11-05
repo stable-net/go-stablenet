@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright 2025 The go-wemix-wbft Authors
-// This file is part of the go-wemix-wbft library.
+// Copyright 2025 The go-stablenet Authors
+// This file is part of the go-stablenet library.
 //
-// The go-wemix-wbft library is free software: you can redistribute it and/or modify
+// The go-stablenet library is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// The go-wemix-wbft library is distributed in the hope that it will be useful,
+// The go-stablenet library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU Lesser General Public License for more details.
 //
 // You should have received a copy of the GNU Lesser General Public License
-// along with the go-wemix-wbft library. If not, see <http://www.gnu.org/licenses/>.
+// along with the go-stablenet library. If not, see <http://www.gnu.org/licenses/>.
 
 package test
 
@@ -99,12 +99,10 @@ func TestGovMasterMinter_Initialize(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, mockFiatToken, token)
 
-		// Check maxMinterAllowance - Note: Genesis state initialization not working in simulated backend
-		// State variable initial values in Solidity don't work with system contracts (no constructor execution)
-		// Therefore maxMinterAllowance will be 0 until set via governance proposal
+		// Check maxMinterAllowance
 		maxAllowance, err := gMasterMinter.MaxMinterAllowance(masterMinterNonMember)
 		require.NoError(t, err)
-		require.Equal(t, 0, maxAllowance.Cmp(big.NewInt(0)), "maxMinterAllowance should be 0 initially (Genesis state not applied)")
+		require.Equal(t, 0, maxAllowance.Cmp(defaultMaxAllowance), "maxMinterAllowance should be 0 initially (Genesis state not applied)")
 
 		// Check governance base parameters
 		quorum, err := gMasterMinter.BaseQuorum(gMasterMinter.govMasterMinter, masterMinterNonMember)
@@ -162,7 +160,7 @@ func TestGovMasterMinter_ProposeConfigureMinter(t *testing.T) {
 		initGovMasterMinter(t)
 		defer gMasterMinter.backend.Close()
 
-		// First set maxMinterAllowance since Genesis state initialization doesn't work
+		// set maxMinterAllowance
 		setMaxMinterAllowanceHelper(t, big.NewInt(1000000))
 
 		minter := NewEOA().Address
@@ -287,7 +285,7 @@ func TestGovMasterMinter_GovernanceWorkflow(t *testing.T) {
 		initGovMasterMinter(t)
 		defer gMasterMinter.backend.Close()
 
-		// First set maxMinterAllowance since Genesis state initialization doesn't work
+		// set maxMinterAllowance
 		setMaxMinterAllowanceHelper(t, big.NewInt(1000000))
 
 		minter := NewEOA().Address
@@ -323,7 +321,7 @@ func TestGovMasterMinter_GovernanceWorkflow(t *testing.T) {
 		initGovMasterMinter(t)
 		defer gMasterMinter.backend.Close()
 
-		// First set maxMinterAllowance since Genesis state initialization doesn't work
+		// set maxMinterAllowance
 		setMaxMinterAllowanceHelper(t, big.NewInt(1000000))
 
 		minter1 := NewEOA().Address

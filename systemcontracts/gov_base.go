@@ -33,8 +33,9 @@ const (
 	GOV_BASE_PARAM_QUORUM         = "quorum"
 	GOV_BASE_PARAM_EXPIRY         = "expiry"
 	GOV_BASE_PARAM_MEMBER_VERSION = "memberVersion"
+	GOV_BASE_PARAM_MAX_PROPOSALS  = "maxProposals"
 
-	// GovBase Storage Layout (matches GovBaseV2.sol):
+	// GovBase Storage Layout (matches GovBase.sol):
 	// Slot 0: proposalExpiry (uint256)
 	// Slot 1: memberVersion (uint256)
 	// Slot 2: currentProposalId (uint256)
@@ -47,19 +48,21 @@ const (
 	// Slot 9: quorumByVersion (mapping(uint256 => uint32))
 	// Slot 10: proposalExecutionCount (mapping(uint256 => uint256))
 	// Slot 11: memberActiveProposalCount (mapping(address => uint256))
-	// Slot 12-49: __gap (reserved storage)
-	SLOT_GOV_BASE_proposalExpiry            = "0x0"
-	SLOT_GOV_BASE_version                   = "0x1"
-	SLOT_GOV_BASE_currentProposalId         = "0x2"
-	SLOT_GOV_BASE_reentrancyGuard           = "0x3"
-	SLOT_GOV_BASE_quorum                    = "0x4"
-	SLOT_GOV_BASE_members                   = "0x5"
-	SLOT_GOV_BASE_versionedMemberList       = "0x6"
-	SLOT_GOV_BASE_proposals                 = "0x7"
-	SLOT_GOV_BASE_memberIndexByVersion      = "0x8"
-	SLOT_GOV_BASE_quorumByVersion           = "0x9"
-	SLOT_GOV_BASE_proposalExecutionCount    = "0xa"
-	SLOT_GOV_BASE_memberActiveProposalCount = "0xb"
+	// Slot 12: maxActiveProposalsPerMember (uint256)
+	// Slot 13-49: __gap (reserved storage)
+	SLOT_GOV_BASE_proposalExpiry              = "0x0"
+	SLOT_GOV_BASE_version                     = "0x1"
+	SLOT_GOV_BASE_currentProposalId           = "0x2"
+	SLOT_GOV_BASE_reentrancyGuard             = "0x3"
+	SLOT_GOV_BASE_quorum                      = "0x4"
+	SLOT_GOV_BASE_members                     = "0x5"
+	SLOT_GOV_BASE_versionedMemberList         = "0x6"
+	SLOT_GOV_BASE_proposals                   = "0x7"
+	SLOT_GOV_BASE_memberIndexByVersion        = "0x8"
+	SLOT_GOV_BASE_quorumByVersion             = "0x9"
+	SLOT_GOV_BASE_proposalExecutionCount      = "0xa"
+	SLOT_GOV_BASE_memberActiveProposalCount   = "0xb"
+	SLOT_GOV_BASE_maxActiveProposalsPerMember = "0xc"
 )
 
 type Member struct {
@@ -74,7 +77,7 @@ type GovernanceConfig struct {
 }
 
 // ProposalStatus represents the state of a governance proposal
-// Matches the ProposalStatus enum in GovBaseV2.sol
+// Matches the ProposalStatus enum in GovBase.sol
 type ProposalStatus uint8
 
 const (
@@ -184,7 +187,7 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 			return nil, fmt.Errorf("`systemContracts.govBase.params.members` count (%d) exceeds maximum allowed (%d)", len(uniqueMembers), MAX_MEMBERS)
 		}
 
-		// Quorum validation matching GovBaseV2.sol logic
+		// Quorum validation matching GovBase.sol logic
 		// This ensures consistency between genesis initialization and smart contract behavior
 		// Only validate if quorum is explicitly provided (quorum > 0)
 		if quorum > 0 {
@@ -289,6 +292,29 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 			)
 		}
 	}
+
+	// Initialize maxActiveProposalsPerMember (default: 3, range: 1-50)
+	maxProposals := uint64(3) // Default value
+	if maxProposalsStr, ok := param[GOV_BASE_PARAM_MAX_PROPOSALS]; ok {
+		var err error
+		maxProposals, err = strconv.ParseUint(maxProposalsStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.maxProposals`: %w", err)
+		}
+
+		// Validate range: 1 to 50 (inclusive)
+		if maxProposals < 1 || maxProposals > 50 {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.maxProposals` must be between 1 and 50, got %d", maxProposals)
+		}
+	}
+
+	sp = append(sp,
+		params.StateParam{
+			Address: govBaseAddress,
+			Key:     common.HexToHash(SLOT_GOV_BASE_maxActiveProposalsPerMember),
+			Value:   common.BigToHash(big.NewInt(int64(maxProposals))),
+		},
+	)
 
 	return sp, nil
 }

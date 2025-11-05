@@ -193,6 +193,197 @@ func TestInitializeMasterMinter(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "quorum")
 	})
+
+	t.Run("initialize with single minter", func(t *testing.T) {
+		minter := common.HexToAddress("0x3333333333333333333333333333333333333333")
+		params := map[string]string{
+			GOV_BASE_PARAM_MEMBERS:             member1.Hex(),
+			GOV_BASE_PARAM_QUORUM:              "1",
+			GOV_BASE_PARAM_EXPIRY:              "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:      "1",
+			GOV_MASTER_MINTER_PARAM_FIAT_TOKEN: fiatTokenAddr.Hex(),
+			GOV_MASTER_MINTER_PARAM_MINTERS:    minter.Hex(),
+		}
+
+		sp, err := initializeMasterMinter(govMasterMinterAddr, params)
+		require.NoError(t, err)
+		require.NotEmpty(t, sp)
+
+		// Verify minterList length
+		foundMinterListLength := false
+		for _, param := range sp {
+			if param.Address == govMasterMinterAddr && param.Key == common.HexToHash(SLOT_GOV_MASTER_MINTER_minterList) {
+				foundMinterListLength = true
+				require.Equal(t, common.BigToHash(big.NewInt(1)), param.Value)
+			}
+		}
+		require.True(t, foundMinterListLength, "minterList length should be set")
+
+		// Verify minterList[0]
+		foundMinterInList := false
+		minterListSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_minterList)
+		expectedKey := CalculateDynamicSlot(minterListSlot, big.NewInt(0))
+		for _, param := range sp {
+			if param.Address == govMasterMinterAddr && param.Key == expectedKey {
+				foundMinterInList = true
+				require.Equal(t, common.BytesToHash(minter.Bytes()), param.Value)
+			}
+		}
+		require.True(t, foundMinterInList, "minter should be in minterList[0]")
+
+		// Verify isMinter[minter] = true
+		foundIsMinter := false
+		isMinterSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_isMinter)
+		isMinterKey := CalculateMappingSlot(isMinterSlot, minter)
+		for _, param := range sp {
+			if param.Address == govMasterMinterAddr && param.Key == isMinterKey {
+				foundIsMinter = true
+				require.Equal(t, common.BigToHash(big.NewInt(1)), param.Value)
+			}
+		}
+		require.True(t, foundIsMinter, "isMinter should be true")
+
+		// Verify minterIndex[minter] = 1 (1-based)
+		foundMinterIndex := false
+		minterIndexSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_minterIndex)
+		minterIndexKey := CalculateMappingSlot(minterIndexSlot, minter)
+		for _, param := range sp {
+			if param.Address == govMasterMinterAddr && param.Key == minterIndexKey {
+				foundMinterIndex = true
+				require.Equal(t, common.BigToHash(big.NewInt(1)), param.Value)
+			}
+		}
+		require.True(t, foundMinterIndex, "minterIndex should be 1")
+	})
+
+	t.Run("initialize with multiple minters", func(t *testing.T) {
+		minter1 := common.HexToAddress("0x3333333333333333333333333333333333333333")
+		minter2 := common.HexToAddress("0x4444444444444444444444444444444444444444")
+		minter3 := common.HexToAddress("0x5555555555555555555555555555555555555555")
+		params := map[string]string{
+			GOV_BASE_PARAM_MEMBERS:             member1.Hex(),
+			GOV_BASE_PARAM_QUORUM:              "1",
+			GOV_BASE_PARAM_EXPIRY:              "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:      "1",
+			GOV_MASTER_MINTER_PARAM_FIAT_TOKEN: fiatTokenAddr.Hex(),
+			GOV_MASTER_MINTER_PARAM_MINTERS:    minter1.Hex() + "," + minter2.Hex() + "," + minter3.Hex(),
+		}
+
+		sp, err := initializeMasterMinter(govMasterMinterAddr, params)
+		require.NoError(t, err)
+		require.NotEmpty(t, sp)
+
+		// Verify minterList length
+		foundMinterListLength := false
+		for _, param := range sp {
+			if param.Address == govMasterMinterAddr && param.Key == common.HexToHash(SLOT_GOV_MASTER_MINTER_minterList) {
+				foundMinterListLength = true
+				require.Equal(t, common.BigToHash(big.NewInt(3)), param.Value)
+			}
+		}
+		require.True(t, foundMinterListLength, "minterList length should be 3")
+
+		// Verify all minters in the array
+		minters := []common.Address{minter1, minter2, minter3}
+		minterListSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_minterList)
+		isMinterSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_isMinter)
+		minterIndexSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_minterIndex)
+
+		for i, minter := range minters {
+			// Verify minterList[i]
+			arrayKey := CalculateDynamicSlot(minterListSlot, big.NewInt(int64(i)))
+			foundInArray := false
+			for _, param := range sp {
+				if param.Address == govMasterMinterAddr && param.Key == arrayKey {
+					foundInArray = true
+					require.Equal(t, common.BytesToHash(minter.Bytes()), param.Value)
+				}
+			}
+			require.True(t, foundInArray, "minter %d should be in array", i)
+
+			// Verify isMinter[minter]
+			isMinterKey := CalculateMappingSlot(isMinterSlot, minter)
+			foundIsMinter := false
+			for _, param := range sp {
+				if param.Address == govMasterMinterAddr && param.Key == isMinterKey {
+					foundIsMinter = true
+					require.Equal(t, common.BigToHash(big.NewInt(1)), param.Value)
+				}
+			}
+			require.True(t, foundIsMinter, "isMinter should be true for minter %d", i)
+
+			// Verify minterIndex[minter] = i + 1
+			minterIndexKey := CalculateMappingSlot(minterIndexSlot, minter)
+			foundMinterIndex := false
+			for _, param := range sp {
+				if param.Address == govMasterMinterAddr && param.Key == minterIndexKey {
+					foundMinterIndex = true
+					require.Equal(t, common.BigToHash(big.NewInt(int64(i+1))), param.Value)
+				}
+			}
+			require.True(t, foundMinterIndex, "minterIndex should be %d for minter %d", i+1, i)
+		}
+	})
+
+	t.Run("initialize with invalid minter address", func(t *testing.T) {
+		params := map[string]string{
+			GOV_BASE_PARAM_MEMBERS:             member1.Hex(),
+			GOV_BASE_PARAM_QUORUM:              "1",
+			GOV_BASE_PARAM_EXPIRY:              "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:      "1",
+			GOV_MASTER_MINTER_PARAM_FIAT_TOKEN: fiatTokenAddr.Hex(),
+			GOV_MASTER_MINTER_PARAM_MINTERS:    "0x0000000000000000000000000000000000000000",
+		}
+
+		_, err := initializeMasterMinter(govMasterMinterAddr, params)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "minters")
+		require.Contains(t, err.Error(), "invalid address")
+	})
+
+	t.Run("initialize with mixed valid and invalid minter addresses", func(t *testing.T) {
+		validMinter := common.HexToAddress("0x3333333333333333333333333333333333333333")
+		params := map[string]string{
+			GOV_BASE_PARAM_MEMBERS:             member1.Hex(),
+			GOV_BASE_PARAM_QUORUM:              "1",
+			GOV_BASE_PARAM_EXPIRY:              "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:      "1",
+			GOV_MASTER_MINTER_PARAM_FIAT_TOKEN: fiatTokenAddr.Hex(),
+			GOV_MASTER_MINTER_PARAM_MINTERS:    validMinter.Hex() + ",0x0000000000000000000000000000000000000000",
+		}
+
+		_, err := initializeMasterMinter(govMasterMinterAddr, params)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "minters")
+		require.Contains(t, err.Error(), "invalid address")
+	})
+
+	t.Run("initialize with whitespace in minter addresses", func(t *testing.T) {
+		minter1 := common.HexToAddress("0x3333333333333333333333333333333333333333")
+		minter2 := common.HexToAddress("0x4444444444444444444444444444444444444444")
+		params := map[string]string{
+			GOV_BASE_PARAM_MEMBERS:             member1.Hex(),
+			GOV_BASE_PARAM_QUORUM:              "1",
+			GOV_BASE_PARAM_EXPIRY:              "604800",
+			GOV_BASE_PARAM_MEMBER_VERSION:      "1",
+			GOV_MASTER_MINTER_PARAM_FIAT_TOKEN: fiatTokenAddr.Hex(),
+			GOV_MASTER_MINTER_PARAM_MINTERS:    " " + minter1.Hex() + " , " + minter2.Hex() + " ",
+		}
+
+		sp, err := initializeMasterMinter(govMasterMinterAddr, params)
+		require.NoError(t, err)
+		require.NotEmpty(t, sp)
+
+		// Verify minterList length
+		foundMinterListLength := false
+		for _, param := range sp {
+			if param.Address == govMasterMinterAddr && param.Key == common.HexToHash(SLOT_GOV_MASTER_MINTER_minterList) {
+				foundMinterListLength = true
+				require.Equal(t, common.BigToHash(big.NewInt(2)), param.Value)
+			}
+		}
+		require.True(t, foundMinterListLength, "minterList length should be 2")
+	})
 }
 
 // Note: TestGetMinterAllowance removed - allowances managed by FiatToken, not GovMasterMinter
