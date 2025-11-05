@@ -320,6 +320,26 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		}
 	}
 
+	if err := e.verifyGasTip(chain, header); err != nil {
+		// Critical errors: contract unavailable or gas tip mismatch
+		// These errors must be returned and block validation should fail
+		if errors.Is(err, wbft.ErrGasTipContractUnavailable) {
+			return err
+		}
+		var mismatchErr *wbft.GasTipMismatchError
+		if errors.As(err, &mismatchErr) {
+			return err
+		}
+
+		// Skip gas tip verification when state is not yet available.
+		// This can occur during:
+		// - FullSync or SnapSync (downloader.InsertChain)
+		// - SnapSync receipt import (downloader.InsertReceiptChain)
+		// - HeaderChain verification (headers only, no state data)
+		// In these cases, headers exist but the state is incomplete,
+		// so skip gas tip verification and continue.
+		log.Trace("WBFT: Skipping gas tip verification due to unavailable state", "number", header.Number, "err", err)
+	}
 	return nil
 }
 
@@ -598,7 +618,7 @@ func (e *Engine) getGasTip(chain consensus.ChainHeaderReader, header *types.Head
 	govValidatorAddr := chain.Config().Anzeon.SystemContracts.GovValidator.Address
 	gasTip := systemcontracts.GetGasTip(govValidatorAddr, parentState)
 	if gasTip == nil {
-		return nil, errors.New("WBFT: failed to get gasTip from GovValidator contract")
+		return nil, wbft.ErrGasTipContractUnavailable
 	}
 	return gasTip, nil
 }
@@ -1163,7 +1183,7 @@ func (e *Engine) verifyGasTip(chain consensus.ChainHeaderReader, header *types.H
 	}
 
 	if extra.GasTip != nil && extra.GasTip.Cmp(gastip) != 0 {
-		return fmt.Errorf("invalid gas tip: have %d, want %d", extra.GasTip, gastip)
+		return &wbft.GasTipMismatchError{Have: extra.GasTip, Want: gastip}
 	}
 	return nil
 }
