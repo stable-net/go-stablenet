@@ -431,9 +431,16 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isCon
 		if !ok {
 			utils.Fatalf("Ethereum service not running")
 		}
-		// Set the gas price to the limits from the CLI and start mining
-		gasprice := flags.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
-		ethBackend.TxPool().SetGasTip(gasprice)
+
+		if backend.ChainConfig().AnzeonEnabled() {
+			// Set the gas price to the gas price from the GovValidator contract
+			gasprice := ethBackend.Miner().GetGasTip()
+			ethBackend.TxPool().SetGasTip(gasprice)
+		} else {
+			// Set the gas price to the limits from the CLI and start mining
+			gasprice := flags.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
+			ethBackend.TxPool().SetGasTip(gasprice)
+		}
 		if err := ethBackend.StartMining(); err != nil {
 			utils.Fatalf("Failed to start mining: %v", err)
 		}

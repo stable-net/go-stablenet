@@ -22,7 +22,6 @@ package eth
 import (
 	"errors"
 	"fmt"
-	"math/big"
 	"runtime"
 	"sync"
 
@@ -93,7 +92,6 @@ type Ethereum struct {
 	APIBackend *EthAPIBackend
 
 	miner     *miner.Miner
-	gasPrice  *big.Int
 	etherbase common.Address
 
 	networkID     uint64
@@ -115,10 +113,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	if !config.SyncMode.IsValid() {
 		return nil, fmt.Errorf("invalid sync mode %d", config.SyncMode)
-	}
-	if config.Miner.GasPrice == nil || config.Miner.GasPrice.Cmp(common.Big0) <= 0 {
-		log.Warn("Sanitizing invalid miner gas price", "provided", config.Miner.GasPrice, "updated", ethconfig.Defaults.Miner.GasPrice)
-		config.Miner.GasPrice = new(big.Int).Set(ethconfig.Defaults.Miner.GasPrice)
 	}
 	if config.NoPruning && config.TrieDirtyCache > 0 {
 		if config.SnapshotCache > 0 {
@@ -176,7 +170,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		engine:            engine,
 		closeBloomHandler: make(chan struct{}),
 		networkID:         networkID,
-		gasPrice:          config.Miner.GasPrice,
 		etherbase:         etherbase,
 		bloomRequests:     make(chan chan *bloombits.Retrieval),
 		bloomIndexer:      core.NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms),
@@ -269,18 +262,13 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		eth.miner.SetEtherbase(eth.etherbase)
 	}
 
-	// Update config.Miner.GasPrice
-	actualGasTip := eth.miner.GetGasTip()
-	config.Miner.GasPrice = actualGasTip
-	eth.gasPrice = actualGasTip
-
 	eth.APIBackend = &EthAPIBackend{stack.Config().ExtRPCEnabled(), stack.Config().AllowUnprotectedTxs, eth, nil}
 	if eth.APIBackend.allowUnprotectedTxs {
 		log.Info("Unprotected transactions allowed")
 	}
 	gpoParams := config.GPO
 	if gpoParams.Default == nil {
-		gpoParams.Default = config.Miner.GasPrice
+		gpoParams.Default = eth.miner.GetGasTip()
 	}
 	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams)
 
