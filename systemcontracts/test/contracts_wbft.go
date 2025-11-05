@@ -512,7 +512,8 @@ func (g *GovWBFT) TxProposeMint(t *testing.T, sender *EOA, recipient common.Addr
 
 	// Use recipient as beneficiary
 	timestamp := big.NewInt(time.Now().Unix())
-	depositId := "deposit-" + recipient.Hex()[:10]
+	// Include nanoseconds in depositId to ensure uniqueness (proposals may occur in same second)
+	depositId := fmt.Sprintf("deposit-%s-%d", recipient.Hex()[:10], time.Now().UnixNano())
 	bankReference := "bank-ref-001"
 	memo := "test mint"
 
@@ -542,7 +543,8 @@ func (g *GovWBFT) TxProposeBurn(t *testing.T, sender *EOA, from common.Address, 
 	actualFrom := sender.Address
 
 	timestamp := big.NewInt(time.Now().Unix())
-	withdrawalId := "withdrawal-" + actualFrom.Hex()[:10]
+	// Include nanoseconds in withdrawalId to ensure uniqueness (proposals may occur in same second)
+	withdrawalId := fmt.Sprintf("withdrawal-%s-%d", actualFrom.Hex()[:10], time.Now().UnixNano())
 	referenceId := "ref-001"
 	memo := "test burn"
 
@@ -782,8 +784,28 @@ func (g *GovWBFT) TxProposeMintWithProof(t *testing.T, sender *EOA, proofData []
 }
 
 // TxProposeBurnWithProof proposes burn with raw proof data (for custom proof testing)
+// Note: amount must be extracted from proofData to send as msg.value for burn proposals
 func (g *GovWBFT) TxProposeBurnWithProof(t *testing.T, sender *EOA, proofData []byte) (*types.Transaction, error) {
-	return g.minterContractTx(t, "proposeBurn", sender, proofData)
+	// Parse proofData to extract amount (second field in BurnProof ABI encoding)
+	// BurnProof: (address from, uint256 amount, uint256 timestamp, string withdrawalId, string referenceId, string memo)
+	burnProofArgs := abi.Arguments{
+		{Type: mustParseType("address")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+	}
+
+	values, err := burnProofArgs.Unpack(proofData)
+	if err != nil {
+		return nil, err
+	}
+
+	amount := values[1].(*big.Int) // Second field is amount
+
+	// Send amount as msg.value (proposeBurn is payable)
+	return g.govMinter.Transact(NewTxOptsWithValue(t, sender, amount), "proposeBurn", proofData)
 }
 
 // ========== Emergency Pause Helper Functions ==========
@@ -828,6 +850,11 @@ func (g *GovWBFT) IsWithdrawalIdExecuted(sender *EOA, withdrawalId string) (bool
 		return false, err
 	}
 	return result[0].(bool), nil
+}
+
+// GetMaxActiveProposalsPerMember returns the maximum number of active proposals per member
+func (g *GovWBFT) GetMaxActiveProposalsPerMember(sender *EOA) (*big.Int, error) {
+	return g.BaseMaxActiveProposalsPerMember(g.govMinter, sender)
 }
 
 // ==================== Proposal Execution Workflow Helpers ====================
