@@ -611,6 +611,10 @@ func retryProposalUntilFailure(t *testing.T, ctx *EdgeCaseTestContext, proposalI
 // ==================== Helper Assertions ====================
 
 // assertProposalCount verifies the number of proposals for a member
+// Note: memberActiveProposalCount is not exposed by the contract, so this function
+// tracks counts in the test context. Reserved for future use when direct querying is available.
+//
+//nolint:unused
 func assertProposalCount(t *testing.T, ctx *EdgeCaseTestContext, member *EOA, expectedActive int, description string) {
 	// Since memberActiveProposalCount is not directly exposed, we track it in context
 	actualCount := ctx.InitialActiveProposalCounts[member.Address]

@@ -2209,11 +2209,12 @@ func TestEdgeCase_H1_RetryAfterTransientFailure(t *testing.T) {
 
 	// 1. Create proposal
 	t.Log("Step 1: Creating proposal")
+	initialState := captureStateSnapshot(t, ctx)
 	proposalId := createApprovedMintProposal(t, ctx, member, member.Address, amount)
 
 	proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
-	t.Logf("✓ Proposal %s status: %v", proposalId.String(), proposal.Status)
+	t.Logf("✓ Proposal %s status: %v", formatBigInt(proposalId), proposal.Status)
 
 	// 2. If Approved, execute (simulates retry)
 	if proposal.Status == sc.ProposalStatusApproved {
@@ -2225,6 +2226,16 @@ func TestEdgeCase_H1_RetryAfterTransientFailure(t *testing.T) {
 		proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 		require.NoError(t, err)
 		t.Logf("✓ After retry: status=%v", proposal.Status)
+
+		// Verify expected state changes if executed successfully
+		if proposal.Status == sc.ProposalStatusExecuted {
+			assertStateChanges(t, ctx, initialState, StateChangeExpectation{
+				MintAmount:              amount,
+				ReservedMintDecrease:    amount,
+				BurnBalanceChange:       big.NewInt(0),
+				MinterAllowanceDecrease: amount,
+			})
+		}
 	}
 
 	// 3. Verify state consistency
@@ -2248,20 +2259,8 @@ func TestEdgeCase_H2_MultipleRetryAttempts(t *testing.T) {
 
 	// 2. Attempt multiple executions (retry simulation)
 	const maxRetries = 3
-	for i := 0; i < maxRetries; i++ {
-		proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
-		require.NoError(t, err)
-
-		if proposal.Status != sc.ProposalStatusApproved {
-			t.Logf("✓ Proposal reached terminal state after %d attempts: %v", i, proposal.Status)
-			break
-		}
-
-		t.Logf("Retry attempt %d/%d", i+1, maxRetries)
-		tx, err := ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
-		_, err = ctx.ExpectedOk(tx, err)
-		require.NoError(t, err)
-	}
+	finalStatus := retryProposalUntilFailure(t, ctx, proposalId, member, maxRetries)
+	t.Logf("✓ Final proposal status after %d retries: %v", maxRetries, finalStatus)
 
 	// 3. Verify state consistency
 	assertInvariantsHold(t, ctx, "After multiple retry attempts")
@@ -2302,6 +2301,46 @@ func TestEdgeCase_H3_RecoveryAfterPartialUpdate(t *testing.T) {
 	t.Logf("✓ Recovery completed without duplicate updates")
 }
 
+// Test H4: Burn proposal retry after failure
+// Scenario: Create burn proposal and retry if execution fails
+// Invariants: burnBalance and withdrawal tracking remain consistent
+func TestEdgeCase_H4_BurnProposalRetry(t *testing.T) {
+	ctx := setupEdgeCaseTest(t)
+	defer ctx.backend.Close()
+
+	member := ctx.Members[0]
+	burnAmount := towei(2) // 2 native coins
+
+	// 1. Create approved burn proposal
+	t.Log("Step 1: Creating approved burn proposal")
+	withdrawalId := generateUniqueWithdrawalId(t, "retry-test")
+	proposalId := createApprovedBurnProposal(t, ctx, member, burnAmount)
+	t.Logf("✓ Created burn proposal: %s", formatBigInt(proposalId))
+
+	// 2. Check proposal status
+	proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+
+	// 3. If Approved, attempt retry execution
+	if proposal.Status == sc.ProposalStatusApproved {
+		const maxRetries = 2
+		finalStatus := retryProposalUntilFailure(t, ctx, proposalId, member, maxRetries)
+		t.Logf("✓ Burn proposal final status: %v", finalStatus)
+
+		// 4. Verify withdrawal ID tracking
+		if finalStatus == sc.ProposalStatusExecuted {
+			isExecuted, err := ctx.IsWithdrawalIdExecuted(member, withdrawalId)
+			if err == nil {
+				t.Logf("✓ Withdrawal ID executed status: %v", isExecuted)
+			}
+		}
+	}
+
+	// 5. Verify state consistency
+	assertInvariantsHold(t, ctx, "After burn proposal retry")
+	t.Logf("✓ Burn proposal retry handled correctly")
+}
+
 // ==================== Category I: Error Validation & Prevention ====================
 
 // Test I1: Invalid proof data rejection
@@ -2317,12 +2356,7 @@ func TestEdgeCase_I1_InvalidProofDataRejection(t *testing.T) {
 	t.Log("Step 1: Attempting proposal with invalid proof")
 	invalidProof := []byte{0x00, 0x01, 0x02} // Too short/invalid
 
-	tx, err := ctx.TxProposeMintWithProof(t, member, invalidProof)
-	err = ctx.ExpectedFail(tx, err)
-
-	if err != nil {
-		t.Logf("✓ Invalid proof rejected: %v", err)
-	}
+	expectProposalCreationError(t, ctx, member, invalidProof, "")
 
 	// 2. Verify system state unchanged
 	assertInvariantsHold(t, ctx, "After invalid proof rejection")
@@ -2386,10 +2420,8 @@ func TestEdgeCase_I3_InvalidAmountValidation(t *testing.T) {
 
 	tx, err := ctx.TxProposeMint(t, member, member.Address, zeroAmount)
 	err = ctx.ExpectedFail(tx, err)
-
-	if err != nil {
-		t.Logf("✓ Zero amount rejected: %v", err)
-	}
+	require.Error(t, err, "Expected zero amount to be rejected")
+	t.Logf("✓ Zero amount rejected: %v", err)
 
 	// 2. Verify system state unchanged
 	assertInvariantsHold(t, ctx, "After invalid amount rejection")
