@@ -28,8 +28,8 @@ import (
 const (
 	GOV_MINTER_PARAM_FIAT_TOKEN = "fiatToken"
 
-	// GovMinter Storage Layout (extends GovBaseV2):
-	// Slots 0x0-0xb: GovBaseV2 base storage
+	// GovMinter Storage Layout (extends GovBase):
+	// Slots 0x0-0xb: GovBase base storage
 	// Slots 0xc-0x31: __gap (reserved)
 	// Slot 0x32: fiatToken (address, 20 bytes)
 	// Slot 0x33: usedProofHashes (mapping(bytes32 => bool))

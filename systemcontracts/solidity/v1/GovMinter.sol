@@ -17,7 +17,7 @@
 
 pragma solidity ^0.8.14;
 
-import { GovBaseV2 } from "../abstracts/GovBaseV2.sol";
+import { GovBase } from "../abstracts/GovBase.sol";
 import { IFiatToken } from "../interfaces/IFiatToken.sol";
 
 /**
@@ -25,7 +25,7 @@ import { IFiatToken } from "../interfaces/IFiatToken.sol";
  * @notice Governance-controlled minting and burning with off-chain validation
  * @dev Beneficiary validation is performed off-chain before proposal submission
  */
-contract GovMinter is GovBaseV2 {
+contract GovMinter is GovBase {
     // ========== Custom Errors ==========
     error InvalidBeneficiary();
     error InvalidAmount();
@@ -345,7 +345,7 @@ contract GovMinter is GovBaseV2 {
     /// @dev Execute custom governance actions (mint, burn, pause, unpause)
     /// @notice Routes action execution based on action type
     ///
-    ///         This function is called by GovBaseV2.executeProposal when a proposal
+    ///         This function is called by GovBase.executeProposal when a proposal
     ///         is approved and ready for execution. It decodes the callData and
     ///         delegates to the appropriate handler.
     ///
@@ -365,12 +365,12 @@ contract GovMinter is GovBaseV2 {
     ///      - No state changes for unknown actions
     ///
     /// @custom:security Execution Safety
-    ///      - Called only by GovBaseV2.executeProposal (internal context)
+    ///      - Called only by GovBase.executeProposal (internal context)
     ///      - Already protected by proposal approval process
     ///      - Try-catch in handlers prevents revert propagation
     ///
     /// @custom:usage Call Flow
-    ///      1. GovBaseV2.executeProposal calls this function
+    ///      1. GovBase.executeProposal calls this function
     ///      2. Decode actionType and route to handler
     ///      3. Handler executes action with try-catch
     ///      4. Return success status to update proposal state
@@ -444,7 +444,7 @@ contract GovMinter is GovBaseV2 {
         if (emergencyPaused) revert ContractPaused();
 
         // Note: Reserved mint allowance cleanup is handled by _onProposalFinalized hook
-        // Hook is automatically called by GovBaseV2 when proposal reaches terminal state
+        // Hook is automatically called by GovBase when proposal reaches terminal state
         // This ensures cleanup happens for ALL terminal states (Executed, Failed, Expired, Cancelled, Rejected)
 
         try fiatToken.mint(beneficiary, amount) {
@@ -488,7 +488,7 @@ contract GovMinter is GovBaseV2 {
     /// @custom:security Reentrancy Protection
     ///      - State updated before external calls (CEI pattern)
     ///      - burnBalance already decremented before fiatToken.burn()
-    ///      - GovBaseV2 has nonReentrant modifier on executeProposal
+    ///      - GovBase has nonReentrant modifier on executeProposal
     ///
     /// @custom:security Automatic Rollback
     ///      - If fiatToken.burn() fails: Solidity reverts all state changes
@@ -509,7 +509,7 @@ contract GovMinter is GovBaseV2 {
         if (emergencyPaused) revert ContractPaused();
 
         // Note: burnBalance cleanup is handled by _onProposalFinalized hook
-        // Hook is automatically called by GovBaseV2 when proposal reaches terminal state
+        // Hook is automatically called by GovBase when proposal reaches terminal state
         // This ensures cleanup happens for ALL terminal states (Executed, Failed, Expired, Cancelled, Rejected)
 
         try fiatToken.burn(amount) {
@@ -886,10 +886,10 @@ contract GovMinter is GovBaseV2 {
     }
 
     /// @dev Hook implementation for proposal finalization
-    /// @notice Called automatically by GovBaseV2 when proposal reaches terminal state
+    /// @notice Called automatically by GovBase when proposal reaches terminal state
     /// @param proposalId The proposal that reached terminal state
     ///
-    /// @custom:security Called AFTER state transition (status already updated in GovBaseV2)
+    /// @custom:security Called AFTER state transition (status already updated in GovBase)
     /// @custom:security Safe to call multiple times due to idempotent cleanup function
     /// @custom:security No external calls - only state cleanup
     ///
@@ -901,8 +901,8 @@ contract GovMinter is GovBaseV2 {
     ///      - Rejected: Proposal rejected by members
     ///
     /// @custom:design Pattern
-    ///      - Template Method Pattern: GovBaseV2 defines lifecycle, GovMinter implements cleanup
-    ///      - Single Responsibility: Proposal lifecycle (GovBaseV2) separated from mint cleanup (GovMinter)
+    ///      - Template Method Pattern: GovBase defines lifecycle, GovMinter implements cleanup
+    ///      - Single Responsibility: Proposal lifecycle (GovBase) separated from mint cleanup (GovMinter)
     ///      - DRY Principle: One hook definition, called from 7 terminal state transitions
     ///
     /// @custom:idempotency
@@ -923,7 +923,7 @@ contract GovMinter is GovBaseV2 {
     /// @dev Hook called when a new member is added to governance
     /// @notice Currently empty - no special logic needed for member additions
     ///
-    ///         This hook is called by GovBaseV2 after successfully adding a member
+    ///         This hook is called by GovBase after successfully adding a member
     ///         through governance proposal execution. GovMinter does not require
     ///         special handling for new members.
     ///
@@ -942,7 +942,7 @@ contract GovMinter is GovBaseV2 {
     /// @dev Hook called when a member is removed from governance
     /// @notice Currently empty - no cleanup needed for removed members
     ///
-    ///         This hook is called by GovBaseV2 after successfully removing a member
+    ///         This hook is called by GovBase after successfully removing a member
     ///         through governance proposal execution. GovMinter does not clean up
     ///         member state to preserve historical data.
     ///
@@ -961,7 +961,7 @@ contract GovMinter is GovBaseV2 {
     /// @dev Hook called when a member address is changed in governance
     /// @notice Currently empty - no state migration needed
     ///
-    ///         This hook is called by GovBaseV2 after successfully changing a member
+    ///         This hook is called by GovBase after successfully changing a member
     ///         address through governance proposal execution. GovMinter does not
     ///         automatically migrate state from old to new address.
     ///

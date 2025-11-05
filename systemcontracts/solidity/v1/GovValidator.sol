@@ -18,9 +18,9 @@
 pragma solidity ^0.8.14;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import { GovBaseV2 } from "../abstracts/GovBaseV2.sol";
+import { GovBase } from "../abstracts/GovBase.sol";
 
-contract GovValidator is GovBaseV2 {
+contract GovValidator is GovBase {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 public constant BLS_PUBLIC_KEY_LENGTH = 48;

@@ -458,7 +458,7 @@ func TestGovernanceConfig(t *testing.T) {
 	}
 }
 
-// TestStorageSlotConstants verifies that storage slot constants match GovBaseV2.sol
+// TestStorageSlotConstants verifies that storage slot constants match GovBase.sol
 func TestStorageSlotConstants(t *testing.T) {
 	tests := []struct {
 		name     string

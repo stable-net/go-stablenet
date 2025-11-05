@@ -31,15 +31,15 @@ const (
 	GOV_MASTER_MINTER_PARAM_MINTERS              = "minters"
 	GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE = "maxMinterAllowance"
 
-	// GovMasterMinter Storage Layout (extends GovBaseV2):
-	// Slots 0x0-0xb: GovBaseV2 base storage
+	// GovMasterMinter Storage Layout (extends GovBase):
+	// Slots 0x0-0xb: GovBase base storage
 	// Slots 0xc-0x31: __gap (reserved)
 	// Slot 0x32: fiatToken (address, 20 bytes)
-	// Slot 0x33: emergencyPaused (bool, 1 byte)
-	// Slot 0x34: maxMinterAllowance (uint256, 32 bytes)
-	// Slot 0x35: isMinter (mapping(address => bool))
-	// Slot 0x36: minterList (address[])
-	// Slot 0x37: minterIndex (mapping(address => uint256))
+	// Slot 0x33: maxMinterAllowance (uint256, 32 bytes)
+	// Slot 0x34: isMinter (mapping(address => bool))
+	// Slot 0x35: minterList (address[])
+	// Slot 0x36: minterIndex (mapping(address => uint256))
+	// Slot 0x37: emergencyPaused (bool, 1 byte)
 	// Note: minterAllowances and totalMinterAllowance removed - FiatToken is source of truth
 	SLOT_GOV_MASTER_MINTER_fiatToken          = "0x32"
 	SLOT_GOV_MASTER_MINTER_maxMinterAllowance = "0x33"

@@ -35,7 +35,7 @@ const (
 	GOV_BASE_PARAM_MEMBER_VERSION = "memberVersion"
 	GOV_BASE_PARAM_MAX_PROPOSALS  = "maxProposals"
 
-	// GovBase Storage Layout (matches GovBaseV2.sol):
+	// GovBase Storage Layout (matches GovBase.sol):
 	// Slot 0: proposalExpiry (uint256)
 	// Slot 1: memberVersion (uint256)
 	// Slot 2: currentProposalId (uint256)
@@ -77,7 +77,7 @@ type GovernanceConfig struct {
 }
 
 // ProposalStatus represents the state of a governance proposal
-// Matches the ProposalStatus enum in GovBaseV2.sol
+// Matches the ProposalStatus enum in GovBase.sol
 type ProposalStatus uint8
 
 const (
@@ -187,7 +187,7 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 			return nil, fmt.Errorf("`systemContracts.govBase.params.members` count (%d) exceeds maximum allowed (%d)", len(uniqueMembers), MAX_MEMBERS)
 		}
 
-		// Quorum validation matching GovBaseV2.sol logic
+		// Quorum validation matching GovBase.sol logic
 		// This ensures consistency between genesis initialization and smart contract behavior
 		// Only validate if quorum is explicitly provided (quorum > 0)
 		if quorum > 0 {

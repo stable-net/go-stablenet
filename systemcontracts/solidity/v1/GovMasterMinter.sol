@@ -17,7 +17,7 @@
 
 pragma solidity ^0.8.14;
 
-import { GovBaseV2 } from "../abstracts/GovBaseV2.sol";
+import { GovBase } from "../abstracts/GovBase.sol";
 import { IFiatToken } from "../interfaces/IFiatToken.sol";
 
 /**
@@ -25,7 +25,7 @@ import { IFiatToken } from "../interfaces/IFiatToken.sol";
  * @dev Governance contract for managing FiatToken minter addresses
  * Supports both EOA and CA as members
  */
-contract GovMasterMinter is GovBaseV2 {
+contract GovMasterMinter is GovBase {
     // ========== Custom Errors ==========
     error InvalidTokenAddress();
     error InvalidMinterAddress();
@@ -48,7 +48,7 @@ contract GovMasterMinter is GovBaseV2 {
     bytes32 public constant ACTION_UNPAUSE = keccak256("UNPAUSE");
 
     // ========== State Variables ==========
-    // GovBaseV2 uses slots 0x0-0xb, __gap uses 0xc-0x31
+    // GovBase uses slots 0x0-0xb, __gap uses 0xc-0x31
 
     // Slot 0x32: fiatToken (address, 20 bytes)
     IFiatToken public fiatToken; // The FiatToken contract
