@@ -102,7 +102,7 @@ func TestGovMasterMinter_Initialize(t *testing.T) {
 		// Check maxMinterAllowance
 		maxAllowance, err := gMasterMinter.MaxMinterAllowance(masterMinterNonMember)
 		require.NoError(t, err)
-		require.Equal(t, 0, maxAllowance.Cmp(defaultMaxAllowance), "maxMinterAllowance should be 0 initially (Genesis state not applied)")
+		require.Equal(t, 0, maxAllowance.Cmp(defaultMaxAllowance), "maxMinterAllowance should be 10B initially")
 
 		// Check governance base parameters
 		quorum, err := gMasterMinter.BaseQuorum(gMasterMinter.govMasterMinter, masterMinterNonMember)
