@@ -230,6 +230,16 @@ func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPubli
 	}
 }
 
+func genDefaultConfigFile() {
+	var buf bytes.Buffer
+	// Write Node.P2P section with StaticNodes
+	buf.WriteString("[Node.P2P]\n")
+	buf.WriteString("StaticNodes = [\n")
+	buf.WriteString("\n]\n")
+
+	writeConfigFile(buf, ".")
+}
+
 func (g *genesisGenerator) wbftSingleNodeConfig() {
 	fmt.Println()
 	fmt.Println("Enter the path to the nodekey file to use (default: ./nodekey):")
@@ -254,6 +264,8 @@ func (g *genesisGenerator) wbftSingleNodeConfig() {
 	blsPubKeys := []string{account.blsPubKey}
 
 	g.setAnzeonConfig(validators, blsPubKeys)
+
+	genDefaultConfigFile()
 
 	g.Genesis.Alloc[account.address] = types.Account{
 		Balance: new(big.Int).Lsh(big.NewInt(1), 256-7), // 2^256 / 128 (allow many pre-funds without balance overflows)
@@ -424,19 +436,23 @@ func genConfigFile() {
 		fmt.Println()
 		fmt.Printf("Which folder to save the config.toml into? (default = current)\n")
 		folder := readDefaultString(".")
-		if err := os.MkdirAll(folder, 0755); err != nil {
-			log.Error("Failed to create spec folder", "folder", folder, "err", err)
-			return
-		}
-		configPath := filepath.Join(folder, "config.toml")
-		if err := os.WriteFile(configPath, buf.Bytes(), 0644); err != nil {
-			log.Error("Failed to save config file", "err", err)
-			return
-		}
-		log.Info("Saved config.toml file", "path", configPath)
+		writeConfigFile(buf, folder)
 	} else {
 		fmt.Println(buf.String())
 	}
+}
+
+func writeConfigFile(buf bytes.Buffer, folder string) {
+	if err := os.MkdirAll(folder, 0755); err != nil {
+		log.Error("Failed to create spec folder", "folder", folder, "err", err)
+		return
+	}
+	configPath := filepath.Join(folder, "config.toml")
+	if err := os.WriteFile(configPath, buf.Bytes(), 0644); err != nil {
+		log.Error("Failed to save config file", "err", err)
+		return
+	}
+	log.Info("Saved config.toml file", "path", configPath)
 }
 
 // validateEnodeURL checks if the given string is a valid enode URL
