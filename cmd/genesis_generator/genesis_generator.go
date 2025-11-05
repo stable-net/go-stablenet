@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -31,8 +32,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -95,7 +99,19 @@ func (g *genesisGenerator) makeGenesis() {
 	choice := read()
 	switch {
 	case choice == "1" || choice == "":
-		g.wbftChainConfig()
+		fmt.Println()
+		fmt.Println("Which type of network would you like to configure? (default single-node)")
+		fmt.Println(" 1. single-node")
+		fmt.Println(" 2. multi-node")
+
+		typeChoice := read()
+		switch {
+		case typeChoice == "1" || typeChoice == "":
+			g.wbftSingleNodeConfig()
+			return
+		case typeChoice == "2":
+			g.wbftChainConfig()
+		}
 
 	case choice == "2":
 		g.ethashConfig()
@@ -152,24 +168,24 @@ func (g *genesisGenerator) makeGenesis() {
 	}
 }
 
-func (g *genesisGenerator) wbftChainConfig() {
-	g.Genesis.Difficulty = types.WBFTDefaultDifficulty
-	fmt.Println()
-	fmt.Println("Which accounts are allowed to seal? (mandatory at least one)")
+type NodeAccount struct {
+	address   common.Address
+	blsPubKey string
+}
 
-	var validators []common.Address
-	var blsPublicKeys []string
-	for {
-		if address := readAddress(); address != nil {
-			validators = append(validators, *address)
-			blsPublicKeys = append(blsPublicKeys, readBLSPubKey())
-			continue
-		}
-		if len(validators) > 0 {
-			break
-		}
+func deriveAccount(nodeKey *ecdsa.PrivateKey) (*NodeAccount, error) {
+	address := crypto.PubkeyToAddress(nodeKey.PublicKey)
+	blsKey, err := bls.DeriveFromECDSA(nodeKey)
+	if err != nil {
+		return nil, err
 	}
+	blsPubKeyBytes := blsKey.PublicKey().Marshal()
+	blsPubKey := hexutil.Encode(blsPubKeyBytes)
 
+	return &NodeAccount{address, blsPubKey}, nil
+}
+
+func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPublicKeys []string) {
 	g.Genesis.Config.Anzeon = params.DefaultAnzeonConfig
 	var vals, blsKeys string
 	for i, val := range validators {
@@ -212,6 +228,63 @@ func (g *genesisGenerator) wbftChainConfig() {
 		"memberVersion": "1",
 		"fiatToken":     "0x0000000000000000000000000000000000001000",
 	}
+}
+
+func (g *genesisGenerator) wbftSingleNodeConfig() {
+	fmt.Println()
+	fmt.Println("Enter the path to the nodekey file to use (default: ./nodekey):")
+
+	var account *NodeAccount
+	for {
+		keyPath := readDefaultString("./nodekey")
+		nodeKey, err := crypto.LoadECDSA(keyPath)
+		if err != nil {
+			fmt.Printf("Failed to load nodekey from '%s': %v\n", keyPath, err)
+			continue
+		}
+		account, err = deriveAccount(nodeKey)
+		if err != nil {
+			fmt.Printf("Failed to derive account from nodekey: %v\n", err)
+			continue
+		}
+		break
+	}
+
+	validators := []common.Address{account.address}
+	blsPubKeys := []string{account.blsPubKey}
+
+	g.setAnzeonConfig(validators, blsPubKeys)
+
+	g.Genesis.Alloc[account.address] = types.Account{
+		Balance: new(big.Int).Lsh(big.NewInt(1), 256-7), // 2^256 / 128 (allow many pre-funds without balance overflows)
+	}
+
+	g.Genesis.Config.ChainID = new(big.Int).SetUint64(uint64(rand.Intn(65536)))
+
+	g.genGenesisFile(".")
+
+	fmt.Println("genesis.json successfully generated")
+}
+
+func (g *genesisGenerator) wbftChainConfig() {
+	g.Genesis.Difficulty = types.WBFTDefaultDifficulty
+	fmt.Println()
+	fmt.Println("Which accounts are allowed to seal? (mandatory at least one)")
+
+	var validators []common.Address
+	var blsPublicKeys []string
+	for {
+		if address := readAddress(); address != nil {
+			validators = append(validators, *address)
+			blsPublicKeys = append(blsPublicKeys, readBLSPubKey())
+			continue
+		}
+		if len(validators) > 0 {
+			break
+		}
+	}
+
+	g.setAnzeonConfig(validators, blsPublicKeys)
 
 	// you can add config file for static nodes if you want
 	fmt.Println()
