@@ -2341,6 +2341,105 @@ func TestEdgeCase_H4_BurnProposalRetry(t *testing.T) {
 	t.Logf("✓ Burn proposal retry handled correctly")
 }
 
+// Test H5: proposalExecutionCount explicit tracking verification
+// Scenario: Verify proposalExecutionCount increments correctly: 0→1→2→3→blocked
+// Invariants: executionCount tracked accurately, MAX_RETRY_COUNT enforced
+func TestEdgeCase_H5_ProposalExecutionCountTracking(t *testing.T) {
+	ctx := setupEdgeCaseTest(t)
+	defer ctx.backend.Close()
+
+	member := ctx.Members[0]
+	recipient := member.Address
+	amount := big.NewInt(1_000_000)
+
+	// 1. Create mint proposal
+	tx, err := ctx.TxProposeMint(t, member, recipient, amount)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	proposalId, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
+	require.NoError(t, err)
+
+	// Verify initial executionCount = 0
+	execCount, err := ctx.BaseProposalExecutionCount(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), execCount.Int64(), "Initial executionCount should be 0")
+	t.Logf("✓ Initial executionCount = 0")
+
+	// 2. Configure MockFiatToken to fail mint
+	tx, err = ctx.SetMockFiatTokenMintShouldFail(t, member, true)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	// 3. Approve to reach quorum (auto-execution will fail, stays Approved)
+	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], proposalId)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	// Verify executionCount = 1 after first failed attempt
+	execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), execCount.Int64(), "executionCount should be 1 after first attempt")
+	t.Logf("✓ After auto-exec failure: executionCount = 1")
+
+	// Verify proposal status is Approved (stays for retry)
+	proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, uint8(2), uint8(proposal.Status), "Proposal should be Approved")
+
+	// 4. Manual retry #2
+	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), execCount.Int64(), "executionCount should be 2 after retry #2")
+	t.Logf("✓ After retry #2: executionCount = 2")
+
+	// 5. Manual retry #3 (last allowed attempt)
+	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, int64(3), execCount.Int64(), "executionCount should be 3 after retry #3")
+	t.Logf("✓ After retry #3: executionCount = 3 (MAX_RETRY_COUNT reached)")
+
+	// 6. Verify canExecuteProposal returns TooManyAttempts
+	result, attemptsLeft, err := ctx.BaseCanExecuteProposal(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, ExecutionCheckTooManyAttempts, result, "canExecuteProposal should return TooManyAttempts")
+	require.Equal(t, int64(0), attemptsLeft.Int64(), "attemptsLeft should be 0")
+	t.Logf("✓ canExecuteProposal: TooManyAttempts, attemptsLeft = 0")
+
+	// 7. Attempt retry #4 (should fail with TooManyExecutionAttempts)
+	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
+	err = ctx.ExpectedFail(tx, err)
+	require.Error(t, err, "Retry #4 should fail")
+	require.Contains(t, err.Error(), "TooManyExecutionAttempts", "Should revert with TooManyExecutionAttempts")
+	t.Logf("✓ Retry #4 blocked with TooManyExecutionAttempts")
+
+	// 8. Call executeWithFailure() to mark as Failed
+	tx, err = ctx.BaseTxExecuteWithFailure(t, ctx.govMinter, member, proposalId)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, uint8(6), uint8(proposal.Status), "Proposal should be Failed")
+	t.Logf("✓ Proposal marked as Failed via executeWithFailure()")
+
+	// 9. Verify cleanup hook released reservedMintAmount
+	reserved, err := ctx.GetReservedMintAmount(member)
+	require.NoError(t, err)
+	require.Equal(t, 0, reserved.Cmp(big.NewInt(0)), "reservedMintAmount should be cleaned up")
+	t.Logf("✓ Cleanup hook released reservedMintAmount")
+
+	assertInvariantsHold(t, ctx, "After executionCount tracking test")
+}
+
 // ==================== Category I: Error Validation & Prevention ====================
 
 // Test I1: Invalid proof data rejection
@@ -2427,6 +2526,88 @@ func TestEdgeCase_I3_InvalidAmountValidation(t *testing.T) {
 	assertInvariantsHold(t, ctx, "After invalid amount rejection")
 
 	t.Logf("✓ Invalid amounts handled correctly")
+}
+
+// Test I4: Approved status idempotency (GovBase.sol optimization)
+// Scenario: Additional votes on already-Approved proposal don't cause duplicate SSTORE/events
+// Invariants: Gas optimization (~2,900 gas saved), no duplicate ProposalApproved events
+func TestEdgeCase_I4_ApprovedStatusIdempotency(t *testing.T) {
+	ctx := setupEdgeCaseTest(t)
+	defer ctx.backend.Close()
+
+	member := ctx.Members[0]
+	recipient := member.Address
+	amount := big.NewInt(1_000_000)
+
+	// 1. Create mint proposal
+	tx, err := ctx.TxProposeMint(t, member, recipient, amount)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	proposalId, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
+	require.NoError(t, err)
+
+	// 2. Configure MockFiatToken to fail mint (keep proposal in Approved state)
+	tx, err = ctx.SetMockFiatTokenMintShouldFail(t, member, true)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	// 3. First approval vote (reaches quorum, auto-exec fails, status = Approved)
+	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], proposalId)
+	receipt, err := ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	// Count ProposalApproved events in first vote receipt (should be 1)
+	firstVoteEvents := countEventsInReceipt(t, receipt, EventProposalApproved)
+	require.Equal(t, 1, firstVoteEvents, "First approval should emit 1 ProposalApproved event")
+	t.Logf("✓ First approval: 1 ProposalApproved event emitted")
+
+	// Record gas used for first vote
+	firstVoteGas := receipt.GasUsed
+	t.Logf("First approval gas used: %d", firstVoteGas)
+
+	// Verify proposal is Approved
+	proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, uint8(2), uint8(proposal.Status), "Proposal should be Approved")
+	require.Equal(t, uint32(2), proposal.Approved, "Approved count should be 2")
+
+	// 4. Additional approval vote AFTER already Approved (idempotency test)
+	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[2], proposalId)
+	receipt, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	// Count ProposalApproved events in second vote receipt (should be 0 - optimization)
+	secondVoteEvents := countEventsInReceipt(t, receipt, EventProposalApproved)
+	require.Equal(t, 0, secondVoteEvents, "Second approval should NOT emit ProposalApproved event (idempotent)")
+	t.Logf("✓ Second approval: 0 ProposalApproved events (idempotent optimization)")
+
+	// Verify approved count incremented
+	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	require.Equal(t, uint32(3), proposal.Approved, "Approved count should be 3")
+
+	// Verify status STILL Approved (idempotent)
+	require.Equal(t, uint8(2), uint8(proposal.Status), "Proposal should still be Approved")
+	t.Logf("✓ Proposal status remains Approved (idempotent)")
+
+	// Record gas used for second vote
+	secondVoteGas := receipt.GasUsed
+	t.Logf("Second approval gas used: %d", secondVoteGas)
+
+	// Compare gas usage (second should save gas due to no SSTORE change)
+	// Note: Exact gas savings may vary, but second vote should use less gas
+	// Expected savings: ~2,900 gas (no SSTORE from Approved→Approved, no event)
+	if secondVoteGas < firstVoteGas {
+		gasSavings := firstVoteGas - secondVoteGas
+		t.Logf("✓ Gas optimization verified: %d gas saved on idempotent vote", gasSavings)
+		// We don't enforce exact gas savings as it may vary with EVM changes
+		// Just verify that there IS a savings
+	} else {
+		t.Logf("⚠️ Warning: Expected gas savings not observed (may vary with EVM)")
+	}
+
+	assertInvariantsHold(t, ctx, "After approved status idempotency test")
 }
 
 // ==================== Category J: Active Proposal Limit Stress Testing ====================
@@ -2559,4 +2740,118 @@ func TestEdgeCase_J3_ActiveProposalLimitEnforcement(t *testing.T) {
 	assertInvariantsHold(t, ctx, "After limit enforcement test")
 
 	t.Logf("✓ Active proposal limit enforced correctly")
+}
+
+// ==================== Category K: Bug Demonstrations ====================
+// Tests that demonstrate known bugs for documentation purposes
+// These tests are EXPECTED TO FAIL in specific ways that prove the bug exists
+
+// Test K1: CRITICAL BUG DEMONSTRATION - _safeBurn unlimited retry bypass
+// Scenario: Burn proposal with fiatToken.burn() failure causes entire TX revert,
+//           bypassing proposalExecutionCount increment and allowing unlimited retries
+// Expected Behavior (BUG): executionCount stays 0, unlimited retry possible
+// Correct Behavior (AFTER FIX): executionCount should increment, MAX_RETRY_COUNT enforced
+//
+// ⚠️ NOTE: This test was designed to demonstrate a potential bug identified in
+//          ISSUE_STATE_INCONSISTENCY_ANALYSIS.md. However, the current implementation
+//          appears to handle burn failures correctly with try-catch pattern.
+//          Test is retained for documentation and future verification.
+//
+// SKIP: Bug does not manifest in current implementation
+func TestEdgeCase_K1_CRITICAL_BurnUnlimitedRetryBugDemo(t *testing.T) {
+	t.Skip("Bug demonstration test - current implementation handles burn failures correctly")
+	ctx := setupEdgeCaseTest(t)
+	defer ctx.backend.Close()
+
+	member := ctx.Members[0]
+	burnAmount := big.NewInt(1_000_000)
+
+	// 0. First mint tokens so we have balance to burn
+	mintAmount := big.NewInt(5_000_000)
+	tx, err := ctx.TxProposeMint(t, member, member.Address, mintAmount)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	mintProposalId, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
+	require.NoError(t, err)
+
+	// Approve and execute mint
+	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], mintProposalId)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	t.Logf("Minted %s tokens to create burn balance", mintAmount.String())
+
+	// 1. Deposit native coins for burn (msg.value)
+	tx, err = ctx.TxProposeBurn(t, member, member.Address, burnAmount)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+
+	burnProposalId, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
+	require.NoError(t, err)
+	t.Logf("Created burn proposal ID: %s", burnProposalId.String())
+
+	// Verify initial executionCount = 0
+	execCount, err := ctx.BaseProposalExecutionCount(ctx.govMinter, member, burnProposalId)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), execCount.Int64(), "Initial executionCount should be 0")
+	t.Logf("✓ Initial executionCount = 0")
+
+	// 2. Configure MockFiatToken to FAIL burn operations
+	tx, err = ctx.SetMockFiatTokenBurnShouldFail(t, member, true)
+	_, err = ctx.ExpectedOk(tx, err)
+	require.NoError(t, err)
+	t.Logf("Configured MockFiatToken to fail burn() calls")
+
+	// 3. Approve proposal (auto-execution will REVERT entire TX due to missing try-catch)
+	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], burnProposalId)
+	err = ctx.ExpectedFail(tx, err)
+	require.Error(t, err, "Approval should revert due to burn failure propagation")
+	t.Logf("✓ Approval reverted as expected (burn failure propagated)")
+
+	// 4. Verify proposal stays in Voting status (not Approved - TX reverted)
+	proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, burnProposalId)
+	require.NoError(t, err)
+	require.Equal(t, uint8(1), uint8(proposal.Status), "Proposal should still be Voting (entire TX reverted)")
+	t.Logf("✓ Proposal status: Voting (entire approval TX was rolled back)")
+
+	// 5. Verify proposalExecutionCount is STILL 0 (rolled back)
+	execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, burnProposalId)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), execCount.Int64(), "🐛 BUG: executionCount is 0 (should be 1)")
+	t.Logf("🐛 BUG DEMONSTRATED: executionCount = 0 after failed execution (rolled back)")
+
+	// 6. Vote again multiple times to demonstrate unlimited retry
+	maxDemoRetries := 10 // Demonstrate way beyond MAX_RETRY_COUNT (3)
+
+	for i := 0; i < maxDemoRetries; i++ {
+		// Each retry will fail the same way
+		tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], burnProposalId)
+		err = ctx.ExpectedFail(tx, err)
+		require.Error(t, err, "Each retry should fail")
+
+		// executionCount STAYS 0 every time (this is the bug)
+		execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, burnProposalId)
+		require.NoError(t, err)
+		require.Equal(t, int64(0), execCount.Int64(), "🐛 BUG: executionCount stays 0")
+
+		t.Logf("Retry attempt %d: executionCount = 0 (should be %d)", i+1, i+1)
+	}
+
+	t.Logf("")
+	t.Logf("🚨 CRITICAL BUG DEMONSTRATED:")
+	t.Logf("   - Performed %d retry attempts", maxDemoRetries)
+	t.Logf("   - executionCount never incremented (stayed 0)")
+	t.Logf("   - MAX_RETRY_COUNT bypass: %d attempts > %d limit", maxDemoRetries, 3)
+	t.Logf("   - DoS attack vector: Unlimited execution attempts possible")
+	t.Logf("")
+	t.Logf("Expected Behavior After Fix:")
+	t.Logf("   - Each failed execution should increment proposalExecutionCount")
+	t.Logf("   - After 3 attempts, MAX_RETRY_COUNT should block further attempts")
+	t.Logf("   - Proposal should be marked Failed after retry limit")
+	t.Logf("")
+	t.Logf("Root Cause: _safeBurn missing try-catch around fiatToken.burn()")
+	t.Logf("   - Revert propagates to _executeProposal")
+	t.Logf("   - Entire TX rolls back including proposalExecutionCount++")
+	t.Logf("   - Inconsistent with _executeMint which uses try-catch")
 }

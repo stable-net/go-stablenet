@@ -341,6 +341,53 @@ func (g *GovWBFT) BaseGetProposal(contract *bind.BoundContract, sender *EOA, pro
 	return proposal, nil
 }
 
+// BaseProposalExecutionCount gets the execution attempt count for a proposal
+func (g *GovWBFT) BaseProposalExecutionCount(contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*big.Int, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "proposalExecutionCount", proposalId)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+// ExecutionCheckResult represents the result of canExecuteProposal check
+type ExecutionCheckResult uint8
+
+const (
+	ExecutionCheckExecutable         ExecutionCheckResult = 0
+	ExecutionCheckInvalidProposalId  ExecutionCheckResult = 1
+	ExecutionCheckNotApproved        ExecutionCheckResult = 2
+	ExecutionCheckExpired            ExecutionCheckResult = 3
+	ExecutionCheckTooManyAttempts    ExecutionCheckResult = 4
+)
+
+// BaseCanExecuteProposal checks if a proposal can be executed
+func (g *GovWBFT) BaseCanExecuteProposal(contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (ExecutionCheckResult, *big.Int, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "canExecuteProposal", proposalId)
+	if err != nil {
+		return 0, nil, err
+	}
+	return ExecutionCheckResult(result[0].(uint8)), result[1].(*big.Int), nil
+}
+
+// BaseMaxRetryCount gets the MAX_RETRY_COUNT constant
+func (g *GovWBFT) BaseMaxRetryCount(contract *bind.BoundContract, sender *EOA) (*big.Int, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "MAX_RETRY_COUNT")
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+// BaseTxExecuteWithFailure executes a proposal and marks it as Failed if execution fails
+func (g *GovWBFT) BaseTxExecuteWithFailure(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	tx, err := contract.Transact(NewTxOptsWithValue(t, sender, nil), "executeWithFailure", proposalId)
+	return tx, err
+}
+
 func (g *GovWBFT) BaseTxProposeAddMember(t *testing.T, contract *bind.BoundContract, sender *EOA, newMember common.Address, newQuorum uint32) (*big.Int, *types.Transaction, error) {
 	// Get current proposal ID before transaction
 	var result []interface{}
@@ -742,10 +789,6 @@ func (g *GovWBFT) BaseTxDisapproveProposal(t *testing.T, contract *bind.BoundCon
 
 func (g *GovWBFT) BaseTxExpireProposal(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
 	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "expireProposal", proposalId)
-}
-
-func (g *GovWBFT) BaseTxExecuteWithFailure(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
-	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "executeWithFailure", proposalId)
 }
 
 // ========== Proof Generation Helper Functions ==========

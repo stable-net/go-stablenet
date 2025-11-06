@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	sc "github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/stretchr/testify/assert"
@@ -729,4 +730,27 @@ func assertStateChanges(t *testing.T, ctx *EdgeCaseTestContext, initialState *St
 	t.Logf("✓ State changes verified: Mint=%s, ReservedDecrease=%s, BurnChange=%s, AllowanceDecrease=%s",
 		expected.MintAmount.String(), expected.ReservedMintDecrease.String(),
 		expected.BurnBalanceChange.String(), expected.MinterAllowanceDecrease.String())
+}
+
+// ==================== Event Parsing Helpers ====================
+
+// Event signatures for common governance events
+const (
+	EventProposalApproved = "ProposalApproved(uint256,address,uint256,uint256)"
+	EventProposalVoted    = "ProposalVoted(uint256,address,bool,uint256,uint256)"
+	EventProposalExecuted = "ProposalExecuted(uint256,address,bool)"
+)
+
+// countEventsInReceipt counts the number of events matching the given signature in a receipt
+func countEventsInReceipt(t *testing.T, receipt *types.Receipt, eventSignature string) int {
+	eventHash := crypto.Keccak256Hash([]byte(eventSignature))
+	count := 0
+
+	for _, log := range receipt.Logs {
+		if len(log.Topics) > 0 && log.Topics[0] == eventHash {
+			count++
+		}
+	}
+
+	return count
 }
