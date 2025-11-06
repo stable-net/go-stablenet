@@ -320,7 +320,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 			}
 		}
 		// Set callback to update gas tip in worker when blockchain imports new blocks
-		worker.chain.SetGasTipUpdater(worker.setGasTip)
+		worker.chain.SetGasTipUpdater(worker.updateGasTipFromContract)
 	}
 
 	worker.wg.Add(4)
@@ -1198,13 +1198,10 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 }
 
 // updateGasTipFromContract updates the gasTip from GovValidator contract.
-// This is called asynchronously via goroutine to avoid deadlock issues.
 func (w *worker) updateGasTipFromContract(state *state.StateDB) {
 	gasTip := w.getGasTipFromContract(state)
 	if gasTip != nil {
-		go func() {
-			w.setGasTip(gasTip)
-		}()
+		w.setGasTip(gasTip)
 	}
 }
 
