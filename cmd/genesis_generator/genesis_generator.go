@@ -285,6 +285,7 @@ func (g *genesisGenerator) wbftSingleNodeConfig() {
 
 func (g *genesisGenerator) wbftChainConfig() {
 	g.Genesis.Difficulty = types.WBFTDefaultDifficulty
+
 	fmt.Println()
 	fmt.Println("Which accounts are allowed to seal? (mandatory at least one)")
 
@@ -301,13 +302,19 @@ func (g *genesisGenerator) wbftChainConfig() {
 		}
 	}
 
+	minQuorum := 2
+	if len(validators) == 1 {
+		minQuorum = 1
+	}
+
 	fmt.Println()
-	fmt.Println("Enter the quorum for governance: (default = 1)")
+	fmt.Printf("Enter the quorum for governance: (default = %d)\n", minQuorum)
+
 	var quorum int
 	for {
-		quorum = readDefaultInt(1)
-		if quorum < 1 {
-			fmt.Printf("Quorum must be at least 1\n")
+		quorum = readDefaultInt(minQuorum)
+		if quorum < minQuorum {
+			fmt.Printf("Quorum must be at least %d\n", minQuorum)
 			continue
 		}
 		if quorum > len(validators) {
