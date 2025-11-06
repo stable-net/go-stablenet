@@ -131,7 +131,7 @@ func (tx *FeeDelegateDynamicFeeTx) rawFeePayerSignatureValues() (v, r, s *big.In
 
 func (tx *FeeDelegateDynamicFeeTx) effectiveGasPrice(baseFee, gasTip *big.Int) *big.Int {
 	if baseFee == nil {
-		return big.NewInt(0)
+		baseFee = common.Big0
 	}
 
 	tipCap := tx.SenderTx.GasTipCap

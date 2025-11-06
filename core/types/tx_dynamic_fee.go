@@ -99,7 +99,7 @@ func (tx *DynamicFeeTx) to() *common.Address    { return tx.To }
 
 func (tx *DynamicFeeTx) effectiveGasPrice(baseFee, gasTip *big.Int) *big.Int {
 	if baseFee == nil {
-		baseFee = big.NewInt(0)
+		baseFee = common.Big0
 	}
 
 	tipCap := tx.GasTipCap
