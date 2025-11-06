@@ -100,7 +100,7 @@ func (g *genesisGenerator) makeGenesis() {
 	switch {
 	case choice == "1" || choice == "":
 		fmt.Println()
-		fmt.Println("Which type of network would you like to configure? (default single-node)")
+		fmt.Println("Which type of network would you like to configure? (default = single-node)")
 		fmt.Println(" 1. single-node")
 		fmt.Println(" 2. multi-node")
 
@@ -185,8 +185,9 @@ func deriveAccount(nodeKey *ecdsa.PrivateKey) (*NodeAccount, error) {
 	return &NodeAccount{address, blsPubKey}, nil
 }
 
-func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPublicKeys []string) {
+func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPublicKeys []string, quorum int) {
 	g.Genesis.Config.Anzeon = params.DefaultAnzeonConfig
+
 	var vals, blsKeys string
 	for i, val := range validators {
 		g.Genesis.Config.Anzeon.Init.Validators = append(g.Genesis.Config.Anzeon.Init.Validators, val)
@@ -196,9 +197,11 @@ func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPubli
 	}
 	vals = strings.TrimRight(vals, ",")
 	blsKeys = strings.TrimRight(blsKeys, ",")
+
+	quorumStr := strconv.Itoa(quorum)
 	g.Genesis.Config.Anzeon.SystemContracts.GovValidator.Params = map[string]string{
 		"members":       vals,
-		"quorum":        "1",
+		"quorum":        quorumStr,
 		"expiry":        "604800",
 		"memberVersion": "1",
 		"validators":    vals,
@@ -214,7 +217,7 @@ func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPubli
 		"currency":      "KRW",
 	}
 	g.Genesis.Config.Anzeon.SystemContracts.GovMasterMinter.Params = map[string]string{
-		"quorum":             "1",
+		"quorum":             quorumStr,
 		"expiry":             "604800",
 		"members":            vals,
 		"memberVersion":      "1",
@@ -222,7 +225,7 @@ func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPubli
 		"maxMinterAllowance": "10000000000000000000000000000",
 	}
 	g.Genesis.Config.Anzeon.SystemContracts.GovMinter.Params = map[string]string{
-		"quorum":        "1",
+		"quorum":        quorumStr,
 		"expiry":        "604800",
 		"members":       vals,
 		"memberVersion": "1",
@@ -263,7 +266,9 @@ func (g *genesisGenerator) wbftSingleNodeConfig() {
 	validators := []common.Address{account.address}
 	blsPubKeys := []string{account.blsPubKey}
 
-	g.setAnzeonConfig(validators, blsPubKeys)
+	g.Genesis.Difficulty = types.WBFTDefaultDifficulty
+
+	g.setAnzeonConfig(validators, blsPubKeys, 1)
 
 	genDefaultConfigFile()
 
@@ -296,7 +301,23 @@ func (g *genesisGenerator) wbftChainConfig() {
 		}
 	}
 
-	g.setAnzeonConfig(validators, blsPublicKeys)
+	fmt.Println()
+	fmt.Println("Enter the quorum for governance: (default = 1)")
+	var quorum int
+	for {
+		quorum = readDefaultInt(1)
+		if quorum < 1 {
+			fmt.Printf("Quorum must be at least 1\n")
+			continue
+		}
+		if quorum > len(validators) {
+			fmt.Printf("Quorum cannot exceed number of validators: %d\n", len(validators))
+			continue
+		}
+		break
+	}
+
+	g.setAnzeonConfig(validators, blsPublicKeys, quorum)
 
 	// you can add config file for static nodes if you want
 	fmt.Println()
