@@ -84,8 +84,8 @@ var (
 						"memberVersion": "1",
 						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
-						"gasTip":        "5000000000000",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
+						"gasTip":        "5000000000000",
 					},
 				},
 				NativeCoinAdapter: &SystemContract{

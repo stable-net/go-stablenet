@@ -169,6 +169,11 @@ func TestInitializeValidator(t *testing.T) {
 			},
 			expectErr: "",
 			expectParam: []params.StateParam{
+				{ // maxActiveProposalsPerMember (slot 0xc, default: 3)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000000c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"),
+				},
 				{
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
@@ -299,7 +304,7 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     derivedKeyHashForVersionedMemberListValue,
 					Value:   common.HexToHash("0x000000000000000000000000abcdefabcdefabcdefabcdefabcdefabcdefabcd"),
 				},
-				{ // memberIndexByVersion[version][member] = 1 (NEW in GovBaseV2!)
+				{ // memberIndexByVersion[version][member] = 1 (NEW in GovBase!)
 					Address: common.Address{},
 					Key:     derivedKeyHashForMemberIndexByVersion,
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
@@ -309,10 +314,15 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     derivedKeyHashForVersionedMemberListLength,
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 				},
-				{ // memberVersion (slot 1 in GovBaseV2)
+				{ // memberVersion (slot 1 in GovBase)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+				},
+				{ // maxActiveProposalsPerMember (slot 0xc, default: 3)
+					Address: common.Address{},
+					Key:     common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000000c"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"),
 				},
 				{ // blsPop (slot 0x32)
 					Address: common.Address{},
