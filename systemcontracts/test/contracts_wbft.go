@@ -355,11 +355,11 @@ func (g *GovWBFT) BaseProposalExecutionCount(contract *bind.BoundContract, sende
 type ExecutionCheckResult uint8
 
 const (
-	ExecutionCheckExecutable         ExecutionCheckResult = 0
-	ExecutionCheckInvalidProposalId  ExecutionCheckResult = 1
-	ExecutionCheckNotApproved        ExecutionCheckResult = 2
-	ExecutionCheckExpired            ExecutionCheckResult = 3
-	ExecutionCheckTooManyAttempts    ExecutionCheckResult = 4
+	ExecutionCheckExecutable        ExecutionCheckResult = 0
+	ExecutionCheckInvalidProposalId ExecutionCheckResult = 1
+	ExecutionCheckNotApproved       ExecutionCheckResult = 2
+	ExecutionCheckExpired           ExecutionCheckResult = 3
+	ExecutionCheckTooManyAttempts   ExecutionCheckResult = 4
 )
 
 // BaseCanExecuteProposal checks if a proposal can be executed

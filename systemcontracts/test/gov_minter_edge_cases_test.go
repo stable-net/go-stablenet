@@ -32,13 +32,17 @@ import (
 // Purpose: Verify GovMinter state consistency under edge conditions with try-catch pattern
 // Approach: Systematic testing of retry, expiry, concurrency, emergency pause, boundary, and complex scenarios
 //
-// Test Categories:
+// Test Categories (32 tests total):
 //   A. Retry & Failure (A1-A3): Execution retry patterns and terminal failure states
 //   B. Proposal Expiry (B1-B2): Time-based expiry in different states
 //   C. Concurrency (C1-C3): Concurrent operations and race conditions
 //   D. Emergency Pause (D1-D3): System pause during various proposal states
 //   E. Boundary Conditions (E1-E3): Limits and edge values
 //   F. Complex State Interactions (F1-F3): Multi-proposal scenarios
+//   G. Approved State Management (G1-G3): Sequential, concurrent, and rapid proposal cycles
+//   H. Retry & Recovery Patterns (H1-H5): Transient failures, multiple retries, execution count tracking
+//   I. Error Validation & Prevention (I1-I4): Invalid data rejection, replay protection, idempotency
+//   J. Active Proposal Limit Stress Testing (J1-J3): MAX_ACTIVE_PROPOSALS_PER_MEMBER stress tests
 
 // ==================== Category A: Retry & Failure ====================
 
@@ -113,7 +117,7 @@ func TestEdgeCase_A1_RetryLimitEnforcementWithCleanup(t *testing.T) {
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err, "Should fail with TooManyExecutionAttempts")
 	require.Contains(t, err.Error(), "TooManyExecutionAttempts", "Error should be TooManyExecutionAttempts")
-	t.Logf("✓ Hit retry limit with TooManyExecutionAttempts as expected")
+	t.Logf(" Hit retry limit with TooManyExecutionAttempts as expected")
 
 	// 5. Call executeWithFailure to mark as Failed (terminal state)
 	tx, err = ctx.BaseTxExecuteWithFailure(t, ctx.govMinter, member, proposalId)
@@ -124,7 +128,7 @@ func TestEdgeCase_A1_RetryLimitEnforcementWithCleanup(t *testing.T) {
 	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, uint8(6), uint8(proposal.Status), "Proposal should be Failed after executeWithFailure")
-	t.Logf("✓ Proposal transitioned to Failed status")
+	t.Logf(" Proposal transitioned to Failed status")
 
 	// 6. Verify state cleanup
 	assertProposalTerminalState(t, ctx, TerminalStateExpectation{
@@ -143,7 +147,7 @@ func TestEdgeCase_A1_RetryLimitEnforcementWithCleanup(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, reserved.Cmp(initialState.ReservedMintAmounts[member.Address]),
 		"reservedMintAmount should be cleaned after failure")
-	t.Logf("✓ reservedMintAmount cleaned: %s", reserved.String())
+	t.Logf(" reservedMintAmount cleaned: %s", reserved.String())
 
 	// 7. Restore mock behavior
 	tx, err = ctx.SetMockFiatTokenMintShouldFail(t, member, false)
@@ -155,7 +159,7 @@ func TestEdgeCase_A1_RetryLimitEnforcementWithCleanup(t *testing.T) {
 	assertStateConsistency(t, ctx, initialState, finalState, "A1: Retry limit enforcement")
 	assertInvariantsHold(t, ctx, "A1: After max retries")
 
-	t.Logf("✓✓✓ Test A1 completed successfully")
+	t.Logf(" Test A1 completed successfully")
 }
 
 // Test A2: Successful execution after multiple retries
@@ -214,7 +218,7 @@ func TestEdgeCase_A2_SuccessfulExecutionAfterRetries(t *testing.T) {
 	expectedReserved := new(big.Int).Add(initialState.ReservedMintAmounts[member.Address], amount)
 	require.Equal(t, 0, reserved.Cmp(expectedReserved),
 		"Reservation should still be held after failed execution")
-	t.Logf("✓ Reservation still held: %s", reserved.String())
+	t.Logf(" Reservation still held: %s", reserved.String())
 
 	// 4. Fix mock configuration
 	tx, err = ctx.SetMockFiatTokenMintShouldFail(t, member, false)
@@ -231,7 +235,7 @@ func TestEdgeCase_A2_SuccessfulExecutionAfterRetries(t *testing.T) {
 	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, uint8(3), uint8(proposal.Status), "Proposal should be Executed after successful retry")
-	t.Logf("✓ Proposal transitioned to Executed status")
+	t.Logf(" Proposal transitioned to Executed status")
 
 	// 7. Verify state cleanup
 	assertProposalTerminalState(t, ctx, TerminalStateExpectation{
@@ -250,20 +254,20 @@ func TestEdgeCase_A2_SuccessfulExecutionAfterRetries(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, reserved.Cmp(initialState.ReservedMintAmounts[member.Address]),
 		"Reservation should be cleaned after successful execution")
-	t.Logf("✓ Reservation cleaned: %s", reserved.String())
+	t.Logf(" Reservation cleaned: %s", reserved.String())
 
 	// Verify mint actually happened (check balance increased)
 	balance, err := ctx.GetMockFiatTokenBalance(member, recipient)
 	require.NoError(t, err)
 	require.True(t, balance.Cmp(big.NewInt(0)) > 0,
 		"Recipient balance should increase after mint")
-	t.Logf("✓ Mint succeeded, recipient balance: %s", balance.String())
+	t.Logf(" Mint succeeded, recipient balance: %s", balance.String())
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "A2: Successful retry")
 	assertInvariantsHold(t, ctx, "A2: After successful retry")
 
-	t.Logf("✓✓✓ Test A2 completed successfully")
+	t.Logf(" Test A2 completed successfully")
 }
 
 // Test A3: Burn proposal retry with balance verification
@@ -304,7 +308,7 @@ func TestEdgeCase_A3_BurnProposalRetryWithBalance(t *testing.T) {
 	expectedBurn := new(big.Int).Add(initialState.BurnBalances[member.Address], amount)
 	require.Equal(t, 0, burnBalance.Cmp(expectedBurn),
 		"burnBalance should equal initial + amount")
-	t.Logf("✓ burnBalance after deposit: %s", burnBalance.String())
+	t.Logf(" burnBalance after deposit: %s", burnBalance.String())
 
 	// 2. Configure MockFiatToken to fail burn (simulates external failure)
 	tx, err = ctx.SetMockFiatTokenBurnShouldFail(t, ctx.Members[0], true)
@@ -342,7 +346,7 @@ func TestEdgeCase_A3_BurnProposalRetryWithBalance(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, burnBalanceStillHeld.Cmp(expectedBurn),
 		"burnBalance should still be held after failure")
-	t.Logf("✓ burnBalance still held: %s", burnBalanceStillHeld.String())
+	t.Logf(" burnBalance still held: %s", burnBalanceStillHeld.String())
 
 	// 5. Fix MockFiatToken to allow burn
 	tx, err = ctx.SetMockFiatTokenBurnShouldFail(t, ctx.Members[0], false)
@@ -359,19 +363,19 @@ func TestEdgeCase_A3_BurnProposalRetryWithBalance(t *testing.T) {
 	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, uint8(3), uint8(proposal.Status), "Proposal should be Executed after successful retry")
-	t.Logf("✓ Proposal transitioned to Executed status")
+	t.Logf(" Proposal transitioned to Executed status")
 
 	// 6. Verify burnBalance consumed correctly (exactly once, no double-burn)
 	burnBalanceAfterSuccess, err := ctx.GetBurnBalance(member, member.Address)
 	require.NoError(t, err)
 	require.Equal(t, 0, burnBalanceAfterSuccess.Cmp(initialState.BurnBalances[member.Address]),
 		"burnBalance should return to initial after successful burn")
-	t.Logf("✓ burnBalance consumed after successful burn: %s", burnBalanceAfterSuccess.String())
+	t.Logf(" burnBalance consumed after successful burn: %s", burnBalanceAfterSuccess.String())
 
 	// Verify no double-burn (balance should be initial, not negative)
 	require.True(t, burnBalanceAfterSuccess.Sign() >= 0,
 		"burnBalance should never go negative (no double-burn)")
-	t.Logf("✓ No double-burn detected")
+	t.Logf(" No double-burn detected")
 
 	// Verify state cleanup
 	assertProposalTerminalState(t, ctx, TerminalStateExpectation{
@@ -389,7 +393,7 @@ func TestEdgeCase_A3_BurnProposalRetryWithBalance(t *testing.T) {
 	assertStateConsistency(t, ctx, initialState, finalState, "A3: Burn retry with balance consistency")
 	assertInvariantsHold(t, ctx, "A3: After successful retry")
 
-	t.Logf("✓✓✓ Test A3 completed successfully")
+	t.Logf(" Test A3 completed successfully")
 }
 
 // ==================== Category B: Proposal Expiry ====================
@@ -439,7 +443,7 @@ func TestEdgeCase_B1_ProposalExpiryDuringVoting(t *testing.T) {
 	expectedReserved := new(big.Int).Add(initialState.ReservedMintAmounts[member.Address], amount)
 	require.Equal(t, 0, reserved.Cmp(expectedReserved),
 		"Reservation should be held while voting")
-	t.Logf("✓ Reservation held: %s", reserved.String())
+	t.Logf(" Reservation held: %s", reserved.String())
 
 	// 3. Advance time past proposal expiry (7 days + 1 second)
 	ctx.backend.AdjustTime(7*24*time.Hour + time.Second)
@@ -455,21 +459,21 @@ func TestEdgeCase_B1_ProposalExpiryDuringVoting(t *testing.T) {
 	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, uint8(5), uint8(proposal.Status), "Proposal should be Expired")
-	t.Logf("✓ Proposal transitioned to Expired status")
+	t.Logf(" Proposal transitioned to Expired status")
 
 	// 6. Verify reservation cleanup
 	reservedAfterExpiry, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedAfterExpiry.Cmp(initialState.ReservedMintAmounts[member.Address]),
 		"Reservation should be cleaned after expiry")
-	t.Logf("✓ Reservation cleaned: %s", reservedAfterExpiry.String())
+	t.Logf(" Reservation cleaned: %s", reservedAfterExpiry.String())
 
 	// Verify proposal-specific reservation cleared
 	proposalReserved, err := ctx.GetMintProposalAmount(member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, 0, proposalReserved.Cmp(big.NewInt(0)),
 		"Proposal-specific reservation should be cleared")
-	t.Logf("✓ Proposal-specific reservation cleared")
+	t.Logf(" Proposal-specific reservation cleared")
 
 	// 7. Verify state cleanup
 	assertProposalTerminalState(t, ctx, TerminalStateExpectation{
@@ -487,7 +491,7 @@ func TestEdgeCase_B1_ProposalExpiryDuringVoting(t *testing.T) {
 	assertStateConsistency(t, ctx, initialState, finalState, "B1: Expiry during voting")
 	assertInvariantsHold(t, ctx, "B1: After expiry")
 
-	t.Logf("✓✓✓ Test B1 completed successfully")
+	t.Logf(" Test B1 completed successfully")
 }
 
 // Test B2: Proposal expires during Approved state (before execution)
@@ -545,7 +549,7 @@ func TestEdgeCase_B2_ProposalExpiryDuringApproved(t *testing.T) {
 	expectedReserved := new(big.Int).Add(initialState.ReservedMintAmounts[member.Address], amount)
 	require.Equal(t, 0, reserved.Cmp(expectedReserved),
 		"Reservation should be held while Approved")
-	t.Logf("✓ Reservation held in Approved state: %s", reserved.String())
+	t.Logf(" Reservation held in Approved state: %s", reserved.String())
 
 	// 3. Advance time past expiry (7 days + 1 second)
 	ctx.backend.AdjustTime(7*24*time.Hour + time.Second)
@@ -561,21 +565,21 @@ func TestEdgeCase_B2_ProposalExpiryDuringApproved(t *testing.T) {
 	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, uint8(5), uint8(proposal.Status), "Proposal should be Expired")
-	t.Logf("✓ Proposal transitioned from Approved to Expired")
+	t.Logf(" Proposal transitioned from Approved to Expired")
 
 	// 6. Verify cleanup even from Approved state
 	reservedAfterExpiry, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedAfterExpiry.Cmp(initialState.ReservedMintAmounts[member.Address]),
 		"Reservation should be cleaned after expiry from Approved")
-	t.Logf("✓ Reservation cleaned from Approved state: %s", reservedAfterExpiry.String())
+	t.Logf(" Reservation cleaned from Approved state: %s", reservedAfterExpiry.String())
 
 	// Verify proposal-specific reservation cleared
 	proposalReserved, err := ctx.GetMintProposalAmount(member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, 0, proposalReserved.Cmp(big.NewInt(0)),
 		"Proposal-specific reservation should be cleared")
-	t.Logf("✓ Proposal-specific reservation cleared")
+	t.Logf(" Proposal-specific reservation cleared")
 
 	// 7. Verify cannot execute after expiry
 	// Restore mock to allow execution
@@ -587,7 +591,7 @@ func TestEdgeCase_B2_ProposalExpiryDuringApproved(t *testing.T) {
 	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err, "Execution should fail for Expired proposal")
-	t.Logf("✓ Cannot execute after expiry (as expected)")
+	t.Logf(" Cannot execute after expiry (as expected)")
 
 	// Verify status unchanged (still Expired)
 	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
@@ -610,7 +614,7 @@ func TestEdgeCase_B2_ProposalExpiryDuringApproved(t *testing.T) {
 	assertStateConsistency(t, ctx, initialState, finalState, "B2: Expiry during approved")
 	assertInvariantsHold(t, ctx, "B2: After expiry from approved")
 
-	t.Logf("✓✓✓ Test B2 completed successfully")
+	t.Logf(" Test B2 completed successfully")
 }
 
 // ==================== Category C: Concurrency ====================
@@ -652,8 +656,8 @@ func TestEdgeCase_C1_MultipleProposalsSameMemberWithinLimit(t *testing.T) {
 	reserved, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reserved.Cmp(totalReserved), "Total reservation should equal sum of all proposals")
-	t.Logf("✓ Total reservedMintAmount: %s (sum of all proposals)", reserved.String())
-	t.Logf("✓ Successfully created MAX (%d) active proposals", maxProposals)
+	t.Logf(" Total reservedMintAmount: %s (sum of all proposals)", reserved.String())
+	t.Logf(" Successfully created MAX (%d) active proposals", maxProposals)
 
 	// 4. Attempt to create MAX+1 proposal, should fail with TooManyActiveProposals
 	// Use small amount to avoid hitting InsufficientMinterAllowance error first
@@ -662,7 +666,7 @@ func TestEdgeCase_C1_MultipleProposalsSameMemberWithinLimit(t *testing.T) {
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err, "Should fail to create (MAX+1)th proposal")
 	require.Contains(t, err.Error(), "TooManyActiveProposals", "Error should be TooManyActiveProposals")
-	t.Logf("✓ Cannot create (MAX+1)th proposal: TooManyActiveProposals")
+	t.Logf(" Cannot create (MAX+1)th proposal: TooManyActiveProposals")
 
 	// 5. Execute one proposal to free up a slot
 	firstProposalId := proposalIds[0]
@@ -674,7 +678,7 @@ func TestEdgeCase_C1_MultipleProposalsSameMemberWithinLimit(t *testing.T) {
 	proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, firstProposalId)
 	require.NoError(t, err)
 	require.Equal(t, uint8(3), uint8(proposal.Status), "First proposal should be Executed")
-	t.Logf("✓ Executed first proposal (ID=%s)", firstProposalId.String())
+	t.Logf(" Executed first proposal (ID=%s)", firstProposalId.String())
 
 	// 6. Verify count decremented by checking reservation decreased
 	reservedAfterExec, err := ctx.GetReservedMintAmount(member)
@@ -682,7 +686,7 @@ func TestEdgeCase_C1_MultipleProposalsSameMemberWithinLimit(t *testing.T) {
 	firstProposalAmount := big.NewInt(1_000_000) // First proposal amount
 	expectedAfterExec := new(big.Int).Sub(totalReserved, firstProposalAmount)
 	require.Equal(t, 0, reservedAfterExec.Cmp(expectedAfterExec), "Reservation should decrease by executed amount")
-	t.Logf("✓ Reservation after execution: %s (decreased)", reservedAfterExec.String())
+	t.Logf(" Reservation after execution: %s (decreased)", reservedAfterExec.String())
 
 	// 7. Verify can now create another proposal (use small amount to avoid allowance issues)
 	newAmount := big.NewInt(4_000_000)
@@ -692,7 +696,7 @@ func TestEdgeCase_C1_MultipleProposalsSameMemberWithinLimit(t *testing.T) {
 
 	newProposalId, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
 	require.NoError(t, err)
-	t.Logf("✓ Created new proposal after freeing slot: ID=%s", newProposalId.String())
+	t.Logf(" Created new proposal after freeing slot: ID=%s", newProposalId.String())
 
 	// 8. Verify count back to MAX by checking total reservation
 	finalReserved, err := ctx.GetReservedMintAmount(member)
@@ -700,13 +704,13 @@ func TestEdgeCase_C1_MultipleProposalsSameMemberWithinLimit(t *testing.T) {
 	// Should have MAX proposals reserved: (2M + 3M + 4M) = 9M
 	expectedFinalReserved := new(big.Int).Add(expectedAfterExec, newAmount)
 	require.Equal(t, 0, finalReserved.Cmp(expectedFinalReserved), "Reservation should be back to MAX proposals")
-	t.Logf("✓ Reservation back to MAX proposals: %s", finalReserved.String())
+	t.Logf(" Reservation back to MAX proposals: %s", finalReserved.String())
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "C1: Multiple proposals within limit")
 	assertInvariantsHold(t, ctx, "C1: After concurrent proposals")
 
-	t.Logf("✓✓✓ Test C1 completed successfully")
+	t.Logf(" Test C1 completed successfully")
 }
 
 // Test C2: Concurrent approval and expiry
@@ -755,7 +759,7 @@ func TestEdgeCase_C2_ConcurrentApprovalAndExpiry(t *testing.T) {
 
 	// If auto-executed to Executed state
 	if proposalAfterApproval.Status == 3 {
-		t.Logf("✓ Proposal auto-executed successfully")
+		t.Logf(" Proposal auto-executed successfully")
 
 		// Verify cleanup occurred
 		assertProposalTerminalState(t, ctx, TerminalStateExpectation{
@@ -779,13 +783,13 @@ func TestEdgeCase_C2_ConcurrentApprovalAndExpiry(t *testing.T) {
 		tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
 		err = ctx.ExpectedFail(tx, err)
 		require.Error(t, err, "Execution after expiry should fail")
-		t.Logf("✓ Cannot execute after expiry (as expected)")
+		t.Logf(" Cannot execute after expiry (as expected)")
 
 		// Verify transitioned to Expired
 		proposalFinal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 		require.NoError(t, err)
 		require.Equal(t, uint8(5), uint8(proposalFinal.Status), "Proposal should be Expired")
-		t.Logf("✓ Proposal transitioned to Expired")
+		t.Logf(" Proposal transitioned to Expired")
 	}
 
 	// 5. Verify state consistency - no matter which path, state should be clean
@@ -793,7 +797,7 @@ func TestEdgeCase_C2_ConcurrentApprovalAndExpiry(t *testing.T) {
 	assertStateConsistency(t, ctx, initialState, finalState, "C2: Concurrent approval/expiry")
 	assertInvariantsHold(t, ctx, "C2: After concurrent operations")
 
-	t.Logf("✓✓✓ Test C2 completed successfully")
+	t.Logf(" Test C2 completed successfully")
 }
 
 // Test C3: Multiple members creating proposals simultaneously
@@ -834,7 +838,7 @@ func TestEdgeCase_C3_MultipleMembersSimultaneousProposals(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, totalReserved.Cmp(totalExpectedReserved),
 		"Total reservation should equal sum of all member proposals")
-	t.Logf("✓ Total reservedMintAmount: %s (sum of all: %s)",
+	t.Logf(" Total reservedMintAmount: %s (sum of all: %s)",
 		totalReserved.String(), totalExpectedReserved.String())
 
 	// 4. Execute proposals in reverse order (last member first)
@@ -854,7 +858,7 @@ func TestEdgeCase_C3_MultipleMembersSimultaneousProposals(t *testing.T) {
 		proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 		require.NoError(t, err)
 		require.Equal(t, uint8(3), uint8(proposal.Status), "Proposal should be Executed")
-		t.Logf("✓ Member %d proposal executed (ID=%s)", i, proposalId.String())
+		t.Logf(" Member %d proposal executed (ID=%s)", i, proposalId.String())
 	}
 
 	// 5. Verify cleanup is independent per member - verify via total reservation cleaned
@@ -867,7 +871,7 @@ func TestEdgeCase_C3_MultipleMembersSimultaneousProposals(t *testing.T) {
 	}
 	require.Equal(t, 0, finalReserved.Cmp(initialTotal),
 		"Total reservation should be back to initial after all executions")
-	t.Logf("✓ All member proposals executed, total reservation cleaned: %s (initial was: %s)",
+	t.Logf(" All member proposals executed, total reservation cleaned: %s (initial was: %s)",
 		finalReserved.String(), initialTotal.String())
 
 	// 7. Verify no state leakage - each member can create new proposals independently
@@ -876,14 +880,14 @@ func TestEdgeCase_C3_MultipleMembersSimultaneousProposals(t *testing.T) {
 		tx, err := ctx.TxProposeMint(t, member, member.Address, amount)
 		_, err = ctx.ExpectedOk(tx, err)
 		require.NoError(t, err)
-		t.Logf("✓ Member %d can create new proposal after cleanup", i)
+		t.Logf(" Member %d can create new proposal after cleanup", i)
 	}
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "C3: Multiple members concurrent")
 	assertInvariantsHold(t, ctx, "C3: After multi-member proposals")
 
-	t.Logf("✓✓✓ Test C3 completed successfully")
+	t.Logf(" Test C3 completed successfully")
 }
 
 // ==================== Category D: Emergency Pause ====================
@@ -927,7 +931,7 @@ func TestEdgeCase_D1_EmergencyPauseDuringVoting(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[2], pauseProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Emergency pause activated")
+	t.Logf(" Emergency pause activated")
 
 	// Verify paused state
 	paused, err := ctx.IsEmergencyPaused(member)
@@ -939,14 +943,14 @@ func TestEdgeCase_D1_EmergencyPauseDuringVoting(t *testing.T) {
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ContractPaused", "Should fail with ContractPaused")
-	t.Logf("✓ Cannot create mint proposal during pause")
+	t.Logf(" Cannot create mint proposal during pause")
 
 	// 4. Verify CANNOT approve existing proposals during pause (all governance blocked except unpause)
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], mintProposalId)
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ContractPaused", "Should fail with ContractPaused")
-	t.Logf("✓ Cannot approve proposals during pause (all operations blocked)")
+	t.Logf(" Cannot approve proposals during pause (all operations blocked)")
 
 	// 5. Propose and execute unpause (ONLY unpause governance works during pause)
 	tx, err = ctx.TxProposeUnpause(t, ctx.Members[0])
@@ -961,7 +965,7 @@ func TestEdgeCase_D1_EmergencyPauseDuringVoting(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], unpauseProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Emergency unpause activated")
+	t.Logf(" Emergency unpause activated")
 
 	// Verify unpaused state
 	paused, err = ctx.IsEmergencyPaused(member)
@@ -972,20 +976,20 @@ func TestEdgeCase_D1_EmergencyPauseDuringVoting(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], mintProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Can approve mint proposal after unpause")
+	t.Logf(" Can approve mint proposal after unpause")
 
 	// 7. Verify can create new proposals after unpause
 	newAmount := big.NewInt(8_000_000)
 	tx, err = ctx.TxProposeMint(t, member, member.Address, newAmount)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Can create mint proposal after unpause")
+	t.Logf(" Can create mint proposal after unpause")
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "D1: Emergency pause during voting")
 	assertInvariantsHold(t, ctx, "D1: After pause/resume")
 
-	t.Logf("✓✓✓ Test D1 completed successfully")
+	t.Logf(" Test D1 completed successfully")
 }
 
 // Test D2: Emergency pause during Approved state
@@ -1029,7 +1033,7 @@ func TestEdgeCase_D2_EmergencyPauseDuringApproved(t *testing.T) {
 	reserved, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reserved.Cmp(amount), "Reservation should still be held")
-	t.Logf("✓ Reservation held: %s", reserved.String())
+	t.Logf(" Reservation held: %s", reserved.String())
 
 	// 3. Propose and execute emergency pause
 	tx, err = ctx.TxProposePause(t, ctx.Members[1])
@@ -1043,7 +1047,7 @@ func TestEdgeCase_D2_EmergencyPauseDuringApproved(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[2], pauseProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Emergency pause activated")
+	t.Logf(" Emergency pause activated")
 
 	// Verify paused
 	paused, err := ctx.IsEmergencyPaused(member)
@@ -1055,7 +1059,7 @@ func TestEdgeCase_D2_EmergencyPauseDuringApproved(t *testing.T) {
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ContractPaused", "Should fail with ContractPaused")
-	t.Logf("✓ Cannot execute approved proposals during pause")
+	t.Logf(" Cannot execute approved proposals during pause")
 
 	// 5. Propose and execute unpause
 
@@ -1070,7 +1074,7 @@ func TestEdgeCase_D2_EmergencyPauseDuringApproved(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], unpauseProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Emergency unpause activated")
+	t.Logf(" Emergency unpause activated")
 
 	// 6. Fix MockFiatToken and execute the approved proposal after unpause
 	tx, err = ctx.SetMockFiatTokenMintShouldFail(t, ctx.Members[0], false)
@@ -1080,7 +1084,7 @@ func TestEdgeCase_D2_EmergencyPauseDuringApproved(t *testing.T) {
 	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, mintProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Can execute approved proposal after unpause")
+	t.Logf(" Can execute approved proposal after unpause")
 
 	// Verify executed
 	proposalAfterExec, err := ctx.BaseGetProposal(ctx.govMinter, member, mintProposalId)
@@ -1092,13 +1096,13 @@ func TestEdgeCase_D2_EmergencyPauseDuringApproved(t *testing.T) {
 	tx, err = ctx.TxProposeMint(t, member, member.Address, newAmount)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Can create proposals after unpause")
+	t.Logf(" Can create proposals after unpause")
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "D2: Emergency pause during approved")
 	assertInvariantsHold(t, ctx, "D2: After pause/resume with approved")
 
-	t.Logf("✓✓✓ Test D2 completed successfully")
+	t.Logf(" Test D2 completed successfully")
 }
 
 // Test D3: Emergency pause with multiple active proposals
@@ -1153,7 +1157,7 @@ func TestEdgeCase_D3_EmergencyPauseMultipleProposals(t *testing.T) {
 	reserved, err := ctx.GetReservedMintAmount(ctx.Members[0])
 	require.NoError(t, err)
 	require.Equal(t, 0, reserved.Cmp(totalReservedBefore), "Total reservation should include both proposals")
-	t.Logf("✓ Total reservation before pause: %s", reserved.String())
+	t.Logf(" Total reservation before pause: %s", reserved.String())
 
 	// 2. Emergency pause
 	tx, err = ctx.TxProposePause(t, ctx.Members[2])
@@ -1167,33 +1171,33 @@ func TestEdgeCase_D3_EmergencyPauseMultipleProposals(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[0], pauseProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Emergency pause activated")
+	t.Logf(" Emergency pause activated")
 
 	// 3. Verify cannot create new proposals
 	tx, err = ctx.TxProposeMint(t, ctx.Members[0], ctx.Members[0].Address, big.NewInt(1_000_000))
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ContractPaused")
-	t.Logf("✓ Cannot create proposals during pause")
+	t.Logf(" Cannot create proposals during pause")
 
 	// 4. Verify all reservations preserved
 	reservedDuringPause, err := ctx.GetReservedMintAmount(ctx.Members[0])
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedDuringPause.Cmp(totalReservedBefore), "Reservations should be preserved")
-	t.Logf("✓ All reservations preserved during pause: %s", reservedDuringPause.String())
+	t.Logf(" All reservations preserved during pause: %s", reservedDuringPause.String())
 
 	// 5. Verify CANNOT approve or execute proposals during pause (all ops blocked)
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], votingProposalId)
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ContractPaused")
-	t.Logf("✓ Cannot approve proposals during pause")
+	t.Logf(" Cannot approve proposals during pause")
 
 	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, ctx.Members[1], approvedProposalId)
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ContractPaused")
-	t.Logf("✓ Cannot execute proposals during pause")
+	t.Logf(" Cannot execute proposals during pause")
 
 	// 6. Unpause
 	tx, err = ctx.TxProposeUnpause(t, ctx.Members[0])
@@ -1207,14 +1211,14 @@ func TestEdgeCase_D3_EmergencyPauseMultipleProposals(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], unpauseProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Emergency unpause activated")
+	t.Logf(" Emergency unpause activated")
 
 	// 7. Approve and execute proposals after unpause
 	// Approve the Voting proposal
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], votingProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Can approve proposals after unpause")
+	t.Logf(" Can approve proposals after unpause")
 
 	// Fix MockFiatToken and execute the Approved proposal
 	tx, err = ctx.SetMockFiatTokenMintShouldFail(t, ctx.Members[0], false)
@@ -1224,7 +1228,7 @@ func TestEdgeCase_D3_EmergencyPauseMultipleProposals(t *testing.T) {
 	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, ctx.Members[1], approvedProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Can execute approved proposals after unpause")
+	t.Logf(" Can execute approved proposals after unpause")
 
 	// 8. Execute the voting proposal (now approved)
 	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, ctx.Members[0], votingProposalId)
@@ -1240,14 +1244,14 @@ func TestEdgeCase_D3_EmergencyPauseMultipleProposals(t *testing.T) {
 	tx, err = ctx.TxProposeMint(t, ctx.Members[0], ctx.Members[0].Address, newAmount)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Can create proposals after unpause")
-	t.Logf("✓ Remaining proposals executed successfully")
+	t.Logf(" Can create proposals after unpause")
+	t.Logf(" Remaining proposals executed successfully")
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "D3: Emergency pause multiple proposals")
 	assertInvariantsHold(t, ctx, "D3: After pause/resume with multiple")
 
-	t.Logf("✓✓✓ Test D3 completed successfully")
+	t.Logf(" Test D3 completed successfully")
 }
 
 // ==================== Category E: Boundary Conditions ====================
@@ -1279,7 +1283,7 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 	reserved1, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reserved1.Cmp(amount1))
-	t.Logf("✓ First proposal created: count=1/%d, reserved=%s", maxProposals, reserved1.String())
+	t.Logf(" First proposal created: count=1/%d, reserved=%s", maxProposals, reserved1.String())
 
 	// ==================== Boundary Test 2: MAX-1 → MAX ====================
 	t.Logf("--- Boundary Test 2: Approaching limit (MAX-1 → MAX) ---")
@@ -1302,7 +1306,7 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 
 	reservedAtMaxMinus1, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
-	t.Logf("✓ At MAX-1: count=%d/%d, reserved=%s", maxProposals-1, maxProposals, reservedAtMaxMinus1.String())
+	t.Logf(" At MAX-1: count=%d/%d, reserved=%s", maxProposals-1, maxProposals, reservedAtMaxMinus1.String())
 
 	// Create one more to reach exactly MAX
 	amountMax := big.NewInt(maxProposals * 1_000_000)
@@ -1318,7 +1322,7 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 	reservedAtMax, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedAtMax.Cmp(totalReserved))
-	t.Logf("✓ Reached MAX: count=%d/%d, reserved=%s", maxProposals, maxProposals, reservedAtMax.String())
+	t.Logf(" Reached MAX: count=%d/%d, reserved=%s", maxProposals, maxProposals, reservedAtMax.String())
 
 	// ==================== Boundary Test 3: MAX → MAX+1 (rejection) ====================
 	t.Logf("--- Boundary Test 3: Exceeding limit (MAX → MAX+1) ---")
@@ -1328,13 +1332,13 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "TooManyActiveProposals")
-	t.Logf("✓ MAX+1 rejected: TooManyActiveProposals")
+	t.Logf(" MAX+1 rejected: TooManyActiveProposals")
 
 	// Verify reservation unchanged
 	reservedAfterReject, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedAfterReject.Cmp(reservedAtMax))
-	t.Logf("✓ Reservation unchanged after rejection: %s", reservedAfterReject.String())
+	t.Logf(" Reservation unchanged after rejection: %s", reservedAfterReject.String())
 
 	// ==================== Boundary Test 4: Multiple rejection attempts ====================
 	t.Logf("--- Boundary Test 4: Multiple rejection attempts at MAX ---")
@@ -1345,7 +1349,7 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "TooManyActiveProposals")
 	}
-	t.Logf("✓ Multiple attempts at MAX all rejected correctly")
+	t.Logf(" Multiple attempts at MAX all rejected correctly")
 
 	// ==================== Boundary Test 5: MAX → MAX-1 (via execution) ====================
 	t.Logf("--- Boundary Test 5: Freeing slot via execution (MAX → MAX-1) ---")
@@ -1359,7 +1363,7 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 	require.NoError(t, err)
 	expectedAfterExec := new(big.Int).Sub(totalReserved, amount1)
 	require.Equal(t, 0, reservedAfterExec.Cmp(expectedAfterExec))
-	t.Logf("✓ After execution: count=%d/%d, reserved=%s", maxProposals-1, maxProposals, reservedAfterExec.String())
+	t.Logf(" After execution: count=%d/%d, reserved=%s", maxProposals-1, maxProposals, reservedAfterExec.String())
 
 	// ==================== Boundary Test 6: MAX-1 → MAX (refill) ====================
 	t.Logf("--- Boundary Test 6: Refilling to MAX (MAX-1 → MAX) ---")
@@ -1373,14 +1377,14 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 	require.NoError(t, err)
 	expectedAfterRefill := new(big.Int).Add(expectedAfterExec, amountRefill)
 	require.Equal(t, 0, reservedAfterRefill.Cmp(expectedAfterRefill))
-	t.Logf("✓ Refilled to MAX: count=%d/%d, reserved=%s", maxProposals, maxProposals, reservedAfterRefill.String())
+	t.Logf(" Refilled to MAX: count=%d/%d, reserved=%s", maxProposals, maxProposals, reservedAfterRefill.String())
 
 	// Verify cannot create MAX+1 again
 	tx, err = ctx.TxProposeMint(t, member, member.Address, big.NewInt(100_000))
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "TooManyActiveProposals")
-	t.Logf("✓ MAX+1 still rejected after refill")
+	t.Logf(" MAX+1 still rejected after refill")
 
 	// ==================== Boundary Test 7: MAX → MAX-1 (via expiry) ====================
 	t.Logf("--- Boundary Test 7: Freeing slot via expiry (MAX → MAX-1) ---")
@@ -1402,13 +1406,13 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 	amount2 := big.NewInt(2 * 1_000_000) // Second proposal amount
 	expectedAfterExpiry := new(big.Int).Sub(expectedAfterRefill, amount2)
 	require.Equal(t, 0, reservedAfterExpiry.Cmp(expectedAfterExpiry))
-	t.Logf("✓ After expiry: count=%d/%d, reserved=%s", maxProposals-1, maxProposals, reservedAfterExpiry.String())
+	t.Logf(" After expiry: count=%d/%d, reserved=%s", maxProposals-1, maxProposals, reservedAfterExpiry.String())
 
 	// Verify can create new proposal now
 	tx, err = ctx.TxProposeMint(t, member, member.Address, big.NewInt(777_000))
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ New proposal created after expiry")
+	t.Logf(" New proposal created after expiry")
 
 	// ==================== Boundary Test 8: MAX → 0 (cleanup all) ====================
 	t.Logf("--- Boundary Test 8: Complete cleanup (MAX → 0) ---")
@@ -1434,7 +1438,7 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 	finalReserved, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), finalReserved.Int64())
-	t.Logf("✓ All proposals cleaned: count=0/%d, reserved=0", maxProposals)
+	t.Logf(" All proposals cleaned: count=0/%d, reserved=0", maxProposals)
 
 	// ==================== Boundary Test 9: 0 → MAX (rapid refill) ====================
 	t.Logf("--- Boundary Test 9: Rapid refill (0 → MAX) ---")
@@ -1448,14 +1452,14 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 
 	finalReservedAtMax, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
-	t.Logf("✓ Rapid refill to MAX: count=%d/%d, reserved=%s", maxProposals, maxProposals, finalReservedAtMax.String())
+	t.Logf(" Rapid refill to MAX: count=%d/%d, reserved=%s", maxProposals, maxProposals, finalReservedAtMax.String())
 
 	// Verify boundary still enforced
 	tx, err = ctx.TxProposeMint(t, member, member.Address, big.NewInt(50_000))
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "TooManyActiveProposals")
-	t.Logf("✓ Boundary still enforced after rapid refill")
+	t.Logf(" Boundary still enforced after rapid refill")
 
 	// ==================== Boundary Test 10: Burn proposals also count ====================
 	t.Logf("--- Boundary Test 10: Burn proposals also count towards limit ---")
@@ -1466,7 +1470,7 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 	tx, err = ctx.BaseTxCancelProposal(t, ctx.govMinter, member, lastProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Cancelled one mint proposal: count=%d/%d", maxProposals-1, maxProposals)
+	t.Logf(" Cancelled one mint proposal: count=%d/%d", maxProposals-1, maxProposals)
 
 	// Create burn proposal to fill the slot
 	burnAmount := big.NewInt(500_000)
@@ -1476,26 +1480,26 @@ func TestEdgeCase_E1_MaxActiveProposalsPerMemberBoundary(t *testing.T) {
 
 	burnProposalId, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
 	require.NoError(t, err)
-	t.Logf("✓ Created burn proposal: ID=%s, count=%d/%d", burnProposalId.String(), maxProposals, maxProposals)
+	t.Logf(" Created burn proposal: ID=%s, count=%d/%d", burnProposalId.String(), maxProposals, maxProposals)
 
 	// Verify cannot create another (mint or burn)
 	tx, err = ctx.TxProposeMint(t, member, member.Address, big.NewInt(50_000))
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "TooManyActiveProposals")
-	t.Logf("✓ Cannot create mint when at MAX (including burn)")
+	t.Logf(" Cannot create mint when at MAX (including burn)")
 
 	tx, err = ctx.TxProposeBurn(t, member, member.Address, big.NewInt(50_000))
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "TooManyActiveProposals")
-	t.Logf("✓ Cannot create burn when at MAX (including mint)")
+	t.Logf(" Cannot create burn when at MAX (including mint)")
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "E1: Boundary conditions")
 	assertInvariantsHold(t, ctx, "E1: After boundary tests")
 
-	t.Logf("✓✓✓ Test E1 completed successfully - all 10 boundary scenarios verified")
+	t.Logf(" Test E1 completed successfully - all 10 boundary scenarios verified")
 }
 
 // Test E2: Mint allowance boundary conditions
@@ -1537,7 +1541,7 @@ func TestEdgeCase_E2_MintAllowanceBoundary(t *testing.T) {
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "InsufficientMinterAllowance")
-	t.Logf("✓ Cannot create proposal exceeding allowance: InsufficientMinterAllowance")
+	t.Logf(" Cannot create proposal exceeding allowance: InsufficientMinterAllowance")
 
 	// 5. Increase allowance to accommodate both proposals
 	largerAllowance := big.NewInt(30_000_000) // 30M
@@ -1553,14 +1557,14 @@ func TestEdgeCase_E2_MintAllowanceBoundary(t *testing.T) {
 
 	proposalId2, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
 	require.NoError(t, err)
-	t.Logf("✓ Created proposal 2 after allowance increase: ID=%s", proposalId2.String())
+	t.Logf(" Created proposal 2 after allowance increase: ID=%s", proposalId2.String())
 
 	// 7. Verify reservation tracking
 	reserved, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	expectedReserved := new(big.Int).Add(amount1, amount2)
 	require.Equal(t, 0, reserved.Cmp(expectedReserved))
-	t.Logf("✓ Total reservation correct: %s", reserved.String())
+	t.Logf(" Total reservation correct: %s", reserved.String())
 
 	// 8. Execute both proposals to cleanup
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], proposalId1)
@@ -1570,13 +1574,13 @@ func TestEdgeCase_E2_MintAllowanceBoundary(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], proposalId2)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Both proposals executed successfully")
+	t.Logf(" Both proposals executed successfully")
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "E2: Mint allowance boundary")
 	assertInvariantsHold(t, ctx, "E2: After allowance test")
 
-	t.Logf("✓✓✓ Test E2 completed successfully")
+	t.Logf(" Test E2 completed successfully")
 }
 
 // Test E3: Burn balance boundary conditions
@@ -1610,7 +1614,7 @@ func TestEdgeCase_E3_BurnBalanceBoundary(t *testing.T) {
 	burnBalance, err := ctx.GetBurnBalance(member, member.Address)
 	require.NoError(t, err)
 	require.Equal(t, 0, burnBalance.Cmp(burnAmount))
-	t.Logf("✓ Burn balance after proposal: %s", burnBalance.String())
+	t.Logf(" Burn balance after proposal: %s", burnBalance.String())
 
 	// 4. Attempt to create another burn without depositing more (should succeed as proposal creation, balance checked at execution)
 	// The contract allows creating multiple burn proposals, balance checked at execution time
@@ -1628,7 +1632,7 @@ func TestEdgeCase_E3_BurnBalanceBoundary(t *testing.T) {
 	require.NoError(t, err)
 	expectedTotal := new(big.Int).Add(burnAmount, amount2)
 	require.Equal(t, 0, totalBurnBalance.Cmp(expectedTotal))
-	t.Logf("✓ Total burn balance: %s", totalBurnBalance.String())
+	t.Logf(" Total burn balance: %s", totalBurnBalance.String())
 
 	// 5.5. Setup MockFiatToken to allow burn execution
 	// Give GovMinter sufficient fiat token balance for burning
@@ -1641,32 +1645,32 @@ func TestEdgeCase_E3_BurnBalanceBoundary(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], proposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ First burn proposal executed")
+	t.Logf(" First burn proposal executed")
 
 	// 7. Verify balance decreased
 	balanceAfterFirst, err := ctx.GetBurnBalance(member, member.Address)
 	require.NoError(t, err)
 	expectedAfterFirst := new(big.Int).Sub(expectedTotal, burnAmount)
 	require.Equal(t, 0, balanceAfterFirst.Cmp(expectedAfterFirst))
-	t.Logf("✓ Burn balance after first execution: %s", balanceAfterFirst.String())
+	t.Logf(" Burn balance after first execution: %s", balanceAfterFirst.String())
 
 	// 8. Execute second burn proposal
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], proposalId2)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Second burn proposal executed")
+	t.Logf(" Second burn proposal executed")
 
 	// 9. Verify balance fully consumed
 	finalBurnBalance, err := ctx.GetBurnBalance(member, member.Address)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), finalBurnBalance.Int64())
-	t.Logf("✓ All burn balance consumed: %s", finalBurnBalance.String())
+	t.Logf(" All burn balance consumed: %s", finalBurnBalance.String())
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "E3: Burn balance boundary")
 	assertInvariantsHold(t, ctx, "E3: After burn balance test")
 
-	t.Logf("✓✓✓ Test E3 completed successfully")
+	t.Logf(" Test E3 completed successfully")
 }
 
 // ==================== Category F: Complex State Interactions ====================
@@ -1717,13 +1721,13 @@ func TestEdgeCase_F1_InterleavedMintBurnProposals(t *testing.T) {
 	require.NoError(t, err)
 	expectedMintReserved := new(big.Int).Add(mintAmountA, mintAmountC)
 	require.Equal(t, 0, reservedMint.Cmp(expectedMintReserved))
-	t.Logf("✓ Reserved mint amount (A+C): %s", reservedMint.String())
+	t.Logf(" Reserved mint amount (A+C): %s", reservedMint.String())
 
 	// 5. Verify burnBalance tracks B separately
 	burnBalance, err := ctx.GetBurnBalance(member, member.Address)
 	require.NoError(t, err)
 	require.Equal(t, 0, burnBalance.Cmp(burnAmountB))
-	t.Logf("✓ Burn balance (B only): %s", burnBalance.String())
+	t.Logf(" Burn balance (B only): %s", burnBalance.String())
 
 	// 5.5. Setup MockFiatToken to allow burn execution
 	// Give GovMinter sufficient fiat token balance for burning
@@ -1737,54 +1741,54 @@ func TestEdgeCase_F1_InterleavedMintBurnProposals(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], burnProposalB)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Executed burn proposal B")
+	t.Logf(" Executed burn proposal B")
 
 	// Verify burn balance consumed
 	burnBalanceAfterB, err := ctx.GetBurnBalance(member, member.Address)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), burnBalanceAfterB.Int64())
-	t.Logf("✓ Burn balance after B execution: %s (cleaned)", burnBalanceAfterB.String())
+	t.Logf(" Burn balance after B execution: %s (cleaned)", burnBalanceAfterB.String())
 
 	// Verify mint reservation unchanged
 	reservedAfterB, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedAfterB.Cmp(expectedMintReserved))
-	t.Logf("✓ Mint reservation unchanged after burn: %s", reservedAfterB.String())
+	t.Logf(" Mint reservation unchanged after burn: %s", reservedAfterB.String())
 
 	// Execute mint proposal A
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], mintProposalA)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Executed mint proposal A")
+	t.Logf(" Executed mint proposal A")
 
 	// Verify reservation decreased
 	reservedAfterA, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedAfterA.Cmp(mintAmountC)) // Only C remains
-	t.Logf("✓ Mint reservation after A: %s (only C remains)", reservedAfterA.String())
+	t.Logf(" Mint reservation after A: %s (only C remains)", reservedAfterA.String())
 
 	// Execute mint proposal C
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], mintProposalC)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Executed mint proposal C")
+	t.Logf(" Executed mint proposal C")
 
 	// 7. Verify all cleanup complete
 	finalReserved, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), finalReserved.Int64())
-	t.Logf("✓ All mint reservations cleaned: %s", finalReserved.String())
+	t.Logf(" All mint reservations cleaned: %s", finalReserved.String())
 
 	finalBurnBalance, err := ctx.GetBurnBalance(member, member.Address)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), finalBurnBalance.Int64())
-	t.Logf("✓ All burn balances cleaned: %s", finalBurnBalance.String())
+	t.Logf(" All burn balances cleaned: %s", finalBurnBalance.String())
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "F1: Interleaved mint/burn")
 	assertInvariantsHold(t, ctx, "F1: After interleaved proposals")
 
-	t.Logf("✓✓✓ Test F1 completed successfully")
+	t.Logf(" Test F1 completed successfully")
 }
 
 // Test F2: Proposal with duplicate depositId/withdrawalId (replay protection)
@@ -1825,7 +1829,7 @@ func TestEdgeCase_F2_ReplayProtectionDepositWithdrawalIds(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], mintProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Mint proposal executed")
+	t.Logf(" Mint proposal executed")
 
 	// 4. Verify depositId is now marked as executed
 	assertReplayProtection(t, ctx, depositId, "", true)
@@ -1838,7 +1842,7 @@ func TestEdgeCase_F2_ReplayProtectionDepositWithdrawalIds(t *testing.T) {
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err, "Expected proposal creation to fail with duplicate depositId")
 	require.Contains(t, err.Error(), "DepositIdAlreadyUsed", "Expected DepositIdAlreadyUsed error")
-	t.Logf("✓ Replay protection: Cannot reuse depositId '%s'", depositId)
+	t.Logf(" Replay protection: Cannot reuse depositId '%s'", depositId)
 
 	// ==================== BURN REPLAY TEST ====================
 
@@ -1868,7 +1872,7 @@ func TestEdgeCase_F2_ReplayProtectionDepositWithdrawalIds(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], burnProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Burn proposal executed")
+	t.Logf(" Burn proposal executed")
 
 	// 9. Verify withdrawalId is now marked as executed
 	assertReplayProtection(t, ctx, "", withdrawalId, true)
@@ -1881,7 +1885,7 @@ func TestEdgeCase_F2_ReplayProtectionDepositWithdrawalIds(t *testing.T) {
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err, "Expected burn proposal creation to fail with duplicate withdrawalId")
 	require.Contains(t, err.Error(), "WithdrawalIdAlreadyUsed", "Expected WithdrawalIdAlreadyUsed error")
-	t.Logf("✓ Replay protection: Cannot reuse withdrawalId '%s'", withdrawalId)
+	t.Logf(" Replay protection: Cannot reuse withdrawalId '%s'", withdrawalId)
 
 	finalState := captureStateSnapshot(t, ctx)
 	assertStateConsistency(t, ctx, initialState, finalState, "F2: Replay protection")
@@ -1890,7 +1894,7 @@ func TestEdgeCase_F2_ReplayProtectionDepositWithdrawalIds(t *testing.T) {
 	// Verify both IDs remain marked as executed
 	assertReplayProtection(t, ctx, depositId, withdrawalId, true)
 
-	t.Logf("✓✓✓ Test F2 completed successfully")
+	t.Logf(" Test F2 completed successfully")
 }
 
 // Test F3: Proposal lifecycle with governance parameter change mid-flight
@@ -1930,7 +1934,7 @@ func TestEdgeCase_F3_GovernanceParameterChangeMidFlight(t *testing.T) {
 	require.NoError(t, err)
 	expectedReserved := new(big.Int).Mul(amount, big.NewInt(2))
 	require.Equal(t, 0, reservedBefore.Cmp(expectedReserved), "Should have 2 active proposals worth %s", expectedReserved.String())
-	t.Logf("✓ 2 active proposals confirmed, reserved: %s", reservedBefore.String())
+	t.Logf(" 2 active proposals confirmed, reserved: %s", reservedBefore.String())
 
 	// 3. Propose change to MAX_ACTIVE_PROPOSALS_PER_MEMBER = 1 (reduce from 3 to 1)
 	newMaxProposals := big.NewInt(1)
@@ -1943,19 +1947,19 @@ func TestEdgeCase_F3_GovernanceParameterChangeMidFlight(t *testing.T) {
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], changeProposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Parameter change executed")
+	t.Logf(" Parameter change executed")
 
 	// Verify MAX changed to 1
 	currentMaxProposals, err := ctx.GetMaxActiveProposalsPerMember(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, currentMaxProposals.Cmp(newMaxProposals), "MAX should be changed to %s", newMaxProposals.String())
-	t.Logf("✓ MAX_ACTIVE_PROPOSALS_PER_MEMBER changed: %s → %s", initialMaxProposals.String(), currentMaxProposals.String())
+	t.Logf(" MAX_ACTIVE_PROPOSALS_PER_MEMBER changed: %s → %s", initialMaxProposals.String(), currentMaxProposals.String())
 
 	// 5. Verify existing 2 proposals are still valid (grandfathered - not cancelled)
 	reservedAfterChange, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedAfterChange.Cmp(expectedReserved), "Existing proposals should remain active")
-	t.Logf("✓ Existing 2 proposals still active (grandfathered)")
+	t.Logf(" Existing 2 proposals still active (grandfathered)")
 
 	// 6. Attempt to create 3rd proposal - should FAIL (exceeds new limit of 1)
 	// (member currently has 2 active proposals, new limit is 1, so creating another should fail)
@@ -1963,38 +1967,38 @@ func TestEdgeCase_F3_GovernanceParameterChangeMidFlight(t *testing.T) {
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err, "Should not be able to create 3rd proposal with new limit=1")
 	require.Contains(t, err.Error(), "TooManyActiveProposals", "Expected TooManyActiveProposals error")
-	t.Logf("✓ Cannot create 3rd proposal (exceeds new limit of 1)")
+	t.Logf(" Cannot create 3rd proposal (exceeds new limit of 1)")
 
 	// 7. Execute one of the existing proposals to free a slot
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], proposalId1)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Executed proposal 1 (ID=%s)", proposalId1.String())
+	t.Logf(" Executed proposal 1 (ID=%s)", proposalId1.String())
 
 	// Now member has only 1 active proposal (proposalId2)
 	reservedAfterExec, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reservedAfterExec.Cmp(amount), "Should have only 1 active proposal worth %s", amount.String())
-	t.Logf("✓ Member now has 1 active proposal, reserved: %s", reservedAfterExec.String())
+	t.Logf(" Member now has 1 active proposal, reserved: %s", reservedAfterExec.String())
 
 	// 8. Attempt to create new proposal - should still FAIL (already at new limit of 1)
 	tx, err = ctx.TxProposeMint(t, member, member.Address, amount)
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err, "Should not be able to create new proposal (already at limit of 1)")
 	require.Contains(t, err.Error(), "TooManyActiveProposals", "Expected TooManyActiveProposals error")
-	t.Logf("✓ Cannot create new proposal (already at new limit of 1)")
+	t.Logf(" Cannot create new proposal (already at new limit of 1)")
 
 	// 9. Execute the remaining proposal to free all slots
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], proposalId2)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
-	t.Logf("✓ Executed proposal 2 (ID=%s)", proposalId2.String())
+	t.Logf(" Executed proposal 2 (ID=%s)", proposalId2.String())
 
 	// Now member has 0 active proposals
 	reservedFinal, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), reservedFinal.Int64(), "Should have no active proposals")
-	t.Logf("✓ All proposals executed, reserved: 0")
+	t.Logf(" All proposals executed, reserved: 0")
 
 	// 10. Create new proposal - should SUCCEED (0 active < new limit of 1)
 	tx, err = ctx.TxProposeMint(t, member, member.Address, amount)
@@ -2002,14 +2006,14 @@ func TestEdgeCase_F3_GovernanceParameterChangeMidFlight(t *testing.T) {
 	require.NoError(t, err)
 	proposalId3, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
 	require.NoError(t, err)
-	t.Logf("✓ Successfully created new proposal (ID=%s) under new limit", proposalId3.String())
+	t.Logf(" Successfully created new proposal (ID=%s) under new limit", proposalId3.String())
 
 	// 11. Verify cannot create 2nd proposal (would exceed new limit of 1)
 	tx, err = ctx.TxProposeMint(t, member, member.Address, amount)
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err, "Should not be able to create 2nd proposal with new limit=1")
 	require.Contains(t, err.Error(), "TooManyActiveProposals", "Expected TooManyActiveProposals error")
-	t.Logf("✓ Cannot create 2nd proposal (exceeds new limit of 1)")
+	t.Logf(" Cannot create 2nd proposal (exceeds new limit of 1)")
 
 	// Cleanup: Execute last proposal
 	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], proposalId3)
@@ -2020,7 +2024,7 @@ func TestEdgeCase_F3_GovernanceParameterChangeMidFlight(t *testing.T) {
 	assertStateConsistency(t, ctx, initialState, finalState, "F3: Governance param change")
 	assertInvariantsHold(t, ctx, "F3: After param change")
 
-	t.Logf("✓✓✓ Test F3 completed successfully")
+	t.Logf(" Test F3 completed successfully")
 }
 
 // ==================== Supplementary Helper Tests ====================
@@ -2035,13 +2039,13 @@ func TestEdgeCase_HelperFunctionsVerification(t *testing.T) {
 		require.NotNil(t, snapshot)
 		require.NotNil(t, snapshot.ReservedMintAmounts)
 		require.NotNil(t, snapshot.BurnBalances)
-		t.Logf("✓ State snapshot captured successfully")
+		t.Logf(" State snapshot captured successfully")
 	})
 
 	t.Run("Verify invariant checks", func(t *testing.T) {
 		// Should not panic or fail with initial state
 		assertInvariantsHold(t, ctx, "Initial state")
-		t.Logf("✓ Invariant checks passed")
+		t.Logf(" Invariant checks passed")
 	})
 
 	t.Run("Verify assertProposalCreation", func(t *testing.T) {
@@ -2068,7 +2072,7 @@ func TestEdgeCase_HelperFunctionsVerification(t *testing.T) {
 			BurnBalanceSufficient:     false,
 		})
 
-		t.Logf("✓ assertProposalCreation verified")
+		t.Logf(" assertProposalCreation verified")
 	})
 }
 
@@ -2101,14 +2105,14 @@ func TestEdgeCase_G1_SequentialProposalProcessing(t *testing.T) {
 	proposalId1 := createApprovedMintProposal(t, ctx, member, member.Address, amount)
 	proposal1, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId1)
 	require.NoError(t, err)
-	t.Logf("✓ Created proposal %s, status: %v", proposalId1.String(), proposal1.Status)
+	t.Logf(" Created proposal %s, status: %v", proposalId1.String(), proposal1.Status)
 
 	// If Approved, execute it
 	if proposal1.Status == sc.ProposalStatusApproved {
 		tx, err := ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId1)
 		_, err = ctx.ExpectedOk(tx, err)
 		require.NoError(t, err)
-		t.Logf("✓ Executed proposal %s", proposalId1.String())
+		t.Logf(" Executed proposal %s", proposalId1.String())
 	}
 
 	// 2. Create second proposal
@@ -2116,12 +2120,12 @@ func TestEdgeCase_G1_SequentialProposalProcessing(t *testing.T) {
 	proposalId2 := createApprovedMintProposal(t, ctx, member, member.Address, amount)
 	proposal2, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId2)
 	require.NoError(t, err)
-	t.Logf("✓ Created proposal %s, status: %v", proposalId2.String(), proposal2.Status)
+	t.Logf(" Created proposal %s, status: %v", proposalId2.String(), proposal2.Status)
 
 	// 3. Verify system state after sequential operations
 	assertInvariantsHold(t, ctx, "After sequential proposals")
 
-	t.Logf("✓ Sequential proposal processing working correctly")
+	t.Logf(" Sequential proposal processing working correctly")
 }
 
 // Test G2: Multiple concurrent proposals from different members
@@ -2140,7 +2144,7 @@ func TestEdgeCase_G2_MultipleConcurrentProposals(t *testing.T) {
 	for i, member := range ctx.Members {
 		pid := createApprovedMintProposal(t, ctx, member, member.Address, amount)
 		proposalIds[i] = pid
-		t.Logf("✓ Created proposal %s for %s", pid.String(), formatAddress(member.Address))
+		t.Logf(" Created proposal %s for %s", pid.String(), formatAddress(member.Address))
 	}
 
 	// 2. Verify all proposals created successfully
@@ -2148,13 +2152,13 @@ func TestEdgeCase_G2_MultipleConcurrentProposals(t *testing.T) {
 	for i, pid := range proposalIds {
 		proposal, err := ctx.BaseGetProposal(ctx.govMinter, ctx.Members[i], pid)
 		require.NoError(t, err)
-		t.Logf("✓ Proposal %s status: %v", pid.String(), proposal.Status)
+		t.Logf(" Proposal %s status: %v", pid.String(), proposal.Status)
 	}
 
 	// 3. Verify independent state per member
 	assertInvariantsHold(t, ctx, "After multiple concurrent proposals")
 
-	t.Logf("✓ Multiple concurrent proposals handled correctly")
+	t.Logf(" Multiple concurrent proposals handled correctly")
 }
 
 // Test G3: Rapid proposal creation and completion cycles
@@ -2178,21 +2182,21 @@ func TestEdgeCase_G3_RapidProposalCycles(t *testing.T) {
 		// Verify created
 		proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 		require.NoError(t, err)
-		t.Logf("✓ Cycle %d: Proposal %s status: %v", i+1, proposalId.String(), proposal.Status)
+		t.Logf(" Cycle %d: Proposal %s status: %v", i+1, proposalId.String(), proposal.Status)
 
 		// If Approved, execute it
 		if proposal.Status == sc.ProposalStatusApproved {
 			tx, err := ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
 			_, err = ctx.ExpectedOk(tx, err)
 			require.NoError(t, err)
-			t.Logf("✓ Cycle %d: Executed proposal %s", i+1, proposalId.String())
+			t.Logf(" Cycle %d: Executed proposal %s", i+1, proposalId.String())
 		}
 	}
 
 	// 2. Verify counters and state are accurate
 	assertInvariantsHold(t, ctx, "After rapid proposal cycles")
 
-	t.Logf("✓ Rapid proposal cycles completed successfully")
+	t.Logf(" Rapid proposal cycles completed successfully")
 }
 
 // ==================== Category H: Retry & Recovery Patterns ====================
@@ -2214,7 +2218,7 @@ func TestEdgeCase_H1_RetryAfterTransientFailure(t *testing.T) {
 
 	proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
-	t.Logf("✓ Proposal %s status: %v", formatBigInt(proposalId), proposal.Status)
+	t.Logf(" Proposal %s status: %v", formatBigInt(proposalId), proposal.Status)
 
 	// 2. If Approved, execute (simulates retry)
 	if proposal.Status == sc.ProposalStatusApproved {
@@ -2225,7 +2229,7 @@ func TestEdgeCase_H1_RetryAfterTransientFailure(t *testing.T) {
 
 		proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 		require.NoError(t, err)
-		t.Logf("✓ After retry: status=%v", proposal.Status)
+		t.Logf(" After retry: status=%v", proposal.Status)
 
 		// Verify expected state changes if executed successfully
 		if proposal.Status == sc.ProposalStatusExecuted {
@@ -2241,7 +2245,7 @@ func TestEdgeCase_H1_RetryAfterTransientFailure(t *testing.T) {
 	// 3. Verify state consistency
 	assertInvariantsHold(t, ctx, "After retry execution")
 
-	t.Logf("✓ Retry execution handled correctly")
+	t.Logf(" Retry execution handled correctly")
 }
 
 // Test H2: Multiple retry attempts until success
@@ -2260,12 +2264,12 @@ func TestEdgeCase_H2_MultipleRetryAttempts(t *testing.T) {
 	// 2. Attempt multiple executions (retry simulation)
 	const maxRetries = 3
 	finalStatus := retryProposalUntilFailure(t, ctx, proposalId, member, maxRetries)
-	t.Logf("✓ Final proposal status after %d retries: %v", maxRetries, finalStatus)
+	t.Logf(" Final proposal status after %d retries: %v", maxRetries, finalStatus)
 
 	// 3. Verify state consistency
 	assertInvariantsHold(t, ctx, "After multiple retry attempts")
 
-	t.Logf("✓ Multiple retries handled correctly")
+	t.Logf(" Multiple retries handled correctly")
 }
 
 // Test H3: Recovery after partial state update
@@ -2294,11 +2298,11 @@ func TestEdgeCase_H3_RecoveryAfterPartialUpdate(t *testing.T) {
 	// 3. Verify no duplicate updates
 	finalProposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
-	t.Logf("✓ Final proposal status: %v", finalProposal.Status)
+	t.Logf(" Final proposal status: %v", finalProposal.Status)
 
 	assertInvariantsHold(t, ctx, "After recovery")
 
-	t.Logf("✓ Recovery completed without duplicate updates")
+	t.Logf(" Recovery completed without duplicate updates")
 }
 
 // Test H4: Burn proposal retry after failure
@@ -2315,7 +2319,7 @@ func TestEdgeCase_H4_BurnProposalRetry(t *testing.T) {
 	t.Log("Step 1: Creating approved burn proposal")
 	withdrawalId := generateUniqueWithdrawalId(t, "retry-test")
 	proposalId := createApprovedBurnProposal(t, ctx, member, burnAmount)
-	t.Logf("✓ Created burn proposal: %s", formatBigInt(proposalId))
+	t.Logf(" Created burn proposal: %s", formatBigInt(proposalId))
 
 	// 2. Check proposal status
 	proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
@@ -2325,20 +2329,20 @@ func TestEdgeCase_H4_BurnProposalRetry(t *testing.T) {
 	if proposal.Status == sc.ProposalStatusApproved {
 		const maxRetries = 2
 		finalStatus := retryProposalUntilFailure(t, ctx, proposalId, member, maxRetries)
-		t.Logf("✓ Burn proposal final status: %v", finalStatus)
+		t.Logf(" Burn proposal final status: %v", finalStatus)
 
 		// 4. Verify withdrawal ID tracking
 		if finalStatus == sc.ProposalStatusExecuted {
 			isExecuted, err := ctx.IsWithdrawalIdExecuted(member, withdrawalId)
 			if err == nil {
-				t.Logf("✓ Withdrawal ID executed status: %v", isExecuted)
+				t.Logf(" Withdrawal ID executed status: %v", isExecuted)
 			}
 		}
 	}
 
 	// 5. Verify state consistency
 	assertInvariantsHold(t, ctx, "After burn proposal retry")
-	t.Logf("✓ Burn proposal retry handled correctly")
+	t.Logf(" Burn proposal retry handled correctly")
 }
 
 // Test H5: proposalExecutionCount explicit tracking verification
@@ -2364,7 +2368,7 @@ func TestEdgeCase_H5_ProposalExecutionCountTracking(t *testing.T) {
 	execCount, err := ctx.BaseProposalExecutionCount(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, int64(0), execCount.Int64(), "Initial executionCount should be 0")
-	t.Logf("✓ Initial executionCount = 0")
+	t.Logf(" Initial executionCount = 0")
 
 	// 2. Configure MockFiatToken to fail mint
 	tx, err = ctx.SetMockFiatTokenMintShouldFail(t, member, true)
@@ -2380,7 +2384,7 @@ func TestEdgeCase_H5_ProposalExecutionCountTracking(t *testing.T) {
 	execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), execCount.Int64(), "executionCount should be 1 after first attempt")
-	t.Logf("✓ After auto-exec failure: executionCount = 1")
+	t.Logf(" After auto-exec failure: executionCount = 1")
 
 	// Verify proposal status is Approved (stays for retry)
 	proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
@@ -2395,7 +2399,7 @@ func TestEdgeCase_H5_ProposalExecutionCountTracking(t *testing.T) {
 	execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), execCount.Int64(), "executionCount should be 2 after retry #2")
-	t.Logf("✓ After retry #2: executionCount = 2")
+	t.Logf(" After retry #2: executionCount = 2")
 
 	// 5. Manual retry #3 (last allowed attempt)
 	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
@@ -2405,21 +2409,21 @@ func TestEdgeCase_H5_ProposalExecutionCountTracking(t *testing.T) {
 	execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, int64(3), execCount.Int64(), "executionCount should be 3 after retry #3")
-	t.Logf("✓ After retry #3: executionCount = 3 (MAX_RETRY_COUNT reached)")
+	t.Logf(" After retry #3: executionCount = 3 (MAX_RETRY_COUNT reached)")
 
 	// 6. Verify canExecuteProposal returns TooManyAttempts
 	result, attemptsLeft, err := ctx.BaseCanExecuteProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, ExecutionCheckTooManyAttempts, result, "canExecuteProposal should return TooManyAttempts")
 	require.Equal(t, int64(0), attemptsLeft.Int64(), "attemptsLeft should be 0")
-	t.Logf("✓ canExecuteProposal: TooManyAttempts, attemptsLeft = 0")
+	t.Logf(" canExecuteProposal: TooManyAttempts, attemptsLeft = 0")
 
 	// 7. Attempt retry #4 (should fail with TooManyExecutionAttempts)
 	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err, "Retry #4 should fail")
 	require.Contains(t, err.Error(), "TooManyExecutionAttempts", "Should revert with TooManyExecutionAttempts")
-	t.Logf("✓ Retry #4 blocked with TooManyExecutionAttempts")
+	t.Logf(" Retry #4 blocked with TooManyExecutionAttempts")
 
 	// 8. Call executeWithFailure() to mark as Failed
 	tx, err = ctx.BaseTxExecuteWithFailure(t, ctx.govMinter, member, proposalId)
@@ -2429,13 +2433,13 @@ func TestEdgeCase_H5_ProposalExecutionCountTracking(t *testing.T) {
 	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, uint8(6), uint8(proposal.Status), "Proposal should be Failed")
-	t.Logf("✓ Proposal marked as Failed via executeWithFailure()")
+	t.Logf(" Proposal marked as Failed via executeWithFailure()")
 
 	// 9. Verify cleanup hook released reservedMintAmount
 	reserved, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reserved.Cmp(big.NewInt(0)), "reservedMintAmount should be cleaned up")
-	t.Logf("✓ Cleanup hook released reservedMintAmount")
+	t.Logf(" Cleanup hook released reservedMintAmount")
 
 	assertInvariantsHold(t, ctx, "After executionCount tracking test")
 }
@@ -2460,7 +2464,7 @@ func TestEdgeCase_I1_InvalidProofDataRejection(t *testing.T) {
 	// 2. Verify system state unchanged
 	assertInvariantsHold(t, ctx, "After invalid proof rejection")
 
-	t.Logf("✓ Invalid proof handled correctly")
+	t.Logf(" Invalid proof handled correctly")
 }
 
 // Test I2: Duplicate depositId prevention
@@ -2483,7 +2487,7 @@ func TestEdgeCase_I2_DuplicateDepositIdPrevention(t *testing.T) {
 
 	proposalId1, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
 	require.NoError(t, err)
-	t.Logf("✓ Created first proposal: %s", proposalId1.String())
+	t.Logf(" Created first proposal: %s", proposalId1.String())
 
 	// 2. Wait for execution/completion
 	proposal1, err := ctx.BaseGetProposal(ctx.govMinter, member, proposalId1)
@@ -2493,11 +2497,11 @@ func TestEdgeCase_I2_DuplicateDepositIdPrevention(t *testing.T) {
 		// Check that depositId is marked as executed
 		isExecuted, err := ctx.IsDepositIdExecuted(member, depositId1)
 		if err == nil && isExecuted {
-			t.Logf("✓ DepositId marked as executed")
+			t.Logf(" DepositId marked as executed")
 
 			// 3. Attempt to create another proposal with same depositId would fail
 			// (In practice, this requires constructing proof with same depositId)
-			t.Logf("✓ Duplicate depositId prevention verified")
+			t.Logf(" Duplicate depositId prevention verified")
 		}
 	}
 
@@ -2520,12 +2524,12 @@ func TestEdgeCase_I3_InvalidAmountValidation(t *testing.T) {
 	tx, err := ctx.TxProposeMint(t, member, member.Address, zeroAmount)
 	err = ctx.ExpectedFail(tx, err)
 	require.Error(t, err, "Expected zero amount to be rejected")
-	t.Logf("✓ Zero amount rejected: %v", err)
+	t.Logf(" Zero amount rejected: %v", err)
 
 	// 2. Verify system state unchanged
 	assertInvariantsHold(t, ctx, "After invalid amount rejection")
 
-	t.Logf("✓ Invalid amounts handled correctly")
+	t.Logf(" Invalid amounts handled correctly")
 }
 
 // Test I4: Approved status idempotency (GovBase.sol optimization)
@@ -2560,7 +2564,7 @@ func TestEdgeCase_I4_ApprovedStatusIdempotency(t *testing.T) {
 	// Count ProposalApproved events in first vote receipt (should be 1)
 	firstVoteEvents := countEventsInReceipt(t, receipt, EventProposalApproved)
 	require.Equal(t, 1, firstVoteEvents, "First approval should emit 1 ProposalApproved event")
-	t.Logf("✓ First approval: 1 ProposalApproved event emitted")
+	t.Logf(" First approval: 1 ProposalApproved event emitted")
 
 	// Record gas used for first vote
 	firstVoteGas := receipt.GasUsed
@@ -2580,7 +2584,7 @@ func TestEdgeCase_I4_ApprovedStatusIdempotency(t *testing.T) {
 	// Count ProposalApproved events in second vote receipt (should be 0 - optimization)
 	secondVoteEvents := countEventsInReceipt(t, receipt, EventProposalApproved)
 	require.Equal(t, 0, secondVoteEvents, "Second approval should NOT emit ProposalApproved event (idempotent)")
-	t.Logf("✓ Second approval: 0 ProposalApproved events (idempotent optimization)")
+	t.Logf(" Second approval: 0 ProposalApproved events (idempotent optimization)")
 
 	// Verify approved count incremented
 	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
@@ -2589,7 +2593,7 @@ func TestEdgeCase_I4_ApprovedStatusIdempotency(t *testing.T) {
 
 	// Verify status STILL Approved (idempotent)
 	require.Equal(t, uint8(2), uint8(proposal.Status), "Proposal should still be Approved")
-	t.Logf("✓ Proposal status remains Approved (idempotent)")
+	t.Logf(" Proposal status remains Approved (idempotent)")
 
 	// Record gas used for second vote
 	secondVoteGas := receipt.GasUsed
@@ -2600,11 +2604,11 @@ func TestEdgeCase_I4_ApprovedStatusIdempotency(t *testing.T) {
 	// Expected savings: ~2,900 gas (no SSTORE from Approved→Approved, no event)
 	if secondVoteGas < firstVoteGas {
 		gasSavings := firstVoteGas - secondVoteGas
-		t.Logf("✓ Gas optimization verified: %d gas saved on idempotent vote", gasSavings)
+		t.Logf(" Gas optimization verified: %d gas saved on idempotent vote", gasSavings)
 		// We don't enforce exact gas savings as it may vary with EVM changes
 		// Just verify that there IS a savings
 	} else {
-		t.Logf("⚠️ Warning: Expected gas savings not observed (may vary with EVM)")
+		t.Logf(" Warning: Expected gas savings not observed (may vary with EVM)")
 	}
 
 	assertInvariantsHold(t, ctx, "After approved status idempotency test")
@@ -2641,17 +2645,17 @@ func TestEdgeCase_J1_ActiveProposalLimitAndCleanup(t *testing.T) {
 		require.NoError(t, err)
 
 		if proposal.Status != sc.ProposalStatusExecuted {
-			t.Logf("✓ Created proposal %d/%d: %s (status: %v)",
+			t.Logf(" Created proposal %d/%d: %s (status: %v)",
 				i+1, maxProposals, pid.String(), proposal.Status)
 		} else {
-			t.Logf("✓ Proposal %d/%d auto-executed: %s", i+1, maxProposals, pid.String())
+			t.Logf(" Proposal %d/%d auto-executed: %s", i+1, maxProposals, pid.String())
 		}
 	}
 
 	// 2. Verify limit enforcement
 	assertInvariantsHold(t, ctx, "After reaching proposal limit")
 
-	t.Logf("✓ Active proposal limit enforced correctly")
+	t.Logf(" Active proposal limit enforced correctly")
 }
 
 // Test J2: Multiple members at limit simultaneously
@@ -2677,14 +2681,14 @@ func TestEdgeCase_J2_MultiMemberLimitStress(t *testing.T) {
 		proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, pid)
 		require.NoError(t, err)
 
-		t.Logf("✓ %s created proposal %s (status: %v)",
+		t.Logf(" %s created proposal %s (status: %v)",
 			formatAddress(member.Address), pid.String(), proposal.Status)
 	}
 
 	// 2. Verify independent counters
 	assertInvariantsHold(t, ctx, "After multi-member stress test")
 
-	t.Logf("✓ Independent member limits working correctly")
+	t.Logf(" Independent member limits working correctly")
 }
 
 // Test J3: Active proposal limit enforcement
@@ -2719,139 +2723,25 @@ func TestEdgeCase_J3_ActiveProposalLimitEnforcement(t *testing.T) {
 			proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, pid)
 			require.NoError(t, err)
 
-			t.Logf("✓ Created proposal %d/%d: %s (status: %v)",
+			t.Logf(" Created proposal %d/%d: %s (status: %v)",
 				i+1, maxProposals, pid.String(), proposal.Status)
 		} else {
 			// Should fail beyond limit (if proposals are Pending)
 			err = ctx.ExpectedFail(tx, err)
 			if err != nil {
-				t.Logf("✓ Proposal %d rejected (limit reached): %v", i+1, err)
+				t.Logf(" Proposal %d rejected (limit reached): %v", i+1, err)
 				break // Limit enforced correctly
 			} else {
 				// If succeeded, proposal was auto-executed (freed slot)
 				successCount++
-				t.Logf("✓ Proposal %d succeeded (auto-executed)", i+1)
+				t.Logf(" Proposal %d succeeded (auto-executed)", i+1)
 			}
 		}
 	}
 
 	// 2. Verify limit enforcement
-	t.Logf("✓ Created %d proposals (limit: %d)", successCount, maxProposals)
+	t.Logf(" Created %d proposals (limit: %d)", successCount, maxProposals)
 	assertInvariantsHold(t, ctx, "After limit enforcement test")
 
-	t.Logf("✓ Active proposal limit enforced correctly")
-}
-
-// ==================== Category K: Bug Demonstrations ====================
-// Tests that demonstrate known bugs for documentation purposes
-// These tests are EXPECTED TO FAIL in specific ways that prove the bug exists
-
-// Test K1: CRITICAL BUG DEMONSTRATION - _safeBurn unlimited retry bypass
-// Scenario: Burn proposal with fiatToken.burn() failure causes entire TX revert,
-//           bypassing proposalExecutionCount increment and allowing unlimited retries
-// Expected Behavior (BUG): executionCount stays 0, unlimited retry possible
-// Correct Behavior (AFTER FIX): executionCount should increment, MAX_RETRY_COUNT enforced
-//
-// ⚠️ NOTE: This test was designed to demonstrate a potential bug identified in
-//          ISSUE_STATE_INCONSISTENCY_ANALYSIS.md. However, the current implementation
-//          appears to handle burn failures correctly with try-catch pattern.
-//          Test is retained for documentation and future verification.
-//
-// SKIP: Bug does not manifest in current implementation
-func TestEdgeCase_K1_CRITICAL_BurnUnlimitedRetryBugDemo(t *testing.T) {
-	t.Skip("Bug demonstration test - current implementation handles burn failures correctly")
-	ctx := setupEdgeCaseTest(t)
-	defer ctx.backend.Close()
-
-	member := ctx.Members[0]
-	burnAmount := big.NewInt(1_000_000)
-
-	// 0. First mint tokens so we have balance to burn
-	mintAmount := big.NewInt(5_000_000)
-	tx, err := ctx.TxProposeMint(t, member, member.Address, mintAmount)
-	_, err = ctx.ExpectedOk(tx, err)
-	require.NoError(t, err)
-
-	mintProposalId, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
-	require.NoError(t, err)
-
-	// Approve and execute mint
-	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], mintProposalId)
-	_, err = ctx.ExpectedOk(tx, err)
-	require.NoError(t, err)
-
-	t.Logf("Minted %s tokens to create burn balance", mintAmount.String())
-
-	// 1. Deposit native coins for burn (msg.value)
-	tx, err = ctx.TxProposeBurn(t, member, member.Address, burnAmount)
-	_, err = ctx.ExpectedOk(tx, err)
-	require.NoError(t, err)
-
-	burnProposalId, err := ctx.BaseCurrentProposalId(ctx.govMinter, member)
-	require.NoError(t, err)
-	t.Logf("Created burn proposal ID: %s", burnProposalId.String())
-
-	// Verify initial executionCount = 0
-	execCount, err := ctx.BaseProposalExecutionCount(ctx.govMinter, member, burnProposalId)
-	require.NoError(t, err)
-	require.Equal(t, int64(0), execCount.Int64(), "Initial executionCount should be 0")
-	t.Logf("✓ Initial executionCount = 0")
-
-	// 2. Configure MockFiatToken to FAIL burn operations
-	tx, err = ctx.SetMockFiatTokenBurnShouldFail(t, member, true)
-	_, err = ctx.ExpectedOk(tx, err)
-	require.NoError(t, err)
-	t.Logf("Configured MockFiatToken to fail burn() calls")
-
-	// 3. Approve proposal (auto-execution will REVERT entire TX due to missing try-catch)
-	tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], burnProposalId)
-	err = ctx.ExpectedFail(tx, err)
-	require.Error(t, err, "Approval should revert due to burn failure propagation")
-	t.Logf("✓ Approval reverted as expected (burn failure propagated)")
-
-	// 4. Verify proposal stays in Voting status (not Approved - TX reverted)
-	proposal, err := ctx.BaseGetProposal(ctx.govMinter, member, burnProposalId)
-	require.NoError(t, err)
-	require.Equal(t, uint8(1), uint8(proposal.Status), "Proposal should still be Voting (entire TX reverted)")
-	t.Logf("✓ Proposal status: Voting (entire approval TX was rolled back)")
-
-	// 5. Verify proposalExecutionCount is STILL 0 (rolled back)
-	execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, burnProposalId)
-	require.NoError(t, err)
-	require.Equal(t, int64(0), execCount.Int64(), "🐛 BUG: executionCount is 0 (should be 1)")
-	t.Logf("🐛 BUG DEMONSTRATED: executionCount = 0 after failed execution (rolled back)")
-
-	// 6. Vote again multiple times to demonstrate unlimited retry
-	maxDemoRetries := 10 // Demonstrate way beyond MAX_RETRY_COUNT (3)
-
-	for i := 0; i < maxDemoRetries; i++ {
-		// Each retry will fail the same way
-		tx, err = ctx.BaseTxApproveProposal(t, ctx.govMinter, ctx.Members[1], burnProposalId)
-		err = ctx.ExpectedFail(tx, err)
-		require.Error(t, err, "Each retry should fail")
-
-		// executionCount STAYS 0 every time (this is the bug)
-		execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, burnProposalId)
-		require.NoError(t, err)
-		require.Equal(t, int64(0), execCount.Int64(), "🐛 BUG: executionCount stays 0")
-
-		t.Logf("Retry attempt %d: executionCount = 0 (should be %d)", i+1, i+1)
-	}
-
-	t.Logf("")
-	t.Logf("🚨 CRITICAL BUG DEMONSTRATED:")
-	t.Logf("   - Performed %d retry attempts", maxDemoRetries)
-	t.Logf("   - executionCount never incremented (stayed 0)")
-	t.Logf("   - MAX_RETRY_COUNT bypass: %d attempts > %d limit", maxDemoRetries, 3)
-	t.Logf("   - DoS attack vector: Unlimited execution attempts possible")
-	t.Logf("")
-	t.Logf("Expected Behavior After Fix:")
-	t.Logf("   - Each failed execution should increment proposalExecutionCount")
-	t.Logf("   - After 3 attempts, MAX_RETRY_COUNT should block further attempts")
-	t.Logf("   - Proposal should be marked Failed after retry limit")
-	t.Logf("")
-	t.Logf("Root Cause: _safeBurn missing try-catch around fiatToken.burn()")
-	t.Logf("   - Revert propagates to _executeProposal")
-	t.Logf("   - Entire TX rolls back including proposalExecutionCount++")
-	t.Logf("   - Inconsistent with _executeMint which uses try-catch")
+	t.Logf(" Active proposal limit enforced correctly")
 }

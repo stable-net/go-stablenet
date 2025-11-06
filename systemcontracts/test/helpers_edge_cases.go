@@ -253,7 +253,7 @@ func assertProposalCreation(t *testing.T, ctx *EdgeCaseTestContext, expected Pro
 	if expected.ActiveCountIncremented {
 		newCount := new(big.Int).Add(countBefore, big.NewInt(1))
 		ctx.InitialActiveProposalCounts[expected.Member.Address] = newCount
-		t.Logf("✓ memberActiveProposalCount incremented: %s → %s", countBefore.String(), newCount.String())
+		t.Logf(" memberActiveProposalCount incremented: %s → %s", countBefore.String(), newCount.String())
 	}
 
 	// Mint proposal: verify reservedMintAmount incremented
@@ -272,7 +272,7 @@ func assertProposalCreation(t *testing.T, ctx *EdgeCaseTestContext, expected Pro
 		assert.Equal(t, 0, proposalReserved.Cmp(expected.Amount),
 			"mintProposalAmounts[proposalId] should equal %s", expected.Amount.String())
 
-		t.Logf("✓ reservedMintAmount incremented: %s → %s",
+		t.Logf(" reservedMintAmount incremented: %s → %s",
 			ctx.InitialReservedMintAmounts[expected.Member.Address].String(), reservedAfter.String())
 
 		// Update context
@@ -288,10 +288,10 @@ func assertProposalCreation(t *testing.T, ctx *EdgeCaseTestContext, expected Pro
 			"burnBalance (%s) should be >= amount (%s)",
 			burnBalance.String(), expected.Amount.String())
 
-		t.Logf("✓ burnBalance sufficient: %s >= %s", burnBalance.String(), expected.Amount.String())
+		t.Logf(" burnBalance sufficient: %s >= %s", burnBalance.String(), expected.Amount.String())
 	}
 
-	t.Logf("✓ Proposal creation verified: ID=%s, Type=%s, Member=%s",
+	t.Logf(" Proposal creation verified: ID=%s, Type=%s, Member=%s",
 		expected.ProposalId.String(), expected.ProposalType, expected.Member.Address.Hex()[:10])
 }
 
@@ -338,7 +338,7 @@ func createApprovedMintProposal(t *testing.T, ctx *EdgeCaseTestContext, proposer
 	proposal, err := ctx.BaseGetProposal(ctx.govMinter, proposer, proposalId)
 	require.NoError(t, err)
 
-	t.Logf("✓ Created proposal: ID=%s, Status=%v, Amount=%s",
+	t.Logf(" Created proposal: ID=%s, Status=%v, Amount=%s",
 		proposalId.String(), proposal.Status, amount.String())
 
 	// Note: In real scenario with insufficient allowance, this would be Approved
@@ -371,7 +371,7 @@ func createApprovedBurnProposal(t *testing.T, ctx *EdgeCaseTestContext, proposer
 		}
 	}
 
-	t.Logf("✓ Created approved burn proposal: ID=%s, Amount=%s", proposalId.String(), amount.String())
+	t.Logf(" Created approved burn proposal: ID=%s, Amount=%s", proposalId.String(), amount.String())
 	return proposalId
 }
 
@@ -461,7 +461,7 @@ func assertStateConsistency(t *testing.T, ctx *EdgeCaseTestContext, before, afte
 			before.MinterAllowance.String(), after.MinterAllowance.String())
 	}
 
-	t.Logf("✓ State consistency verified")
+	t.Logf(" State consistency verified")
 }
 
 // ==================== Invariant Verification ====================
@@ -504,7 +504,7 @@ func assertInvariantsHold(t *testing.T, ctx *EdgeCaseTestContext, description st
 	assert.True(t, totalSupply.Sign() >= 0,
 		"Invariant violation: total supply is negative (%s)", totalSupply.String())
 
-	t.Logf("✓ All invariants verified")
+	t.Logf(" All invariants verified")
 }
 
 // ==================== Terminal State Verification ====================
@@ -540,7 +540,7 @@ func assertProposalTerminalState(t *testing.T, ctx *EdgeCaseTestContext, expecte
 			"mintProposalAmounts[%s] should be cleared (got %s)",
 			expected.ProposalId.String(), proposalReserved.String())
 
-		t.Logf("✓ Mint proposal reservation cleaned for proposal %s", expected.ProposalId.String())
+		t.Logf(" Mint proposal reservation cleaned for proposal %s", expected.ProposalId.String())
 	}
 
 	// Verify burn balance update for burn proposals
@@ -550,7 +550,7 @@ func assertProposalTerminalState(t *testing.T, ctx *EdgeCaseTestContext, expecte
 
 		// For executed burn, balance should be reduced
 		// For failed/cancelled, balance should be refunded
-		t.Logf("✓ Burn balance after terminal state: %s", burnBalance.String())
+		t.Logf(" Burn balance after terminal state: %s", burnBalance.String())
 	}
 
 	// Verify memberActiveProposalCount decremented
@@ -563,11 +563,11 @@ func assertProposalTerminalState(t *testing.T, ctx *EdgeCaseTestContext, expecte
 		}
 		ctx.InitialActiveProposalCounts[expected.Member.Address] = newCount
 
-		t.Logf("✓ memberActiveProposalCount decremented: %s → %s",
+		t.Logf(" memberActiveProposalCount decremented: %s → %s",
 			currentCount.String(), newCount.String())
 	}
 
-	t.Logf("✓ Terminal state verified: ProposalID=%s, Status=%v, Type=%s",
+	t.Logf(" Terminal state verified: ProposalID=%s, Status=%v, Type=%s",
 		expected.ProposalId.String(), expected.ExpectedStatus, expected.ProposalType)
 }
 
@@ -611,23 +611,6 @@ func retryProposalUntilFailure(t *testing.T, ctx *EdgeCaseTestContext, proposalI
 
 // ==================== Helper Assertions ====================
 
-// assertProposalCount verifies the number of proposals for a member
-// Note: memberActiveProposalCount is not exposed by the contract, so this function
-// tracks counts in the test context. Reserved for future use when direct querying is available.
-//
-//nolint:unused
-func assertProposalCount(t *testing.T, ctx *EdgeCaseTestContext, member *EOA, expectedActive int, description string) {
-	// Since memberActiveProposalCount is not directly exposed, we track it in context
-	actualCount := ctx.InitialActiveProposalCounts[member.Address]
-	expectedCount := big.NewInt(int64(expectedActive))
-
-	assert.Equal(t, 0, actualCount.Cmp(expectedCount),
-		"%s: Expected %d active proposals, got %s",
-		description, expectedActive, actualCount.String())
-
-	t.Logf("✓ %s: Active proposals = %s", description, actualCount.String())
-}
-
 // assertReplayProtection verifies replay attack protection
 func assertReplayProtection(t *testing.T, ctx *EdgeCaseTestContext, depositId, withdrawalId string, shouldBeExecuted bool) {
 	if depositId != "" {
@@ -635,7 +618,7 @@ func assertReplayProtection(t *testing.T, ctx *EdgeCaseTestContext, depositId, w
 		require.NoError(t, err)
 		assert.Equal(t, shouldBeExecuted, executed,
 			"Deposit ID %s execution status mismatch", depositId)
-		t.Logf("✓ Deposit ID %s executed: %v", depositId, executed)
+		t.Logf(" Deposit ID %s executed: %v", depositId, executed)
 	}
 
 	if withdrawalId != "" {
@@ -643,7 +626,7 @@ func assertReplayProtection(t *testing.T, ctx *EdgeCaseTestContext, depositId, w
 		require.NoError(t, err)
 		assert.Equal(t, shouldBeExecuted, executed,
 			"Withdrawal ID %s execution status mismatch", withdrawalId)
-		t.Logf("✓ Withdrawal ID %s executed: %v", withdrawalId, executed)
+		t.Logf(" Withdrawal ID %s executed: %v", withdrawalId, executed)
 	}
 }
 
@@ -660,7 +643,7 @@ func expectProposalCreationError(t *testing.T, ctx *EdgeCaseTestContext, propose
 			"Expected error message to contain '%s'", expectedError)
 	}
 
-	t.Logf("✓ Proposal creation failed as expected: %v", err)
+	t.Logf(" Proposal creation failed as expected: %v", err)
 }
 
 // ==================== String Formatting Helpers ====================
@@ -727,7 +710,7 @@ func assertStateChanges(t *testing.T, ctx *EdgeCaseTestContext, initialState *St
 		"Burn balance should change by %s, actual change: %s",
 		expected.BurnBalanceChange.String(), totalBurnChange.String())
 
-	t.Logf("✓ State changes verified: Mint=%s, ReservedDecrease=%s, BurnChange=%s, AllowanceDecrease=%s",
+	t.Logf(" State changes verified: Mint=%s, ReservedDecrease=%s, BurnChange=%s, AllowanceDecrease=%s",
 		expected.MintAmount.String(), expected.ReservedMintDecrease.String(),
 		expected.BurnBalanceChange.String(), expected.MinterAllowanceDecrease.String())
 }
