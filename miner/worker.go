@@ -1470,7 +1470,7 @@ func totalFees(c *params.ChainConfig, block *types.Block, receipts []*types.Rece
 	for i, tx := range block.Transactions() {
 		var minerFee *big.Int
 		if c.AnzeonEnabled() {
-			minerFee = tx.EffectiveGasPrice(new(big.Int), block.BaseFee(), block.Header().GasTip())
+			minerFee = tx.EffectiveGasPrice(block.BaseFee(), block.Header().GasTip())
 		} else {
 			minerFee, _ = tx.EffectiveGasTip(block.BaseFee())
 		}
