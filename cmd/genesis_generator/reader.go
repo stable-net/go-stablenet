@@ -118,9 +118,7 @@ func readAddress() *common.Address {
 		if text = strings.TrimSpace(text); text == "" {
 			return nil
 		}
-		if strings.HasPrefix(text, "0x") {
-			text = text[2:]
-		}
+		text = strings.TrimPrefix(text, "0x")
 		// Make sure it looks ok and return it if so
 		if len(text) != 40 {
 			log.Error("Invalid address length, please retry")
