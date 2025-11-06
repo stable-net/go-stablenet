@@ -17,6 +17,7 @@
 package eth
 
 import (
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -60,9 +61,13 @@ func (api *MinerAPI) SetExtra(extra string) (bool, error) {
 // SetGasPrice sets the minimum accepted gas price for the miner.
 func (api *MinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
 	if api.e.blockchain.Config().AnzeonEnabled() {
-		log.Debug("setGasTip is not supported for anzeon")
+		log.Debug("SetGasPrice is not supported for anzeon")
+		return false
 	}
-	return false
+
+	api.e.txPool.SetGasTip((*big.Int)(&gasPrice))
+	api.e.Miner().SetGasTip((*big.Int)(&gasPrice))
+	return true
 }
 
 // SetGasLimit sets the gaslimit to target towards during mining.

@@ -22,6 +22,7 @@ package eth
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"runtime"
 	"sync"
 
@@ -113,6 +114,10 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	if !config.SyncMode.IsValid() {
 		return nil, fmt.Errorf("invalid sync mode %d", config.SyncMode)
+	}
+	if config.Miner.GasPrice == nil || config.Miner.GasPrice.Cmp(common.Big0) <= 0 {
+		log.Warn("Sanitizing invalid miner gas price", "provided", config.Miner.GasPrice, "updated", ethconfig.Defaults.Miner.GasPrice)
+		config.Miner.GasPrice = new(big.Int).Set(ethconfig.Defaults.Miner.GasPrice)
 	}
 	if config.NoPruning && config.TrieDirtyCache > 0 {
 		if config.SnapshotCache > 0 {
@@ -268,7 +273,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	gpoParams := config.GPO
 	if gpoParams.Default == nil {
-		gpoParams.Default = eth.miner.GetGasTip()
+		gpoParams.Default = config.Miner.GasPrice
 	}
 	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams)
 

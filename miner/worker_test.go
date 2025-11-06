@@ -78,6 +78,7 @@ var (
 	testConfig = &Config{
 		Recommit: common.Duration(time.Second),
 		GasCeil:  params.GenesisGasLimit,
+		GasPrice: new(big.Int).SetUint64(params.InitialGasTip),
 	}
 )
 

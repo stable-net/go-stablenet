@@ -51,6 +51,7 @@ type Config struct {
 	ExtraData hexutil.Bytes  `toml:",omitempty"` // Block extra data set by the miner
 	GasFloor  uint64         // Target gas floor for mined blocks.
 	GasCeil   uint64         // Target gas ceiling for mined blocks.
+	GasPrice  *big.Int       // Minimum gas price for mining a transaction
 
 	Recommit common.Duration `toml:"Recommit"` // The time interval for miner to re-create mining work.
 
@@ -59,10 +60,20 @@ type Config struct {
 	SimulatedEnabled bool `toml:",omitempty"`
 }
 
+const (
+	// DefaultGasPriceGWei is the default gas price for Wemix 3.0 compatibility.
+	DefaultGasPriceGWei = 100
+)
+
+// DefaultGasPrice Pre-computed gas price values
+var (
+	DefaultGasPrice = big.NewInt(DefaultGasPriceGWei * params.GWei)
+)
+
 // DefaultConfig contains default settings for miner.
 var DefaultConfig = Config{
-	GasCeil: 105000000,
-
+	GasCeil:  105000000,
+	GasPrice: DefaultGasPrice, // Use pre-computed constant for clarity and maintenance
 	// The default recommit time is chosen as two seconds since
 	// consensus-layer usually will wait a half slot of time(6s)
 	// for payload generation. It should be enough for Gstable to
@@ -196,6 +207,14 @@ func (miner *Miner) SetExtra(extra []byte) error {
 		return fmt.Errorf("extra exceeds max length. %d > %v", len(extra), params.MaximumExtraDataSize)
 	}
 	miner.worker.setExtra(extra)
+	return nil
+}
+
+func (miner *Miner) SetGasTip(tip *big.Int) error {
+	if miner.worker.chainConfig.AnzeonEnabled() {
+		return fmt.Errorf("setGasTip is not supported for anzeon")
+	}
+	miner.worker.setGasTip(tip)
 	return nil
 }
 

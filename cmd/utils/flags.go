@@ -444,8 +444,8 @@ var (
 	}
 	MinerGasPriceFlag = &flags.BigFlag{
 		Name:     "miner.gasprice",
-		Usage:    "Minimum gas price for mining a transaction (not supported for anzeon)",
-		Value:    common.Big0,
+		Usage:    "Minimum gas price for mining a transaction",
+		Value:    ethconfig.Defaults.Miner.GasPrice,
 		Category: flags.MinerCategory,
 	}
 	MinerEtherbaseFlag = &cli.StringFlag{
@@ -1523,6 +1523,9 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	if ctx.IsSet(MinerGasLimitFlag.Name) {
 		cfg.GasCeil = ctx.Uint64(MinerGasLimitFlag.Name)
 	}
+	if ctx.IsSet(MinerGasPriceFlag.Name) {
+		cfg.GasPrice = flags.GlobalBig(ctx, MinerGasPriceFlag.Name)
+	}
 	if ctx.IsSet(MinerRecommitIntervalFlag.Name) {
 		cfg.Recommit = common.Duration(ctx.Duration(MinerRecommitIntervalFlag.Name))
 	}
@@ -1855,6 +1858,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 				}
 			}
 			chaindb.Close()
+		}
+		if !ctx.IsSet(MinerGasPriceFlag.Name) {
+			cfg.Miner.GasPrice = big.NewInt(1)
 		}
 	default:
 		if cfg.NetworkId == 1 {
