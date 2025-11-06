@@ -297,6 +297,16 @@ func (s *StateDB) GetNonce(addr common.Address) uint64 {
 	return 0
 }
 
+// GetNonce retrieves the extra from the given address or 0 if object not found
+func (s *StateDB) GetExtra(addr common.Address) uint64 {
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.Extra()
+	}
+
+	return 0
+}
+
 // GetStorageRoot retrieves the storage root from the given address or empty
 // if object not found.
 func (s *StateDB) GetStorageRoot(addr common.Address) common.Hash {
@@ -398,6 +408,13 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetNonce(nonce)
+	}
+}
+
+func (s *StateDB) SetExtra(addr common.Address, extra uint64) {
+	stateObject := s.getOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetNonce(extra)
 	}
 }
 
@@ -575,6 +592,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 				Balance:  acc.Balance,
 				CodeHash: acc.CodeHash,
 				Root:     common.BytesToHash(acc.Root),
+				Extra:    acc.Extra,
 			}
 			if len(data.CodeHash) == 0 {
 				data.CodeHash = types.EmptyCodeHash.Bytes()

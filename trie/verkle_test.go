@@ -34,11 +34,13 @@ var (
 			Nonce:    100,
 			Balance:  uint256.NewInt(100),
 			CodeHash: common.Hash{0x1}.Bytes(),
+			Extra:    100,
 		},
 		{2}: {
 			Nonce:    200,
 			Balance:  uint256.NewInt(200),
 			CodeHash: common.Hash{0x2}.Bytes(),
+			Extra:    200,
 		},
 	}
 	storages = map[common.Address]map[common.Hash][]byte{

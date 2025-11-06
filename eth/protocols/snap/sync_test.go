@@ -1515,6 +1515,7 @@ func makeAccountTrieNoStorage(n int, scheme string) (string, *trie.Trie, []*kv) 
 			Balance:  uint256.NewInt(i),
 			Root:     types.EmptyRootHash,
 			CodeHash: getCodeHash(i),
+			Extra:    i,
 		})
 		key := key32(i)
 		elem := &kv{key, value}
@@ -1566,6 +1567,7 @@ func makeBoundaryAccountTrie(scheme string, n int) (string, *trie.Trie, []*kv) {
 			Balance:  uint256.NewInt(uint64(i)),
 			Root:     types.EmptyRootHash,
 			CodeHash: getCodeHash(uint64(i)),
+			Extra:    uint64(0),
 		})
 		elem := &kv{boundaries[i].Bytes(), value}
 		accTrie.MustUpdate(elem.k, elem.v)
@@ -1578,6 +1580,7 @@ func makeBoundaryAccountTrie(scheme string, n int) (string, *trie.Trie, []*kv) {
 			Balance:  uint256.NewInt(i),
 			Root:     types.EmptyRootHash,
 			CodeHash: getCodeHash(i),
+			Extra:    i,
 		})
 		elem := &kv{key32(i), value}
 		accTrie.MustUpdate(elem.k, elem.v)
@@ -1622,6 +1625,7 @@ func makeAccountTrieWithStorageWithUniqueStorage(scheme string, accounts, slots 
 			Balance:  uint256.NewInt(i),
 			Root:     stRoot,
 			CodeHash: codehash,
+			Extra:    i,
 		})
 		elem := &kv{key, value}
 		accTrie.MustUpdate(elem.k, elem.v)
@@ -1688,6 +1692,7 @@ func makeAccountTrieWithStorage(scheme string, accounts, slots int, code, bounda
 			Balance:  uint256.NewInt(i),
 			Root:     stRoot,
 			CodeHash: codehash,
+			Extra:    i,
 		})
 		elem := &kv{key, value}
 		accTrie.MustUpdate(elem.k, elem.v)
@@ -1844,6 +1849,7 @@ func verifyTrie(scheme string, db ethdb.KeyValueStore, root common.Hash, t *test
 			Balance  *big.Int
 			Root     common.Hash
 			CodeHash []byte
+			Extra    uint64
 		}
 		if err := rlp.DecodeBytes(accIt.Value, &acc); err != nil {
 			log.Crit("Invalid account encountered during snapshot creation", "err", err)

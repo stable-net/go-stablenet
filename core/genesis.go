@@ -139,6 +139,7 @@ func hashAlloc(ga *types.GenesisAlloc, isVerkle bool) (common.Hash, error) {
 		}
 		statedb.SetCode(addr, account.Code)
 		statedb.SetNonce(addr, account.Nonce)
+		statedb.SetExtra(addr, account.Extra)
 		for key, value := range account.Storage {
 			statedb.SetState(addr, key, value)
 		}
@@ -160,6 +161,7 @@ func flushAlloc(ga *types.GenesisAlloc, db ethdb.Database, triedb *triedb.Databa
 		}
 		statedb.SetCode(addr, account.Code)
 		statedb.SetNonce(addr, account.Nonce)
+		statedb.SetExtra(addr, account.Extra)
 		for key, value := range account.Storage {
 			statedb.SetState(addr, key, value)
 		}

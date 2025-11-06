@@ -56,6 +56,7 @@ func generateAccount(storageRoot common.Hash) types.StateAccount {
 		Balance:  uint256.NewInt(rand.Uint64()),
 		CodeHash: testutil.RandBytes(32),
 		Root:     storageRoot,
+		Extra:    uint64(rand.Intn(100)),
 	}
 }
 

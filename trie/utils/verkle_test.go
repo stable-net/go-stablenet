@@ -48,6 +48,9 @@ func TestTreeKey(t *testing.T) {
 	if !bytes.Equal(CodeSizeKey(address), CodeSizeKeyWithEvaluatedAddress(addressEval)) {
 		t.Fatal("Unmatched code size key")
 	}
+	if !bytes.Equal(ExtraKey(address), ExtraKeyWithEvaluatedAddress(addressEval)) {
+		t.Fatal("Unmatched extra key")
+	}
 	if !bytes.Equal(CodeChunkKey(address, smallIndex), CodeChunkKeyWithEvaluatedAddress(addressEval, smallIndex)) {
 		t.Fatal("Unmatched code chunk key")
 	}

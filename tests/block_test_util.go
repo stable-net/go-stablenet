@@ -330,6 +330,7 @@ func (t *BlockTest) validatePostState(statedb *state.StateDB) error {
 		code2 := statedb.GetCode(addr)
 		balance2 := statedb.GetBalance(addr).ToBig()
 		nonce2 := statedb.GetNonce(addr)
+		extra2 := statedb.GetExtra(addr)
 		if !bytes.Equal(code2, acct.Code) {
 			return fmt.Errorf("account code mismatch for addr: %s want: %v have: %s", addr, acct.Code, hex.EncodeToString(code2))
 		}
@@ -338,6 +339,9 @@ func (t *BlockTest) validatePostState(statedb *state.StateDB) error {
 		}
 		if nonce2 != acct.Nonce {
 			return fmt.Errorf("account nonce mismatch for addr: %s want: %d have: %d", addr, acct.Nonce, nonce2)
+		}
+		if extra2 != acct.Extra {
+			return fmt.Errorf("account extra mismatch for addr: %s want: %d have: %d", addr, acct.Extra, extra2)
 		}
 		for k, v := range acct.Storage {
 			v2 := statedb.GetState(addr, k)

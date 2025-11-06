@@ -122,6 +122,10 @@ type (
 		account            *common.Address
 		prevcode, prevhash []byte
 	}
+	extraChange struct {
+		account *common.Address
+		prev    uint64
+	}
 
 	// Changes to other state values.
 	refundChange struct {
@@ -233,6 +237,14 @@ func (ch storageChange) revert(s *StateDB) {
 }
 
 func (ch storageChange) dirtied() *common.Address {
+	return ch.account
+}
+
+func (ch extraChange) revert(s *StateDB) {
+	s.getStateObject(*ch.account).setExtra(ch.prev)
+}
+
+func (ch extraChange) dirtied() *common.Address {
 	return ch.account
 }
 
