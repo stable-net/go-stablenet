@@ -245,7 +245,7 @@ func genDefaultConfigFile() {
 
 func (g *genesisGenerator) wbftSingleNodeConfig() {
 	fmt.Println()
-	fmt.Println("Enter the path to the nodekey file to use (default: ./nodekey):")
+	fmt.Println("Enter the path to the nodekey file to use (default = ./nodekey):")
 
 	var account *NodeAccount
 	for {
