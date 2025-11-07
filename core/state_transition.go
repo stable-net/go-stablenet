@@ -503,7 +503,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	effectiveTip := msg.GasPrice
 	// Base fee burn is removed under Anzeon
 	if !rules.IsAnzeon && rules.IsLondon {
-		effectiveTip = new(big.Int).Sub(msg.GasPrice, st.evm.Context.BaseFee)
+		effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
 	}
 	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
 
