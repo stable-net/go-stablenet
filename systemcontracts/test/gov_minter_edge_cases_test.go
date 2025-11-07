@@ -112,25 +112,28 @@ func TestEdgeCase_A1_RetryLimitEnforcementWithCleanup(t *testing.T) {
 		require.Equal(t, uint8(2), uint8(proposal.Status), "Proposal should remain Approved after retry %d", i+1)
 	}
 
-	// Try one more time - should hit TooManyExecutionAttempts limit
-	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
-	err = ctx.ExpectedFail(tx, err)
-	require.Error(t, err, "Should fail with TooManyExecutionAttempts")
-	require.Contains(t, err.Error(), "TooManyExecutionAttempts", "Error should be TooManyExecutionAttempts")
-	t.Logf(" Hit retry limit with TooManyExecutionAttempts as expected")
+	execCount, err := ctx.BaseProposalExecutionCount(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	t.Logf("After 3rd execution - Proposal status: Approved, execution count: %d", execCount.Int64())
 
-	// 5. Call executeWithFailure to mark as Failed (terminal state)
-	tx, err = ctx.BaseTxExecuteWithFailure(t, ctx.govMinter, member, proposalId)
+	// 5. Next execution attempt triggers auto-fail (count already 3 → auto-transition to Failed)
+	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
 
-	// Verify transition to Failed
+	// Check execution count after 4th attempt
+	execCount, err = ctx.BaseProposalExecutionCount(ctx.govMinter, member, proposalId)
+	require.NoError(t, err)
+	t.Logf("After 4th execution attempt - execution count: %d", execCount.Int64())
+
+	// Verify proposal auto-transitioned to Failed status
 	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
-	require.Equal(t, uint8(6), uint8(proposal.Status), "Proposal should be Failed after executeWithFailure")
-	t.Logf(" Proposal transitioned to Failed status")
+	t.Logf("After 4th execution attempt - Proposal status: %d (expected: 6=Failed)", proposal.Status)
+	require.Equal(t, uint8(6), uint8(proposal.Status), "Proposal should auto-fail when retry limit reached")
+	t.Logf(" Retry limit reached - Proposal auto-transitioned to Failed status")
 
-	// 6. Verify state cleanup
+	// 6. Verify state cleanup occurred via _finalizeProposal
 	assertProposalTerminalState(t, ctx, TerminalStateExpectation{
 		ProposalId:             proposalId,
 		Member:                 member,
@@ -146,10 +149,21 @@ func TestEdgeCase_A1_RetryLimitEnforcementWithCleanup(t *testing.T) {
 	reserved, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reserved.Cmp(initialState.ReservedMintAmounts[member.Address]),
-		"reservedMintAmount should be cleaned after failure")
+		"reservedMintAmount should be cleaned after auto-fail")
 	t.Logf(" reservedMintAmount cleaned: %s", reserved.String())
 
-	// 7. Restore mock behavior
+	// 7. Verify no further execution is possible (already in terminal state)
+	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
+	err = ctx.ExpectedFail(tx, err)
+	require.Error(t, err, "Should fail - proposal already in Failed state")
+	t.Logf(" Further execution attempts blocked (terminal state)")
+
+	tx, err = ctx.BaseTxExecuteWithFailure(t, ctx.govMinter, member, proposalId)
+	err = ctx.ExpectedFail(tx, err)
+	require.Error(t, err, "Should fail - proposal already in Failed state")
+	t.Logf(" executeWithFailure also blocked (terminal state)")
+
+	// 8. Restore mock behavior
 	tx, err = ctx.SetMockFiatTokenMintShouldFail(t, member, false)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
@@ -2418,28 +2432,34 @@ func TestEdgeCase_H5_ProposalExecutionCountTracking(t *testing.T) {
 	require.Equal(t, int64(0), attemptsLeft.Int64(), "attemptsLeft should be 0")
 	t.Logf(" canExecuteProposal: TooManyAttempts, attemptsLeft = 0")
 
-	// 7. Attempt retry #4 (should fail with TooManyExecutionAttempts)
+	// 7. Verify retry #4 triggers auto-fail (count=3 → auto-transition to Failed)
 	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
-	err = ctx.ExpectedFail(tx, err)
-	require.Error(t, err, "Retry #4 should fail")
-	require.Contains(t, err.Error(), "TooManyExecutionAttempts", "Should revert with TooManyExecutionAttempts")
-	t.Logf(" Retry #4 blocked with TooManyExecutionAttempts")
-
-	// 8. Call executeWithFailure() to mark as Failed
-	tx, err = ctx.BaseTxExecuteWithFailure(t, ctx.govMinter, member, proposalId)
 	_, err = ctx.ExpectedOk(tx, err)
 	require.NoError(t, err)
+	t.Logf(" Retry #4 attempt triggered auto-fail mechanism (executionCount=3)")
 
+	// 8. Verify proposal auto-transitioned to Failed status after retry limit
 	proposal, err = ctx.BaseGetProposal(ctx.govMinter, member, proposalId)
 	require.NoError(t, err)
 	require.Equal(t, uint8(6), uint8(proposal.Status), "Proposal should be Failed")
-	t.Logf(" Proposal marked as Failed via executeWithFailure()")
+	t.Logf(" Proposal auto-transitioned to Failed status (retry limit reached)")
 
 	// 9. Verify cleanup hook released reservedMintAmount
 	reserved, err := ctx.GetReservedMintAmount(member)
 	require.NoError(t, err)
 	require.Equal(t, 0, reserved.Cmp(big.NewInt(0)), "reservedMintAmount should be cleaned up")
 	t.Logf(" Cleanup hook released reservedMintAmount")
+
+	// 10. Verify no further execution is possible (already in terminal state)
+	tx, err = ctx.BaseTxExecuteProposal(t, ctx.govMinter, member, proposalId)
+	err = ctx.ExpectedFail(tx, err)
+	require.Error(t, err, "Should fail - proposal already in Failed state")
+	t.Logf(" Further executeProposal attempts blocked (terminal state)")
+
+	tx, err = ctx.BaseTxExecuteWithFailure(t, ctx.govMinter, member, proposalId)
+	err = ctx.ExpectedFail(tx, err)
+	require.Error(t, err, "Should fail - proposal already in Failed state")
+	t.Logf(" executeWithFailure also blocked (terminal state)")
 
 	assertInvariantsHold(t, ctx, "After executionCount tracking test")
 }
