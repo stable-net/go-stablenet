@@ -211,22 +211,29 @@ cmd/gstable/
 #### Feature 1.2: Signature Value Object
 **Priority**: P0 (Critical)
 **Estimated Effort**: 2 hours
-**Status**: ⏳ Not Started
+**Status**: ✅ Complete
+**Completed**: 2025-01-07
 
 **Tasks**:
-- [ ] Write tests: `internal/genutils/domain/signature_test.go`
-- [ ] Implement: `internal/genutils/domain/signature.go`
-- [ ] Coverage target: ≥95%
+- [x] Write tests: `internal/genutils/domain/signature_test.go`
+- [x] Implement: `internal/genutils/domain/signature.go`
+- [x] Coverage: 100% (exceeds ≥95% target)
 
 **Acceptance Criteria**:
-- 65-byte signature validation
-- R, S, V component extraction
-- Immutability guaranteed
-- Equality comparison works
+- ✅ 65-byte signature validation
+- ✅ R, S, V component extraction (R=32 bytes, S=32 bytes, V=1 byte)
+- ✅ Immutability guaranteed (defensive copying in Bytes(), R(), S())
+- ✅ Equality comparison works
 
-**Files to Create**:
+**Files Created**:
 - `internal/genutils/domain/signature.go`
 - `internal/genutils/domain/signature_test.go`
+
+**Implementation Notes**:
+- Fixed-size array [65]byte for efficient comparison and immutability
+- Defensive copying in all getter methods to prevent external modification
+- 7 comprehensive test cases (with 4 subtests for invalid lengths and 3 for IsZero)
+- Hex string representation with 0x prefix for debugging
 
 ---
 
@@ -1001,14 +1008,14 @@ cmd/gstable/
 
 ### Summary
 - **Total Features**: 50+ features across 7 phases
-- **Completed**: 1 (2.2%)
+- **Completed**: 2 (4.4%)
 - **In Progress**: 0 (0%)
-- **Not Started**: 45+ (97.8%)
+- **Not Started**: 44+ (95.6%)
 
 ### Phase Completion Status
 | Phase | Features | Completed | Progress |
 |-------|----------|-----------|----------|
-| Phase 1: Domain Layer | 7 | 1 | 14% |
+| Phase 1: Domain Layer | 7 | 2 | 29% |
 | Phase 2: Services Layer | 9 | 0 | 0% |
 | Phase 3: Application Layer | 3 | 0 | 0% |
 | Phase 4: CLI Integration | 5 | 0 | 0% |
@@ -1016,31 +1023,32 @@ cmd/gstable/
 | Phase 6: Testing & Docs | 8 | 0 | 0% |
 | Phase 7: Polish & Release | 4 | 0 | 0% |
 | Risk Management | 4 | 0 | 0% |
-| **Total** | **46** | **1** | **2.2%** |
+| **Total** | **46** | **2** | **4.4%** |
 
 ---
 
 ## Current Status
 
 **Current Phase**: Phase 1 - Domain Layer
-**Current Feature**: Feature 1.2 - Signature Value Object
+**Current Feature**: Feature 1.3 - BLSPublicKey Value Object
 **Status**: Ready to Start
 **Last Updated**: 2025-01-07
 
 ### Completed Features
 - ✅ Feature 1.1: Address Value Object (100% coverage)
+- ✅ Feature 1.2: Signature Value Object (100% coverage)
 
 ### Next Steps
-1. Implement Feature 1.2: Signature Value Object
-2. Continue with remaining Phase 1 features (1.3-1.7)
+1. Implement Feature 1.3: BLSPublicKey Value Object
+2. Continue with remaining Phase 1 features (1.4-1.7)
 3. Maintain TDD methodology (Red → Green → Refactor)
 4. Keep test coverage ≥95% for domain layer
 
 ### Notes
-- Feature 1.1 completed with 100% test coverage
-- TDD workflow established successfully
-- EIP-55 checksum support confirmed
-- All 9 test cases passing
+- Phase 1 progress: 2/7 features (29%)
+- Domain package maintains 100% test coverage
+- TDD workflow producing high-quality, well-tested code
+- All 17 test cases passing (9 Address + 8 Signature)
 
 ---
 
