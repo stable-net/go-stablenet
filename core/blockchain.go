@@ -259,6 +259,8 @@ type BlockChain struct {
 	processor  Processor // Block transaction processor interface
 	forker     *ForkChoice
 	vmConfig   vm.Config
+
+	gasTipUpdater func(*state.StateDB) // Callback to update gas tip in worker
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -1847,6 +1849,20 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 
 			return it.index, nil // Direct block insertion of a single block
 		}
+
+		if bc.chainConfig.AnzeonEnabled() {
+			// Update gasTip from contract when new block is imported
+			if state, stateErr := bc.StateAt(block.Root()); stateErr == nil {
+				if bc.gasTipUpdater != nil {
+					go func() {
+						bc.gasTipUpdater(state)
+					}()
+				}
+			} else {
+				log.Error("Failed to get state from new block", "err", stateErr)
+			}
+		}
+
 		switch status {
 		case CanonStatTy:
 			log.Debug("Inserted new block", "number", block.Number(), "hash", block.Hash(),
@@ -2090,7 +2106,13 @@ func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
 		blobGasPrice = eip4844.CalcBlobFee(*excessBlobGas)
 	}
 	receipts := rawdb.ReadRawReceipts(bc.db, b.Hash(), b.NumberU64())
-	if err := receipts.DeriveFields(bc.chainConfig, b.Hash(), b.NumberU64(), b.Time(), b.BaseFee(), blobGasPrice, b.Transactions()); err != nil {
+
+	var headerGasTip *big.Int
+	if b.Header() != nil && b.Header().GasTip() != nil {
+		headerGasTip = b.Header().GasTip()
+	}
+
+	if err := receipts.DeriveFields(bc.chainConfig, b.Hash(), b.NumberU64(), b.Time(), b.BaseFee(), headerGasTip, blobGasPrice, b.Transactions()); err != nil {
 		log.Error("Failed to derive block receipts fields", "hash", b.Hash(), "number", b.NumberU64(), "err", err)
 	}
 	var logs []*types.Log
@@ -2465,4 +2487,9 @@ func (bc *BlockChain) SetTrieFlushInterval(interval time.Duration) {
 // GetTrieFlushInterval gets the in-memory tries flushAlloc interval
 func (bc *BlockChain) GetTrieFlushInterval() time.Duration {
 	return time.Duration(bc.flushInterval.Load())
+}
+
+// SetGasTipUpdater sets the callback function to update gas tip in worker
+func (bc *BlockChain) SetGasTipUpdater(updater func(*state.StateDB)) {
+	bc.gasTipUpdater = updater
 }

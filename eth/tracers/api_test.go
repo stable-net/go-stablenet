@@ -170,7 +170,11 @@ func (b *testBackend) StateAtTransaction(ctx context.Context, block *types.Block
 	// Recompute transactions up to the target index.
 	signer := types.MakeSigner(b.chainConfig, block.Number(), block.Time())
 	for idx, tx := range block.Transactions() {
-		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee())
+		var headerGasTip *big.Int
+		if block.Header() != nil && block.Header().GasTip() != nil {
+			headerGasTip = block.Header().GasTip()
+		}
+		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip)
 		txContext := core.NewEVMTxContext(msg)
 		context := core.NewEVMBlockContext(block.Header(), b.chain, nil)
 		if idx == txIndex {

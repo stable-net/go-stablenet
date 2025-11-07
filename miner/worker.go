@@ -43,6 +43,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 )
@@ -309,12 +310,24 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		worker.simSyncer = newSimSyncer(worker)
 	}
 
+	if worker.chainConfig.AnzeonEnabled() {
+		// Initialize gasTip from GovValidator contract
+		if currentBlock := worker.chain.CurrentBlock(); currentBlock != nil {
+			if state, err := worker.chain.StateAt(currentBlock.Root); err == nil {
+				worker.updateGasTipFromContract(state)
+			} else {
+				log.Warn("Failed to get state from current block", "err", err)
+			}
+		}
+		// Set callback to update gas tip in worker when blockchain imports new blocks
+		worker.chain.SetGasTipUpdater(worker.updateGasTipFromContract)
+	}
+
 	worker.wg.Add(4)
 	go worker.mainLoop()
 	go worker.newWorkLoop(recommit)
 	go worker.resultLoop()
 	go worker.taskLoop()
-
 	return worker
 }
 
@@ -345,11 +358,41 @@ func (w *worker) setExtra(extra []byte) {
 	w.extra = extra
 }
 
-// setGasTip sets the minimum miner tip needed to include a non-local transaction.
+// setGasTip locks and updates the gas tip.
+// If Anzeon is enabled, delegates to setGasTipUnsafe().
 func (w *worker) setGasTip(tip *big.Int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	if w.chainConfig.AnzeonEnabled() {
+		w.setGasTipUnsafe(tip)
+	} else {
+		w.tip = uint256.MustFromBig(tip)
+	}
+}
+
+// setGasTipUnsafe updates the gas tip without locking.
+// Caller must hold the lock. Also updates WBFT engine and TxPool.
+// Returns true if the tip was changed.
+func (w *worker) setGasTipUnsafe(tip *big.Int) bool {
+	// Check if the tip actually needs to be changed
+	if w.tip.Cmp(uint256.MustFromBig(tip)) == 0 {
+		return false // No change needed
+	}
 	w.tip = uint256.MustFromBig(tip)
+
+	// TODO: This part will be refactored to implement Minter transaction prioritization.
+	// Update txPool's gas tip to filter pending transactions accordingly
+	w.eth.TxPool().SetGasTip(tip)
+
+	log.Debug("Updated gasTip from GovValidator contract", "newTip", tip)
+	return true
+}
+
+func (w *worker) getGasTip() *big.Int {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	return w.tip.ToBig()
 }
 
 // setRecommitInterval updates the interval for miner sealing work recommitting.
@@ -612,6 +655,7 @@ func (w *worker) newWorkLoopWBFT() {
 
 			err := handler.NewChainHead()
 			clearPending(head.Block.NumberU64())
+
 			if errors.Is(err, wbft.ErrStoppedEngine) {
 				// If WBFT engine is running, we don't need to commit new work here because
 				// it will triggered by readyToCommitCh
@@ -828,6 +872,16 @@ func (w *worker) resultLoop() {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
 			}
+
+			if w.chainConfig.AnzeonEnabled() {
+				// Update gasTip from contract when new block is imported
+				if state, stateErr := w.chain.StateAt(block.Root()); stateErr == nil {
+					w.updateGasTipFromContract(state)
+				} else {
+					log.Error("Failed to get state from new block", "err", stateErr)
+				}
+			}
+
 			log.Info("Successfully sealed new block", "number", block.Number(), "sealhash", sealhash, "hash", hash,
 				"elapsed", common.PrettyDuration(time.Since(task.createdAt)))
 
@@ -1143,6 +1197,33 @@ func (w *worker) prepareWork(genParams *generateParams) (*environment, error) {
 	return env, nil
 }
 
+// updateGasTipFromContract updates the gasTip from GovValidator contract.
+func (w *worker) updateGasTipFromContract(state *state.StateDB) {
+	gasTip := w.getGasTipFromContract(state)
+	if gasTip != nil {
+		w.setGasTip(gasTip)
+	}
+}
+
+// getGasTipFromContract reads the current gasTip from GovValidator contract
+func (w *worker) getGasTipFromContract(state *state.StateDB) *big.Int {
+	if w.chainConfig.Anzeon.SystemContracts == nil {
+		log.Warn("GovValidator contract is not enabled")
+		return nil
+	}
+
+	govValidatorAddr := w.chainConfig.Anzeon.SystemContracts.GovValidator.Address
+
+	// Read gasTip from contract storage
+	gasTip := systemcontracts.GetGasTip(govValidatorAddr, state)
+	if gasTip == nil {
+		log.Warn("Failed to get gasTip from GovValidator contract", "gasTip", gasTip)
+		return nil
+	}
+
+	return gasTip
+}
+
 // fillTransactions retrieves the pending transactions from the txpool and fills them
 // into the given sealing block. The transaction selection and ordering strategy can
 // be customized with the plugin in the future.
@@ -1227,7 +1308,7 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 	}
 	return &newPayloadResult{
 		block:    block,
-		fees:     totalFees(block, work.receipts),
+		fees:     totalFees(w.chainConfig, block, work.receipts),
 		sidecars: work.sidecars,
 	}
 }
@@ -1323,7 +1404,7 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		if !w.isTTDReached(block.Header()) {
 			select {
 			case w.taskCh <- &task{receipts: env.receipts, state: env.state, block: block, createdAt: time.Now()}:
-				fees := totalFees(block, env.receipts)
+				fees := totalFees(w.chainConfig, block, env.receipts)
 				feesInEther := new(big.Float).Quo(new(big.Float).SetInt(fees), big.NewFloat(params.Ether))
 				log.Info("Commit new sealing work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 					"txs", env.tcount, "gas", block.GasUsed(), "fees", feesInEther,
@@ -1384,10 +1465,20 @@ func copyReceipts(receipts []*types.Receipt) []*types.Receipt {
 }
 
 // totalFees computes total consumed miner fees in Wei. Block transactions and receipts have to have the same order.
-func totalFees(block *types.Block, receipts []*types.Receipt) *big.Int {
+func totalFees(c *params.ChainConfig, block *types.Block, receipts []*types.Receipt) *big.Int {
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
-		minerFee, _ := tx.EffectiveGasTip(block.BaseFee())
+		var minerFee *big.Int
+		if c.AnzeonEnabled() {
+			// TODO: EffectiveGasPrice will be removed and replaced with the updated EffectiveGasTip function
+			var headerGasTip *big.Int
+			if block.Header() != nil && block.Header().GasTip() != nil {
+				headerGasTip = block.Header().GasTip()
+			}
+			minerFee = tx.EffectiveGasPrice(block.BaseFee(), headerGasTip)
+		} else {
+			minerFee, _ = tx.EffectiveGasTip(block.BaseFee())
+		}
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
 	}
 	return feesWei

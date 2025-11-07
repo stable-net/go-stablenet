@@ -18,12 +18,14 @@ package testutils
 
 import (
 	"encoding/hex"
+	"math/big"
 	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -47,6 +49,7 @@ func TestGeneratingGenesisExtra(t *testing.T) {
 			Validators:    []uint32{0, 1, 2, 3},
 			BLSPublicKeys: [][]byte{{}, {}, {}, {}},
 		},
+		GasTip: big.NewInt(int64(params.InitialGasTip)),
 	}
 	genesis := GenesisWithSeals(WBFTExtra.EpochInfo.GetCandidates(), WBFTExtra.EpochInfo.BLSPublicKeys)
 	t.Log("Genesis Extra Data: ", hex.EncodeToString(genesis.ExtraData))

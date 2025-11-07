@@ -1019,7 +1019,13 @@ func (p *BlobPool) SetGasTip(tip *big.Int) {
 
 	// Store the new minimum gas tip
 	old := p.gasTip
-	p.gasTip = uint256.MustFromBig(tip)
+
+	newTip := uint256.MustFromBig(tip)
+	if old != nil && newTip.Cmp(old) == 0 {
+		return
+	}
+
+	p.gasTip = newTip
 
 	// If the min miner fee increased, remove transactions below the new threshold
 	if old == nil || p.gasTip.Cmp(old) > 0 {

@@ -462,11 +462,16 @@ func (g *Genesis) ToBlock() *types.Block {
 	if g.Difficulty == nil && g.Mixhash == (common.Hash{}) {
 		head.Difficulty = params.GenesisDifficulty
 	}
-	if g.Config != nil && g.Config.IsLondon(common.Big0) {
-		if g.BaseFee != nil {
-			head.BaseFee = g.BaseFee
-		} else {
-			head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
+	if conf := g.Config; conf != nil {
+		switch {
+		case conf.AnzeonEnabled():
+			head.BaseFee = new(big.Int).SetUint64(params.MinBaseFee)
+		case conf.IsLondon(common.Big0):
+			if g.BaseFee != nil {
+				head.BaseFee = g.BaseFee
+			} else {
+				head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
+			}
 		}
 	}
 	var withdrawals []*types.Withdrawal
@@ -615,7 +620,7 @@ func DeveloperGenesisBlock(gasLimit uint64, faucet *common.Address) *Genesis {
 	genesis := &Genesis{
 		Config:     &config,
 		GasLimit:   gasLimit,
-		BaseFee:    big.NewInt(params.InitialBaseFee),
+		BaseFee:    new(big.Int).SetUint64(params.MinBaseFee),
 		Difficulty: big.NewInt(1),
 		Alloc: map[common.Address]types.Account{
 			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover

@@ -108,6 +108,14 @@ type headerMarshaling struct {
 	Hash       common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 }
 
+func (h *Header) GasTip() *big.Int {
+	currentExtra, err := ExtractWBFTExtra(h)
+	if err != nil {
+		return nil
+	}
+	return currentExtra.GasTip
+}
+
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
 // RLP encoding.
 func (h *Header) Hash() common.Hash {

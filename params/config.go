@@ -28,8 +28,8 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableNetMainnetGenesisHash = common.HexToHash("0x5466994b2b40c45d7c30971deecf920d8a703ac09c23a5b1abc316a58c125099")
-	StableNetTestnetGenesisHash = common.HexToHash("0x5466994b2b40c45d7c30971deecf920d8a703ac09c23a5b1abc316a58c125099")
+	StableNetMainnetGenesisHash = common.HexToHash("0x10dd59572cecc51221fbdae5fac7266800428a3127d7c2a028a760a8b633da86")
+	StableNetTestnetGenesisHash = common.HexToHash("0x10dd59572cecc51221fbdae5fac7266800428a3127d7c2a028a760a8b633da86")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash          = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
@@ -54,8 +54,8 @@ var (
 		MuirGlacierBlock:    big.NewInt(0),
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
-		ArrowGlacierBlock:   big.NewInt(0),
-		GrayGlacierBlock:    big.NewInt(0),
+		ArrowGlacierBlock:   nil,
+		GrayGlacierBlock:    nil,
 		MergeNetsplitBlock:  nil,
 		ShanghaiTime:        nil,
 		CancunTime:          nil,
@@ -85,6 +85,7 @@ var (
 						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
+						"gasTip":        "5000000000000",
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -168,6 +169,7 @@ var (
 						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
+						"gasTip":        "5000000000000",
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -385,6 +387,7 @@ var (
 						"validators":    "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
 						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
+						"gasTip":        "5000000000000",
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -579,6 +582,7 @@ var (
 						"validators":    "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
 						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
+						"gasTip":        "5000000000000",
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -1160,6 +1164,26 @@ func (c *ChainConfig) BaseFeeChangeDenominator() uint64 {
 // ElasticityMultiplier bounds the maximum gas limit an EIP-1559 block may have.
 func (c *ChainConfig) ElasticityMultiplier() uint64 {
 	return DefaultElasticityMultiplier
+}
+
+// BaseFeeChangeRate bounds the rate at which the base fee can increase or decrease per block.
+func (c *ChainConfig) BaseFeeChangeRate() uint64 {
+	return BaseFeeChangeRate
+}
+
+// GasTargetPercentage specifies the target gas usage as a percentage of the maximum block gas limit.
+func (c *ChainConfig) GasTargetPercentage() uint64 {
+	return GasTargetPercentage
+}
+
+// MinBaseFee returns the minimum allowed base fee.
+func (c *ChainConfig) MinBaseFee() *big.Int {
+	return new(big.Int).SetUint64(MinBaseFee)
+}
+
+// MaxBaseFee returns the maximum allowed base fee.
+func (c *ChainConfig) MaxBaseFee() *big.Int {
+	return new(big.Int).SetUint64(MaxBaseFee)
 }
 
 // LatestFork returns the latest time-based fork that would be active for the given time.

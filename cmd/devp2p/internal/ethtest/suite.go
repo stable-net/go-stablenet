@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/internal/utesting"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
 
@@ -501,7 +502,7 @@ transaction gets propagated.`)
 	inner := &types.DynamicFeeTx{
 		ChainID:   s.chain.config.ChainID,
 		Nonce:     nonce,
-		GasTipCap: common.Big1,
+		GasTipCap: big.NewInt(int64(params.InitialGasTip)),
 		GasFeeCap: s.chain.Head().BaseFee(),
 		Gas:       30000,
 		To:        &common.Address{0xaa},
@@ -530,7 +531,7 @@ does not propagate them.`)
 	inner := &types.DynamicFeeTx{
 		ChainID:   s.chain.config.ChainID,
 		Nonce:     nonce,
-		GasTipCap: common.Big1,
+		GasTipCap: big.NewInt(int64(params.InitialGasTip)),
 		GasFeeCap: s.chain.Head().BaseFee(),
 		Gas:       30000,
 		To:        &common.Address{0xaa},
@@ -621,7 +622,7 @@ on another peer connection using GetPooledTransactions.`)
 		inner := &types.DynamicFeeTx{
 			ChainID:   s.chain.config.ChainID,
 			Nonce:     nonce + uint64(i),
-			GasTipCap: common.Big1,
+			GasTipCap: big.NewInt(int64(params.InitialGasTip)),
 			GasFeeCap: s.chain.Head().BaseFee(),
 			Gas:       75000,
 		}

@@ -382,8 +382,11 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 	triedb := triedb.NewDatabase(db, triedb.HashDefaults)
 	defer triedb.Close()
 
+	// Initialize stateCache for chainMaker
+	cm.stateCache = state.NewDatabaseWithNodeDB(db, triedb)
+
 	for i := 0; i < n; i++ {
-		statedb, err := state.New(parent.Root(), state.NewDatabaseWithNodeDB(db, triedb), nil)
+		statedb, err := state.New(parent.Root(), cm.stateCache, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -405,7 +408,13 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		if block.ExcessBlobGas() != nil {
 			blobGasPrice = eip4844.CalcBlobFee(*block.ExcessBlobGas())
 		}
-		if err := receipts.DeriveFields(config, block.Hash(), block.NumberU64(), block.Time(), block.BaseFee(), blobGasPrice, txs); err != nil {
+
+		var headerGasTip *big.Int
+		if block.Header() != nil && block.Header().GasTip() != nil {
+			headerGasTip = block.Header().GasTip()
+		}
+
+		if err := receipts.DeriveFields(config, block.Hash(), block.NumberU64(), block.Time(), block.BaseFee(), headerGasTip, blobGasPrice, txs); err != nil {
 			panic(err)
 		}
 
@@ -481,9 +490,16 @@ func (cm *chainMaker) makeHeader(parent *types.Block, state *state.StateDB, engi
 		panic("invalid call of SetCoinbase")
 	}
 
-	err = engine.CallEngineSpecific("InheritExtra", parent.Header(), header)
-	if err != nil {
-		panic("invalid call of InheritExtra")
+	if cm.config.AnzeonEnabled() {
+		err = engine.CallEngineSpecific("InheritExtra", parent.Header(), header, new(big.Int).SetUint64(params.InitialGasTip))
+		if err != nil {
+			panic("invalid call of InheritExtra")
+		}
+	} else {
+		err = engine.CallEngineSpecific("InheritExtra", parent.Header(), header)
+		if err != nil {
+			panic("invalid call of InheritExtra")
+		}
 	}
 
 	err = engine.CallEngineSpecific("SetMixDigest", parent.Header(), header)
@@ -538,6 +554,7 @@ type chainMaker struct {
 	chain       []*types.Block
 	chainByHash map[common.Hash]*types.Block
 	receipts    []types.Receipts
+	stateCache  state.Database
 }
 
 func newChainMaker(bottom *types.Block, config *params.ChainConfig, engine consensus.Engine) *chainMaker {
@@ -623,4 +640,11 @@ func (cm *chainMaker) GetBlock(hash common.Hash, number uint64) *types.Block {
 
 func (cm *chainMaker) GetTd(hash common.Hash, number uint64) *big.Int {
 	return nil // not supported
+}
+
+func (cm *chainMaker) StateAt(root common.Hash) (*state.StateDB, error) {
+	if cm.stateCache == nil {
+		return nil, fmt.Errorf("stateCache is not initialized")
+	}
+	return state.New(root, cm.stateCache, nil)
 }

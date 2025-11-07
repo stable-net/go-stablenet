@@ -258,7 +258,6 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 	} else {
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
-
 	// Ensure that the block's parent has right number and hash
 	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 		return consensus.ErrUnknownAncestor
@@ -321,6 +320,26 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		}
 	}
 
+	if err := e.verifyGasTip(chain, header); err != nil {
+		// Critical errors: contract unavailable or gas tip mismatch
+		// These errors must be returned and block validation should fail
+		if errors.Is(err, wbft.ErrGasTipContractUnavailable) {
+			return err
+		}
+		var mismatchErr *wbft.GasTipMismatchError
+		if errors.As(err, &mismatchErr) {
+			return err
+		}
+
+		// Skip gas tip verification when state is not yet available.
+		// This can occur during:
+		// - FullSync or SnapSync (downloader.InsertChain)
+		// - SnapSync receipt import (downloader.InsertReceiptChain)
+		// - HeaderChain verification (headers only, no state data)
+		// In these cases, headers exist but the state is incomplete,
+		// so skip gas tip verification and continue.
+		log.Trace("WBFT: Skipping gas tip verification due to unavailable state", "number", header.Number, "err", err)
+	}
 	return nil
 }
 
@@ -466,10 +485,16 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 
 	var madeExtra *types.WBFTExtra
 	var err error
+	var gasTip *big.Int
+
+	if gasTip, err = e.getGasTip(chain, header); err != nil {
+		return err
+	}
+
 	if mustHavePrevSeals(header) {
 		lastCanonicalHeader := chain.GetHeaderByNumber(header.Number.Uint64() - 1)
 		if lastCanonicalHeader.Number.Sign() == 0 {
-			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header))
+			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteGasTip(gasTip))
 		} else {
 			extra, err2 := types.ExtractWBFTExtra(lastCanonicalHeader)
 			if err2 != nil {
@@ -488,15 +513,12 @@ func (e *Engine) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 			prevCommittedSeal := mergeSeals(extra.CommittedSeal, extraCommittedSeal)
 
 			// add validators in snapshot to extraData's validators section and lastBlock committers to extraData's prevCommittedSeal section
-			madeExtra, err = ApplyHeaderWBFTExtra(
-				header,
-				e.WriteRandao(chain.Config(), header),
-				WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal),
-			)
+			madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WritePrevSeals(extra.Round, prevPreparedSeal, prevCommittedSeal), WriteGasTip(gasTip))
 		}
 	} else {
-		// genesis block has empty prev seal
-		madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header))
+		// croissant hardFork block has empty prev seal
+		// next block of genesis croissant block has empty prev seal
+		madeExtra, err = ApplyHeaderWBFTExtra(header, e.WriteRandao(chain.Config(), header), WriteGasTip(gasTip))
 	}
 	if err != nil {
 		return fmt.Errorf("failed to write wbft extra: %w", err)
@@ -521,9 +543,7 @@ func makeRandaoData(config *params.ChainConfig, number *big.Int) []byte {
 	var data []byte
 	chainId := config.ChainID
 	randaoVersion := new(big.Int)
-	if config.AnzeonEnabled() {
-		randaoVersion.SetUint64(1) // anzeon randao version is 1
-	}
+	randaoVersion.SetUint64(1) // anzeon randao version is 1
 	data = append(data, chainId.Bytes()...)
 	data = append(data, randaoVersion.Bytes()...)
 	data = append(data, number.Bytes()...)
@@ -555,6 +575,13 @@ func WriteEpochInfo(epochInfo *types.EpochInfo) ApplyWBFTExtra {
 	}
 }
 
+func WriteGasTip(gasTip *big.Int) ApplyWBFTExtra {
+	return func(wbftExtra *types.WBFTExtra) error {
+		wbftExtra.GasTip = new(big.Int).Set(gasTip)
+		return nil
+	}
+}
+
 // GetGovCandidates retrieves the list of current validators from the GovValidator contract.
 func (e *Engine) GetGovCandidates(config *params.ChainConfig, state systemcontracts.StateReader, num *big.Int) []common.Address {
 	systemContracts := e.cfg.GetSystemContracts(num, config)
@@ -567,6 +594,33 @@ type candidateInfo struct {
 	isValidator  bool // in current epoch
 	wasValidator bool // in previous epoch
 	candidate    *types.Candidate
+}
+
+// getGasTip resolves the parent state of the given header and reads gas tip from GovValidator.
+// It unifies parent state resolution and gas tip retrieval used by multiple call sites.
+func (e *Engine) getGasTip(chain consensus.ChainHeaderReader, header *types.Header) (*big.Int, error) {
+	if chain.Config().Anzeon.SystemContracts == nil {
+		return nil, errors.New("WBFT: GovValidator contract is not enabled")
+	}
+
+	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
+	if parent == nil {
+		return nil, consensus.ErrUnknownAncestor
+	}
+	if parent.Root == (common.Hash{}) {
+		return nil, errors.New("WBFT: parent state root is empty")
+	}
+	parentState, err := chain.StateAt(parent.Root)
+	if err != nil {
+		return nil, err
+	}
+
+	govValidatorAddr := chain.Config().Anzeon.SystemContracts.GovValidator.Address
+	gasTip := systemcontracts.GetGasTip(govValidatorAddr, parentState)
+	if gasTip == nil {
+		return nil, wbft.ErrGasTipContractUnavailable
+	}
+	return gasTip, nil
 }
 
 // verifyHeader() must catch inconsistent seals before calling this.
@@ -878,6 +932,10 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 		}
 	}
 
+	if err := e.verifyGasTip(chain, header); err != nil {
+		return err
+	}
+
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
 	return nil
@@ -906,10 +964,6 @@ func (e *Engine) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, 
 // IsEpochBlockNumber returns whether the given block number is an epoch block.
 // it returns whether the given block number is an epoch block and the last epoch block number.
 func (e *Engine) IsEpochBlockNumber(config *params.ChainConfig, number *big.Int) (bool, *big.Int, error) {
-	if !config.AnzeonEnabled() {
-		return false, nil, wbftcommon.ErrIsNotWBFTBlock
-	}
-
 	epochLength := new(big.Int).SetUint64(e.cfg.Epoch)
 	firstNewEpoch := new(big.Int).SetUint64(0)
 	for _, transition := range e.cfg.Transitions {
@@ -935,10 +989,6 @@ func (e *Engine) IsEpochBlockNumber(config *params.ChainConfig, number *big.Int)
 // it returns the validators from chain config.
 func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *big.Int, parentHash common.Hash, parents []*types.Header) (wbft.ValidatorSet, error) {
 	chainConfig := chain.Config()
-	// 1. Check if the block is not a WBFT block
-	if !chainConfig.AnzeonEnabled() {
-		return nil, wbftcommon.ErrIsNotWBFTBlock
-	}
 
 	var (
 		epochInfo *types.EpochInfo
@@ -1017,6 +1067,7 @@ func getExtra(header *types.Header) (*types.WBFTExtra, error) {
 			PreparedSeal:      nil,
 			CommittedSeal:     nil,
 			EpochInfo:         nil,
+			GasTip:            nil,
 		}, nil
 	}
 
@@ -1118,6 +1169,23 @@ func (e *Engine) decideValidators(header *types.Header, newStakers []PoweredCand
 		validators[i] = uint32(indices[shuffledIdx])
 	}
 	return validators, nil
+}
+
+func (e *Engine) verifyGasTip(chain consensus.ChainHeaderReader, header *types.Header) error {
+	extra, err := types.ExtractWBFTExtra(header)
+	if err != nil {
+		return err
+	}
+
+	gastip, err := e.getGasTip(chain, header)
+	if err != nil {
+		return err
+	}
+
+	if extra.GasTip != nil && extra.GasTip.Cmp(gastip) != 0 {
+		return &wbft.GasTipMismatchError{Have: extra.GasTip, Want: gastip}
+	}
+	return nil
 }
 
 func sortCandidates(candidates []PoweredCandidate) []int {

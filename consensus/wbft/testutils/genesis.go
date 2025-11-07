@@ -22,6 +22,7 @@ package testutils
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/consensus/wbft"
 
@@ -149,6 +150,7 @@ func setWBFTExtra(genesis *core.Genesis, validators []common.Address, blsPublicK
 		PreparedSeal:  &types.WBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
 		CommittedSeal: &types.WBFTAggregatedSeal{Signature: []byte{}, Sealers: types.SealerSet{}},
 		EpochInfo:     epochInfo,
+		GasTip:        big.NewInt(int64(params.InitialGasTip)),
 	}
 
 	if withPrev {

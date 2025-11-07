@@ -93,7 +93,6 @@ type Ethereum struct {
 	APIBackend *EthAPIBackend
 
 	miner     *miner.Miner
-	gasPrice  *big.Int
 	etherbase common.Address
 
 	networkID     uint64
@@ -176,7 +175,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		engine:            engine,
 		closeBloomHandler: make(chan struct{}),
 		networkID:         networkID,
-		gasPrice:          config.Miner.GasPrice,
 		etherbase:         etherbase,
 		bloomRequests:     make(chan chan *bloombits.Retrieval),
 		bloomIndexer:      core.NewBloomIndexer(chainDb, params.BloomBitsBlocks, params.BloomConfirms),
@@ -437,10 +435,8 @@ func (s *Ethereum) SetEtherbase(etherbase common.Address) {
 func (s *Ethereum) StartMining() error {
 	// If the miner was not running, initialize it
 	if !s.IsMining() {
-		// Propagate the initial price point to the transaction pool
-		s.lock.RLock()
-		price := s.gasPrice
-		s.lock.RUnlock()
+		// Propagate the current gas tip from miner (which reads from GovValidator contract) to the transaction pool
+		price := s.miner.GetGasTip()
 		s.txPool.SetGasTip(price)
 
 		// Configure the local mining address

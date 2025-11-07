@@ -20,7 +20,11 @@
 
 package wbft
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+	"math/big"
+)
 
 var (
 	// ErrUnauthorizedAddress is returned when given address cannot be found in
@@ -30,4 +34,19 @@ var (
 	ErrStoppedEngine = errors.New("stopped engine")
 	// ErrStartedEngine is returned if the engine is already started
 	ErrStartedEngine = errors.New("started engine")
+
+	// ErrGasTipContractUnavailable is returned when GovValidator contract is not available
+	// to retrieve gas tip value.
+	ErrGasTipContractUnavailable = errors.New("gas tip contract unavailable")
 )
+
+// GasTipMismatchError is returned when the gas tip in the header does not match
+// the expected gas tip from the GovValidator contract.
+type GasTipMismatchError struct {
+	Have *big.Int
+	Want *big.Int
+}
+
+func (e *GasTipMismatchError) Error() string {
+	return fmt.Sprintf("invalid gas tip: have %d, want %d", e.Have, e.Want)
+}

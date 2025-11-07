@@ -44,13 +44,6 @@ func TestTransferLog(t *testing.T) {
 		block, err := g.backend.Client().BlockByNumber(ctx, blockNumber)
 		require.NoError(t, err)
 
-		tx, isPending, err := g.backend.Client().TransactionByHash(ctx, receipt.TxHash)
-		require.NoError(t, err)
-		require.False(t, isPending)
-
-		effectiveGasPrice, err := tx.EffectiveGasTip(block.BaseFee())
-		require.NoError(t, err)
-
 		coinBase := block.Coinbase()
 		diff := new(big.Int).Sub(
 			g.BalanceAt(t, ctx, coinBase, blockNumber),
@@ -60,7 +53,7 @@ func TestTransferLog(t *testing.T) {
 		require.Equal(t, sender, event["from"].(common.Address))
 		require.Equal(t, coinBase, event["to"].(common.Address))
 		require.True(t, diff.Cmp(actualGas) == 0)
-		require.True(t, new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), effectiveGasPrice).Cmp(actualGas) == 0)
+		require.True(t, new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice).Cmp(actualGas) == 0)
 	}
 
 	t.Run("mint", func(t *testing.T) {

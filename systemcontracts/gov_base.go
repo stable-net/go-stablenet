@@ -164,7 +164,8 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 		memberAddresses := strings.Split(membersStr, ",")
 
 		// Pre-validate and deduplicate members
-		uniqueMembers := make(map[common.Address]struct{})
+		uniqueMembers := make([]common.Address, 0)
+		seen := make(map[common.Address]struct{})
 		for _, addrStr := range memberAddresses {
 			member := common.HexToAddress(addrStr)
 
@@ -173,7 +174,11 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 				return nil, fmt.Errorf("`systemContracts.govBase.params.members` contains invalid zero address")
 			}
 
-			uniqueMembers[member] = struct{}{}
+			// Add to slice only if not seen before
+			if _, exists := seen[member]; !exists {
+				seen[member] = struct{}{}
+				uniqueMembers = append(uniqueMembers, member)
+			}
 		}
 
 		// Check quorum after deduplication
@@ -233,8 +238,8 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 		}.ToHash()
 
 		currentIdx := uint64(0)
-		// Use uniqueMembers map for iteration
-		for member := range uniqueMembers {
+		// Use uniqueMembers slice for iteration
+		for _, member := range uniqueMembers {
 			// Additional overflow check (defensive programming)
 			if currentIdx >= MAX_MEMBERS {
 				return nil, fmt.Errorf("member index overflow: currentIdx (%d) >= MAX_MEMBERS (%d)", currentIdx, MAX_MEMBERS)

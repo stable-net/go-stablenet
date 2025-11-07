@@ -34,6 +34,8 @@ contract GovValidator is GovBase {
     error AlreadyRegisteredBlsKey();
     error FailedToVerifyBlsKey();
     error InvalidBlsKey();
+    error InvalidGasTip();
+    error SameGasTip();
 
     // 0x0 ~ 0x31: reserved for GovBase
     address public blsPoP; // 0x32; Precompiled contract address for BLS PoP verification
@@ -42,6 +44,10 @@ contract GovValidator is GovBase {
     mapping(address => address) public operatorToValidator; // 0x36
     mapping(address => bytes) public validatorToBlsKey; // 0x37
     mapping(bytes => address) public blsKeyToValidator; // 0x38
+    uint256 public gasTip; // 0x39
+
+    // ========== Action Types ==========
+    bytes32 public constant ACTION_SET_GAS_TIP = keccak256("SET_GAS_TIP");
 
     function isValidator(address _validator) external view returns (bool) {
         return __validators.contains(_validator);
@@ -140,8 +146,11 @@ contract GovValidator is GovBase {
     }
 
     function _executeCustomAction(bytes32 actionType, bytes memory callData) internal override returns (bool) {
-        // GovValidator doesn't have custom actions beyond member management
-        // All validator configuration is done directly via configureValidator
+        if (actionType == ACTION_SET_GAS_TIP) {
+            uint256 _newTip = abi.decode(callData, (uint256));
+            _setGasTip(_newTip);
+            return true;
+        }
         return false;
     }
 
@@ -160,5 +169,27 @@ contract GovValidator is GovBase {
         if (!abi.decode(_result, (bool))) {
             revert InvalidBlsKey();
         }
+    }
+
+    // ========== Events ==========
+    event GasTipUpdated(uint256 oldTip, uint256 newTip, address indexed updater);
+
+    // ========== Fee Policy Management ==========
+    function proposeGasTip(uint256 _newTip) external onlyActiveMember returns (uint256) {
+        // Check if same as current value
+        if (_newTip == gasTip) revert SameGasTip();
+
+        bytes memory _encodedParams = abi.encode(_newTip);
+        return _createProposal(ACTION_SET_GAS_TIP, _encodedParams);
+    }
+
+    function _setGasTip(uint256 _newTip) internal {
+        uint256 oldTip = gasTip;
+        gasTip = _newTip;
+        emit GasTipUpdated(oldTip, _newTip, msg.sender);
+    }
+
+    function getGasTipGwei() external view returns (uint256) {
+        return gasTip / 1e9;
     }
 }

@@ -103,8 +103,7 @@ type TxData interface {
 	//
 	// Unlike other TxData methods, the returned *big.Int should be an independent
 	// copy of the computed value, i.e. callers are allowed to mutate the result.
-	// Method implementations can use 'dst' to store the result.
-	effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int
+	effectiveGasPrice(baseFee *big.Int, gasTip *big.Int) *big.Int
 
 	encode(*bytes.Buffer) error
 	decode([]byte) error
@@ -400,6 +399,13 @@ func (tx *Transaction) EffectiveGasTipIntCmp(other *big.Int, baseFee *big.Int) i
 		return tx.GasTipCapIntCmp(other)
 	}
 	return tx.EffectiveGasTipValue(baseFee).Cmp(other)
+}
+
+// EffectiveGasPrice returns the actual gas price the transaction will pay, given the base fee and gasTip.
+// This is different from EffectiveGasTip which returns only the miner tip portion.
+// The formula is: min(gasTipCap, gasFeeCap - baseFee) + baseFee, capped by gasTip if applicable.
+func (tx *Transaction) EffectiveGasPrice(baseFee, headerGasTip *big.Int) *big.Int {
+	return tx.inner.effectiveGasPrice(baseFee, headerGasTip)
 }
 
 // fee delegation

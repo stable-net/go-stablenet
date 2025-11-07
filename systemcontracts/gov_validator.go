@@ -31,6 +31,7 @@ import (
 const (
 	GOV_VALIDATOR_PARAM_VALIDATORS = "validators"
 	GOV_VALIDATOR_PARAM_BLS_KEYS   = "blsPublicKeys"
+	GOV_VALIDATOR_PARAM_GAS_TIP    = "gasTip"
 
 	SLOT_VALIDATOR_blsPop              = "0x32"
 	SLOT_VALIDATOR_validators          = "0x33"
@@ -38,6 +39,7 @@ const (
 	SLOT_VALIDATOR_operatorToValidator = "0x36"
 	SLOT_VALIDATOR_validatorToBlsKey   = "0x37"
 	SLOT_VALIDATOR_blsKeyToValidator   = "0x38"
+	SLOT_VALIDATOR_gasTip              = "0x39"
 )
 
 type blsWrapper struct {
@@ -58,6 +60,28 @@ func initializeValidator(govValidatorAddress common.Address, param map[string]st
 			Address: govValidatorAddress,
 			Key:     common.HexToHash(SLOT_VALIDATOR_blsPop),
 			Value:   common.BytesToHash(params.BLSPoPPrecompileAddress.Bytes())},
+	)
+
+	// Initialize gasTip: use provided value or default to InitialGasTip
+	var gasTip *big.Int
+	if gasTipStr, ok := param[GOV_VALIDATOR_PARAM_GAS_TIP]; ok {
+		var parseOk bool
+		gasTip, parseOk = new(big.Int).SetString(gasTipStr, 10)
+		if !parseOk {
+			return nil, fmt.Errorf("`systemContracts.govValidator.params.gasTip`: invalid value: %s", gasTipStr)
+		}
+	} else {
+		// Use InitialGasTip as default if not provided
+		gasTip = new(big.Int).SetUint64(params.InitialGasTip)
+	}
+
+	// Set gasTip in contract storage
+	sp = append(sp,
+		params.StateParam{
+			Address: govValidatorAddress,
+			Key:     common.HexToHash(SLOT_VALIDATOR_gasTip),
+			Value:   common.BigToHash(gasTip),
+		},
 	)
 
 	if valStr, ok := param[GOV_VALIDATOR_PARAM_VALIDATORS]; ok {
@@ -184,4 +208,9 @@ func ValidatorList(govValidatorAddress common.Address, state StateReader) []comm
 
 func GetBLSPublicKey(govValidatorAddress common.Address, state StateReader, val common.Address) []byte {
 	return GetBytes(state, govValidatorAddress, CalculateMappingSlot(common.HexToHash(SLOT_VALIDATOR_validatorToBlsKey), val))
+}
+
+func GetGasTip(govValidatorAddress common.Address, state StateReader) *big.Int {
+	value := state.GetState(govValidatorAddress, common.HexToHash(SLOT_VALIDATOR_gasTip))
+	return value.Big()
 }

@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // MinerAPI provides an API to control the miner.
@@ -59,9 +60,10 @@ func (api *MinerAPI) SetExtra(extra string) (bool, error) {
 
 // SetGasPrice sets the minimum accepted gas price for the miner.
 func (api *MinerAPI) SetGasPrice(gasPrice hexutil.Big) bool {
-	api.e.lock.Lock()
-	api.e.gasPrice = (*big.Int)(&gasPrice)
-	api.e.lock.Unlock()
+	if api.e.blockchain.Config().AnzeonEnabled() {
+		log.Debug("SetGasPrice is not supported for anzeon")
+		return false
+	}
 
 	api.e.txPool.SetGasTip((*big.Int)(&gasPrice))
 	api.e.Miner().SetGasTip((*big.Int)(&gasPrice))

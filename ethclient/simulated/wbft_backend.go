@@ -55,7 +55,7 @@ func NewWBFTBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 		GasLimit:   ethconfig.Defaults.Miner.GasCeil,
 		Alloc:      alloc,
 		Difficulty: new(big.Int).SetUint64(1),
-		BaseFee:    big.NewInt(1000000000),
+		BaseFee:    new(big.Int).SetUint64(params.MinBaseFee),
 	}
 	validator := crypto.PubkeyToAddress(nodeConf.P2P.PrivateKey.PublicKey)
 	blsKey, _ := bls.DeriveFromECDSA(nodeConf.P2P.PrivateKey)
@@ -70,6 +70,7 @@ func NewWBFTBackend(alloc types.GenesisAlloc, options ...func(nodeConf *node.Con
 		"memberVersion": "1",
 		"validators":    validator.String(),
 		"blsPublicKeys": hexutil.Encode(blsPubKey),
+		"gasTip":        "1",
 	}
 
 	ethConf.Genesis.Config.Anzeon.WBFT.AllowedFutureBlockTime = 3153600000 // disable time verification of a block ( == 100 years )

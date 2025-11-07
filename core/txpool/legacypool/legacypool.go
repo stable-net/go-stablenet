@@ -439,6 +439,11 @@ func (pool *LegacyPool) SetGasTip(tip *big.Int) {
 		newTip = uint256.MustFromBig(tip)
 		old    = pool.gasTip.Load()
 	)
+
+	if newTip.Cmp(old) == 0 {
+		return
+	}
+
 	pool.gasTip.Store(newTip)
 	// If the min miner fee increased, remove transactions below the new threshold
 	if newTip.Cmp(old) > 0 {
