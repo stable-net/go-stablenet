@@ -28,8 +28,9 @@ var (
 	ErrInvalidTimestamp        = errors.New("invalid timestamp")
 
 	// Collection errors
-	ErrDuplicateValidator = errors.New("duplicate validator address")
-	ErrDuplicateOperator  = errors.New("duplicate operator address")
-	ErrDuplicateBLSKey    = errors.New("duplicate BLS public key")
-	ErrChainIDMismatch    = errors.New("chain ID mismatch")
+	ErrDuplicateValidatorAddress = errors.New("duplicate validator address")
+	ErrDuplicateOperatorAddress  = errors.New("duplicate operator address")
+	ErrDuplicateBLSKey           = errors.New("duplicate BLS public key")
+	ErrGenTxNotFound             = errors.New("gentx not found in collection")
+	ErrChainIDMismatch           = errors.New("chain ID mismatch")
 )
