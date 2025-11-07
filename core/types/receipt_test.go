@@ -117,16 +117,16 @@ var (
 			Nonce:     4,
 			Value:     big.NewInt(4),
 			Gas:       4,
-			GasTipCap: big.NewInt(44),
-			GasFeeCap: big.NewInt(1044),
+			GasTipCap: big.NewInt(1000),
+			GasFeeCap: big.NewInt(2000),
 		}),
 		NewTx(&DynamicFeeTx{
 			To:        &to5,
 			Nonce:     5,
 			Value:     big.NewInt(5),
 			Gas:       5,
-			GasTipCap: big.NewInt(55),
-			GasFeeCap: big.NewInt(1055),
+			GasTipCap: big.NewInt(1000),
+			GasFeeCap: big.NewInt(2000),
 		}),
 		// EIP-4844 transactions.
 		NewTx(&BlobTx{
@@ -134,8 +134,8 @@ var (
 			Nonce:      6,
 			Value:      uint256.NewInt(6),
 			Gas:        6,
-			GasTipCap:  uint256.NewInt(66),
-			GasFeeCap:  uint256.NewInt(1066),
+			GasTipCap:  uint256.NewInt(1000),
+			GasFeeCap:  uint256.NewInt(2000),
 			BlobFeeCap: uint256.NewInt(100066),
 			BlobHashes: []common.Hash{{}},
 		}),
@@ -144,8 +144,8 @@ var (
 			Nonce:      7,
 			Value:      uint256.NewInt(7),
 			Gas:        7,
-			GasTipCap:  uint256.NewInt(77),
-			GasFeeCap:  uint256.NewInt(1077),
+			GasTipCap:  uint256.NewInt(1000),
+			GasFeeCap:  uint256.NewInt(2000),
 			BlobFeeCap: uint256.NewInt(100077),
 			BlobHashes: []common.Hash{{}, {}, {}},
 		}),
@@ -310,8 +310,8 @@ func TestDeriveFields(t *testing.T) {
 	// Re-derive receipts.
 	basefee := big.NewInt(1000)
 	blobGasPrice := big.NewInt(920)
-	derivedReceipts := clearComputedFieldsOnReceipts(receipts)
 	headerGasTip := big.NewInt(1000)
+	derivedReceipts := clearComputedFieldsOnReceipts(receipts)
 	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, headerGasTip, blobGasPrice, txs)
 	if err != nil {
 		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
