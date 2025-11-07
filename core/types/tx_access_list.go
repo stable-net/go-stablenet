@@ -108,7 +108,7 @@ func (tx *AccessListTx) value() *big.Int        { return tx.Value }
 func (tx *AccessListTx) nonce() uint64          { return tx.Nonce }
 func (tx *AccessListTx) to() *common.Address    { return tx.To }
 
-func (tx *AccessListTx) effectiveGasPrice(baseFee, gasTip *big.Int) *big.Int {
+func (tx *AccessListTx) effectiveGasPrice(baseFee, headerGasTip *big.Int) *big.Int {
 	return new(big.Int).Set(tx.GasPrice)
 }
 

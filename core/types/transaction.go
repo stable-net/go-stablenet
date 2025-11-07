@@ -404,8 +404,8 @@ func (tx *Transaction) EffectiveGasTipIntCmp(other *big.Int, baseFee *big.Int) i
 // EffectiveGasPrice returns the actual gas price the transaction will pay, given the base fee and gasTip.
 // This is different from EffectiveGasTip which returns only the miner tip portion.
 // The formula is: min(gasTipCap, gasFeeCap - baseFee) + baseFee, capped by gasTip if applicable.
-func (tx *Transaction) EffectiveGasPrice(baseFee, gasTip *big.Int) *big.Int {
-	return tx.inner.effectiveGasPrice(baseFee, gasTip)
+func (tx *Transaction) EffectiveGasPrice(baseFee, headerGasTip *big.Int) *big.Int {
+	return tx.inner.effectiveGasPrice(baseFee, headerGasTip)
 }
 
 // fee delegation

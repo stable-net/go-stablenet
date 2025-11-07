@@ -1499,10 +1499,10 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 // effectiveGasPrice computes the transaction gas fee, based on the given basefee value.
 //
 //	price = min(gasTipCap + baseFee, gasFeeCap)
-func effectiveGasPrice(tx *types.Transaction, baseFee, gasTip *big.Int) *big.Int {
+func effectiveGasPrice(tx *types.Transaction, baseFee, headerGasTip *big.Int) *big.Int {
 	var fee *big.Int
-	if gasTip != nil {
-		fee = new(big.Int).Set(gasTip)
+	if headerGasTip != nil {
+		fee = new(big.Int).Set(headerGasTip)
 	} else {
 		fee = tx.GasTipCap()
 	}

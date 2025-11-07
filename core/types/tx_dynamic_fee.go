@@ -97,14 +97,14 @@ func (tx *DynamicFeeTx) value() *big.Int        { return tx.Value }
 func (tx *DynamicFeeTx) nonce() uint64          { return tx.Nonce }
 func (tx *DynamicFeeTx) to() *common.Address    { return tx.To }
 
-func (tx *DynamicFeeTx) effectiveGasPrice(baseFee, gasTip *big.Int) *big.Int {
+func (tx *DynamicFeeTx) effectiveGasPrice(baseFee, headerGasTip *big.Int) *big.Int {
 	if baseFee == nil {
 		baseFee = common.Big0
 	}
 
 	tipCap := tx.GasTipCap
-	if gasTip != nil {
-		tipCap = new(big.Int).Set(gasTip)
+	if headerGasTip != nil {
+		tipCap = new(big.Int).Set(headerGasTip)
 	}
 
 	tip := new(big.Int).Sub(tx.GasFeeCap, baseFee)

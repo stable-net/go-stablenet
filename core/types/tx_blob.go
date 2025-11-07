@@ -163,14 +163,14 @@ func (tx *BlobTx) nonce() uint64          { return tx.Nonce }
 func (tx *BlobTx) to() *common.Address    { tmp := tx.To; return &tmp }
 func (tx *BlobTx) blobGas() uint64        { return params.BlobTxBlobGasPerBlob * uint64(len(tx.BlobHashes)) }
 
-func (tx *BlobTx) effectiveGasPrice(baseFee, gasTip *big.Int) *big.Int {
+func (tx *BlobTx) effectiveGasPrice(baseFee, headerGasTip *big.Int) *big.Int {
 	if baseFee == nil {
 		baseFee = common.Big0
 	}
 
 	tipCap := tx.GasTipCap.ToBig()
-	if gasTip != nil {
-		tipCap = new(big.Int).Set(gasTip)
+	if headerGasTip != nil {
+		tipCap = new(big.Int).Set(headerGasTip)
 	}
 
 	tip := new(big.Int).Sub(tx.GasFeeCap.ToBig(), baseFee)

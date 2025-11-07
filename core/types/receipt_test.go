@@ -309,10 +309,10 @@ func TestDecodeEmptyTypedReceipt(t *testing.T) {
 func TestDeriveFields(t *testing.T) {
 	// Re-derive receipts.
 	basefee := big.NewInt(1000)
-	gasTip := big.NewInt(1000)
 	blobGasPrice := big.NewInt(920)
 	derivedReceipts := clearComputedFieldsOnReceipts(receipts)
-	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, gasTip, blobGasPrice, txs)
+	headerGasTip := big.NewInt(1000)
+	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, headerGasTip, blobGasPrice, txs)
 	if err != nil {
 		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
 	}
