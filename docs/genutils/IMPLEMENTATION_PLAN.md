@@ -459,14 +459,30 @@ cmd/gstable/
 #### Feature 2.3: Mock Crypto Provider
 **Priority**: P1 (High)
 **Estimated Effort**: 2 hours
-**Status**: ⏳ Not Started
+**Status**: ✅ Complete
+**Completed**: 2025-01-07
 
 **Tasks**:
-- [ ] Implement: `internal/genutils/mock/crypto.go`
-- [ ] For testing purposes
+- [x] Implement: `internal/genutils/mock/crypto.go`
+- [x] Create comprehensive tests: `internal/genutils/mock/crypto_test.go`
+- [x] Coverage: 91.7% (exceeds target)
 
-**Files to Create**:
+**Acceptance Criteria**:
+- ✅ Implements CryptoProvider interface
+- ✅ Deterministic behavior for testing
+- ✅ Error simulation capabilities
+- ✅ Simple, predictable operations
+
+**Files Created**:
 - `internal/genutils/mock/crypto.go`
+- `internal/genutils/mock/crypto_test.go`
+
+**Implementation Notes**:
+- 13 comprehensive test cases covering all operations
+- Deterministic signature/address/BLS key generation using SHA-256
+- Error injection methods for testing error handling
+- Ideal for unit testing without real cryptographic operations
+- No external dependencies
 
 ---
 
