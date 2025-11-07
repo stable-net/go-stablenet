@@ -399,14 +399,28 @@ cmd/gstable/
 #### Feature 2.1: Crypto Provider Interface
 **Priority**: P0 (Critical)
 **Estimated Effort**: 2 hours
-**Status**: ⏳ Not Started
+**Status**: ✅ Complete
+**Completed**: 2025-01-07
 
 **Tasks**:
-- [ ] Define interface: `internal/genutils/domain/crypto.go`
-- [ ] Methods: Sign, Verify, RecoverAddress
+- [x] Define interface: `internal/genutils/domain/crypto.go`
+- [x] Methods: Sign, Verify, RecoverAddress, DeriveBLSPublicKey, HashMessage
 
-**Files to Create**:
+**Acceptance Criteria**:
+- ✅ CryptoProvider interface defined with all necessary methods
+- ✅ SignatureData struct for structured signing
+- ✅ Follows Dependency Inversion Principle (SOLID)
+- ✅ Uses existing domain types (Address, Signature, BLSPublicKey)
+
+**Files Created**:
 - `internal/genutils/domain/crypto.go`
+
+**Implementation Notes**:
+- Interface abstracts cryptographic operations for testability
+- Sign/Verify/RecoverAddress for ECDSA operations
+- DeriveBLSPublicKey for validator consensus key generation
+- HashMessage for Ethereum-compatible message hashing
+- SignatureData provides structured data for deterministic signatures
 
 ---
 
