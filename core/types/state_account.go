@@ -34,7 +34,7 @@ type StateAccount struct {
 	Root     common.Hash // merkle root of the storage trie
 	CodeHash []byte
 
-	Extra uint64
+	Extra uint64 `rlp:"optional"`
 }
 
 // NewEmptyStateAccount constructs an empty state account.
@@ -70,7 +70,7 @@ type SlimAccount struct {
 	Root     []byte // Nil if root equals to types.EmptyRootHash
 	CodeHash []byte // Nil if hash equals to types.EmptyCodeHash
 
-	Extra uint64
+	Extra uint64 `rlp:"optional"`
 }
 
 // SlimAccountRLP encodes the state account in 'slim RLP' format.

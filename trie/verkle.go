@@ -157,8 +157,10 @@ func (t *VerkleTrie) UpdateAccount(addr common.Address, acc *types.StateAccount)
 	values[utils.BalanceLeafKey] = balance[:]
 
 	// Encode extra in little-endian
-	binary.LittleEndian.PutUint64(extra[:], acc.Extra)
-	values[utils.ExtraLeafKey] = extra[:]
+	if acc.Extra != 0 {
+		binary.LittleEndian.PutUint64(extra[:], acc.Extra)
+		values[utils.ExtraLeafKey] = extra[:]
+	}
 
 	switch n := t.root.(type) {
 	case *verkle.InternalNode:
