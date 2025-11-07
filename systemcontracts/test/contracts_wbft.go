@@ -341,6 +341,53 @@ func (g *GovWBFT) BaseGetProposal(contract *bind.BoundContract, sender *EOA, pro
 	return proposal, nil
 }
 
+// BaseProposalExecutionCount gets the execution attempt count for a proposal
+func (g *GovWBFT) BaseProposalExecutionCount(contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*big.Int, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "proposalExecutionCount", proposalId)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+// ExecutionCheckResult represents the result of canExecuteProposal check
+type ExecutionCheckResult uint8
+
+const (
+	ExecutionCheckExecutable        ExecutionCheckResult = 0
+	ExecutionCheckInvalidProposalId ExecutionCheckResult = 1
+	ExecutionCheckNotApproved       ExecutionCheckResult = 2
+	ExecutionCheckExpired           ExecutionCheckResult = 3
+	ExecutionCheckTooManyAttempts   ExecutionCheckResult = 4
+)
+
+// BaseCanExecuteProposal checks if a proposal can be executed
+func (g *GovWBFT) BaseCanExecuteProposal(contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (ExecutionCheckResult, *big.Int, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "canExecuteProposal", proposalId)
+	if err != nil {
+		return 0, nil, err
+	}
+	return ExecutionCheckResult(result[0].(uint8)), result[1].(*big.Int), nil
+}
+
+// BaseMaxRetryCount gets the MAX_RETRY_COUNT constant
+func (g *GovWBFT) BaseMaxRetryCount(contract *bind.BoundContract, sender *EOA) (*big.Int, error) {
+	var result []interface{}
+	err := contract.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, &result, "MAX_RETRY_COUNT")
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+// BaseTxExecuteWithFailure executes a proposal and marks it as Failed if execution fails
+func (g *GovWBFT) BaseTxExecuteWithFailure(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	tx, err := contract.Transact(NewTxOptsWithValue(t, sender, nil), "executeWithFailure", proposalId)
+	return tx, err
+}
+
 func (g *GovWBFT) BaseTxProposeAddMember(t *testing.T, contract *bind.BoundContract, sender *EOA, newMember common.Address, newQuorum uint32) (*big.Int, *types.Transaction, error) {
 	// Get current proposal ID before transaction
 	var result []interface{}
@@ -512,7 +559,8 @@ func (g *GovWBFT) TxProposeMint(t *testing.T, sender *EOA, recipient common.Addr
 
 	// Use recipient as beneficiary
 	timestamp := big.NewInt(time.Now().Unix())
-	depositId := "deposit-" + recipient.Hex()[:10]
+	// Include nanoseconds in depositId to ensure uniqueness (proposals may occur in same second)
+	depositId := fmt.Sprintf("deposit-%s-%d", recipient.Hex()[:10], time.Now().UnixNano())
 	bankReference := "bank-ref-001"
 	memo := "test mint"
 
@@ -542,7 +590,8 @@ func (g *GovWBFT) TxProposeBurn(t *testing.T, sender *EOA, from common.Address, 
 	actualFrom := sender.Address
 
 	timestamp := big.NewInt(time.Now().Unix())
-	withdrawalId := "withdrawal-" + actualFrom.Hex()[:10]
+	// Include nanoseconds in withdrawalId to ensure uniqueness (proposals may occur in same second)
+	withdrawalId := fmt.Sprintf("withdrawal-%s-%d", actualFrom.Hex()[:10], time.Now().UnixNano())
 	referenceId := "ref-001"
 	memo := "test burn"
 
@@ -742,10 +791,6 @@ func (g *GovWBFT) BaseTxExpireProposal(t *testing.T, contract *bind.BoundContrac
 	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "expireProposal", proposalId)
 }
 
-func (g *GovWBFT) BaseTxExecuteWithFailure(t *testing.T, contract *bind.BoundContract, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
-	return contract.Transact(NewTxOptsWithValue(t, sender, nil), "executeWithFailure", proposalId)
-}
-
 // ========== Proof Generation Helper Functions ==========
 
 // CreateMintProof creates ABI-encoded mint proof with custom parameters
@@ -782,8 +827,28 @@ func (g *GovWBFT) TxProposeMintWithProof(t *testing.T, sender *EOA, proofData []
 }
 
 // TxProposeBurnWithProof proposes burn with raw proof data (for custom proof testing)
+// Note: amount must be extracted from proofData to send as msg.value for burn proposals
 func (g *GovWBFT) TxProposeBurnWithProof(t *testing.T, sender *EOA, proofData []byte) (*types.Transaction, error) {
-	return g.minterContractTx(t, "proposeBurn", sender, proofData)
+	// Parse proofData to extract amount (second field in BurnProof ABI encoding)
+	// BurnProof: (address from, uint256 amount, uint256 timestamp, string withdrawalId, string referenceId, string memo)
+	burnProofArgs := abi.Arguments{
+		{Type: mustParseType("address")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("uint256")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+		{Type: mustParseType("string")},
+	}
+
+	values, err := burnProofArgs.Unpack(proofData)
+	if err != nil {
+		return nil, err
+	}
+
+	amount := values[1].(*big.Int) // Second field is amount
+
+	// Send amount as msg.value (proposeBurn is payable)
+	return g.govMinter.Transact(NewTxOptsWithValue(t, sender, amount), "proposeBurn", proofData)
 }
 
 // ========== Emergency Pause Helper Functions ==========
@@ -828,6 +893,11 @@ func (g *GovWBFT) IsWithdrawalIdExecuted(sender *EOA, withdrawalId string) (bool
 		return false, err
 	}
 	return result[0].(bool), nil
+}
+
+// GetMaxActiveProposalsPerMember returns the maximum number of active proposals per member
+func (g *GovWBFT) GetMaxActiveProposalsPerMember(sender *EOA) (*big.Int, error) {
+	return g.BaseMaxActiveProposalsPerMember(g.govMinter, sender)
 }
 
 // ==================== Proposal Execution Workflow Helpers ====================

@@ -839,8 +839,10 @@ abstract contract GovBase {
     /// 4. Effects: Update proposal status based on result
     ///
     /// @notice Retry limit: MAX_RETRY_COUNT (3 attempts total)
-    /// - markFailedOnError=false: Enforces limit, reverts with TooManyExecutionAttempts
-    /// - markFailedOnError=true: Bypasses limit for terminal execution
+    /// - All execution attempts (both executeProposal and executeWithFailure) are subject to retry limit
+    /// - After 3 execution attempts, any further execution will auto-transition to Failed status
+    /// - Auto-fail behavior ensures resources are cleaned up via _finalizeProposal
+    /// - markFailedOnError only affects immediate execution failure: false keeps Approved for retry, true marks as Failed
     ///
     /// @notice Reentrancy protection: nonReentrant modifier prevents same-function reentry
     /// @notice Security consideration: State changes occur after _executeInternalAction call
@@ -864,9 +866,11 @@ abstract contract GovBase {
             return false;
         }
 
-        // Check retry limit (bypassed for terminal execution)
-        if (!markFailedOnError && proposalExecutionCount[proposalId] >= MAX_RETRY_COUNT) {
-            revert TooManyExecutionAttempts();
+        // Check retry limit and auto-fail if reached
+        if (proposalExecutionCount[proposalId] >= MAX_RETRY_COUNT) {
+            _finalizeProposal(proposalId, ProposalStatus.Failed);
+            emit ProposalFailed(proposalId, msg.sender, bytes("Max retry count reached"));
+            return false;
         }
 
         // Increment execution count (rolls back on revert)

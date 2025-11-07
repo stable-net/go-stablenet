@@ -24,84 +24,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	sc "github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/stretchr/testify/require"
 )
-
-var (
-	gMinter          *GovWBFT
-	minterMembers    []*TestCandidate
-	minterNonMember  *EOA
-	fiatTokenAddress common.Address
-)
-
-func initGovMinter(t *testing.T) {
-	minterMembers = []*TestCandidate{NewTestCandidate(), NewTestCandidate(), NewTestCandidate()}
-	minterNonMember = NewEOA()
-	fiatTokenAddress = TestMockFiatTokenAddress // Use actual deployed MockFiatToken address
-
-	var err error
-	gMinter, err = NewGovWBFT(t, types.GenesisAlloc{
-		minterMembers[0].Operator.Address: {Balance: towei(1_000_000)},
-		minterMembers[1].Operator.Address: {Balance: towei(1_000_000)},
-		minterMembers[2].Operator.Address: {Balance: towei(1_000_000)},
-		minterNonMember.Address:           {Balance: towei(1_000_000)},
-	}, func(govValidator *params.SystemContract) {
-		// Setup governance members for voting
-		var members, validators, blsPubKeys string
-		for i, m := range minterMembers {
-			if i > 0 {
-				members = members + ","
-				validators = validators + ","
-				blsPubKeys = blsPubKeys + ","
-			}
-			members = members + m.Operator.Address.String()
-			validators = validators + m.Validator.Address.String()
-			blsPubKeys = blsPubKeys + hexutil.Encode(m.GetBLSPublicKey(t).Marshal())
-		}
-		govValidator.Params = map[string]string{
-			"members":       members,
-			"quorum":        "2",
-			"expiry":        "604800",
-			"memberVersion": "1",
-			"validators":    validators,
-			"blsPublicKeys": blsPubKeys,
-		}
-	}, nil, func(govMinter *params.SystemContract) {
-		// Initialize GovMinter with fiatToken address (beneficiary validation moved off-chain)
-		govMinter.Params = map[string]string{
-			sc.GOV_MINTER_PARAM_FIAT_TOKEN:   fiatTokenAddress.String(),
-			sc.GOV_BASE_PARAM_MEMBERS:        minterMembers[0].Operator.Address.String() + "," + minterMembers[1].Operator.Address.String() + "," + minterMembers[2].Operator.Address.String(),
-			sc.GOV_BASE_PARAM_QUORUM:         "2",
-			sc.GOV_BASE_PARAM_EXPIRY:         "604800",
-			sc.GOV_BASE_PARAM_MEMBER_VERSION: "1",
-		}
-	}, nil, func(fiatToken *params.SystemContract) {
-		// Deploy MockFiatToken at genesis for testing
-		// This is a test helper contract, not a production system contract
-		fiatToken.Params = map[string]string{
-			// MockFiatToken has no initialization params needed
-		}
-	})
-	require.NoError(t, err)
-
-	// Configure GovMinter as a minter with sufficient allowance (10M tokens)
-	// This is required for the new P0-1 security fix (minter allowance validation)
-	owner := minterMembers[0].Operator
-	minterAllowance := big.NewInt(10_000_000)
-	tx, err := gMinter.ConfigureMockFiatTokenMinter(t, owner, TestGovMinterAddress, minterAllowance)
-	_, err = gMinter.ExpectedOk(tx, err)
-	require.NoError(t, err, "Failed to configure GovMinter as minter")
-
-	// Verify minter allowance was set
-	allowance, err := gMinter.GetMockFiatTokenMinterAllowance(owner, TestGovMinterAddress)
-	require.NoError(t, err)
-	require.Equal(t, 0, minterAllowance.Cmp(allowance), "Minter allowance should be configured")
-}
 
 func TestGovMinter_Initialize(t *testing.T) {
 	t.Run("initial state", func(t *testing.T) {
