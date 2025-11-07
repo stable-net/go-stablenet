@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -31,8 +32,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -95,7 +99,19 @@ func (g *genesisGenerator) makeGenesis() {
 	choice := read()
 	switch {
 	case choice == "1" || choice == "":
-		g.wbftChainConfig()
+		fmt.Println()
+		fmt.Println("Which type of network would you like to configure? (default = single-node)")
+		fmt.Println(" 1. single-node")
+		fmt.Println(" 2. multi-node")
+
+		typeChoice := read()
+		switch {
+		case typeChoice == "1" || typeChoice == "":
+			g.wbftSingleNodeConfig()
+			return
+		case typeChoice == "2":
+			g.wbftChainConfig()
+		}
 
 	case choice == "2":
 		g.ethashConfig()
@@ -152,8 +168,124 @@ func (g *genesisGenerator) makeGenesis() {
 	}
 }
 
+type NodeAccount struct {
+	address   common.Address
+	blsPubKey string
+}
+
+func deriveAccount(nodeKey *ecdsa.PrivateKey) (*NodeAccount, error) {
+	address := crypto.PubkeyToAddress(nodeKey.PublicKey)
+	blsKey, err := bls.DeriveFromECDSA(nodeKey)
+	if err != nil {
+		return nil, err
+	}
+	blsPubKeyBytes := blsKey.PublicKey().Marshal()
+	blsPubKey := hexutil.Encode(blsPubKeyBytes)
+
+	return &NodeAccount{address, blsPubKey}, nil
+}
+
+func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPublicKeys []string, quorum int) {
+	g.Genesis.Config.Anzeon = params.DefaultAnzeonConfig
+
+	var vals, blsKeys string
+	for i, val := range validators {
+		g.Genesis.Config.Anzeon.Init.Validators = append(g.Genesis.Config.Anzeon.Init.Validators, val)
+		g.Genesis.Config.Anzeon.Init.BLSPublicKeys = append(g.Genesis.Config.Anzeon.Init.BLSPublicKeys, blsPublicKeys[i])
+		vals += val.String() + ","
+		blsKeys += blsPublicKeys[i] + ","
+	}
+	vals = strings.TrimRight(vals, ",")
+	blsKeys = strings.TrimRight(blsKeys, ",")
+
+	quorumStr := strconv.Itoa(quorum)
+	g.Genesis.Config.Anzeon.SystemContracts.GovValidator.Params = map[string]string{
+		"members":       vals,
+		"quorum":        quorumStr,
+		"expiry":        "604800",
+		"memberVersion": "1",
+		"validators":    vals,
+		"blsPublicKeys": blsKeys,
+	}
+	g.Genesis.Config.Anzeon.SystemContracts.NativeCoinAdapter.Params = map[string]string{
+		"masterMinter":  "0x0000000000000000000000000000000000001002",
+		"minters":       "0x0000000000000000000000000000000000001003",
+		"minterAllowed": "10000000000000000000000000000",
+		"name":          "KRC1",
+		"symbol":        "KRC1",
+		"decimals":      "18",
+		"currency":      "KRW",
+	}
+	g.Genesis.Config.Anzeon.SystemContracts.GovMasterMinter.Params = map[string]string{
+		"quorum":             quorumStr,
+		"expiry":             "604800",
+		"members":            vals,
+		"memberVersion":      "1",
+		"fiatToken":          "0x0000000000000000000000000000000000001000",
+		"maxMinterAllowance": "10000000000000000000000000000",
+	}
+	g.Genesis.Config.Anzeon.SystemContracts.GovMinter.Params = map[string]string{
+		"quorum":        quorumStr,
+		"expiry":        "604800",
+		"members":       vals,
+		"memberVersion": "1",
+		"fiatToken":     "0x0000000000000000000000000000000000001000",
+	}
+}
+
+func genDefaultConfigFile() {
+	var buf bytes.Buffer
+	// Write Node.P2P section with StaticNodes
+	buf.WriteString("[Node.P2P]\n")
+	buf.WriteString("StaticNodes = [\n")
+	buf.WriteString("\n]\n")
+
+	writeConfigFile(buf, ".")
+}
+
+func (g *genesisGenerator) wbftSingleNodeConfig() {
+	fmt.Println()
+	fmt.Println("Enter the path to the nodekey file to use (default = ./nodekey):")
+
+	var account *NodeAccount
+	for {
+		keyPath := readDefaultString("./nodekey")
+		nodeKey, err := crypto.LoadECDSA(keyPath)
+		if err != nil {
+			fmt.Printf("Failed to load nodekey from '%s': %v\n", keyPath, err)
+			continue
+		}
+		account, err = deriveAccount(nodeKey)
+		if err != nil {
+			fmt.Printf("Failed to derive account from nodekey: %v\n", err)
+			continue
+		}
+		break
+	}
+
+	validators := []common.Address{account.address}
+	blsPubKeys := []string{account.blsPubKey}
+
+	g.Genesis.Difficulty = types.WBFTDefaultDifficulty
+
+	g.setAnzeonConfig(validators, blsPubKeys, 1)
+
+	genDefaultConfigFile()
+
+	g.Genesis.Alloc[account.address] = types.Account{
+		Balance: new(big.Int).Lsh(big.NewInt(1), 256-7), // 2^256 / 128 (allow many pre-funds without balance overflows)
+	}
+
+	g.Genesis.Config.ChainID = new(big.Int).SetUint64(uint64(rand.Intn(65536)))
+
+	g.genGenesisFile(".")
+
+	fmt.Println("genesis.json successfully generated")
+}
+
 func (g *genesisGenerator) wbftChainConfig() {
 	g.Genesis.Difficulty = types.WBFTDefaultDifficulty
+
 	fmt.Println()
 	fmt.Println("Which accounts are allowed to seal? (mandatory at least one)")
 
@@ -170,24 +302,30 @@ func (g *genesisGenerator) wbftChainConfig() {
 		}
 	}
 
-	g.Genesis.Config.Anzeon = params.DefaultAnzeonConfig
-	var vals, blsKeys string
-	for i, val := range validators {
-		g.Genesis.Config.Anzeon.Init.Validators = append(g.Genesis.Config.Anzeon.Init.Validators, val)
-		g.Genesis.Config.Anzeon.Init.BLSPublicKeys = append(g.Genesis.Config.Anzeon.Init.BLSPublicKeys, blsPublicKeys[i])
-		vals += val.String() + ","
-		blsKeys += blsPublicKeys[i] + ","
+	minQuorum := 2
+	if len(validators) == 1 {
+		minQuorum = 1
 	}
-	vals = strings.TrimRight(vals, ",")
-	blsKeys = strings.TrimRight(blsKeys, ",")
-	g.Genesis.Config.Anzeon.SystemContracts.GovValidator.Params = map[string]string{
-		"members":       vals,
-		"quorum":        "1",
-		"expiry":        "604800",
-		"memberVersion": "1",
-		"validators":    vals,
-		"blsPublicKeys": blsKeys,
+
+	fmt.Println()
+	fmt.Printf("Enter the quorum for governance: (default = %d)\n", minQuorum)
+
+	var quorum int
+	for {
+		quorum = readDefaultInt(minQuorum)
+		if quorum < minQuorum {
+			fmt.Printf("Quorum must be at least %d\n", minQuorum)
+			continue
+		}
+		if quorum > len(validators) {
+			fmt.Printf("Quorum cannot exceed number of validators: %d\n", len(validators))
+			continue
+		}
+		break
 	}
+
+	g.setAnzeonConfig(validators, blsPublicKeys, quorum)
+
 	// you can add config file for static nodes if you want
 	fmt.Println()
 	fmt.Println("Want to generate config.toml file to configure static nodes to connect?")
@@ -326,19 +464,23 @@ func genConfigFile() {
 		fmt.Println()
 		fmt.Printf("Which folder to save the config.toml into? (default = current)\n")
 		folder := readDefaultString(".")
-		if err := os.MkdirAll(folder, 0755); err != nil {
-			log.Error("Failed to create spec folder", "folder", folder, "err", err)
-			return
-		}
-		configPath := filepath.Join(folder, "config.toml")
-		if err := os.WriteFile(configPath, buf.Bytes(), 0644); err != nil {
-			log.Error("Failed to save config file", "err", err)
-			return
-		}
-		log.Info("Saved config.toml file", "path", configPath)
+		writeConfigFile(buf, folder)
 	} else {
 		fmt.Println(buf.String())
 	}
+}
+
+func writeConfigFile(buf bytes.Buffer, folder string) {
+	if err := os.MkdirAll(folder, 0755); err != nil {
+		log.Error("Failed to create spec folder", "folder", folder, "err", err)
+		return
+	}
+	configPath := filepath.Join(folder, "config.toml")
+	if err := os.WriteFile(configPath, buf.Bytes(), 0644); err != nil {
+		log.Error("Failed to save config file", "err", err)
+		return
+	}
+	log.Info("Saved config.toml file", "path", configPath)
 }
 
 // validateEnodeURL checks if the given string is a valid enode URL

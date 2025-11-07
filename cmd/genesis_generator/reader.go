@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/peterh/liner"
 )
 
 // prompts the user for input with the given prompt string.  Returns when a value is entered.
@@ -33,9 +32,7 @@ func promptInput(p string) string {
 	for {
 		text, err := prompt.Stdin.PromptInput(p)
 		if err != nil {
-			if err != liner.ErrPromptAborted {
-				log.Crit("Failed to read user input", "err", err)
-			}
+			log.Crit("Failed to read user input", "err", err)
 		} else {
 			return text
 		}
@@ -117,10 +114,11 @@ func readDefaultBigInt(def *big.Int) *big.Int {
 // it to an Ethereum address.
 func readAddress() *common.Address {
 	for {
-		text := promptInput("> 0x")
+		text := promptInput("> ")
 		if text = strings.TrimSpace(text); text == "" {
 			return nil
 		}
+		text = strings.TrimPrefix(text, "0x")
 		// Make sure it looks ok and return it if so
 		if len(text) != 40 {
 			log.Error("Invalid address length, please retry")
