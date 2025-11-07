@@ -300,19 +300,29 @@ cmd/gstable/
 #### Feature 1.5: Domain Events
 **Priority**: P1 (High)
 **Estimated Effort**: 1 hour
-**Status**: ⏳ Not Started
+**Status**: ✅ Complete
+**Completed**: 2025-01-07
 
 **Tasks**:
-- [ ] Implement: `internal/genutils/domain/events.go`
-- [ ] Define event types:
+- [x] Implement: `internal/genutils/domain/events.go`
+- [x] Implement: `internal/genutils/domain/events_test.go`
+- [x] Define event types:
   - GenTxCreatedEvent
   - SignatureVerifiedEvent
   - GenTxAddedToCollectionEvent
   - CollectionValidatedEvent
   - GenesisBuiltEvent
 
-**Files to Create**:
+**Files Created**:
 - `internal/genutils/domain/events.go`
+- `internal/genutils/domain/events_test.go`
+
+**Implementation Notes**:
+- Common DomainEvent interface for all events
+- BaseEvent with automatic UTC timestamp
+- 5 specific event types with relevant data
+- 7 test cases verifying event creation and interface compliance
+- Events are immutable once created
 
 ---
 
@@ -1024,14 +1034,14 @@ cmd/gstable/
 
 ### Summary
 - **Total Features**: 50+ features across 7 phases
-- **Completed**: 4 (8.7%)
+- **Completed**: 5 (10.9%)
 - **In Progress**: 0 (0%)
-- **Not Started**: 42+ (91.3%)
+- **Not Started**: 41+ (89.1%)
 
 ### Phase Completion Status
 | Phase | Features | Completed | Progress |
 |-------|----------|-----------|----------|
-| Phase 1: Domain Layer | 7 | 4 | 57% |
+| Phase 1: Domain Layer | 7 | 5 | 71% |
 | Phase 2: Services Layer | 9 | 0 | 0% |
 | Phase 3: Application Layer | 3 | 0 | 0% |
 | Phase 4: CLI Integration | 5 | 0 | 0% |
@@ -1039,14 +1049,14 @@ cmd/gstable/
 | Phase 6: Testing & Docs | 8 | 0 | 0% |
 | Phase 7: Polish & Release | 4 | 0 | 0% |
 | Risk Management | 4 | 0 | 0% |
-| **Total** | **46** | **4** | **8.7%** |
+| **Total** | **46** | **5** | **10.9%** |
 
 ---
 
 ## Current Status
 
 **Current Phase**: Phase 1 - Domain Layer
-**Current Feature**: Feature 1.5 - Domain Events
+**Current Feature**: Feature 1.6 - GenTx Aggregate Root
 **Status**: Ready to Start
 **Last Updated**: 2025-01-07
 
@@ -1055,18 +1065,18 @@ cmd/gstable/
 - ✅ Feature 1.2: Signature Value Object (100% coverage)
 - ✅ Feature 1.3: BLSPublicKey Value Object (95.9% coverage)
 - ✅ Feature 1.4: ValidatorMetadata Value Object (96.9% coverage)
+- ✅ Feature 1.5: Domain Events (97.4% coverage)
 
 ### Next Steps
-1. Implement Feature 1.5: Domain Events
-2. Implement Feature 1.6: GenTx Aggregate Root (largest feature)
-3. Implement Feature 1.7: GenTxCollection Aggregate
-4. Complete Phase 1: Domain Layer
+1. Implement Feature 1.6: GenTx Aggregate Root ⚠️ (8 hours, most complex)
+2. Implement Feature 1.7: GenTxCollection Aggregate (6 hours)
+3. Complete Phase 1: Domain Layer
 
 ### Notes
-- Phase 1 progress: 4/7 features (57%)
+- Phase 1 progress: 5/7 features (71%)
 - Domain package maintains ≥95% test coverage
 - TDD workflow producing high-quality, well-tested code
-- All 41 test cases passing (9 Address + 8 Signature + 9 BLSPublicKey + 15 ValidatorMetadata)
+- All 48 test cases passing (41 value objects + 7 events)
 
 ---
 
