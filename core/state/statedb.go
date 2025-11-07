@@ -297,7 +297,7 @@ func (s *StateDB) GetNonce(addr common.Address) uint64 {
 	return 0
 }
 
-// GetNonce retrieves the extra from the given address or 0 if object not found
+// GetExtra retrieves the extra from the given address or 0 if object not found
 func (s *StateDB) GetExtra(addr common.Address) uint64 {
 	stateObject := s.getStateObject(addr)
 	if stateObject != nil {
@@ -414,7 +414,7 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 func (s *StateDB) SetExtra(addr common.Address, extra uint64) {
 	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
-		stateObject.SetNonce(extra)
+		stateObject.SetExtra(extra)
 	}
 }
 
