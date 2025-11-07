@@ -1537,7 +1537,13 @@ func newRPCTransactionFromBlockIndex(b *types.Block, index uint64, config *param
 	if index >= uint64(len(txs)) {
 		return nil
 	}
-	return newRPCTransaction(txs[index], b.Hash(), b.NumberU64(), b.Time(), index, b.BaseFee(), b.Header().GasTip(), config)
+
+	var headerGasTip *big.Int
+	if b.Header() != nil && b.Header().GasTip() != nil {
+		headerGasTip = b.Header().GasTip()
+	}
+
+	return newRPCTransaction(txs[index], b.Hash(), b.NumberU64(), b.Time(), index, b.BaseFee(), headerGasTip, config)
 }
 
 // newRPCRawTransactionFromBlockIndex returns the bytes of a transaction given a block and a transaction index.

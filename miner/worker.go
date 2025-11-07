@@ -1471,7 +1471,11 @@ func totalFees(c *params.ChainConfig, block *types.Block, receipts []*types.Rece
 		var minerFee *big.Int
 		if c.AnzeonEnabled() {
 			// TODO: EffectiveGasPrice will be removed and replaced with the updated EffectiveGasTip function
-			minerFee = tx.EffectiveGasPrice(block.BaseFee(), block.Header().GasTip())
+			var headerGasTip *big.Int
+			if block.Header() != nil && block.Header().GasTip() != nil {
+				headerGasTip = block.Header().GasTip()
+			}
+			minerFee = tx.EffectiveGasPrice(block.BaseFee(), headerGasTip)
 		} else {
 			minerFee, _ = tx.EffectiveGasTip(block.BaseFee())
 		}
