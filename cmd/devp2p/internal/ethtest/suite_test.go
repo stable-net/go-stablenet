@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/internal/utesting"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 )
@@ -48,11 +47,6 @@ func makeJWTSecret() (string, [32]byte, error) {
 }
 
 func TestEthSuite(t *testing.T) {
-
-	// Enable verbose logging for this test
-	handler := log.NewTerminalHandlerWithLevel(os.Stderr, log.LevelDebug, true)
-	log.SetDefault(log.NewLogger(handler))
-
 	jwtPath, secret, err := makeJWTSecret()
 	if err != nil {
 		t.Fatalf("could not make jwt secret: %v", err)
