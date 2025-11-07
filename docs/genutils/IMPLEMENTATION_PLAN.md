@@ -180,23 +180,31 @@ cmd/gstable/
 #### Feature 1.1: Address Value Object
 **Priority**: P0 (Critical)
 **Estimated Effort**: 2 hours
-**Status**: ⏳ Not Started
+**Status**: ✅ Complete
+**Completed**: 2025-01-07
 
 **Tasks**:
-- [ ] Write tests: `internal/genutils/domain/address_test.go`
-- [ ] Implement: `internal/genutils/domain/address.go`
-- [ ] Coverage target: ≥95%
+- [x] Write tests: `internal/genutils/domain/address_test.go`
+- [x] Implement: `internal/genutils/domain/address.go`
+- [x] Coverage: 100% (exceeds ≥95% target)
 
 **Acceptance Criteria**:
-- Valid Ethereum address parsing
-- Invalid address rejection
-- Immutability guaranteed
-- Equality comparison works
+- ✅ Valid Ethereum address parsing (40 hex chars + 0x prefix)
+- ✅ Invalid address rejection (missing prefix, wrong length, non-hex)
+- ✅ Immutability guaranteed (defensive copying in Bytes())
+- ✅ Equality comparison works (case-insensitive)
+- ✅ EIP-55 checksum support
 
-**Files to Create**:
+**Files Created**:
 - `internal/genutils/domain/address.go`
 - `internal/genutils/domain/address_test.go`
 - `internal/genutils/domain/errors.go`
+
+**Implementation Notes**:
+- Uses go-ethereum's common.Address for EIP-55 checksumming
+- Explicit 0x prefix validation prevents ambiguous addresses
+- 9 comprehensive test cases covering all scenarios
+- Immutability enforced through value receiver and defensive copy
 
 ---
 
@@ -993,14 +1001,14 @@ cmd/gstable/
 
 ### Summary
 - **Total Features**: 50+ features across 7 phases
-- **Completed**: 0 (0%)
+- **Completed**: 1 (2.2%)
 - **In Progress**: 0 (0%)
-- **Not Started**: 50+ (100%)
+- **Not Started**: 45+ (97.8%)
 
 ### Phase Completion Status
 | Phase | Features | Completed | Progress |
 |-------|----------|-----------|----------|
-| Phase 1: Domain Layer | 7 | 0 | 0% |
+| Phase 1: Domain Layer | 7 | 1 | 14% |
 | Phase 2: Services Layer | 9 | 0 | 0% |
 | Phase 3: Application Layer | 3 | 0 | 0% |
 | Phase 4: CLI Integration | 5 | 0 | 0% |
@@ -1008,29 +1016,31 @@ cmd/gstable/
 | Phase 6: Testing & Docs | 8 | 0 | 0% |
 | Phase 7: Polish & Release | 4 | 0 | 0% |
 | Risk Management | 4 | 0 | 0% |
-| **Total** | **46** | **0** | **0%** |
+| **Total** | **46** | **1** | **2.2%** |
 
 ---
 
 ## Current Status
 
 **Current Phase**: Phase 1 - Domain Layer
-**Current Feature**: Feature 1.1 - Address Value Object
+**Current Feature**: Feature 1.2 - Signature Value Object
 **Status**: Ready to Start
 **Last Updated**: 2025-01-07
 
+### Completed Features
+- ✅ Feature 1.1: Address Value Object (100% coverage)
+
 ### Next Steps
-1. Create feature branch: `feature/phase-1-address-value-object`
-2. Start with TDD: Write failing tests first
-3. Implement Address value object
-4. Update this document when complete
-5. Commit with proper message format
+1. Implement Feature 1.2: Signature Value Object
+2. Continue with remaining Phase 1 features (1.3-1.7)
+3. Maintain TDD methodology (Red → Green → Refactor)
+4. Keep test coverage ≥95% for domain layer
 
 ### Notes
-- Planning phase completed
-- All documentation reviewed
-- Architecture approved
-- Ready to begin implementation
+- Feature 1.1 completed with 100% test coverage
+- TDD workflow established successfully
+- EIP-55 checksum support confirmed
+- All 9 test cases passing
 
 ---
 
