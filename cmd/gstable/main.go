@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/cmd/gstable/gentx"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/console/prompt"
@@ -202,6 +203,29 @@ var (
 
 var app = flags.NewApp("the go-ethereum command line interface")
 
+// gentxCommand implements the gentx command with subcommands
+var gentxCommand = &cli.Command{
+	Name:     "gentx",
+	Usage:    "Genesis transaction management commands",
+	Category: "GENESIS COMMANDS",
+	Description: `
+The gentx command provides utilities for managing genesis transactions.
+Genesis transactions are used to initialize the validator set in the genesis block.
+
+Available subcommands:
+  create   - Create a new genesis transaction
+  validate - Validate genesis transactions
+  collect  - Collect and validate all genesis transactions
+  inspect  - Inspect genesis transaction details
+`,
+	Subcommands: []*cli.Command{
+		gentx.CreateCommand,
+		gentx.ValidateCommand,
+		gentx.CollectCommand,
+		gentx.InspectCommand,
+	},
+}
+
 func init() {
 	// Initialize the CLI app and start Gstable
 	app.Action = gstable
@@ -237,6 +261,8 @@ func init() {
 		snapshotCommand,
 		// See verkle.go
 		verkleCommand,
+		// See gentx/*.go:
+		gentxCommand,
 	}
 	if logTestCommand != nil {
 		app.Commands = append(app.Commands, logTestCommand)
