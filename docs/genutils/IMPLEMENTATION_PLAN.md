@@ -666,25 +666,43 @@ cmd/gstable/
 #### Feature 2.9: Genesis Builder Service
 **Priority**: P0 (Critical)
 **Estimated Effort**: 10 hours
-**Status**: ⏳ Not Started
+**Status**: ✅ Complete
+**Completed**: 2025-01-10
 
 **Tasks**:
-- [ ] Write tests: `internal/genutils/service/genesis/builder_test.go`
-- [ ] Implement: `internal/genutils/service/genesis/builder.go`
-- [ ] Implement: `internal/genutils/service/genesis/contract_injector.go`
-- [ ] Implement: `internal/genutils/service/genesis/wbft_configurator.go`
-- [ ] Coverage target: ≥85%
+- [x] Write tests: `internal/genutils/service/genesis/builder_test.go`
+- [x] Write tests: `internal/genutils/service/genesis/contract_injector_test.go`
+- [x] Write tests: `internal/genutils/service/genesis/wbft_configurator_test.go`
+- [x] Implement: `internal/genutils/service/genesis/builder.go`
+- [x] Implement: `internal/genutils/service/genesis/contract_injector.go`
+- [x] Implement: `internal/genutils/service/genesis/wbft_configurator.go`
+- [x] Coverage: 90.0% (38 tests)
 
 **Acceptance Criteria**:
-- Build genesis from gentxs
-- Inject system contracts
-- Configure WBFT
+- ✅ Build genesis from gentxs
+- ✅ Inject system contracts
+- ✅ Configure WBFT
 
-**Files to Create**:
+**Files Created**:
 - `internal/genutils/service/genesis/builder.go`
 - `internal/genutils/service/genesis/builder_test.go`
 - `internal/genutils/service/genesis/contract_injector.go`
+- `internal/genutils/service/genesis/contract_injector_test.go`
 - `internal/genutils/service/genesis/wbft_configurator.go`
+- `internal/genutils/service/genesis/wbft_configurator_test.go`
+
+**Implementation Notes**:
+- 38 comprehensive test cases covering genesis builder workflows
+- GenesisBuilder orchestrates validator extraction, chain config creation, and genesis assembly
+- ContractInjector validates and merges system contract configurations
+- WBFTConfigurator validates and merges WBFT consensus parameters
+- Builder pattern with fluent API for configuration (WithWBFTConfig, WithSystemContracts, WithInitialAlloc)
+- Supports both numeric and string chain IDs (string IDs are hashed to numeric)
+- Generates WBFT ExtraData via wbft.CreateInitialExtraData()
+- Injects system contracts via core.InjectContracts()
+- Tests cover: empty collection, single/multiple GenTxs, custom configs, JSON marshaling, ExtraData generation
+- Helper tests ensure contract and WBFT config validation and merging work correctly
+- Coverage exceeds target: 90.0% vs ≥85% target
 
 ---
 
@@ -1169,23 +1187,23 @@ cmd/gstable/
 | Phase | Features | Completed | Progress |
 |-------|----------|-----------|----------|
 | Phase 1: Domain Layer | 7 | 7 | 100% |
-| Phase 2: Services Layer | 9 | 8 | 89% |
+| Phase 2: Services Layer | 9 | 9 | 100% |
 | Phase 3: Application Layer | 3 | 0 | 0% |
 | Phase 4: CLI Integration | 5 | 0 | 0% |
 | Phase 5: Core Integration | 6 | 0 | 0% |
 | Phase 6: Testing & Docs | 8 | 0 | 0% |
 | Phase 7: Polish & Release | 4 | 0 | 0% |
 | Risk Management | 4 | 0 | 0% |
-| **Total** | **46** | **13** | **28.3%** |
+| **Total** | **46** | **16** | **34.8%** |
 
 ---
 
 ## Current Status
 
-**Current Phase**: Phase 2 - Services Layer
-**Current Feature**: Feature 2.7 - Validation Service
+**Current Phase**: Phase 3 - Application Layer
+**Current Feature**: Feature 3.1 - Create GenTx Use Case
 **Status**: Ready to Start
-**Last Updated**: 2025-01-07
+**Last Updated**: 2025-01-10
 
 ### Completed Features
 
@@ -1198,7 +1216,7 @@ cmd/gstable/
 - ✅ Feature 1.6: GenTx Aggregate Root (96.0% coverage)
 - ✅ Feature 1.7: GenTxCollection Aggregate (96.7% coverage)
 
-**Phase 2: Services Layer (89%)**
+**Phase 2: Services Layer (100%)**
 - ✅ Feature 2.1: Crypto Provider Interface
 - ✅ Feature 2.2: Ethereum Crypto Implementation (87.0% coverage)
 - ✅ Feature 2.3: Mock Crypto Provider (91.7% coverage)
@@ -1207,19 +1225,20 @@ cmd/gstable/
 - ✅ Feature 2.6: Memory Repository Implementation (100% coverage, 14 tests)
 - ✅ Feature 2.7: Validation Service (73.8% coverage, 12 tests, defense-in-depth architecture)
 - ✅ Feature 2.8: Collection Service (77.8% coverage, 8 tests)
+- ✅ Feature 2.9: Genesis Builder Service (90.0% coverage, 38 tests)
 
 ### Next Steps
-1. Implement Feature 2.9: Genesis Builder Service
-2. Complete Phase 2 and create PR
+1. Create PR for Phase 2 completion
+2. Begin Phase 3: Application Layer
 
 ### Notes
 - **Phase 1: Domain Layer - COMPLETE! 🎉**
-- **Phase 2: Services Layer - 89% complete**
-- Phase 2 progress: 8/9 features completed
+- **Phase 2: Services Layer - COMPLETE! 🎉**
+- Phase 2 progress: 9/9 features completed (100%)
 - TDD workflow producing high-quality, well-tested code
-- All tests passing across domain, crypto, repository, validation, and collection layers
-- Total test count: 156 tests (70 domain + 29 crypto + 37 repository + 12 validation + 8 collection)
-- Collection service orchestrates repository and validator for GenTx collection workflows
+- All tests passing across domain, crypto, repository, validation, collection, and genesis layers
+- Total test count: 194 tests (70 domain + 29 crypto + 37 repository + 12 validation + 8 collection + 38 genesis)
+- Genesis builder service provides fluent API for building genesis files from GenTxCollection
 
 ---
 
