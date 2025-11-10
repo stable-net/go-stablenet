@@ -66,6 +66,10 @@ type Genesis struct {
 	Coinbase   common.Address      `json:"coinbase"`
 	Alloc      types.GenesisAlloc  `json:"alloc"      gencodec:"required"`
 
+	// AnzeonGenTxs contains genesis transactions for validator initialization.
+	// These transactions define the initial validator set and their BLS keys.
+	AnzeonGenTxs []json.RawMessage `json:"anzeonGenTxs,omitempty"`
+
 	// These fields are used for consensus tests. Please don't use them
 	// in actual genesis blocks.
 	Number        uint64      `json:"number"`
