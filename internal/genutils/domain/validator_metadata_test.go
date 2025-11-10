@@ -44,9 +44,9 @@ func TestValidatorMetadata_NewValidatorMetadata_MinimalData(t *testing.T) {
 
 func TestValidatorMetadata_NewValidatorMetadata_InvalidName(t *testing.T) {
 	tests := []struct {
-		name        string
+		name          string
 		validatorName string
-		description string
+		description   string
 	}{
 		{
 			name:          "empty name",

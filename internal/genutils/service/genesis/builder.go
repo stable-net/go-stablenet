@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/wbft"
 	wbftcommon "github.com/ethereum/go-ethereum/consensus/wbft/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/genutils/domain"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -26,11 +27,11 @@ import (
 //
 // GenesisBuilder is NOT safe for concurrent use.
 type GenesisBuilder struct {
-	chainID          string
-	timestamp        time.Time
-	wbftConfig       *params.WBFTConfig
-	systemContracts  *params.SystemContracts
-	initialAlloc     core.GenesisAlloc
+	chainID         string
+	timestamp       time.Time
+	wbftConfig      *params.WBFTConfig
+	systemContracts *params.SystemContracts
+	initialAlloc    types.GenesisAlloc
 }
 
 // NewGenesisBuilder creates a new GenesisBuilder instance.
@@ -46,7 +47,7 @@ func NewGenesisBuilder(chainID string, timestamp time.Time) *GenesisBuilder {
 		timestamp:       timestamp,
 		wbftConfig:      createDefaultWBFTConfig(),
 		systemContracts: createDefaultSystemContracts(),
-		initialAlloc:    make(core.GenesisAlloc),
+		initialAlloc:    make(types.GenesisAlloc),
 	}
 }
 
@@ -82,7 +83,7 @@ func (b *GenesisBuilder) WithSystemContracts(contracts *params.SystemContracts) 
 //   - alloc: Initial account balances and code
 //
 // Returns the builder for method chaining.
-func (b *GenesisBuilder) WithInitialAlloc(alloc core.GenesisAlloc) *GenesisBuilder {
+func (b *GenesisBuilder) WithInitialAlloc(alloc types.GenesisAlloc) *GenesisBuilder {
 	if alloc != nil {
 		b.initialAlloc = alloc
 	}
@@ -138,7 +139,7 @@ func (b *GenesisBuilder) BuildFromCollection(collection *domain.GenTxCollection)
 		Timestamp:  uint64(b.timestamp.Unix()),
 		GasLimit:   4700000,
 		Difficulty: big.NewInt(524288),
-		Alloc:      make(core.GenesisAlloc),
+		Alloc:      make(types.GenesisAlloc),
 		Nonce:      wbftcommon.EmptyBlockNonce.Uint64(),
 	}
 

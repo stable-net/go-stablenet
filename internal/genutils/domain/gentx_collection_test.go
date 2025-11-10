@@ -166,7 +166,7 @@ func TestGenTxCollection_GetAll_ReturnsCopy(t *testing.T) {
 
 	// Act - modify returned slice
 	allGenTxs := collection.GetAll()
-	allGenTxs = append(allGenTxs, domain.GenTx{})
+	_ = append(allGenTxs, domain.GenTx{})
 
 	// Assert - original collection unchanged
 	assert.Equal(t, 1, collection.Size(), "modifying returned slice should not affect collection")

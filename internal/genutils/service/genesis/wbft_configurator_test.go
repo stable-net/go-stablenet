@@ -181,9 +181,9 @@ func TestWBFTConfigurator_MergeWBFTConfig_PartialCustom(t *testing.T) {
 
 	customProposerPolicy := uint64(1)
 	custom := &params.WBFTConfig{
-		RequestTimeoutSeconds: 5,       // Custom
-		BlockPeriodSeconds:    0,       // Should use default
-		EpochLength:           0,       // Should use default
+		RequestTimeoutSeconds: 5,                     // Custom
+		BlockPeriodSeconds:    0,                     // Should use default
+		EpochLength:           0,                     // Should use default
 		ProposerPolicy:        &customProposerPolicy, // Custom
 	}
 

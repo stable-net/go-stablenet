@@ -9,10 +9,10 @@ import (
 // ValidationService provides comprehensive GenTx validation.
 // It orchestrates signature, format, and business rule validation.
 type ValidationService struct {
-	cryptoProvider      domain.CryptoProvider
-	signatureValidator  *SignatureValidator
-	formatValidator     *FormatValidator
-	businessValidator   *BusinessValidator
+	cryptoProvider     domain.CryptoProvider
+	signatureValidator *SignatureValidator
+	formatValidator    *FormatValidator
+	businessValidator  *BusinessValidator
 }
 
 // NewValidationService creates a new ValidationService instance.

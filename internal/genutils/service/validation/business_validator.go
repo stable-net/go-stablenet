@@ -26,13 +26,9 @@ func (v *BusinessValidator) Validate(gentx domain.GenTx) error {
 		return fmt.Errorf("timestamp is in the future: %v > %v", gentx.Timestamp(), now)
 	}
 
-	// Optionally check if validator and operator are different
-	// This is a recommended practice but not strictly required
-	if gentx.ValidatorAddress().Equals(gentx.OperatorAddress()) {
-		// This is a warning, not an error, so we don't fail validation
-		// In production, you might want to log this as a warning
-		// For now, we allow it
-	}
+	// Note: We allow validator and operator to be the same address
+	// This is not a recommended practice, but not strictly forbidden
+	// In production, you might want to log this as a warning
 
 	return nil
 }

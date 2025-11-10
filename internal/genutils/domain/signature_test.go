@@ -13,8 +13,8 @@ func TestSignature_NewSignature_ValidBytes(t *testing.T) {
 	// Arrange - 65 bytes signature (R=32, S=32, V=1)
 	validSig := make([]byte, 65)
 	for i := 0; i < 32; i++ {
-		validSig[i] = byte(i)      // R component
-		validSig[i+32] = byte(i+1) // S component
+		validSig[i] = byte(i)        // R component
+		validSig[i+32] = byte(i + 1) // S component
 	}
 	validSig[64] = 27 // V component (27 or 28)
 
@@ -113,8 +113,8 @@ func TestSignature_Equals(t *testing.T) {
 
 	for i := 0; i < 65; i++ {
 		sig1Bytes[i] = byte(i)
-		sig2Bytes[i] = byte(i)      // Same as sig1
-		sig3Bytes[i] = byte(i + 1)  // Different
+		sig2Bytes[i] = byte(i)     // Same as sig1
+		sig3Bytes[i] = byte(i + 1) // Different
 	}
 
 	sig1, _ := domain.NewSignature(sig1Bytes)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/genutils/domain"
 	"github.com/ethereum/go-ethereum/internal/genutils/service/genesis"
 	"github.com/ethereum/go-ethereum/params"
@@ -286,7 +287,7 @@ func TestGenesisBuilder_WithInitialAlloc(t *testing.T) {
 	addr1 := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	addr2 := common.HexToAddress("0x2345678901234567890123456789012345678901")
 
-	alloc := core.GenesisAlloc{
+	alloc := types.GenesisAlloc{
 		addr1: {Balance: big.NewInt(1000000000000000000)}, // 1 ETH
 		addr2: {Balance: big.NewInt(2000000000000000000)}, // 2 ETH
 	}

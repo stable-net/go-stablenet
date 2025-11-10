@@ -16,9 +16,9 @@ var (
 	ErrInvalidBLSKey = errors.New("invalid BLS public key")
 
 	// Metadata errors
-	ErrMissingValidatorName  = errors.New("validator name is required")
-	ErrValidatorNameTooLong  = errors.New("validator name too long (max 70 chars)")
-	ErrDescriptionTooLong    = errors.New("description too long (max 280 chars)")
+	ErrMissingValidatorName = errors.New("validator name is required")
+	ErrValidatorNameTooLong = errors.New("validator name too long (max 70 chars)")
+	ErrDescriptionTooLong   = errors.New("description too long (max 280 chars)")
 
 	// GenTx errors
 	ErrInvalidValidatorAddress = errors.New("invalid validator address")

@@ -100,10 +100,10 @@ func (e GenTxAddedToCollectionEvent) EventType() string {
 // CollectionValidatedEvent is emitted when a GenTx collection is validated.
 type CollectionValidatedEvent struct {
 	BaseEvent
-	TotalGenTxs      int
-	ValidGenTxs      int
-	InvalidGenTxs    int
-	DuplicatesFound  int
+	TotalGenTxs     int
+	ValidGenTxs     int
+	InvalidGenTxs   int
+	DuplicatesFound int
 }
 
 // NewCollectionValidatedEvent creates a new CollectionValidatedEvent.
