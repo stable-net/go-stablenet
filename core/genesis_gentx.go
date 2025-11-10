@@ -45,6 +45,7 @@ const (
 // that we need to extract validator information.
 type genTxData struct {
 	ValidatorAddress string `json:"validator_address"`
+	OperatorAddress  string `json:"operator_address"`
 	BLSPublicKey     string `json:"bls_public_key"`
 }
 
@@ -53,16 +54,16 @@ type genTxData struct {
 //
 // This function:
 //  1. Parses each GenTx JSON from AnzeonGenTxs field
-//  2. Extracts validator_address and bls_public_key
+//  2. Extracts validator_address, operator_address, and bls_public_key
 //  3. Validates the extracted data
 //  4. Checks for duplicate validators
-//  5. Updates the anzeon.init.validators and anzeon.init.blsPublicKeys arrays
+//  5. Updates the anzeon.init.validators, anzeon.init.operators, and anzeon.init.blsPublicKeys arrays
 //
 // Returns an error if:
 //   - Anzeon config is not properly initialized
 //   - Any GenTx has invalid JSON format
 //   - Required fields are missing
-//   - Validator addresses or BLS keys are invalid
+//   - Validator addresses, operator addresses, or BLS keys are invalid
 //   - Duplicate validators are detected
 func (g *Genesis) ProcessGenTxs() error {
 	// Validate anzeon config structure
@@ -76,12 +77,14 @@ func (g *Genesis) ProcessGenTxs() error {
 	// Empty gentxs is valid - nothing to process
 	if len(g.AnzeonGenTxs) == 0 {
 		g.Config.Anzeon.Init.Validators = []common.Address{}
+		g.Config.Anzeon.Init.Operators = []common.Address{}
 		g.Config.Anzeon.Init.BLSPublicKeys = []string{}
 		return nil
 	}
 
 	// Prepare result slices
 	validators := make([]common.Address, 0, len(g.AnzeonGenTxs))
+	operators := make([]common.Address, 0, len(g.AnzeonGenTxs))
 	blsKeys := make([]string, 0, len(g.AnzeonGenTxs))
 	seenValidators := make(map[common.Address]bool)
 
@@ -93,9 +96,15 @@ func (g *Genesis) ProcessGenTxs() error {
 		}
 
 		// Validate and extract validator address
-		validatorAddr, err := validateAndParseAddress(gentx.ValidatorAddress)
+		validatorAddr, err := validateAndParseAddress(gentx.ValidatorAddress, "validator_address")
 		if err != nil {
 			return fmt.Errorf("invalid validator address at index %d: %w", i, err)
+		}
+
+		// Validate and extract operator address
+		operatorAddr, err := validateAndParseAddress(gentx.OperatorAddress, "operator_address")
+		if err != nil {
+			return fmt.Errorf("invalid operator address at index %d: %w", i, err)
 		}
 
 		// Check for duplicate validators
@@ -111,37 +120,40 @@ func (g *Genesis) ProcessGenTxs() error {
 
 		// Add to result slices
 		validators = append(validators, validatorAddr)
+		operators = append(operators, operatorAddr)
 		blsKeys = append(blsKeys, gentx.BLSPublicKey)
 	}
 
 	// Update genesis config
 	g.Config.Anzeon.Init.Validators = validators
+	g.Config.Anzeon.Init.Operators = operators
 	g.Config.Anzeon.Init.BLSPublicKeys = blsKeys
 
 	return nil
 }
 
 // validateAndParseAddress validates and parses an Ethereum address string.
+// fieldName is used in error messages for context (e.g., "validator_address", "operator_address").
 // Returns error if:
 //   - Address is empty
 //   - Address doesn't have 0x prefix
 //   - Address is not valid hex
 //   - Address length is incorrect (must be 40 hex chars + 0x prefix)
 //   - Address is zero address
-func validateAndParseAddress(addrStr string) (common.Address, error) {
+func validateAndParseAddress(addrStr string, fieldName string) (common.Address, error) {
 	// Check empty
 	if addrStr == "" {
-		return common.Address{}, fmt.Errorf("validator_address field is required")
+		return common.Address{}, fmt.Errorf("%s field is required", fieldName)
 	}
 
 	// Check 0x prefix
 	if !strings.HasPrefix(addrStr, hexPrefix) {
-		return common.Address{}, fmt.Errorf("validator address must have 0x prefix, got: %s", addrStr)
+		return common.Address{}, fmt.Errorf("%s must have 0x prefix, got: %s", fieldName, addrStr)
 	}
 
 	// Check length
 	if len(addrStr) != addressLength {
-		return common.Address{}, fmt.Errorf("validator address must be %d characters (0x + 40 hex), got %d characters", addressLength, len(addrStr))
+		return common.Address{}, fmt.Errorf("%s must be %d characters (0x + 40 hex), got %d characters", fieldName, addressLength, len(addrStr))
 	}
 
 	// Parse using common.HexToAddress
@@ -151,7 +163,7 @@ func validateAndParseAddress(addrStr string) (common.Address, error) {
 
 	// Check if it's zero address
 	if addr == (common.Address{}) {
-		return common.Address{}, fmt.Errorf("validator address cannot be zero address")
+		return common.Address{}, fmt.Errorf("%s cannot be zero address", fieldName)
 	}
 
 	// Validate hex characters by comparing the parsed address back to string
@@ -159,7 +171,7 @@ func validateAndParseAddress(addrStr string) (common.Address, error) {
 	expectedAddr := strings.ToLower(addrStr)
 	actualAddr := strings.ToLower(addr.Hex())
 	if expectedAddr != actualAddr {
-		return common.Address{}, fmt.Errorf("validator address contains invalid hex characters")
+		return common.Address{}, fmt.Errorf("%s contains invalid hex characters", fieldName)
 	}
 
 	return addr, nil

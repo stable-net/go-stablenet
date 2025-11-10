@@ -83,14 +83,17 @@ func TestProcessGenTxs_Success(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, genesis.Config.Anzeon.Init)
 	assert.Len(t, genesis.Config.Anzeon.Init.Validators, 2)
+	assert.Len(t, genesis.Config.Anzeon.Init.Operators, 2)
 	assert.Len(t, genesis.Config.Anzeon.Init.BLSPublicKeys, 2)
 
 	// Verify first validator
 	assert.Equal(t, common.HexToAddress("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEbC"), genesis.Config.Anzeon.Init.Validators[0])
+	assert.Equal(t, common.HexToAddress("0x8f0a5E3d2F1b4C9a8B7E6D5C4A3B2C1D0E9F8A7B"), genesis.Config.Anzeon.Init.Operators[0])
 	assert.Equal(t, validBLSKey1, genesis.Config.Anzeon.Init.BLSPublicKeys[0])
 
 	// Verify second validator
 	assert.Equal(t, common.HexToAddress("0x1234567890123456789012345678901234567890"), genesis.Config.Anzeon.Init.Validators[1])
+	assert.Equal(t, common.HexToAddress("0x9876543210987654321098765432109876543210"), genesis.Config.Anzeon.Init.Operators[1])
 	assert.Equal(t, validBLSKey2, genesis.Config.Anzeon.Init.BLSPublicKeys[1])
 }
 
@@ -111,6 +114,7 @@ func TestProcessGenTxs_EmptyInput(t *testing.T) {
 	// Assert - Empty input should be valid (no gentxs to process)
 	require.NoError(t, err)
 	assert.Len(t, genesis.Config.Anzeon.Init.Validators, 0)
+	assert.Len(t, genesis.Config.Anzeon.Init.Operators, 0)
 	assert.Len(t, genesis.Config.Anzeon.Init.BLSPublicKeys, 0)
 }
 
@@ -199,6 +203,7 @@ func TestProcessGenTxs_MissingBLSPublicKey(t *testing.T) {
 		"version":           "1.0",
 		"chain_id":          "stablenet-1",
 		"validator_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEbC",
+		"operator_address":  "0x8f0a5E3d2F1b4C9a8B7E6D5C4A3B2C1D0E9F8A7B",
 		"timestamp":         1704067200,
 	}
 	genTxJSON, err := json.Marshal(genTx)
@@ -219,6 +224,35 @@ func TestProcessGenTxs_MissingBLSPublicKey(t *testing.T) {
 	// Assert
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bls_public_key")
+}
+
+func TestProcessGenTxs_MissingOperatorAddress(t *testing.T) {
+	// Arrange
+	genTx := map[string]interface{}{
+		"version":           "1.0",
+		"chain_id":          "stablenet-1",
+		"validator_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEbC",
+		"bls_public_key":    validBLSKey1,
+		"timestamp":         1704067200,
+	}
+	genTxJSON, err := json.Marshal(genTx)
+	require.NoError(t, err)
+
+	genesis := &Genesis{
+		Config: &params.ChainConfig{
+			Anzeon: &params.AnzeonConfig{
+				Init: &params.WBFTInit{},
+			},
+		},
+		AnzeonGenTxs: []json.RawMessage{genTxJSON},
+	}
+
+	// Act
+	err = genesis.ProcessGenTxs()
+
+	// Assert
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "operator_address")
 }
 
 func TestProcessGenTxs_InvalidValidatorAddress(t *testing.T) {
@@ -310,6 +344,7 @@ func TestProcessGenTxs_InvalidBLSPublicKey(t *testing.T) {
 				"version":           "1.0",
 				"chain_id":          "stablenet-1",
 				"validator_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEbC",
+				"operator_address":  "0x8f0a5E3d2F1b4C9a8B7E6D5C4A3B2C1D0E9F8A7B",
 				"bls_public_key":    tt.blsKey,
 				"timestamp":         1704067200,
 			}
@@ -335,12 +370,69 @@ func TestProcessGenTxs_InvalidBLSPublicKey(t *testing.T) {
 	}
 }
 
+func TestProcessGenTxs_InvalidOperatorAddress(t *testing.T) {
+	tests := []struct {
+		name    string
+		address string
+	}{
+		{
+			name:    "not hex string",
+			address: "not-a-hex-address",
+		},
+		{
+			name:    "missing 0x prefix",
+			address: "8f0a5E3d2F1b4C9a8B7E6D5C4A3B2C1D0E9F8A7B",
+		},
+		{
+			name:    "wrong length",
+			address: "0x8f0a5E3d2F1b4C9a8B7E6D5C4A3B2C1D0E9F8A",
+		},
+		{
+			name:    "empty string",
+			address: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			genTx := map[string]interface{}{
+				"version":           "1.0",
+				"chain_id":          "stablenet-1",
+				"validator_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEbC",
+				"operator_address":  tt.address,
+				"bls_public_key":    validBLSKey1,
+				"timestamp":         1704067200,
+			}
+			genTxJSON, err := json.Marshal(genTx)
+			require.NoError(t, err)
+
+			genesis := &Genesis{
+				Config: &params.ChainConfig{
+					Anzeon: &params.AnzeonConfig{
+						Init: &params.WBFTInit{},
+					},
+				},
+				AnzeonGenTxs: []json.RawMessage{genTxJSON},
+			}
+
+			// Act
+			err = genesis.ProcessGenTxs()
+
+			// Assert
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "operator")
+		})
+	}
+}
+
 func TestProcessGenTxs_DuplicateValidators(t *testing.T) {
 	// Arrange - Same validator address appears twice
 	genTx1 := map[string]interface{}{
 		"version":           "1.0",
 		"chain_id":          "stablenet-1",
 		"validator_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEbC",
+		"operator_address":  "0x8f0a5E3d2F1b4C9a8B7E6D5C4A3B2C1D0E9F8A7B",
 		"bls_public_key":    validBLSKey1,
 		"timestamp":         1704067200,
 	}
@@ -348,6 +440,7 @@ func TestProcessGenTxs_DuplicateValidators(t *testing.T) {
 		"version":           "1.0",
 		"chain_id":          "stablenet-1",
 		"validator_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEbC", // Same as genTx1
+		"operator_address":  "0x9876543210987654321098765432109876543210",
 		"bls_public_key":    validBLSKey2,
 		"timestamp":         1704067300,
 	}
@@ -380,6 +473,7 @@ func TestProcessGenTxs_ZeroAddress(t *testing.T) {
 		"version":           "1.0",
 		"chain_id":          "stablenet-1",
 		"validator_address": "0x0000000000000000000000000000000000000000",
+		"operator_address":  "0x8f0a5E3d2F1b4C9a8B7E6D5C4A3B2C1D0E9F8A7B",
 		"bls_public_key":    "0xa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6",
 		"timestamp":         1704067200,
 	}

@@ -46,6 +46,7 @@ var CheckSystemContractVersions func(systemContracts *SystemContracts) error
 
 type WBFTInit struct {
 	Validators    []common.Address `json:"validators"`    // initial WBFT validators, order is matter
+	Operators     []common.Address `json:"operators"`     // operator addresses for validators, order must be same as validators
 	BLSPublicKeys []string         `json:"blsPublicKeys"` // BLS public ket list of validators, order must be same as validators
 }
 
