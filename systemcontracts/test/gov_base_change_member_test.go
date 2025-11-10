@@ -49,7 +49,7 @@ func TestChangeMember_SelfChange(t *testing.T) {
 			"expiry":        "86400",
 			"memberVersion": "1",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -129,7 +129,7 @@ func TestChangeMember_ValidationErrors(t *testing.T) {
 			"expiry":        "86400",
 			"memberVersion": "1",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -193,7 +193,7 @@ func TestChangeMember_MultipleChanges(t *testing.T) {
 			"expiry":        "86400",
 			"memberVersion": "1",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 

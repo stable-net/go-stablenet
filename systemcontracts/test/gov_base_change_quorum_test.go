@@ -53,7 +53,7 @@ func TestChangeQuorum_BasicProposal(t *testing.T) {
 			"expiry":        "86400",
 			"memberVersion": "1",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -126,7 +126,7 @@ func TestChangeQuorum_ValidationErrors(t *testing.T) {
 			"expiry":        "86400",
 			"memberVersion": "1",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -167,7 +167,7 @@ func TestChangeQuorum_EdgeCases(t *testing.T) {
 				"expiry":        "86400",
 				"memberVersion": "1",
 			}
-		}, nil, nil, nil, nil)
+		}, nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		defer g.backend.Close()
 
@@ -203,7 +203,7 @@ func TestChangeQuorum_EdgeCases(t *testing.T) {
 				"expiry":        "86400",
 				"memberVersion": "1",
 			}
-		}, nil, nil, nil, nil)
+		}, nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		defer g.backend.Close()
 
@@ -253,7 +253,7 @@ func TestChangeQuorum_EdgeCases(t *testing.T) {
 				"expiry":        "86400",
 				"memberVersion": "1",
 			}
-		}, nil, nil, nil, nil)
+		}, nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		defer g.backend.Close()
 
@@ -310,7 +310,7 @@ func TestChangeQuorum_MultipleChanges(t *testing.T) {
 			"expiry":        "86400",
 			"memberVersion": "1",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -406,7 +406,7 @@ func TestChangeQuorum_WithMemberChanges(t *testing.T) {
 			"expiry":        "86400",
 			"memberVersion": "1",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -476,7 +476,7 @@ func TestChangeQuorum_EventEmission(t *testing.T) {
 			"expiry":        "86400",
 			"memberVersion": "1",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 

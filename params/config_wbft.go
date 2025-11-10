@@ -40,6 +40,9 @@ var (
 
 	DefaultGovMinterAddress = common.HexToAddress("0x1003")
 	DefaultGovMinterVersion = "v1"
+
+	DefaultGovCouncilAddress = common.HexToAddress("0x1004")
+	DefaultGovCouncilVersion = "v1"
 )
 
 var CheckSystemContractVersions func(systemContracts *SystemContracts) error
@@ -142,11 +145,12 @@ type SystemContracts struct {
 	NativeCoinAdapter *SystemContract `json:"nativeCoinAdapter"`
 	GovMinter         *SystemContract `json:"govMinter,omitempty"`
 	GovMasterMinter   *SystemContract `json:"govMasterMinter,omitempty"`
+	GovCouncil        *SystemContract `json:"govCouncil,omitempty"`
 }
 
 func (c *SystemContracts) String() string {
-	return fmt.Sprintf("{GovValidator: %v}, {NativeCoinAdapter: %v}, {GovMinter: %v}, {GovMasterMinter: %v}",
-		c.GovValidator, c.NativeCoinAdapter, c.GovMinter, c.GovMasterMinter,
+	return fmt.Sprintf("{GovValidator: %v}, {NativeCoinAdapter: %v}, {GovMinter: %v}, {GovMasterMinter: %v}, {GovCouncil: %v}",
+		c.GovValidator, c.NativeCoinAdapter, c.GovMinter, c.GovMasterMinter, c.GovCouncil,
 	)
 }
 

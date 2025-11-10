@@ -51,7 +51,7 @@ func TestChangeMaxProposals_BasicProposal(t *testing.T) {
 			"memberVersion": "1",
 			"gasTip":        "1",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -106,7 +106,7 @@ func TestChangeMaxProposals_InvalidValues(t *testing.T) {
 			"expiry":        "86400",
 			"memberVersion": "1",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -146,7 +146,7 @@ func TestChangeMaxProposals_BoundaryValues(t *testing.T) {
 			"memberVersion": "1",
 			"gasTip":        "5000000000000",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -205,7 +205,7 @@ func TestChangeMaxProposals_LimitEnforcement(t *testing.T) {
 			"memberVersion": "1",
 			"maxProposals":  "2", // Set limit to 2
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -258,7 +258,7 @@ func TestChangeMaxProposals_DynamicLimitChange(t *testing.T) {
 			"memberVersion": "1",
 			"maxProposals":  "2",
 		}
-	}, nil, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	defer g.backend.Close()
 
@@ -352,7 +352,7 @@ func TestChangeMaxProposals_GenesisInitialization(t *testing.T) {
 				if tc.genesisValue != "" {
 					govValidator.Params["maxProposals"] = tc.genesisValue
 				}
-			}, nil, nil, nil, nil)
+			}, nil, nil, nil, nil, nil)
 			require.NoError(t, err)
 			defer g.backend.Close()
 

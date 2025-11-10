@@ -35,7 +35,7 @@ func TestTransferLog(t *testing.T) {
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MASTER_MINTER] = masterMinter.Address.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTERS] = minter.Address.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTER_ALLOWED] = MAX_UINT_128.String()
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	checkGasFeeTransferEvent := func(event map[string]interface{}, sender common.Address, receipt *types.Receipt) {
@@ -199,7 +199,7 @@ func TestNativeCoinAdapter(t *testing.T) {
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTERS] = minter1.Address.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTER_ALLOWED] = allowedAmount.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_DECIMALS] = strconv.Itoa(int(decimals))
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	calcGasCost := func(receipt *types.Receipt) *big.Int {

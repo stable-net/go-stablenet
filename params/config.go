@@ -127,6 +127,17 @@ var (
 						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
 				},
+				GovCouncil: &SystemContract{
+					Address: DefaultGovCouncilAddress,
+					Version: DefaultGovCouncilVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
+						"maxProposals":  "3", // Default: 3, Range: 1-50
+					},
+				},
 			},
 		},
 	}
@@ -208,6 +219,17 @@ var (
 						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"memberVersion": "1",
 						"fiatToken":     "0x0000000000000000000000000000000000001000",
+						"maxProposals":  "3", // Default: 3, Range: 1-50
+					},
+				},
+				GovCouncil: &SystemContract{
+					Address: DefaultGovCouncilAddress,
+					Version: DefaultGovCouncilVersion,
+					Params: map[string]string{
+						"quorum":        "1",
+						"expiry":        "604800", // 7 days
+						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"memberVersion": "1",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
 				},
