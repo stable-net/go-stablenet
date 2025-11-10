@@ -40,3 +40,35 @@ type SignatureData struct {
 	ChainID          string
 	Timestamp        int64 // Unix timestamp
 }
+
+// Bytes serializes the SignatureData into a byte array for signing.
+// The format is: validatorAddress + operatorAddress + blsPublicKey + chainID + timestamp
+func (s SignatureData) Bytes() []byte {
+	result := make([]byte, 0)
+
+	// Add validator address (20 bytes)
+	result = append(result, s.ValidatorAddress.Bytes()...)
+
+	// Add operator address (20 bytes)
+	result = append(result, s.OperatorAddress.Bytes()...)
+
+	// Add BLS public key (96 bytes)
+	result = append(result, s.BLSPublicKey.Bytes()...)
+
+	// Add chain ID (variable length)
+	result = append(result, []byte(s.ChainID)...)
+
+	// Add timestamp (8 bytes, big-endian)
+	timestampBytes := make([]byte, 8)
+	timestampBytes[0] = byte(s.Timestamp >> 56)
+	timestampBytes[1] = byte(s.Timestamp >> 48)
+	timestampBytes[2] = byte(s.Timestamp >> 40)
+	timestampBytes[3] = byte(s.Timestamp >> 32)
+	timestampBytes[4] = byte(s.Timestamp >> 24)
+	timestampBytes[5] = byte(s.Timestamp >> 16)
+	timestampBytes[6] = byte(s.Timestamp >> 8)
+	timestampBytes[7] = byte(s.Timestamp)
+	result = append(result, timestampBytes...)
+
+	return result
+}
