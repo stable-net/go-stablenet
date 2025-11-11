@@ -21,8 +21,11 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
 
@@ -56,31 +59,81 @@ func newTxWithMinerFee(tx *txpool.LazyTransaction, from common.Address, baseFee 
 
 // txByPriceAndTime implements both the sort and the heap interface, making it useful
 // for all at once sorting as well as individually adding and removing elements.
-type txByPriceAndTime []*txWithMinerFee
-
-func (s txByPriceAndTime) Len() int { return len(s) }
-func (s txByPriceAndTime) Less(i, j int) bool {
-	// If the prices are equal, use the time the transaction was first seen for
-	// deterministic sorting
-	cmp := s[i].fees.Cmp(s[j].fees)
-	if cmp == 0 {
-		return s[i].tx.Time.Before(s[j].tx.Time)
-	}
-	return cmp > 0
+type txByPriceAndTime struct {
+	txs           []*txWithMinerFee
+	anzeonEnabled bool                    // Cached value of chainConfig.AnzeonEnabled() to avoid repeated checks
+	isAuthorized  map[common.Address]bool // Pre-computed authorized status for all accounts to avoid repeated checks in Less()
 }
-func (s txByPriceAndTime) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+func (s *txByPriceAndTime) Len() int { return len(s.txs) }
+func (s *txByPriceAndTime) Less(i, j int) bool {
+	// If Anzeon is not enabled, use the original fee-based ordering
+	if !s.anzeonEnabled {
+		log.Info("[hmlee] Anzeon is not enabled, using original fee-based ordering")
+		cmp := s.txs[i].fees.Cmp(s.txs[j].fees)
+		if cmp == 0 {
+			return s.txs[i].tx.Time.Before(s.txs[j].tx.Time)
+		}
+		return cmp > 0
+	}
+
+	// Check if accounts are authorized (using pre-computed map for performance)
+	iAuthorized := s.isAuthorized[s.txs[i].from]
+	jAuthorized := s.isAuthorized[s.txs[j].from]
+
+	// If both are authorized or both are not authorized, use fee-based ordering within the same group
+	if iAuthorized == jAuthorized {
+		if iAuthorized {
+			// Both authorized: compare by fee (higher first), then by time (earlier first)
+			cmp := s.txs[i].fees.Cmp(s.txs[j].fees)
+			if cmp == 0 {
+				return s.txs[i].tx.Time.Before(s.txs[j].tx.Time)
+			}
+			return cmp > 0
+		} else {
+			// Both not authorized: compare by time only (earlier first, no fee comparison)
+			// General accounts are ordered by FIFO regardless of fee
+			return s.txs[i].tx.Time.Before(s.txs[j].tx.Time)
+		}
+	}
+
+	// If one is authorized and the other is not, authorized always comes first
+	return iAuthorized
+}
+func (s *txByPriceAndTime) Swap(i, j int) { s.txs[i], s.txs[j] = s.txs[j], s.txs[i] }
 
 func (s *txByPriceAndTime) Push(x interface{}) {
-	*s = append(*s, x.(*txWithMinerFee))
+	s.txs = append(s.txs, x.(*txWithMinerFee))
 }
 
 func (s *txByPriceAndTime) Pop() interface{} {
-	old := *s
+	old := s.txs
 	n := len(old)
 	x := old[n-1]
 	old[n-1] = nil
-	*s = old[0 : n-1]
+	s.txs = old[0 : n-1]
 	return x
+}
+
+// checkIsAuthorized checks if an account is authorized.
+func checkIsAuthorized(addr common.Address, anzeonEnabled bool, stateDB *state.StateDB) bool {
+	// If Anzeon is not enabled, no account is authorized
+	if !anzeonEnabled {
+		return false
+	}
+
+	// TODO: Once StateAccount.Extra field is implemented, read from stateDB:
+	// example:
+	// if stateDB != nil {
+	//     account := stateDB.GetAccount(addr)
+	//     if account != nil {
+	//         // Check Extra field for authorized flag
+	//         return account.IsAuthorized()
+	//     }
+	// }
+
+	// For now, use hardcoded list from protocol_params
+	return params.AuthorizedAccounts[addr]
 }
 
 // transactionsByPriceAndNonce represents a set of transactions that can return
@@ -98,21 +151,32 @@ type transactionsByPriceAndNonce struct {
 //
 // Note, the input map is reowned so the caller should not interact any more with
 // if after providing it to the constructor.
-func newTransactionsByPriceAndNonce(signer types.Signer, txs map[common.Address][]*txpool.LazyTransaction, baseFee *big.Int) *transactionsByPriceAndNonce {
+func newTransactionsByPriceAndNonce(signer types.Signer, txs map[common.Address][]*txpool.LazyTransaction, baseFee *big.Int, anzeonEnabled bool, stateDB *state.StateDB) *transactionsByPriceAndNonce {
 	// Convert the basefee from header format to uint256 format
 	var baseFeeUint *uint256.Int
 	if baseFee != nil {
 		baseFeeUint = uint256.MustFromBig(baseFee)
 	}
 	// Initialize a price and received time based heap with the head transactions
-	heads := make(txByPriceAndTime, 0, len(txs))
+	isAuthorizedMap := make(map[common.Address]bool, len(txs))
+	if anzeonEnabled {
+		for from := range txs {
+			isAuthorizedMap[from] = checkIsAuthorized(from, anzeonEnabled, stateDB)
+		}
+	}
+
+	heads := txByPriceAndTime{
+		txs:           make([]*txWithMinerFee, 0, len(txs)),
+		anzeonEnabled: anzeonEnabled,
+		isAuthorized:  isAuthorizedMap,
+	}
 	for from, accTxs := range txs {
 		wrapped, err := newTxWithMinerFee(accTxs[0], from, baseFeeUint)
 		if err != nil {
 			delete(txs, from)
 			continue
 		}
-		heads = append(heads, wrapped)
+		heads.txs = append(heads.txs, wrapped)
 		txs[from] = accTxs[1:]
 	}
 	heap.Init(&heads)
@@ -128,18 +192,18 @@ func newTransactionsByPriceAndNonce(signer types.Signer, txs map[common.Address]
 
 // Peek returns the next transaction by price.
 func (t *transactionsByPriceAndNonce) Peek() (*txpool.LazyTransaction, *uint256.Int) {
-	if len(t.heads) == 0 {
+	if len(t.heads.txs) == 0 {
 		return nil, nil
 	}
-	return t.heads[0].tx, t.heads[0].fees
+	return t.heads.txs[0].tx, t.heads.txs[0].fees
 }
 
 // Shift replaces the current best head with the next one from the same account.
 func (t *transactionsByPriceAndNonce) Shift() {
-	acc := t.heads[0].from
+	acc := t.heads.txs[0].from
 	if txs, ok := t.txs[acc]; ok && len(txs) > 0 {
 		if wrapped, err := newTxWithMinerFee(txs[0], acc, t.baseFee); err == nil {
-			t.heads[0], t.txs[acc] = wrapped, txs[1:]
+			t.heads.txs[0], t.txs[acc] = wrapped, txs[1:]
 			heap.Fix(&t.heads, 0)
 			return
 		}
@@ -157,10 +221,10 @@ func (t *transactionsByPriceAndNonce) Pop() {
 // Empty returns if the price heap is empty. It can be used to check it simpler
 // than calling peek and checking for nil return.
 func (t *transactionsByPriceAndNonce) Empty() bool {
-	return len(t.heads) == 0
+	return len(t.heads.txs) == 0
 }
 
 // Clear removes the entire content of the heap.
 func (t *transactionsByPriceAndNonce) Clear() {
-	t.heads, t.txs = nil, nil
+	t.heads.txs, t.txs = nil, nil
 }
