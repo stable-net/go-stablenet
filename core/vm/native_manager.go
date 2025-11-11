@@ -272,10 +272,15 @@ func (c *accountManagerBlacklist) CanRun(evm *EVM, op OpCode, caller ContractRef
 func (c *accountManagerBlacklist) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	address := common.BytesToAddress(data[0:32])
 
-	if suppliedGas < params.UpdateBalanceGas {
+	gasCost := params.UpdateAccountExtraGas
+	if !evm.StateDB.Exist(address) {
+		gasCost += params.CallNewAccountGas
+	}
+
+	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= params.UpdateBalanceGas
+	suppliedGas -= gasCost
 
 	evm.StateDB.SetBlacklisted(address)
 
@@ -292,10 +297,10 @@ func (c *accountManagerUnblacklist) CanRun(evm *EVM, op OpCode, caller ContractR
 func (c *accountManagerUnblacklist) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	address := common.BytesToAddress(data[0:32])
 
-	if suppliedGas < params.UpdateBalanceGas {
+	if suppliedGas < params.UpdateAccountExtraGas {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= params.UpdateBalanceGas
+	suppliedGas -= params.UpdateAccountExtraGas
 
 	evm.StateDB.ClearBlacklisted(address)
 
@@ -331,10 +336,15 @@ func (c *accountManagerAuthorize) CanRun(evm *EVM, op OpCode, caller ContractRef
 func (c *accountManagerAuthorize) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	address := common.BytesToAddress(data[0:32])
 
-	if suppliedGas < params.UpdateBalanceGas {
+	gasCost := params.UpdateAccountExtraGas
+	if !evm.StateDB.Exist(address) {
+		gasCost += params.CallNewAccountGas
+	}
+
+	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= params.UpdateBalanceGas
+	suppliedGas -= gasCost
 
 	evm.StateDB.SetAuthorized(address)
 
@@ -351,10 +361,10 @@ func (c *accountManagerUnauthorize) CanRun(evm *EVM, op OpCode, caller ContractR
 func (c *accountManagerUnauthorize) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	address := common.BytesToAddress(data[0:32])
 
-	if suppliedGas < params.UpdateBalanceGas {
+	if suppliedGas < params.UpdateAccountExtraGas {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= params.UpdateBalanceGas
+	suppliedGas -= params.UpdateAccountExtraGas
 
 	evm.StateDB.ClearAuthorized(address)
 

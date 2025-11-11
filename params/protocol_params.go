@@ -207,7 +207,8 @@ var (
 
 // go-stablenet parameters
 const (
-	UpdateBalanceGas uint64 = 4500 // StateDB.SetBalance
+	UpdateBalanceGas      uint64 = 4500 // StateDB.SetBalance
+	UpdateAccountExtraGas uint64 = 4500 // StateDB.SetExtra
 )
 
 var (
