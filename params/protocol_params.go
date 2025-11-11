@@ -211,6 +211,8 @@ const (
 )
 
 var (
-	NativeCoinManagerAddress = common.BytesToAddress([]byte{0xb0, 0x00, 0x02})                                        // 0x0000000000000000000000000000000000B00002
-	TransferEventSig         = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef") // crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
+	NativeCoinManagerAddress = common.BytesToAddress([]byte{0xb0, 0x00, 0x02}) // 0x0000000000000000000000000000000000B00002
+	AccountManagerAddress    = common.BytesToAddress([]byte{0xb0, 0x00, 0x03}) // 0x0000000000000000000000000000000000B00003
+
+	TransferEventSig = common.HexToHash("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef") // crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
 )

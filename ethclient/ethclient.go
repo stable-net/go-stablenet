@@ -420,6 +420,21 @@ func (ec *Client) NonceAtHash(ctx context.Context, account common.Address, block
 	return uint64(result), err
 }
 
+// // IsBlacklistedAt returns whether the given account is marked as blacklisted.
+// // The block number can be nil, in which case the balance is taken from the latest known block.
+// func (ec *Client) IsBlacklistedAt(ctx context.Context, account common.Address, blockNumber *big.Int) (bool, error) {
+// 	var result bool
+// 	err := ec.c.CallContext(ctx, &result, "eth_isBlacklisted", account, toBlockNumArg(blockNumber))
+// 	return result, err
+// }
+
+// // IsBlacklistedAtHash returns whether the given account is marked as blacklisted.
+// func (ec *Client) IsBlacklistedAtHash(ctx context.Context, account common.Address, blockHash common.Hash) (bool, error) {
+// 	var result bool
+// 	err := ec.c.CallContext(ctx, &result, "eth_isBlacklisted", account, rpc.BlockNumberOrHashWithHash(blockHash, false))
+// 	return result, err
+// }
+
 // Filters
 
 // FilterLogs executes a filter query.

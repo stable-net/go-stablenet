@@ -57,6 +57,18 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	return p, ok
 }
 
+func (evm *EVM) nativeManager(addr common.Address) (NativeManagerContract, bool) {
+	var managers map[common.Address]NativeManagerContract
+	switch {
+	case evm.chainRules.IsAnzeon:
+		managers = NativeManagerContractsAnzeon
+	default:
+		return nil, false
+	}
+	pm, ok := managers[addr]
+	return pm, ok
+}
+
 // BlockContext provides the EVM with auxiliary information. Once provided
 // it shouldn't be modified.
 type BlockContext struct {
@@ -183,10 +195,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
-	isCoinManager, err := evm.checkCoinManagerCall(CALL, caller, addr)
-	if err != nil {
-		return nil, gas, err
-	}
+	m, isNativeManager := evm.nativeManager(addr)
 	p, isPrecompile := evm.precompile(addr)
 	if !value.IsZero() {
 		// Fail if we're trying to transfer more than the available balance
@@ -199,8 +208,8 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 				return nil, gas, ErrZeroAddressTransfer
 			}
 			// Fail if transferring value to a precompiled contract
-			if isCoinManager || isPrecompile {
-				return nil, gas, ErrPrecompileValueTransfer
+			if isNativeManager || isPrecompile {
+				return nil, gas, ErrValueTransferToPrecompile
 			}
 		}
 	}
@@ -208,7 +217,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	debug := evm.Config.Tracer != nil
 
 	if !evm.StateDB.Exist(addr) {
-		if !isPrecompile && !isCoinManager && evm.chainRules.IsEIP158 && value.IsZero() {
+		if !isPrecompile && !isNativeManager && evm.chainRules.IsEIP158 && value.IsZero() {
 			// Calling a non existing account, don't do anything, but ping the tracer
 			if debug {
 				if evm.depth == 0 {
@@ -243,10 +252,10 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			}(gas)
 		}
 	}
-	if isCoinManager {
-		ret, gas, err = evm.runNativeCoinManager(input, gas)
-	} else if isPrecompile {
+	if isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if isNativeManager {
+		ret, gas, err = evm.runNativeManager(m, CALL, caller, input, gas)
 	} else {
 		// Initialise a new contract and set the code that is to be used by the EVM.
 		// The contract is a scoped environment for this execution context only.
@@ -290,9 +299,6 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
-	if _, err := evm.checkCoinManagerCall(CALLCODE, caller, addr); err != nil {
-		return nil, gas, err
-	}
 	// Fail if we're trying to transfer more than the available balance
 	// Note although it's noop to transfer X ether to caller itself. But
 	// if caller doesn't have enough balance, it would be an error to allow
@@ -313,6 +319,8 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	// It is allowed to call precompiles, even via delegatecall
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if m, isManager := evm.nativeManager(addr); isManager {
+		ret, gas, err = evm.runNativeManager(m, CALLCODE, caller, input, gas)
 	} else {
 		addrCopy := addr
 		// Initialise a new contract and set the code that is to be used by the EVM.
@@ -341,9 +349,6 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
-	if _, err := evm.checkCoinManagerCall(DELEGATECALL, caller, addr); err != nil {
-		return nil, gas, err
-	}
 	var snapshot = evm.StateDB.Snapshot()
 
 	// Invoke tracer hooks that signal entering/exiting a call frame
@@ -361,6 +366,8 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	// It is allowed to call precompiles, even via delegatecall
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if m, isManager := evm.nativeManager(addr); isManager {
+		ret, gas, err = evm.runNativeManager(m, DELEGATECALL, caller, input, gas)
 	} else {
 		addrCopy := addr
 		// Initialise a new contract and make initialise the delegate values
@@ -387,9 +394,6 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
-	if _, err := evm.checkCoinManagerCall(STATICCALL, caller, addr); err != nil {
-		return nil, gas, err
-	}
 	// We take a snapshot here. This is a bit counter-intuitive, and could probably be skipped.
 	// However, even a staticcall is considered a 'touch'. On mainnet, static calls were introduced
 	// after all empty accounts were deleted, so this is not required. However, if we omit this,
@@ -413,6 +417,8 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 
 	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
+	} else if m, isManager := evm.nativeManager(addr); isManager {
+		ret, gas, err = evm.runNativeManager(m, STATICCALL, caller, input, gas)
 	} else {
 		// At this point, we use a copy of address. If we don't, the go compiler will
 		// leak the 'contract' to the outer scope, and make allocation for 'contract'

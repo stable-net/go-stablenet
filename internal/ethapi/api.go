@@ -1608,12 +1608,12 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 	// Retrieve the precompiles and coin manager since they don't need to be added to the access list
 	chainRules := b.ChainConfig().Rules(header.Number, isPostMerge, header.Time)
 	precompiles := vm.ActivePrecompiles(chainRules)
-	coinManager := vm.ActiveCoinManager(chainRules)
+	nativeManagers := vm.ActiveNativeManagers(chainRules)
 
 	// Create an initial tracer
-	prevTracer := logger.NewAccessListTracer(nil, args.from(), to, precompiles, coinManager)
+	prevTracer := logger.NewAccessListTracer(nil, args.from(), to, precompiles, nativeManagers)
 	if args.AccessList != nil {
-		prevTracer = logger.NewAccessListTracer(*args.AccessList, args.from(), to, precompiles, coinManager)
+		prevTracer = logger.NewAccessListTracer(*args.AccessList, args.from(), to, precompiles, nativeManagers)
 	}
 	for {
 		// Retrieve the current access list to expand
@@ -1630,7 +1630,7 @@ func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrH
 		}
 
 		// Apply the transaction with the access list tracer
-		tracer := logger.NewAccessListTracer(accessList, args.from(), to, precompiles, coinManager)
+		tracer := logger.NewAccessListTracer(accessList, args.from(), to, precompiles, nativeManagers)
 		config := vm.Config{Tracer: tracer, NoBaseFee: true}
 		vmenv := b.GetEVM(ctx, msg, statedb, header, &config, nil)
 		res, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit))
