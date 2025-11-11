@@ -209,10 +209,11 @@ func (c *coinManagerBurn) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte
 		return nil, suppliedGas, ErrInsufficientBalance
 	}
 
-	if suppliedGas < params.UpdateBalanceGas {
+	gasCost := params.UpdateBalanceGas
+	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= params.UpdateBalanceGas
+	suppliedGas -= gasCost
 
 	evm.StateDB.SubBalance(from, amount)
 	evm.AddTransferLog(from, zeroAddress, amount)
@@ -297,10 +298,11 @@ func (c *accountManagerUnblacklist) CanRun(evm *EVM, op OpCode, caller ContractR
 func (c *accountManagerUnblacklist) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	address := common.BytesToAddress(data[0:32])
 
-	if suppliedGas < params.UpdateAccountExtraGas {
+	gasCost := params.UpdateAccountExtraGas
+	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= params.UpdateAccountExtraGas
+	suppliedGas -= gasCost
 
 	evm.StateDB.ClearBlacklisted(address)
 
@@ -363,10 +365,11 @@ func (c *accountManagerUnauthorize) CanRun(evm *EVM, op OpCode, caller ContractR
 func (c *accountManagerUnauthorize) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	address := common.BytesToAddress(data[0:32])
 
-	if suppliedGas < params.UpdateAccountExtraGas {
+	gasCost := params.UpdateAccountExtraGas
+	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= params.UpdateAccountExtraGas
+	suppliedGas -= gasCost
 
 	evm.StateDB.ClearAuthorized(address)
 
