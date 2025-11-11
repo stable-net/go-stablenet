@@ -186,6 +186,8 @@ func validateBlobSidecar(hashes []common.Hash, sidecar *types.BlobTxSidecar) err
 // ValidationOptionsWithState define certain differences between stateful transaction
 // validation across the different pools without having to duplicate those checks.
 type ValidationOptionsWithState struct {
+	Config *params.ChainConfig // Chain configuration to selectively validate based on current fork rules
+
 	State *state.StateDB // State database to check nonces and balances against
 
 	// FirstNonceGap is an optional callback to retrieve the first nonce gap in
@@ -220,6 +222,15 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		log.Error("Transaction sender recovery failed", "err", err)
 		return err
 	}
+	// Ensure that neither the sender nor the recipient is blacklisted
+	if opts.Config.AnzeonEnabled() {
+		if opts.State.IsBlacklisted(from) {
+			return fmt.Errorf("%w: from %v", ErrBlacklistedAccount, from.Hex())
+		}
+		if to := tx.To(); to != nil && opts.State.IsBlacklisted(*to) {
+			return fmt.Errorf("%w: to %v", ErrBlacklistedAccount, to.Hex())
+		}
+	}
 	next := opts.State.GetNonce(from)
 	if next > tx.Nonce() {
 		return fmt.Errorf("%w: next nonce %v, tx nonce %v", core.ErrNonceTooLow, next, tx.Nonce())
@@ -233,10 +244,15 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 	}
 	// Ensure the transactor has enough funds to cover the transaction costs
 	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
+		feePayer := tx.FeePayer()
+		// Ensure that the fee payer is not blacklisted
+		if opts.Config.AnzeonEnabled() && opts.State.IsBlacklisted(*feePayer) {
+			return fmt.Errorf("%w: feePayer: %v", ErrBlacklistedAccount, feePayer.Hex())
+		}
 		if opts.State.GetBalance(from).ToBig().Cmp(tx.Value()) < 0 {
 			return ErrSenderInsufficientFunds
 		}
-		if opts.State.GetBalance(*tx.FeePayer()).ToBig().Cmp(tx.FeeCost()) < 0 {
+		if opts.State.GetBalance(*feePayer).ToBig().Cmp(tx.FeeCost()) < 0 {
 			return ErrFeePayerInsufficientFunds
 		}
 	} else {

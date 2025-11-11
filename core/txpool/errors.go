@@ -72,4 +72,8 @@ var (
 	// WEMIX ErrSenderInsufficientFunds is returned if the value cost of executing a transaction
 	// is higher than the balance of the sender's account.
 	ErrSenderInsufficientFunds = errors.New("fee delegation: insufficient sender's funds for value")
+
+	// ErrBlacklistedAccount is returned if a transaction involves an account
+	// that is blacklisted.
+	ErrBlacklistedAccount = errors.New("account is blacklisted")
 )
