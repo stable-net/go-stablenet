@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
@@ -69,7 +68,6 @@ func (s *txByPriceAndTime) Len() int { return len(s.txs) }
 func (s *txByPriceAndTime) Less(i, j int) bool {
 	// If Anzeon is not enabled, use the original fee-based ordering
 	if !s.anzeonEnabled {
-		log.Info("[hmlee] Anzeon is not enabled, using original fee-based ordering")
 		cmp := s.txs[i].fees.Cmp(s.txs[j].fees)
 		if cmp == 0 {
 			return s.txs[i].tx.Time.Before(s.txs[j].tx.Time)
