@@ -20,6 +20,20 @@ pragma solidity ^0.8.14;
 import { GovBase } from "../abstracts/GovBase.sol";
 import { AddressSetLib } from "../libraries/AddressSetLib.sol";
 
+interface IAccountManager {
+    function blacklist(address account) external;
+
+    function unblacklist(address account) external;
+
+    function isBlacklist(address account) external view returns (bool);
+
+    function authorize(address account) external;
+
+    function unauthorize(address account) external;
+
+    function isAuthorized(address account) external view returns (bool);
+}
+
 /**
  * @title GovCouncil
  * @notice Governance contract for managing blacklist and authorized account lists
@@ -49,6 +63,7 @@ contract GovCouncil is GovBase {
     // Current active lists (O(1) operations)
     AddressSetLib.AddressSet private _currentBlacklist;
     AddressSetLib.AddressSet private _currentAuthorizedAccounts;
+    address private __accountManager;
 
     // ========== Action Types ==========
 
@@ -358,6 +373,10 @@ contract GovCouncil is GovBase {
         // Add to current set
         _currentBlacklist.add(account);
 
+        // Update account extra field via AccountManager
+        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.blacklist.selector, account));
+        require(callSuccess, "GovCouncil: blacklist call failed");
+
         // Emit event
         emit AddressBlacklisted(account, proposalId);
 
@@ -376,6 +395,10 @@ contract GovCouncil is GovBase {
         // Remove from current set
         _currentBlacklist.remove(account);
 
+        // Update account extra field via AccountManager
+        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.unblacklist.selector, account));
+        require(callSuccess, "GovCouncil: unblacklist call failed");
+
         // Emit event
         emit AddressUnblacklisted(account, proposalId);
 
@@ -392,6 +415,10 @@ contract GovCouncil is GovBase {
     function _addToAuthorizedAccount(address account, uint256 proposalId) private returns (bool success) {
         _currentAuthorizedAccounts.add(account);
 
+        // Update account extra field via AccountManager
+        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.authorize.selector, account));
+        require(callSuccess, "GovCouncil: authorize call failed");
+
         emit AuthorizedAccountAdded(account, proposalId);
 
         return true;
@@ -402,6 +429,10 @@ contract GovCouncil is GovBase {
      */
     function _removeFromAuthorizedAccount(address account, uint256 proposalId) private returns (bool success) {
         _currentAuthorizedAccounts.remove(account);
+
+        // Update account extra field via AccountManager
+        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.unauthorize.selector, account));
+        require(callSuccess, "GovCouncil: unauthorize call failed");
 
         emit AuthorizedAccountRemoved(account, proposalId);
 

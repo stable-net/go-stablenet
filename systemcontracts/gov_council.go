@@ -48,10 +48,14 @@ const (
 	//   - Array values stored at: keccak256(0x34) + index
 	//   - Position mapping: keccak256(key || 0x35)
 	// Slot 0x35 (53): _currentAuthorizedAccounts positions mapping slot
+	//
+	// Slot 0x36 (54): __accountManager address
+	//   - Stores AccountManagerAddress (params.AccountManagerAddress)
 	SLOT_GOV_COUNCIL_currentBlacklist_values             = "0x32" // Base slot for blacklist AddressSet
 	SLOT_GOV_COUNCIL_currentBlacklist_positions          = "0x33" // Positions mapping slot for blacklist
 	SLOT_GOV_COUNCIL_currentAuthorizedAccounts_values    = "0x34" // Base slot for authorized accounts AddressSet
 	SLOT_GOV_COUNCIL_currentAuthorizedAccounts_positions = "0x35" // Positions mapping slot for authorized accounts
+	SLOT_GOV_COUNCIL_accountManager                      = "0x36" // AccountManager address slot
 )
 
 // initializeGovCouncil initializes the GovCouncil contract storage
@@ -93,6 +97,13 @@ func initializeGovCouncil(govCouncilAddress common.Address, param map[string]str
 		}
 		sp = append(sp, authorizedAccountParams...)
 	}
+
+	// Initialize __accountManager
+	sp = append(sp, params.StateParam{
+		Address: govCouncilAddress,
+		Key:     common.HexToHash(SLOT_GOV_COUNCIL_accountManager),
+		Value:   common.BytesToHash(params.AccountManagerAddress.Bytes()),
+	})
 
 	return sp, nil
 }

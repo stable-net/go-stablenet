@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -376,4 +377,79 @@ func TestInitializeAddressSet_WithWhitespace(t *testing.T) {
 	arraySlot0 := CalculateDynamicSlot(valuesSlot, big.NewInt(0))
 	addr0 := mockState.GetState(contractAddress, arraySlot0)
 	require.Equal(t, common.HexToAddress("0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"), common.BytesToAddress(addr0.Bytes()))
+}
+
+func TestInitializeCouncil_AccountManagerInitialization(t *testing.T) {
+	govCouncilAddress := common.HexToAddress("0x1000")
+	testParams := map[string]string{
+		GOV_BASE_PARAM_MEMBERS:        "0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222",
+		GOV_BASE_PARAM_QUORUM:         "2",
+		GOV_BASE_PARAM_EXPIRY:         "604800",
+		GOV_BASE_PARAM_MEMBER_VERSION: "1",
+	}
+
+	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams)
+	require.NoError(t, err)
+	require.NotNil(t, stateParams)
+
+	// Apply state params to mock state
+	mockState := NewMockStateReader()
+	for _, param := range stateParams {
+		mockState.SetState(param.Address, param.Key, param.Value)
+	}
+
+	// Verify __accountManager is initialized to AccountManagerAddress
+	accountManagerSlot := common.HexToHash(SLOT_GOV_COUNCIL_accountManager)
+	accountManagerValue := mockState.GetState(govCouncilAddress, accountManagerSlot)
+	expectedAccountManager := common.BytesToHash(params.AccountManagerAddress.Bytes())
+
+	require.Equal(t, expectedAccountManager, accountManagerValue,
+		"__accountManager should be initialized to params.AccountManagerAddress")
+
+	// Verify the address can be converted back
+	storedAddress := common.BytesToAddress(accountManagerValue.Bytes())
+	require.Equal(t, params.AccountManagerAddress, storedAddress,
+		"Stored AccountManager address should match params.AccountManagerAddress")
+}
+
+func TestInitializeCouncil_AllSlots(t *testing.T) {
+	govCouncilAddress := common.HexToAddress("0x1000")
+	testParams := map[string]string{
+		GOV_BASE_PARAM_MEMBERS:                "0x1111111111111111111111111111111111111111,0x2222222222222222222222222222222222222222",
+		GOV_BASE_PARAM_QUORUM:                 "2",
+		GOV_BASE_PARAM_EXPIRY:                 "604800",
+		GOV_BASE_PARAM_MEMBER_VERSION:         "1",
+		GOV_COUNCIL_PARAM_BLACKLIST:           "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+	}
+
+	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams)
+	require.NoError(t, err)
+	require.NotNil(t, stateParams)
+
+	// Apply state params to mock state
+	mockState := NewMockStateReader()
+	for _, param := range stateParams {
+		mockState.SetState(param.Address, param.Key, param.Value)
+	}
+
+	// Verify all expected slots are initialized:
+	// 1. GovBase slots (inherited)
+	// 2. Blacklist slots (0x32, 0x33)
+	// 3. Authorized accounts slots (0x34, 0x35)
+	// 4. __accountManager slot (0x36)
+
+	// Check blacklist
+	blacklistCount := GetBlacklistCount(govCouncilAddress, mockState)
+	require.Equal(t, int64(1), blacklistCount.Int64())
+
+	// Check authorized accounts
+	authorizedCount := GetAuthorizedAccountCount(govCouncilAddress, mockState)
+	require.Equal(t, int64(1), authorizedCount.Int64())
+
+	// Check __accountManager
+	accountManagerSlot := common.HexToHash(SLOT_GOV_COUNCIL_accountManager)
+	accountManagerValue := mockState.GetState(govCouncilAddress, accountManagerSlot)
+	storedAddress := common.BytesToAddress(accountManagerValue.Bytes())
+	require.Equal(t, params.AccountManagerAddress, storedAddress)
 }
