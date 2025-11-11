@@ -107,6 +107,9 @@ func (c *AnzeonConfig) CheckValidity() error {
 	if c.SystemContracts.GovMinter == nil {
 		return errors.New("`anzeon.systemContracts: missing `GovMinter`")
 	}
+	if c.SystemContracts.GovCouncil == nil {
+		return errors.New("`anzeon.systemContracts: missing `GovCouncil`")
+	}
 	if err := CheckSystemContractVersions(c.SystemContracts); err != nil {
 		return fmt.Errorf("`anzeon.systemContracts`: %v", err)
 	}
@@ -227,6 +230,10 @@ var DefaultAnzeonConfig = &AnzeonConfig{
 		GovMinter: &SystemContract{
 			Address: DefaultGovMinterAddress,
 			Version: DefaultGovMinterVersion,
+		},
+		GovCouncil: &SystemContract{
+			Address: DefaultGovCouncilAddress,
+			Version: DefaultGovCouncilVersion,
 		},
 	},
 	Init: &WBFTInit{},

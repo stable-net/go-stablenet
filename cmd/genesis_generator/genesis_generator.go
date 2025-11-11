@@ -223,7 +223,9 @@ func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPubli
 		"members":            vals,
 		"memberVersion":      "1",
 		"fiatToken":          "0x0000000000000000000000000000000000001000",
+		"minters":            "0x0000000000000000000000000000000000001003",
 		"maxMinterAllowance": "10000000000000000000000000000",
+		"maxProposals":       "3",
 	}
 	g.Genesis.Config.Anzeon.SystemContracts.GovMinter.Params = map[string]string{
 		"quorum":        quorumStr,
@@ -231,6 +233,14 @@ func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPubli
 		"members":       vals,
 		"memberVersion": "1",
 		"fiatToken":     "0x0000000000000000000000000000000000001000",
+		"maxProposals":  "3",
+	}
+	g.Genesis.Config.Anzeon.SystemContracts.GovCouncil.Params = map[string]string{
+		"quorum":        quorumStr,
+		"expiry":        "604800",
+		"members":       vals,
+		"memberVersion": "1",
+		"maxProposals":  "3",
 	}
 }
 

@@ -138,6 +138,9 @@ func (c *Config) GetSystemContracts(blockNumber *big.Int, chainConfig *params.Ch
 			if upgrade.GovMasterMinter != nil {
 				gc.GovMasterMinter = upgrade.GovMasterMinter
 			}
+			if upgrade.GovCouncil != nil {
+				gc.GovCouncil = upgrade.GovCouncil
+			}
 		})
 	} else {
 		// Normally unreachable since c.SystemContractsUpgrades is set when wbft engine is created,
