@@ -86,7 +86,7 @@ var (
 
 	AccountManagerBlacklistSelector     = bytesToManagerMethodSelector(crypto.Keccak256([]byte("blacklist(address)")))
 	AccountManagerUnblacklistSelector   = bytesToManagerMethodSelector(crypto.Keccak256([]byte("unblacklist(address)")))
-	AccountManagerIsBlacklistedSelector = bytesToManagerMethodSelector(crypto.Keccak256([]byte("isBlacklist(address)")))
+	AccountManagerIsBlacklistedSelector = bytesToManagerMethodSelector(crypto.Keccak256([]byte("isBlacklisted(address)")))
 
 	AccountManagerAuthorizeSelector    = bytesToManagerMethodSelector(crypto.Keccak256([]byte("authorize(address)")))
 	AccountManagerUnauthorizeSelector  = bytesToManagerMethodSelector(crypto.Keccak256([]byte("unauthorize(address)")))
