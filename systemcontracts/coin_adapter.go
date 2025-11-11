@@ -12,15 +12,16 @@ import (
 )
 
 const (
-	SLOT_COIN_ADAPTER_MASTER_MINTER  = "0x0" // address masterMinter
-	SLOT_COIN_ADAPTER_MINTERS        = "0x1" // mapping(address => bool) _minters
-	SLOT_COIN_ADAPTER_MINTER_ALLOWED = "0x2" // mapping(address => uint256) _minterAllowed
-	SLOT_COIN_ADAPTER_COIN_MANAGER   = "0x8" // address _coinManager
-	SLOT_COIN_ADAPTER_NAME           = "0x9" // string name
-	SLOT_COIN_ADAPTER_SYMBOL         = "0xa" // string symbol
-	SLOT_COIN_ADAPTER_DECIMALS       = "0xb" // uint8 decimals
-	SLOT_COIN_ADAPTER_CURRENCY       = "0xc" // string currency
-	SLOT_COIN_ADAPTER_TOTAL_SUPPLY   = "0xe" // uint256 _totalSupply
+	SLOT_COIN_ADAPTER_MASTER_MINTER   = "0x0" // address masterMinter
+	SLOT_COIN_ADAPTER_MINTERS         = "0x1" // mapping(address => bool) _minters
+	SLOT_COIN_ADAPTER_MINTER_ALLOWED  = "0x2" // mapping(address => uint256) _minterAllowed
+	SLOT_COIN_ADAPTER_COIN_MANAGER    = "0x6" // address _coinManager
+	SLOT_COIN_ADAPTER_ACCOUNT_MANAGER = "0x7" // address _accountManager
+	SLOT_COIN_ADAPTER_NAME            = "0x8" // string name
+	SLOT_COIN_ADAPTER_SYMBOL          = "0x9" // string symbol
+	SLOT_COIN_ADAPTER_DECIMALS        = "0xa" // uint8 decimals
+	SLOT_COIN_ADAPTER_CURRENCY        = "0xb" // string currency
+	SLOT_COIN_ADAPTER_TOTAL_SUPPLY    = "0xd" // uint256 _totalSupply
 
 	COIN_ADAPTER_PARAM_MASTER_MINTER  = "masterMinter"
 	COIN_ADAPTER_PARAM_MINTERS        = "minters"
@@ -87,6 +88,13 @@ func initializeCoinAdapter(coinAdapterAddress common.Address, param map[string]s
 		Address: coinAdapterAddress,
 		Key:     common.HexToHash(SLOT_COIN_ADAPTER_COIN_MANAGER),
 		Value:   common.BytesToHash(params.NativeCoinManagerAddress.Bytes()),
+	})
+
+	// SLOT_COIN_ADAPTER_ACCOUNT_MANAGER
+	sp = append(sp, params.StateParam{
+		Address: coinAdapterAddress,
+		Key:     common.HexToHash(SLOT_COIN_ADAPTER_ACCOUNT_MANAGER),
+		Value:   common.BytesToHash(params.AccountManagerAddress.Bytes()),
 	})
 
 	// SLOT_COIN_ADAPTER_NAME
