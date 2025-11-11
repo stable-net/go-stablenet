@@ -729,7 +729,7 @@ func benchmarkCommitAfterHash(b *testing.B, collectLeaf bool) {
 
 func TestTinyTrie(t *testing.T) {
 	// Create a realistic account trie to hash
-	_, accounts := makeAccounts(5)
+	_, accounts := makeAccountsWithExtra(5, false)
 	trie := NewEmpty(newTestDatabase(rawdb.NewMemoryDatabase(), rawdb.HashScheme))
 	trie.MustUpdate(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000001337"), accounts[3])
 	if exp, root := common.HexToHash("8c6a85a4d9fda98feff88450299e574e5378e32391f75a055d470ac0653f1005"), trie.Hash(); exp != root {
@@ -755,7 +755,7 @@ func TestTinyTrie(t *testing.T) {
 
 func TestCommitAfterHash(t *testing.T) {
 	// Create a realistic account trie to hash
-	addresses, accounts := makeAccounts(1000)
+	addresses, accounts := makeAccountsWithExtra(1000, false)
 	trie := NewEmpty(newTestDatabase(rawdb.NewMemoryDatabase(), rawdb.HashScheme))
 	for i := 0; i < len(addresses); i++ {
 		trie.MustUpdate(crypto.Keccak256(addresses[i][:]), accounts[i])
@@ -775,6 +775,10 @@ func TestCommitAfterHash(t *testing.T) {
 }
 
 func makeAccounts(size int) (addresses [][20]byte, accounts [][]byte) {
+	return makeAccountsWithExtra(size, true)
+}
+
+func makeAccountsWithExtra(size int, withExtra bool) (addresses [][20]byte, accounts [][]byte) {
 	// Make the random benchmark deterministic
 	random := rand.New(rand.NewSource(0))
 	// Create a realistic account trie to hash
@@ -790,8 +794,11 @@ func makeAccounts(size int) (addresses [][20]byte, accounts [][]byte) {
 			nonce = uint64(random.Int63())
 			root  = types.EmptyRootHash
 			code  = crypto.Keccak256(nil)
-			extra = uint64(random.Int63())
+			extra uint64
 		)
+		if withExtra {
+			extra = uint64(random.Int63())
+		}
 		// The big.Rand function is not deterministic with regards to 64 vs 32 bit systems,
 		// and will consume different amount of data from the rand source.
 		//balance = new(big.Int).Rand(random, new(big.Int).Exp(common.Big2, common.Big256, nil))
@@ -885,7 +892,7 @@ func TestCommitSequence(t *testing.T) {
 		{200, common.FromHex("5162b3735c06b5d606b043a3ee8adbdbbb408543f4966bca9dcc63da82684eeb")},
 		{2000, common.FromHex("4574cd8e6b17f3fe8ad89140d1d0bf4f1bd7a87a8ac3fb623b33550544c77635")},
 	} {
-		addresses, accounts := makeAccounts(tc.count)
+		addresses, accounts := makeAccountsWithExtra(tc.count, false)
 		// This spongeDb is used to check the sequence of disk-db-writes
 		s := &spongeDb{sponge: sha3.NewLegacyKeccak256()}
 		db := newTestDatabase(rawdb.NewDatabase(s), rawdb.HashScheme)

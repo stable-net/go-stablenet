@@ -1849,7 +1849,7 @@ func verifyTrie(scheme string, db ethdb.KeyValueStore, root common.Hash, t *test
 			Balance  *big.Int
 			Root     common.Hash
 			CodeHash []byte
-			Extra    uint64
+			Extra    uint64 `rlp:"optional"`
 		}
 		if err := rlp.DecodeBytes(accIt.Value, &acc); err != nil {
 			log.Crit("Invalid account encountered during snapshot creation", "err", err)
