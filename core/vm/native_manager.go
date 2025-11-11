@@ -317,9 +317,11 @@ func (c *accountManagerIsBlacklisted) CanRun(evm *EVM, op OpCode, caller Contrac
 func (c *accountManagerIsBlacklisted) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	address := common.BytesToAddress(data[0:32])
 
-	evm.StateDB.IsBlacklisted(address)
-
-	return nil, suppliedGas, nil
+	ret := make([]byte, 32)
+	if evm.StateDB.IsBlacklisted(address) {
+		ret[31] = 1
+	}
+	return ret, suppliedGas, nil
 }
 
 // ============================================================================
@@ -381,9 +383,11 @@ func (c *accountManagerIsAuthorized) CanRun(evm *EVM, op OpCode, caller Contract
 func (c *accountManagerIsAuthorized) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	address := common.BytesToAddress(data[0:32])
 
-	evm.StateDB.IsAuthorized(address)
-
-	return nil, suppliedGas, nil
+	ret := make([]byte, 32)
+	if evm.StateDB.IsAuthorized(address) {
+		ret[31] = 1
+	}
+	return ret, suppliedGas, nil
 }
 
 // ============================================================================
