@@ -155,7 +155,9 @@ func initializeCoinAdapter(coinAdapterAddress common.Address, param map[string]s
 	if alloc != nil {
 		totalSupply := new(big.Int)
 		for _, account := range *alloc {
-			totalSupply.Add(totalSupply, account.Balance)
+			if account.Balance != nil {
+				totalSupply.Add(totalSupply, account.Balance)
+			}
 		}
 		sp = append(sp, params.StateParam{
 			Address: coinAdapterAddress,
