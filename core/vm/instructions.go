@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -801,9 +802,22 @@ func opSelfdestruct(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext
 		return nil, ErrWriteProtection
 	}
 	beneficiary := scope.Stack.pop()
+	// Deny SELFDESTRUCT if the contract or beneficiary is blacklisted under Anzeon rules
+	if interpreter.evm.chainRules.IsAnzeon {
+		if contractAddr := scope.Contract.Address(); interpreter.evm.StateDB.IsBlacklisted(contractAddr) {
+			return nil, fmt.Errorf("%w: contract %v", ErrBlacklistedAccount, contractAddr.Hex())
+		}
+		if beneficiaryAddr := beneficiary.Bytes20(); interpreter.evm.StateDB.IsBlacklisted(beneficiaryAddr) {
+			return nil, fmt.Errorf("%w: beneficiary %v", ErrBlacklistedAccount, common.Address(beneficiaryAddr).Hex())
+		}
+	}
 	balance := interpreter.evm.StateDB.GetBalance(scope.Contract.Address())
 	interpreter.evm.StateDB.AddBalance(beneficiary.Bytes20(), balance)
 	interpreter.evm.StateDB.SelfDestruct(scope.Contract.Address())
+	// Emit a transfer log if balance is non-zero
+	if !balance.IsZero() {
+		interpreter.evm.AddTransferLog(scope.Contract.Address(), beneficiary.Bytes20(), balance)
+	}
 	if tracer := interpreter.evm.Config.Tracer; tracer != nil {
 		tracer.CaptureEnter(SELFDESTRUCT, scope.Contract.Address(), beneficiary.Bytes20(), []byte{}, 0, balance.ToBig())
 		tracer.CaptureExit([]byte{}, 0, nil)
@@ -816,9 +830,22 @@ func opSelfdestruct6780(pc *uint64, interpreter *EVMInterpreter, scope *ScopeCon
 		return nil, ErrWriteProtection
 	}
 	beneficiary := scope.Stack.pop()
+	// Deny SELFDESTRUCT if the contract or beneficiary is blacklisted under Anzeon rules
+	if interpreter.evm.chainRules.IsAnzeon {
+		if contractAddr := scope.Contract.Address(); interpreter.evm.StateDB.IsBlacklisted(contractAddr) {
+			return nil, fmt.Errorf("%w: contract %v", ErrBlacklistedAccount, contractAddr.Hex())
+		}
+		if beneficiaryAddr := beneficiary.Bytes20(); interpreter.evm.StateDB.IsBlacklisted(beneficiaryAddr) {
+			return nil, fmt.Errorf("%w: beneficiary %v", ErrBlacklistedAccount, common.Address(beneficiaryAddr).Hex())
+		}
+	}
 	balance := interpreter.evm.StateDB.GetBalance(scope.Contract.Address())
 	interpreter.evm.StateDB.SubBalance(scope.Contract.Address(), balance)
 	interpreter.evm.StateDB.AddBalance(beneficiary.Bytes20(), balance)
+	// Emit a transfer log if balance is non-zero
+	if !balance.IsZero() {
+		interpreter.evm.AddTransferLog(scope.Contract.Address(), beneficiary.Bytes20(), balance)
+	}
 	interpreter.evm.StateDB.Selfdestruct6780(scope.Contract.Address())
 	if tracer := interpreter.evm.Config.Tracer; tracer != nil {
 		tracer.CaptureEnter(SELFDESTRUCT, scope.Contract.Address(), beneficiary.Bytes20(), []byte{}, 0, balance.ToBig())
