@@ -85,11 +85,11 @@ var (
 	CoinManagerTransferSelector = bytesToManagerMethodSelector(crypto.Keccak256([]byte("transfer(address,address,uint256)")))
 
 	AccountManagerBlacklistSelector     = bytesToManagerMethodSelector(crypto.Keccak256([]byte("blacklist(address)")))
-	AccountManagerUnblacklistSelector   = bytesToManagerMethodSelector(crypto.Keccak256([]byte("unblacklist(address)")))
+	AccountManagerUnBlacklistSelector   = bytesToManagerMethodSelector(crypto.Keccak256([]byte("unBlacklist(address)")))
 	AccountManagerIsBlacklistedSelector = bytesToManagerMethodSelector(crypto.Keccak256([]byte("isBlacklisted(address)")))
 
 	AccountManagerAuthorizeSelector    = bytesToManagerMethodSelector(crypto.Keccak256([]byte("authorize(address)")))
-	AccountManagerUnauthorizeSelector  = bytesToManagerMethodSelector(crypto.Keccak256([]byte("unauthorize(address)")))
+	AccountManagerUnAuthorizeSelector  = bytesToManagerMethodSelector(crypto.Keccak256([]byte("unAuthorize(address)")))
 	AccountManagerIsAuthorizedSelector = bytesToManagerMethodSelector(crypto.Keccak256([]byte("isAuthorized(address)")))
 )
 
@@ -102,10 +102,10 @@ var NativeManagerContractsAnzeon = map[common.Address]NativeManagerContract{
 	},
 	params.AccountManagerAddress: NativeManagerContract{
 		AccountManagerBlacklistSelector:     &accountManagerBlacklist{},
-		AccountManagerUnblacklistSelector:   &accountManagerUnblacklist{},
+		AccountManagerUnBlacklistSelector:   &accountManagerUnBlacklist{},
 		AccountManagerIsBlacklistedSelector: &accountManagerIsBlacklisted{},
 		AccountManagerAuthorizeSelector:     &accountManagerAuthorize{},
-		AccountManagerUnauthorizeSelector:   &accountManagerUnauthorize{},
+		AccountManagerUnAuthorizeSelector:   &accountManagerUnAuthorize{},
 		AccountManagerIsAuthorizedSelector:  &accountManagerIsAuthorized{},
 	},
 }
@@ -289,13 +289,13 @@ func (c *accountManagerBlacklist) Run(evm *EVM, data []byte, suppliedGas uint64)
 }
 
 // accountManagerUnBlacklist implemented as a native contract method.
-type accountManagerUnblacklist struct{}
+type accountManagerUnBlacklist struct{}
 
-func (c *accountManagerUnblacklist) ParamCount() int { return 1 }
-func (c *accountManagerUnblacklist) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
+func (c *accountManagerUnBlacklist) ParamCount() int { return 1 }
+func (c *accountManagerUnBlacklist) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return canRunAccountManager(evm, op, caller)
 }
-func (c *accountManagerUnblacklist) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *accountManagerUnBlacklist) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	address := common.BytesToAddress(data[0:32])
 
 	gasCost := params.UpdateAccountExtraGas
@@ -355,14 +355,14 @@ func (c *accountManagerAuthorize) Run(evm *EVM, data []byte, suppliedGas uint64)
 	return nil, suppliedGas, nil
 }
 
-// accountManagerUnauthorize implemented as a native contract method.
-type accountManagerUnauthorize struct{}
+// accountManagerUnAuthorize implemented as a native contract method.
+type accountManagerUnAuthorize struct{}
 
-func (c *accountManagerUnauthorize) ParamCount() int { return 1 }
-func (c *accountManagerUnauthorize) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
+func (c *accountManagerUnAuthorize) ParamCount() int { return 1 }
+func (c *accountManagerUnAuthorize) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return canRunAccountManager(evm, op, caller)
 }
-func (c *accountManagerUnauthorize) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *accountManagerUnAuthorize) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
 	address := common.BytesToAddress(data[0:32])
 
 	gasCost := params.UpdateAccountExtraGas
