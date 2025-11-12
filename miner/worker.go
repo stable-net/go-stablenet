@@ -381,7 +381,6 @@ func (w *worker) setGasTipUnsafe(tip *big.Int) bool {
 	}
 	w.tip = uint256.MustFromBig(tip)
 
-	// TODO: This part will be refactored to implement Minter transaction prioritization.
 	// Update txPool's gas tip to filter pending transactions accordingly
 	w.eth.TxPool().SetGasTip(tip)
 
@@ -1472,7 +1471,6 @@ func totalFees(c *params.ChainConfig, block *types.Block, receipts []*types.Rece
 	for i, tx := range block.Transactions() {
 		var minerFee *big.Int
 		if c.AnzeonEnabled() {
-			// TODO: EffectiveGasPrice will be removed and replaced with the updated EffectiveGasTip function
 			var headerGasTip *big.Int
 			if block.Header() != nil && block.Header().GasTip() != nil {
 				headerGasTip = block.Header().GasTip()
