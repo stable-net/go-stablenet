@@ -76,22 +76,41 @@ func TestAccountManagerQuery_IsBlacklist(t *testing.T) {
 		require.False(t, isBlacklisted, "isBlacklist should return false after removal")
 	})
 
-	t.Run("isBlacklist works for initially blacklisted addresses", func(t *testing.T) {
+	t.Run("isBlacklist works for proposal-added addresses", func(t *testing.T) {
 		initGovCouncil(t)
 		defer gCouncil.backend.Close()
 
-		// initialBlacklist is set in genesis (see helpers_edge_cases.go)
-		require.NotEmpty(t, initialBlacklist, "Should have initial blacklist addresses")
+		// Create new addresses to add via proposal
+		addr1 := NewEOA().Address
+		addr2 := NewEOA().Address
 
-		// Check first initially blacklisted address
-		isBlacklisted, err := gCouncil.IsBlacklisted(councilNonMember, initialBlacklist[0])
+		// Add first address to blacklist via proposal
+		txPropose1, err := gCouncil.TxProposeAddBlacklist(t, councilMembers[0].Operator, addr1)
+		_, err = gCouncil.ExpectedOk(txPropose1, err)
 		require.NoError(t, err)
-		require.True(t, isBlacklisted, "isBlacklist should return true for genesis blacklisted address")
 
-		// Check second initially blacklisted address
-		isBlacklisted, err = gCouncil.IsBlacklisted(councilNonMember, initialBlacklist[1])
+		txApprove1, err := gCouncil.TxApprove(t, councilMembers[1].Operator, big.NewInt(1))
+		_, err = gCouncil.ExpectedOk(txApprove1, err)
 		require.NoError(t, err)
-		require.True(t, isBlacklisted, "isBlacklist should return true for genesis blacklisted address")
+
+		// Add second address to blacklist via proposal
+		txPropose2, err := gCouncil.TxProposeAddBlacklist(t, councilMembers[0].Operator, addr2)
+		_, err = gCouncil.ExpectedOk(txPropose2, err)
+		require.NoError(t, err)
+
+		txApprove2, err := gCouncil.TxApprove(t, councilMembers[1].Operator, big.NewInt(2))
+		_, err = gCouncil.ExpectedOk(txApprove2, err)
+		require.NoError(t, err)
+
+		// Check first address via AccountManager query
+		isBlacklisted, err := gCouncil.IsBlacklisted(councilNonMember, addr1)
+		require.NoError(t, err)
+		require.True(t, isBlacklisted, "isBlacklist should return true for proposal-added address")
+
+		// Check second address via AccountManager query
+		isBlacklisted, err = gCouncil.IsBlacklisted(councilNonMember, addr2)
+		require.NoError(t, err)
+		require.True(t, isBlacklisted, "isBlacklist should return true for proposal-added address")
 	})
 }
 
@@ -158,22 +177,41 @@ func TestAccountManagerQuery_IsAuthorized(t *testing.T) {
 		require.False(t, isAuthorized, "isAuthorized should return false after removal")
 	})
 
-	t.Run("isAuthorized works for initially authorized addresses", func(t *testing.T) {
+	t.Run("isAuthorized works for proposal-added addresses", func(t *testing.T) {
 		initGovCouncil(t)
 		defer gCouncil.backend.Close()
 
-		// initialAuthorizedAccounts is set in genesis
-		require.NotEmpty(t, initialAuthorizedAccounts, "Should have initial authorized accounts")
+		// Create new addresses to add via proposal
+		addr1 := NewEOA().Address
+		addr2 := NewEOA().Address
 
-		// Check first initially authorized address
-		isAuthorized, err := gCouncil.IsAuthorizedAccount(councilNonMember, initialAuthorizedAccounts[0])
+		// Add first address to authorized accounts via proposal
+		txPropose1, err := gCouncil.TxProposeAddAuthorizedAccount(t, councilMembers[0].Operator, addr1)
+		_, err = gCouncil.ExpectedOk(txPropose1, err)
 		require.NoError(t, err)
-		require.True(t, isAuthorized, "isAuthorized should return true for genesis authorized address")
 
-		// Check second initially authorized address
-		isAuthorized, err = gCouncil.IsAuthorizedAccount(councilNonMember, initialAuthorizedAccounts[1])
+		txApprove1, err := gCouncil.TxApprove(t, councilMembers[1].Operator, big.NewInt(1))
+		_, err = gCouncil.ExpectedOk(txApprove1, err)
 		require.NoError(t, err)
-		require.True(t, isAuthorized, "isAuthorized should return true for genesis authorized address")
+
+		// Add second address to authorized accounts via proposal
+		txPropose2, err := gCouncil.TxProposeAddAuthorizedAccount(t, councilMembers[0].Operator, addr2)
+		_, err = gCouncil.ExpectedOk(txPropose2, err)
+		require.NoError(t, err)
+
+		txApprove2, err := gCouncil.TxApprove(t, councilMembers[1].Operator, big.NewInt(2))
+		_, err = gCouncil.ExpectedOk(txApprove2, err)
+		require.NoError(t, err)
+
+		// Check first address via AccountManager query
+		isAuthorized, err := gCouncil.IsAuthorizedAccount(councilNonMember, addr1)
+		require.NoError(t, err)
+		require.True(t, isAuthorized, "isAuthorized should return true for proposal-added address")
+
+		// Check second address via AccountManager query
+		isAuthorized, err = gCouncil.IsAuthorizedAccount(councilNonMember, addr2)
+		require.NoError(t, err)
+		require.True(t, isAuthorized, "isAuthorized should return true for proposal-added address")
 	})
 }
 

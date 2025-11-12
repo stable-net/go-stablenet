@@ -52,31 +52,31 @@ func TestGovCouncil_Initialize(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, member.IsActive, "Non-member should not be active")
 
-		// Check blacklist is initialized with initial addresses
+		// Check blacklist is initialized with initial addresses (via storage)
 		count, err := gCouncil.GetBlacklistCount(councilNonMember)
 		require.NoError(t, err)
 		require.Equal(t, big.NewInt(2), count, "Should have 2 blacklisted addresses")
 
-		isBlacklisted, err := gCouncil.IsBlacklisted(councilNonMember, initialBlacklist[0])
+		addr0, err := gCouncil.GetBlacklistedAddress(councilNonMember, big.NewInt(0))
 		require.NoError(t, err)
-		require.True(t, isBlacklisted, "First address should be blacklisted")
+		require.Equal(t, initialBlacklist[0], addr0, "First address should match")
 
-		isBlacklisted, err = gCouncil.IsBlacklisted(councilNonMember, initialBlacklist[1])
+		addr1, err := gCouncil.GetBlacklistedAddress(councilNonMember, big.NewInt(1))
 		require.NoError(t, err)
-		require.True(t, isBlacklisted, "Second address should be blacklisted")
+		require.Equal(t, initialBlacklist[1], addr1, "Second address should match")
 
-		// Check authorized accounts are initialized
+		// Check authorized accounts are initialized (via storage)
 		count, err = gCouncil.GetAuthorizedAccountCount(councilNonMember)
 		require.NoError(t, err)
 		require.Equal(t, big.NewInt(2), count, "Should have 2 authorized accounts")
 
-		isAuthorized, err := gCouncil.IsAuthorizedAccount(councilNonMember, initialAuthorizedAccounts[0])
+		authAddr0, err := gCouncil.GetAuthorizedAccountAddress(councilNonMember, big.NewInt(0))
 		require.NoError(t, err)
-		require.True(t, isAuthorized, "First account should be authorized")
+		require.Equal(t, initialAuthorizedAccounts[0], authAddr0, "First account should match")
 
-		isAuthorized, err = gCouncil.IsAuthorizedAccount(councilNonMember, initialAuthorizedAccounts[1])
+		authAddr1, err := gCouncil.GetAuthorizedAccountAddress(councilNonMember, big.NewInt(1))
 		require.NoError(t, err)
-		require.True(t, isAuthorized, "Second account should be authorized")
+		require.Equal(t, initialAuthorizedAccounts[1], authAddr1, "Second account should match")
 	})
 }
 
@@ -154,12 +154,21 @@ func TestGovCouncil_ProposeRemoveBlacklist(t *testing.T) {
 		initGovCouncil(t)
 		defer gCouncil.backend.Close()
 
-		targetAddress := initialBlacklist[0]
+		targetAddress := NewEOA().Address
 
-		// Verify address is blacklisted initially
+		// First, add address to blacklist via proposal
+		txAdd, err := gCouncil.TxProposeAddBlacklist(t, councilMembers[0].Operator, targetAddress)
+		_, err = gCouncil.ExpectedOk(txAdd, err)
+		require.NoError(t, err)
+
+		txApprove, err := gCouncil.TxApprove(t, councilMembers[1].Operator, big.NewInt(1))
+		_, err = gCouncil.ExpectedOk(txApprove, err)
+		require.NoError(t, err)
+
+		// Verify address is blacklisted
 		isBlacklisted, err := gCouncil.IsBlacklisted(councilNonMember, targetAddress)
 		require.NoError(t, err)
-		require.True(t, isBlacklisted, "Address should be blacklisted initially")
+		require.True(t, isBlacklisted, "Address should be blacklisted")
 
 		// Member proposes to remove address from blacklist
 		tx, err := gCouncil.TxProposeRemoveBlacklist(t, councilMembers[0].Operator, targetAddress)
@@ -170,7 +179,7 @@ func TestGovCouncil_ProposeRemoveBlacklist(t *testing.T) {
 		// Check proposal was created
 		proposalId, err := gCouncil.BaseCurrentProposalId(gCouncil.govCouncil, councilNonMember)
 		require.NoError(t, err)
-		require.Equal(t, big.NewInt(1), proposalId)
+		require.Equal(t, big.NewInt(2), proposalId)
 
 		// Address should still be blacklisted (proposal not approved yet)
 		isBlacklisted, err = gCouncil.IsBlacklisted(councilNonMember, targetAddress)
@@ -294,18 +303,37 @@ func TestGovCouncil_ProposeRemoveAuthorizedAccount(t *testing.T) {
 		initGovCouncil(t)
 		defer gCouncil.backend.Close()
 
-		targetAddress := initialAuthorizedAccounts[0]
+		targetAddress := NewEOA().Address
 
-		// Verify address is authorized initially
+		// First, add address to authorized accounts via proposal
+		txAdd, err := gCouncil.TxProposeAddAuthorizedAccount(t, councilMembers[0].Operator, targetAddress)
+		_, err = gCouncil.ExpectedOk(txAdd, err)
+		require.NoError(t, err)
+
+		txApprove, err := gCouncil.TxApprove(t, councilMembers[1].Operator, big.NewInt(1))
+		_, err = gCouncil.ExpectedOk(txApprove, err)
+		require.NoError(t, err)
+
+		// Verify address is authorized
 		isAuthorized, err := gCouncil.IsAuthorizedAccount(councilNonMember, targetAddress)
 		require.NoError(t, err)
-		require.True(t, isAuthorized, "Address should be authorized initially")
+		require.True(t, isAuthorized, "Address should be authorized")
 
 		// Member proposes to remove authorized account
 		tx, err := gCouncil.TxProposeRemoveAuthorizedAccount(t, councilMembers[0].Operator, targetAddress)
 		receipt, err := gCouncil.ExpectedOk(tx, err)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), receipt.Status)
+
+		// Check proposal was created
+		proposalId, err := gCouncil.BaseCurrentProposalId(gCouncil.govCouncil, councilNonMember)
+		require.NoError(t, err)
+		require.Equal(t, big.NewInt(2), proposalId)
+
+		// Address should still be authorized (proposal not approved yet)
+		isAuthorized, err = gCouncil.IsAuthorizedAccount(councilNonMember, targetAddress)
+		require.NoError(t, err)
+		require.True(t, isAuthorized, "Address should still be authorized until approved")
 	})
 
 	t.Run("cannot propose to remove non-authorized account", func(t *testing.T) {

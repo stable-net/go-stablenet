@@ -23,13 +23,13 @@ import { AddressSetLib } from "../libraries/AddressSetLib.sol";
 interface IAccountManager {
     function blacklist(address account) external;
 
-    function unblacklist(address account) external;
+    function unBlacklist(address account) external;
 
-    function isBlacklist(address account) external view returns (bool);
+    function isBlacklisted(address account) external view returns (bool);
 
     function authorize(address account) external;
 
-    function unauthorize(address account) external;
+    function unAuthorize(address account) external;
 
     function isAuthorized(address account) external view returns (bool);
 }
@@ -396,8 +396,8 @@ contract GovCouncil is GovBase {
         _currentBlacklist.remove(account);
 
         // Update account extra field via AccountManager
-        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.unblacklist.selector, account));
-        require(callSuccess, "GovCouncil: unblacklist call failed");
+        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.unBlacklist.selector, account));
+        require(callSuccess, "GovCouncil: unBlacklist call failed");
 
         // Emit event
         emit AddressUnblacklisted(account, proposalId);
@@ -431,8 +431,8 @@ contract GovCouncil is GovBase {
         _currentAuthorizedAccounts.remove(account);
 
         // Update account extra field via AccountManager
-        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.unauthorize.selector, account));
-        require(callSuccess, "GovCouncil: unauthorize call failed");
+        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.unAuthorize.selector, account));
+        require(callSuccess, "GovCouncil: unAuthorize call failed");
 
         emit AuthorizedAccountRemoved(account, proposalId);
 
@@ -449,7 +449,15 @@ contract GovCouncil is GovBase {
      * @return isBlacklisted True if currently in blacklist
      */
     function isBlacklisted(address account) external view returns (bool) {
-        return _currentBlacklist.contains(account);
+        if (account == address(0)) {
+            revert AddressSetLib.ZeroAddressNotAllowed();
+        }
+
+        (bool success, bytes memory result) = __accountManager.staticcall(
+            abi.encodeWithSelector(IAccountManager.isBlacklisted.selector, account)
+        );
+        require(success, "GovCouncil: isBlacklisted call failed");
+        return abi.decode(result, (bool));
     }
 
     /**
@@ -502,7 +510,15 @@ contract GovCouncil is GovBase {
      * @notice Check if address is currently in authorized account list
      */
     function isAuthorizedAccount(address account) external view returns (bool) {
-        return _currentAuthorizedAccounts.contains(account);
+        if (account == address(0)) {
+            revert AddressSetLib.ZeroAddressNotAllowed();
+        }
+
+        (bool success, bytes memory result) = __accountManager.staticcall(
+            abi.encodeWithSelector(IAccountManager.isAuthorized.selector, account)
+        );
+        require(success, "GovCouncil: isAuthorized call failed");
+        return abi.decode(result, (bool));
     }
 
     /**
