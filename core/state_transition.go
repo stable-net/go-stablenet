@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
@@ -150,11 +151,36 @@ type Message struct {
 	SkipAccountChecks bool
 }
 
+// checkIsAuthorized checks if an account is authorized.
+func checkIsAuthorized(addr common.Address, stateDB *state.StateDB) bool {
+	// TODO: Once StateAccount.Extra field is implemented, read from stateDB:
+	// example:
+	// if stateDB != nil {
+	//     account := stateDB.GetAccount(addr)
+	//     if account != nil {
+	//         // Check Extra field for authorized flag
+	//         return account.IsAuthorized()
+	//     }
+	// }
+
+	// For now, use hardcoded list from protocol_params
+	return params.AuthorizedAccounts[addr]
+}
+
 // TransactionToMessage converts a transaction into a Message.
-func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, headerGasTip *big.Int) (*Message, error) {
+func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, headerGasTip *big.Int, statedb *state.StateDB) (*Message, error) {
+	from, err := types.Sender(s, tx)
+	if err != nil {
+		return nil, err
+	}
+
 	gasTipCap := new(big.Int).Set(tx.GasTipCap())
 	if headerGasTip != nil {
-		gasTipCap = new(big.Int).Set(headerGasTip)
+		// If Anzeon is enabled, and the sender is authorized, use the tx's tx.GasTipCap()
+		// Otherwise, use the header's gas tip
+		if !checkIsAuthorized(from, statedb) {
+			gasTipCap = new(big.Int).Set(headerGasTip)
+		}
 	}
 
 	msg := &Message{
@@ -179,8 +205,8 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, header
 	if tx.FeePayer() != nil {
 		msg.FeePayer = tx.FeePayer()
 	}
-	var err error
-	msg.From, err = types.Sender(s, tx)
+
+	msg.From = from
 	return msg, err
 }
 
