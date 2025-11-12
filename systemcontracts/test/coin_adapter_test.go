@@ -28,7 +28,6 @@ func TestTransferLog(t *testing.T) {
 
 		amount = towei(1_000_000)
 	)
-	masterMinter.Address.Hex()
 
 	g, err := NewGovWBFT(t, types.GenesisAlloc{
 		minter.Address: {Balance: new(big.Int).Mul(amount, common.Big3)},
@@ -121,7 +120,7 @@ func TestTransferLog(t *testing.T) {
 		dir := t.TempDir()
 		filename := "Test.sol"
 		testSource := `pragma solidity ^0.8.0;
-		interface CoinAdapter { function transfer(address from, uint256 amount) external; } 
+		interface CoinAdapter { function transfer(address to, uint256 amount) external; } 
 		contract TestContract{
 			function transfer(address _to) payable external {
 				CoinAdapter(` + TestCoinAdapterAddress.String() + `).transfer(_to, msg.value);
