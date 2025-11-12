@@ -17,6 +17,7 @@
 package vm
 
 import (
+	"fmt"
 	"math/big"
 	"sync/atomic"
 
@@ -194,6 +195,15 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
+	}
+	// Fail if the caller or the target address is blacklisted under Anzeon rules
+	if evm.chainRules.IsAnzeon {
+		if callerAddr := caller.Address(); evm.StateDB.IsBlacklisted(callerAddr) {
+			return nil, gas, fmt.Errorf("%w: from %v", ErrBlacklistedAccount, callerAddr.Hex())
+		}
+		if evm.StateDB.IsBlacklisted(addr) {
+			return nil, gas, fmt.Errorf("%w: to %v", ErrBlacklistedAccount, addr.Hex())
+		}
 	}
 	m, isNativeManager := evm.nativeManager(addr)
 	p, isPrecompile := evm.precompile(addr)
@@ -461,6 +471,10 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	// limit.
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, common.Address{}, gas, ErrDepth
+	}
+	// Fail if the caller is blacklisted under Anzeon rules
+	if evm.chainRules.IsAnzeon && evm.StateDB.IsBlacklisted(caller.Address()) {
+		return nil, common.Address{}, gas, fmt.Errorf("%w: from %v", ErrBlacklistedAccount, caller.Address().Hex())
 	}
 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
 		return nil, common.Address{}, gas, ErrInsufficientBalance

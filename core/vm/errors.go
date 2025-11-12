@@ -47,6 +47,9 @@ var (
 	// errStopToken is an internal token indicating interpreter loop termination,
 	// never returned to outside callers.
 	errStopToken = errors.New("stop token")
+
+	// ErrBlacklistedAccount indicates EVM execution with a blacklisted account
+	ErrBlacklistedAccount = errors.New("account is blacklisted")
 )
 
 // ErrStackUnderflow wraps an evm error when the items on the stack less
