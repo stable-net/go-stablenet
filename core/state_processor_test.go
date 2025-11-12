@@ -20,6 +20,7 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -29,10 +30,12 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
@@ -421,4 +424,409 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 		return types.NewBlockWithWithdrawals(header, txs, nil, receipts, []*types.Withdrawal{}, trie.NewStackTrie(nil))
 	}
 	return types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil))
+}
+
+var (
+	// Test accounts
+	testTxMsgAuthorizedKey, _ = crypto.GenerateKey()
+	testTxMsgAuthorizedAddr   = crypto.PubkeyToAddress(testTxMsgAuthorizedKey.PublicKey)
+
+	testTxMsgNormalKey, _ = crypto.GenerateKey()
+	testTxMsgNormalAddr   = crypto.PubkeyToAddress(testTxMsgNormalKey.PublicKey)
+)
+
+// setupTestStateDB creates a stateDB for testing.
+func setupTestStateDB() *state.StateDB {
+	// Create stateDB for testing (prepared for future StateAccount.Extra field usage)
+	db := rawdb.NewMemoryDatabase()
+	sdb := state.NewDatabase(db)
+	stateDB, _ := state.New(types.EmptyRootHash, sdb, nil)
+
+	// Include all test accounts in stateDB
+	allAddrs := []common.Address{
+		testTxMsgAuthorizedAddr,
+		testTxMsgNormalAddr,
+	}
+	for _, addr := range allAddrs {
+		stateDB.CreateAccount(addr)
+	}
+
+	// TODO: Once StateAccount.Extra field is implemented, use stateDB.SetAccountExtra() instead of params.AuthorizedAccounts
+	// example:
+	// stateDB.SetAccountExtra(testTxMsgAuthorizedAddr, &types.AccountExtra{Authorized: true})
+	//
+	// For now, temporarily uses hardcoded list from protocol_params for testing.
+	params.AuthorizedAccounts[testTxMsgAuthorizedAddr] = true
+
+	return stateDB
+}
+
+// TestTransactionToMessageAuthorizedAccount tests that authorized accounts use their transaction's GasTipCap
+func TestTransactionToMessageAuthorizedAccount(t *testing.T) {
+	t.Parallel()
+
+	stateDB := setupTestStateDB()
+	signer := types.LatestSignerForChainID(common.Big1)
+
+	// Test parameters
+	baseFee := big.NewInt(10)
+	headerGasTip := big.NewInt(5)
+	txGasTipCap := big.NewInt(20) // Authorized account's gas tip cap (higher than headerGasTip)
+	txGasFeeCap := big.NewInt(50)
+
+	// Create transaction from authorized account
+	tx, err := types.SignTx(types.NewTx(&types.DynamicFeeTx{
+		Nonce:     0,
+		To:        &common.Address{},
+		Value:     big.NewInt(100),
+		Gas:       21000,
+		GasTipCap: txGasTipCap,
+		GasFeeCap: txGasFeeCap,
+		Data:      nil,
+	}), signer, testTxMsgAuthorizedKey)
+	if err != nil {
+		t.Fatalf("failed to sign transaction: %v", err)
+	}
+
+	// Convert transaction to message
+	msg, err := TransactionToMessage(tx, signer, baseFee, headerGasTip, stateDB)
+	if err != nil {
+		t.Fatalf("failed to convert transaction to message: %v", err)
+	}
+
+	// Verify that authorized account uses transaction's GasTipCap
+	expectedGasTipCap := txGasTipCap
+	if msg.GasTipCap.Cmp(expectedGasTipCap) != 0 {
+		t.Errorf("expected GasTipCap %v, got %v", expectedGasTipCap, msg.GasTipCap)
+	}
+}
+
+// TestTransactionToMessageNormalAccount tests that normal accounts use header's gas tip
+func TestTransactionToMessageNormalAccount(t *testing.T) {
+	t.Parallel()
+
+	stateDB := setupTestStateDB()
+	signer := types.LatestSignerForChainID(common.Big1)
+
+	// Test parameters
+	baseFee := big.NewInt(10)
+	headerGasTip := big.NewInt(5)
+	txGasTipCap := big.NewInt(20) // Normal account's gas tip cap (higher than headerGasTip, but should be ignored)
+	txGasFeeCap := big.NewInt(50)
+
+	// Create transaction from normal account
+	tx, err := types.SignTx(types.NewTx(&types.DynamicFeeTx{
+		Nonce:     0,
+		To:        &common.Address{},
+		Value:     big.NewInt(100),
+		Gas:       21000,
+		GasTipCap: txGasTipCap,
+		GasFeeCap: txGasFeeCap,
+		Data:      nil,
+	}), signer, testTxMsgNormalKey)
+	if err != nil {
+		t.Fatalf("failed to sign transaction: %v", err)
+	}
+
+	// Convert transaction to message
+	msg, err := TransactionToMessage(tx, signer, baseFee, headerGasTip, stateDB)
+	if err != nil {
+		t.Fatalf("failed to convert transaction to message: %v", err)
+	}
+
+	// Verify that normal account uses header's gas tip (not transaction's GasTipCap)
+	expectedGasTipCap := headerGasTip
+	if msg.GasTipCap.Cmp(expectedGasTipCap) != 0 {
+		t.Errorf("expected GasTipCap %v (headerGasTip), got %v (tx.GasTipCap was %v but should be ignored)",
+			expectedGasTipCap, msg.GasTipCap, txGasTipCap)
+	}
+}
+
+// TestApplyTransactionAuthorizedAccount tests that authorized accounts pay actual gas fee based on their transaction's GasTipCap
+func TestApplyTransactionAuthorizedAccount(t *testing.T) {
+	t.Parallel()
+
+	stateDB := setupTestStateDB()
+	signer := types.LatestSignerForChainID(common.Big1)
+
+	// Set up account balance for gas payment (enough for gas fee)
+	stateDB.AddBalance(testTxMsgAuthorizedAddr, uint256.MustFromBig(big.NewInt(10000000)))
+
+	// Test parameters
+	baseFee := big.NewInt(100)
+	headerGasTip := big.NewInt(10) // Set the gas tip we want to test
+	txGasTipCap := big.NewInt(50)  // Authorized account's gas tip cap (higher than headerGasTip)
+	txGasFeeCap := big.NewInt(200)
+
+	// Create transaction from authorized account
+	tx, err := types.SignTx(types.NewTx(&types.DynamicFeeTx{
+		Nonce:     0,
+		To:        &common.Address{},
+		Value:     big.NewInt(0),
+		Gas:       21000,
+		GasTipCap: txGasTipCap,
+		GasFeeCap: txGasFeeCap,
+		Data:      nil,
+	}), signer, testTxMsgAuthorizedKey)
+	if err != nil {
+		t.Fatalf("failed to sign transaction: %v", err)
+	}
+
+	// Create test header
+	header := &types.Header{
+		Number:      big.NewInt(1),
+		Time:        uint64(time.Now().Unix()),
+		BaseFee:     baseFee,
+		GasLimit:    30000000,
+		GasUsed:     0,
+		Coinbase:    common.Address{},
+		ParentHash:  common.Hash{},
+		Root:        common.Hash{},
+		TxHash:      common.Hash{},
+		ReceiptHash: common.Hash{},
+		UncleHash:   common.Hash{},
+		Difficulty:  big.NewInt(0),
+	}
+
+	// Set up WBFTExtra in header.Extra for Anzeon
+	wbftExtra := &types.WBFTExtra{
+		VanityData:        make([]byte, types.IstanbulExtraVanity),
+		RandaoReveal:      []byte{},
+		PrevRound:         0,
+		PrevPreparedSeal:  nil,
+		PrevCommittedSeal: nil,
+		Round:             0,
+		PreparedSeal:      nil,
+		CommittedSeal:     nil,
+		GasTip:            new(big.Int).Set(headerGasTip),
+		EpochInfo:         nil,
+	}
+	extraData, err := rlp.EncodeToBytes(wbftExtra)
+	if err != nil {
+		t.Fatalf("failed to encode WBFTExtra: %v", err)
+	}
+	header.Extra = extraData
+
+	// Create chain config
+	config := &params.ChainConfig{
+		ChainID:             big.NewInt(1),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		Anzeon: &params.AnzeonConfig{
+			SystemContracts: &params.SystemContracts{
+				NativeCoinAdapter: &params.SystemContract{
+					Address: params.DefaultNativeCoinAdapterAddress,
+					Version: params.DefaultNativeCoinAdapterVersion,
+				},
+			},
+		},
+	}
+
+	// Apply transaction
+	coinbase := common.Address{0x1} // Use a non-zero address for coinbase
+	gp := new(GasPool).AddGas(header.GasLimit)
+	usedGas := uint64(0)
+	receipt, err := ApplyTransaction(config, nil, &coinbase, gp, stateDB, header, tx, &usedGas, vm.Config{})
+	if err != nil {
+		t.Fatalf("failed to apply transaction: %v", err)
+	}
+
+	// Verify receipt status
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		t.Errorf("expected transaction to succeed, got status %d", receipt.Status)
+	}
+
+	msg, err := TransactionToMessage(tx, signer, baseFee, headerGasTip, stateDB)
+	if err != nil {
+		t.Fatalf("failed to convert transaction to message: %v", err)
+	}
+
+	// Verify that authorized account uses transaction's GasTipCap
+	if msg.GasTipCap.Cmp(txGasTipCap) != 0 {
+		t.Errorf("expected GasTipCap %v, got %v", txGasTipCap, msg.GasTipCap)
+	}
+
+	// Calculate expected effective gas price for authorized account
+	// Authorized account uses tx.GasTipCap, so effectiveGasPrice = baseFee + txGasTipCap
+	expectedEffectiveGasPrice := new(big.Int).Add(baseFee, txGasTipCap)
+	if txGasFeeCap.Cmp(expectedEffectiveGasPrice) < 0 {
+		t.Errorf("txGasFeeCap is less than expectedEffectiveGasPrice")
+	}
+
+	actualEffectiveGasPrice := receipt.EffectiveGasPrice
+	if actualEffectiveGasPrice == nil {
+		t.Errorf("actualEffectiveGasPrice is nil")
+	}
+
+	// Verify effective gas price matches expected value
+	if actualEffectiveGasPrice.Cmp(expectedEffectiveGasPrice) != 0 {
+		t.Errorf("expected effective gas price %v (baseFee %v + GasTipCap %v, capped by GasFeeCap %v), got %v",
+			expectedEffectiveGasPrice, baseFee, txGasTipCap, txGasFeeCap, actualEffectiveGasPrice)
+	}
+
+	// Calculate and verify total gas fee paid
+	expectedTotalGasFee := new(big.Int).Mul(big.NewInt(int64(receipt.GasUsed)), expectedEffectiveGasPrice)
+	actualTotalGasFee := new(big.Int).Mul(big.NewInt(int64(receipt.GasUsed)), actualEffectiveGasPrice)
+
+	if actualTotalGasFee.Cmp(expectedTotalGasFee) != 0 {
+		t.Errorf("expected total gas fee %v (GasUsed %d * effectiveGasPrice %v), got %v",
+			expectedTotalGasFee, receipt.GasUsed, expectedEffectiveGasPrice, actualTotalGasFee)
+	}
+
+	t.Logf("Authorized account - GasUsed: %d, EffectiveGasPrice: %v, TotalGasFee: %v",
+		receipt.GasUsed, actualEffectiveGasPrice, actualTotalGasFee)
+}
+
+// TestApplyTransactionNormalAccount tests that normal accounts pay actual gas fee based on header's gas tip
+func TestApplyTransactionNormalAccount(t *testing.T) {
+	t.Parallel()
+
+	stateDB := setupTestStateDB()
+	signer := types.LatestSignerForChainID(common.Big1)
+
+	// Set up account balance for gas payment (enough for gas fee)
+	stateDB.AddBalance(testTxMsgNormalAddr, uint256.MustFromBig(big.NewInt(10000000)))
+
+	// Test parameters
+	baseFee := big.NewInt(100)
+	headerGasTip := big.NewInt(10) // Set the gas tip we want to test
+	txGasTipCap := big.NewInt(50)  // Normal account's gas tip cap (higher than headerGasTip, but should be ignored)
+	txGasFeeCap := big.NewInt(200)
+
+	// Create transaction from normal account
+	tx, err := types.SignTx(types.NewTx(&types.DynamicFeeTx{
+		Nonce:     0,
+		To:        &common.Address{},
+		Value:     big.NewInt(0),
+		Gas:       21000,
+		GasTipCap: txGasTipCap,
+		GasFeeCap: txGasFeeCap,
+		Data:      nil,
+	}), signer, testTxMsgNormalKey)
+	if err != nil {
+		t.Fatalf("failed to sign transaction: %v", err)
+	}
+
+	// Create test header
+	header := &types.Header{
+		Number:      big.NewInt(1),
+		Time:        uint64(time.Now().Unix()),
+		BaseFee:     baseFee,
+		GasLimit:    30000000,
+		GasUsed:     0,
+		Coinbase:    common.Address{},
+		ParentHash:  common.Hash{},
+		Root:        common.Hash{},
+		TxHash:      common.Hash{},
+		ReceiptHash: common.Hash{},
+		UncleHash:   common.Hash{},
+		Difficulty:  big.NewInt(0),
+	}
+
+	// Set up WBFTExtra in header.Extra for Anzeon
+	wbftExtra := &types.WBFTExtra{
+		VanityData:        make([]byte, types.IstanbulExtraVanity),
+		RandaoReveal:      []byte{},
+		PrevRound:         0,
+		PrevPreparedSeal:  nil,
+		PrevCommittedSeal: nil,
+		Round:             0,
+		PreparedSeal:      nil,
+		CommittedSeal:     nil,
+		GasTip:            new(big.Int).Set(headerGasTip),
+		EpochInfo:         nil,
+	}
+	extraData, err := rlp.EncodeToBytes(wbftExtra)
+	if err != nil {
+		t.Fatalf("failed to encode WBFTExtra: %v", err)
+	}
+	header.Extra = extraData
+
+	// Create chain config
+	config := &params.ChainConfig{
+		ChainID:             big.NewInt(1),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		Anzeon: &params.AnzeonConfig{
+			SystemContracts: &params.SystemContracts{
+				NativeCoinAdapter: &params.SystemContract{
+					Address: params.DefaultNativeCoinAdapterAddress,
+					Version: params.DefaultNativeCoinAdapterVersion,
+				},
+			},
+		},
+	}
+
+	// Apply transaction
+	coinbase := common.Address{0x1} // Use a non-zero address for coinbase
+	gp := new(GasPool).AddGas(header.GasLimit)
+	usedGas := uint64(0)
+	receipt, err := ApplyTransaction(config, nil, &coinbase, gp, stateDB, header, tx, &usedGas, vm.Config{})
+	if err != nil {
+		t.Fatalf("failed to apply transaction: %v", err)
+	}
+
+	// Verify receipt status
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		t.Errorf("expected transaction to succeed, got status %d", receipt.Status)
+	}
+
+	msg, err := TransactionToMessage(tx, signer, baseFee, headerGasTip, stateDB)
+	if err != nil {
+		t.Fatalf("failed to convert transaction to message: %v", err)
+	}
+
+	// Verify that normal account uses header's gas tip (not transaction's GasTipCap)
+	if msg.GasTipCap.Cmp(headerGasTip) != 0 {
+		t.Errorf("expected GasTipCap %v (headerGasTip), got %v (tx.GasTipCap was %v but should be ignored)",
+			headerGasTip, msg.GasTipCap, txGasTipCap)
+	}
+
+	// Calculate expected effective gas price for normal account
+	// Normal account uses headerGasTip, so effectiveGasPrice = baseFee + headerGasTip
+	expectedEffectiveGasPrice := new(big.Int).Add(baseFee, headerGasTip)
+	if txGasFeeCap.Cmp(expectedEffectiveGasPrice) < 0 {
+		t.Errorf("txGasFeeCap is less than expectedEffectiveGasPrice")
+	}
+
+	actualEffectiveGasPrice := tx.EffectiveGasPrice(baseFee, headerGasTip)
+	if actualEffectiveGasPrice == nil {
+		t.Errorf("actualEffectiveGasPrice is nil")
+	}
+
+	// Verify effective gas price matches expected value
+	if actualEffectiveGasPrice.Cmp(expectedEffectiveGasPrice) != 0 {
+		t.Errorf("expected effective gas price %v (baseFee %v + headerGasTip %v, capped by GasFeeCap %v), got %v",
+			expectedEffectiveGasPrice, baseFee, headerGasTip, txGasFeeCap, actualEffectiveGasPrice)
+	}
+
+	// Calculate and verify total gas fee paid
+	expectedTotalGasFee := new(big.Int).Mul(big.NewInt(int64(receipt.GasUsed)), expectedEffectiveGasPrice)
+	actualTotalGasFee := new(big.Int).Mul(big.NewInt(int64(receipt.GasUsed)), actualEffectiveGasPrice)
+
+	if actualTotalGasFee.Cmp(expectedTotalGasFee) != 0 {
+		t.Errorf("expected total gas fee %v (GasUsed %d * effectiveGasPrice %v), got %v",
+			expectedTotalGasFee, receipt.GasUsed, expectedEffectiveGasPrice, actualTotalGasFee)
+	}
+
+	t.Logf("Normal account - GasUsed: %d, EffectiveGasPrice: %v, TotalGasFee: %v",
+		receipt.GasUsed, actualEffectiveGasPrice, actualTotalGasFee)
 }
