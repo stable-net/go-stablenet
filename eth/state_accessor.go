@@ -245,7 +245,7 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 		if block.Header() != nil && block.Header().GasTip() != nil {
 			headerGasTip = block.Header().GasTip()
 		}
-		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip)
+		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip, statedb)
 		txContext := core.NewEVMTxContext(msg)
 		context := core.NewEVMBlockContext(block.Header(), eth.blockchain, nil)
 		if idx == txIndex {
