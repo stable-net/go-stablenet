@@ -120,15 +120,12 @@ func checkIsAuthorized(addr common.Address, anzeonEnabled bool, stateDB *state.S
 		return false
 	}
 
-	// TODO: Once StateAccount.Extra field is implemented, read from stateDB:
+	// TODO(authorizeAddr): Once StateAccount.Extra field is implemented, read from stateDB:
 	// example:
 	// if stateDB != nil {
-	//     account := stateDB.GetAccount(addr)
-	//     if account != nil {
-	//         // Check Extra field for authorized flag
-	//         return account.IsAuthorized()
-	//     }
+	//     return stateDB.IsAuthorized(addr)
 	// }
+	// return false
 
 	// For now, use hardcoded list from protocol_params
 	return params.AuthorizedAccounts[addr]

@@ -70,14 +70,15 @@ func setupTestStateDB() *state.StateDB {
 		stateDB.CreateAccount(addr)
 	}
 
-	// TO DO : Once StateAccount.Extra field is implemented, use stateDB.SetAccountExtra() instead of params.AuthorizedAccounts
+	// TODO(authorizeAddr) : Once StateAccount.Extra field is implemented, use stateDB.SetAccountExtra() instead of params.AuthorizedAccounts
 	// example:
-	// stateDB.SetAccountExtra(testAuthorizedAddr1, &types.AccountExtra{Authorized: true})
-	// stateDB.SetAccountExtra(testAuthorizedAddr2, &types.AccountExtra{Authorized: true})
-	// stateDB.SetAccountExtra(testAuthorizedAddr3, &types.AccountExtra{Authorized: true})
-	//}
+	// if stateDB != nil {
+	//     stateDB.SetAuthorized(testAuthorizedAddr1)
+	//     stateDB.SetAuthorized(testAuthorizedAddr2)
+	//     stateDB.SetAuthorized(testAuthorizedAddr3)
+	// }
 
-	// TO DO : if Once StateAccount.Extra field is implemented, remove this code
+	// TODO(authorizeAddr) : if Once StateAccount.Extra field is implemented, remove this code
 	authorizedAddrs := []common.Address{
 		testAuthorizedAddr1, testAuthorizedAddr2, testAuthorizedAddr3,
 	}
