@@ -115,7 +115,7 @@ func (oracle *Oracle) processBlock(bf *blockFees, percentiles []float64) {
 	for i, tx := range bf.block.Transactions() {
 		var reward *big.Int
 		// Anzeon enablement cannot be checked here.
-		// If header.GasTip() is not nil, it indicates Anzeon is enabled;
+		// If header.GasTip() is not nil, Anzeon is determined to be enabled.
 		// otherwise, it’s disabled.
 		if headerGasTip != nil {
 			// stateDB unavailable → can't check authorized account
