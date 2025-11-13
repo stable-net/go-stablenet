@@ -1388,6 +1388,7 @@ func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, d
 
 		if rules.IsAnzeon {
 			al.AddAddress(params.NativeCoinManagerAddress)
+			al.AddAddress(params.AccountManagerAddress)
 		}
 	}
 	// Reset transient storage at the beginning of transaction execution
