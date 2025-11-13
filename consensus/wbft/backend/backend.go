@@ -302,8 +302,8 @@ func (sb *Backend) CheckSignature(data []byte, address common.Address, sig []byt
 	return nil
 }
 
-// HasPropsal implements wbft.Backend.HashBlock
-func (sb *Backend) HasPropsal(hash common.Hash, number *big.Int) bool {
+// HasProposal implements wbft.Backend.HashBlock
+func (sb *Backend) HasProposal(hash common.Hash, number *big.Int) bool {
 	return sb.chain.GetHeader(hash, number.Uint64()) != nil
 }
 
