@@ -292,6 +292,7 @@ func (g Alloc) OnAccount(addr *common.Address, dumpAccount state.DumpAccount) {
 		Storage: storage,
 		Balance: balance,
 		Nonce:   dumpAccount.Nonce,
+		Extra:   dumpAccount.Extra,
 	}
 	g[*addr] = genesisAccount
 }

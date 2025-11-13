@@ -34,11 +34,25 @@ var (
 			Nonce:    100,
 			Balance:  uint256.NewInt(100),
 			CodeHash: common.Hash{0x1}.Bytes(),
+			Extra:    100,
 		},
 		{2}: {
 			Nonce:    200,
 			Balance:  uint256.NewInt(200),
 			CodeHash: common.Hash{0x2}.Bytes(),
+			Extra:    200,
+		},
+		{3}: {
+			Nonce:    0,
+			Balance:  uint256.NewInt(0),
+			CodeHash: common.Hash{0x3}.Bytes(),
+			Extra:    0,
+		},
+		{4}: {
+			Nonce:    400,
+			Balance:  uint256.NewInt(400),
+			CodeHash: common.Hash{0x4}.Bytes(),
+			Extra:    0,
 		},
 	}
 	storages = map[common.Address]map[common.Hash][]byte{
@@ -50,6 +64,11 @@ var (
 		{2}: {
 			common.Hash{20}: []byte{20},
 			common.Hash{21}: []byte{21},
+			common.MaxHash:  []byte{0xff},
+		},
+		{4}: {
+			common.Hash{40}: []byte{40},
+			common.Hash{41}: []byte{41},
 			common.MaxHash:  []byte{0xff},
 		},
 	}

@@ -108,6 +108,11 @@ func (t *VerkleTrie) GetAccount(addr common.Address) (*types.StateAccount, error
 	}
 	acc.Balance = new(uint256.Int).SetBytes32(balance[:])
 
+	// Decode extra in little-endian
+	if len(values[utils.ExtraLeafKey]) > 0 {
+		acc.Extra = binary.LittleEndian.Uint64(values[utils.ExtraLeafKey])
+	}
+
 	// Decode codehash
 	acc.CodeHash = values[utils.CodeKeccakLeafKey]
 
@@ -131,9 +136,9 @@ func (t *VerkleTrie) GetStorage(addr common.Address, key []byte) ([]byte, error)
 // If the tree is corrupted, an error will be returned.
 func (t *VerkleTrie) UpdateAccount(addr common.Address, acc *types.StateAccount) error {
 	var (
-		err            error
-		nonce, balance [32]byte
-		values         = make([][]byte, verkle.NodeWidth)
+		err                   error
+		nonce, balance, extra [32]byte
+		values                = make([][]byte, verkle.NodeWidth)
 	)
 	values[utils.VersionLeafKey] = zero[:]
 	values[utils.CodeKeccakLeafKey] = acc.CodeHash[:]
@@ -150,6 +155,12 @@ func (t *VerkleTrie) UpdateAccount(addr common.Address, acc *types.StateAccount)
 		}
 	}
 	values[utils.BalanceLeafKey] = balance[:]
+
+	// Encode extra in little-endian
+	if acc.Extra != 0 {
+		binary.LittleEndian.PutUint64(extra[:], acc.Extra)
+		values[utils.ExtraLeafKey] = extra[:]
+	}
 
 	switch n := t.root.(type) {
 	case *verkle.InternalNode:

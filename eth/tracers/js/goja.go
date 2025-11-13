@@ -95,19 +95,19 @@ func fromBuf(vm *goja.Runtime, bufType goja.Value, buf goja.Value, allowString b
 // jsTracer is an implementation of the Tracer interface which evaluates
 // JS functions on the relevant EVM hooks. It uses Goja as its JS engine.
 type jsTracer struct {
-	vm                *goja.Runtime
-	env               *vm.EVM
-	toBig             toBigFn               // Converts a hex string into a JS bigint
-	toBuf             toBufFn               // Converts a []byte into a JS buffer
-	fromBuf           fromBufFn             // Converts an array, hex string or Uint8Array to a []byte
-	ctx               map[string]goja.Value // KV-bag passed to JS in `result`
-	activePrecompiles []common.Address      // List of active precompiles at current block
-	activeCoinManager *common.Address       // Address of active coin manager at current block (nil if inactive)
-	traceStep         bool                  // True if tracer object exposes a `step()` method
-	traceFrame        bool                  // True if tracer object exposes the `enter()` and `exit()` methods
-	gasLimit          uint64                // Amount of gas bought for the whole tx
-	err               error                 // Any error that should stop tracing
-	obj               *goja.Object          // Trace object
+	vm                   *goja.Runtime
+	env                  *vm.EVM
+	toBig                toBigFn               // Converts a hex string into a JS bigint
+	toBuf                toBufFn               // Converts a []byte into a JS buffer
+	fromBuf              fromBufFn             // Converts an array, hex string or Uint8Array to a []byte
+	ctx                  map[string]goja.Value // KV-bag passed to JS in `result`
+	activePrecompiles    []common.Address      // List of active precompiles at current block
+	activeNativeManagers []common.Address      // List of active native managers at current block
+	traceStep            bool                  // True if tracer object exposes a `step()` method
+	traceFrame           bool                  // True if tracer object exposes the `enter()` and `exit()` methods
+	gasLimit             uint64                // Amount of gas bought for the whole tx
+	err                  error                 // Any error that should stop tracing
+	obj                  *goja.Object          // Trace object
 
 	// Methods exposed by tracer
 	result goja.Callable
@@ -282,7 +282,7 @@ func (t *jsTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Addr
 	// Update list of precompiles based on current block
 	rules := env.ChainConfig().Rules(env.Context.BlockNumber, (env.Context.Difficulty == nil || env.Context.Difficulty.Cmp(common.Big0) == 0) && env.Context.Random != nil, env.Context.Time)
 	t.activePrecompiles = vm.ActivePrecompiles(rules)
-	t.activeCoinManager = vm.ActiveCoinManager(rules)
+	t.activeNativeManagers = vm.ActiveNativeManagers(rules)
 }
 
 // CaptureState implements the Tracer interface to trace a single step of VM execution.
@@ -499,8 +499,10 @@ func (t *jsTracer) setBuiltinFunctions() {
 				return true
 			}
 		}
-		if t.activeCoinManager != nil && *(t.activeCoinManager) == addr {
-			return true
+		for _, m := range t.activeNativeManagers {
+			if m == addr {
+				return true
+			}
 		}
 		return false
 	})

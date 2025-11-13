@@ -21,6 +21,7 @@ func (a Account) MarshalJSON() ([]byte, error) {
 		Storage    map[storageJSON]storageJSON `json:"storage,omitempty"`
 		Balance    *math.HexOrDecimal256       `json:"balance" gencodec:"required"`
 		Nonce      math.HexOrDecimal64         `json:"nonce,omitempty"`
+		Extra      math.HexOrDecimal64         `json:"extra,omitempty"`
 		PrivateKey hexutil.Bytes               `json:"secretKey,omitempty"`
 	}
 	var enc Account
@@ -33,6 +34,7 @@ func (a Account) MarshalJSON() ([]byte, error) {
 	}
 	enc.Balance = (*math.HexOrDecimal256)(a.Balance)
 	enc.Nonce = math.HexOrDecimal64(a.Nonce)
+	enc.Extra = math.HexOrDecimal64(a.Extra)
 	enc.PrivateKey = a.PrivateKey
 	return json.Marshal(&enc)
 }
@@ -44,6 +46,7 @@ func (a *Account) UnmarshalJSON(input []byte) error {
 		Storage    map[storageJSON]storageJSON `json:"storage,omitempty"`
 		Balance    *math.HexOrDecimal256       `json:"balance" gencodec:"required"`
 		Nonce      *math.HexOrDecimal64        `json:"nonce,omitempty"`
+		Extra      *math.HexOrDecimal64        `json:"extra,omitempty"`
 		PrivateKey *hexutil.Bytes              `json:"secretKey,omitempty"`
 	}
 	var dec Account
@@ -65,6 +68,9 @@ func (a *Account) UnmarshalJSON(input []byte) error {
 	a.Balance = (*big.Int)(dec.Balance)
 	if dec.Nonce != nil {
 		a.Nonce = uint64(*dec.Nonce)
+	}
+	if dec.Extra != nil {
+		a.Extra = uint64(*dec.Extra)
 	}
 	if dec.PrivateKey != nil {
 		a.PrivateKey = *dec.PrivateKey

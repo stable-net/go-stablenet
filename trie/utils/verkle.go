@@ -35,6 +35,21 @@ const (
 	NonceLeafKey      = 2
 	CodeKeccakLeafKey = 3
 	CodeSizeLeafKey   = 4
+
+	// Account Extra field
+	//
+	// Assigned index: 63
+	// Context:
+	//   - Verkle trees are not yet active.
+	//   - According to EIP-6800, header leaf keys 0–4 are defined and HEADER_STORAGE_OFFSET = 64.
+	//   - Keys in range [5–63] are currently undefined and safe for temporary use.
+	//
+	// Future considerations:
+	//   - When Verkle trees are enabled, new account fields may be introduced.
+	//   - This field index should be reviewed and potentially reassigned to avoid conflicts.
+	//
+	// Related spec: https://eips.ethereum.org/EIPS/eip-6800
+	ExtraLeafKey = 63
 )
 
 var (
@@ -204,6 +219,11 @@ func CodeSizeKey(address []byte) []byte {
 	return GetTreeKey(address, zero, CodeSizeLeafKey)
 }
 
+// ExtraKey returns the verkle tree key of the extra field for the specified account.
+func ExtraKey(address []byte) []byte {
+	return GetTreeKey(address, zero, ExtraLeafKey)
+}
+
 func codeChunkIndex(chunk *uint256.Int) (*uint256.Int, byte) {
 	var (
 		chunkOffset = new(uint256.Int).Add(codeOffset, chunk)
@@ -287,6 +307,13 @@ func CodeKeccakKeyWithEvaluatedAddress(evaluated *verkle.Point) []byte {
 // address evaluation is already computed to minimize the computational overhead.
 func CodeSizeKeyWithEvaluatedAddress(evaluated *verkle.Point) []byte {
 	return GetTreeKeyWithEvaluatedAddress(evaluated, zero, CodeSizeLeafKey)
+}
+
+// ExtraKeyWithEvaluatedAddress returns the verkle tree key of the extra
+// filed for the specified account. The difference between ExtraKey is the
+// address evaluation is already computed to minimize the computational overhead.
+func ExtraKeyWithEvaluatedAddress(evaluated *verkle.Point) []byte {
+	return GetTreeKeyWithEvaluatedAddress(evaluated, zero, ExtraLeafKey)
 }
 
 // CodeChunkKeyWithEvaluatedAddress returns the verkle tree key of the code

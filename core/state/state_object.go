@@ -92,7 +92,7 @@ type stateObject struct {
 
 // empty returns whether the account is considered empty.
 func (s *stateObject) empty() bool {
-	return s.data.Nonce == 0 && s.data.Balance.IsZero() && bytes.Equal(s.data.CodeHash, types.EmptyCodeHash.Bytes())
+	return s.data.Nonce == 0 && s.data.Balance.IsZero() && bytes.Equal(s.data.CodeHash, types.EmptyCodeHash.Bytes()) && s.data.Extra == 0
 }
 
 // newObject creates a state object.
@@ -521,6 +521,60 @@ func (s *stateObject) setNonce(nonce uint64) {
 	s.data.Nonce = nonce
 }
 
+func (s *stateObject) SetBlacklisted() {
+	extra := s.data.Extra
+	if types.IsBlacklisted(extra) {
+		return
+	}
+	s.SetExtra(types.SetBlacklisted(extra))
+}
+
+func (s *stateObject) ClearBlacklisted() {
+	extra := s.data.Extra
+	if !types.IsBlacklisted(extra) {
+		// EIP-161: empty accounts that are touched but otherwise unchanged must be
+		// marked so the account-clearing pass can prune them at block end.
+		if s.empty() {
+			s.touch()
+		}
+		return
+	}
+	s.SetExtra(types.ClearBlacklisted(extra))
+}
+
+func (s *stateObject) SetAuthorized() {
+	extra := s.data.Extra
+	if types.IsAuthorized(extra) {
+		return
+	}
+	s.SetExtra(types.SetAuthorized(extra))
+}
+
+func (s *stateObject) ClearAuthorized() {
+	extra := s.data.Extra
+	if !types.IsAuthorized(extra) {
+		// EIP-161: empty accounts that are touched but otherwise unchanged must be
+		// marked so the account-clearing pass can prune them at block end.
+		if s.empty() {
+			s.touch()
+		}
+		return
+	}
+	s.SetExtra(types.ClearAuthorized(extra))
+}
+
+func (s *stateObject) SetExtra(extra uint64) {
+	s.db.journal.append(extraChange{
+		account: &s.address,
+		prev:    s.data.Extra,
+	})
+	s.setExtra(extra)
+}
+
+func (s *stateObject) setExtra(extra uint64) {
+	s.data.Extra = extra
+}
+
 func (s *stateObject) CodeHash() []byte {
 	return s.data.CodeHash
 }
@@ -531,6 +585,18 @@ func (s *stateObject) Balance() *uint256.Int {
 
 func (s *stateObject) Nonce() uint64 {
 	return s.data.Nonce
+}
+
+func (s *stateObject) Extra() uint64 {
+	return s.data.Extra
+}
+
+func (s *stateObject) IsBlacklisted() bool {
+	return types.IsBlacklisted(s.data.Extra)
+}
+
+func (s *stateObject) IsAuthorized() bool {
+	return types.IsAuthorized(s.data.Extra)
 }
 
 func (s *stateObject) Root() common.Hash {

@@ -27,11 +27,8 @@
 pragma solidity ^0.8.14;
 
 import { SafeMath } from "@openzeppelin/contracts/utils/math/SafeMath.sol";
-
 import { AbstractFiatToken } from "../abstracts/AbstractFiatToken.sol";
-import { Blacklistable } from "../abstracts/Blacklistable.sol";
 import { Mintable } from "../abstracts/Mintable.sol";
-
 import { EIP712Domain } from "../abstracts/eip/EIP712Domain.sol";
 import { EIP3009 } from "../abstracts/eip/EIP3009.sol";
 import { EIP2612 } from "../abstracts/eip/EIP2612.sol";
@@ -45,11 +42,15 @@ interface ICoinManager {
     function transfer(address from, address to, uint256 amount) external;
 }
 
+interface IAccountViewer {
+    function isBlacklisted(address _account) external view returns (bool);
+}
+
 /**
  * @title NativeCoinAdapter
  * @dev ERC20 Token backed by fiat reserves
  */
-contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP3009, EIP2612 {
+contract NativeCoinAdapter is AbstractFiatToken, Mintable, EIP3009, EIP2612 {
     using SafeMath for uint256;
     /**
      * [Mintable]
@@ -57,29 +58,47 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
      * mapping(address => bool) _minters (slot 0x1)
      * mapping(address => uint256) _minterAllowed (slot 0x2)
      *
-     * [Blacklistable]
-     * address blacklister (slot 0x3)
-     * mapping(address => bool) _blacklisted (slot 0x4)
-     *
      * [EIP3009]
-     * mapping(address => mapping(bytes32 => bool)) _authorizationStates (slot 0x5)
+     * mapping(address => mapping(bytes32 => bool)) _authorizationStates (slot 0x3)
      *
      * [EIP2612]
-     * mapping(address => uint256) _permitNonces (slot 0x6)
+     * mapping(address => uint256) _permitNonces (slot 0x4)
      *
      * [EIP712Domain]
-     * bytes32 _DEPRECATED_CACHED_DOMAIN_SEPARATOR (slot 0x7)
+     * bytes32 _DEPRECATED_CACHED_DOMAIN_SEPARATOR (slot 0x5)
      */
 
-    address private __coinManager; // (slot 0x8)
+    address private __coinManager; // (slot 0x6)
+    address private __accountManager; // (slot 0x7)
 
-    string public name; // (slot 0x9)
-    string public symbol; // (slot 0xa)
-    uint8 public decimals; // (slot 0xb)
-    string public currency; // (slot 0xc)
+    string public name; // (slot 0x8)
+    string public symbol; // (slot 0x9)
+    uint8 public decimals; // (slot 0xa)
+    string public currency; // (slot 0xb)
 
-    mapping(address => mapping(address => uint256)) private __allowed; // (slot 0xd)
-    uint256 private __totalSupply = 0; // (slot 0xe)
+    mapping(address => mapping(address => uint256)) private __allowed; // (slot 0xc)
+    uint256 private __totalSupply = 0; // (slot 0xd)
+
+    /**
+     * @dev Throws if argument account is blacklisted.
+     * @param _account The address to check.
+     */
+    modifier notBlacklisted(address _account) {
+        require(!_isBlacklisted(_account), "NativeCoinAdapter: account is blacklisted");
+        _;
+    }
+
+    /**
+     * @notice Checks if account is blacklisted.
+     * @param _account The address to check.
+     * @return true if the account is blacklisted, false if the account is not blacklisted.
+     */
+    function _isBlacklisted(address _account) private view returns (bool) {
+        (bool _success, bytes memory _result) = __accountManager.staticcall(abi.encodeCall(IAccountViewer.isBlacklisted, (_account)));
+        require(_success, "NativeCoinAdapter: failed to query blacklist status");
+
+        return abi.decode(_result, (bool));
+    }
 
     /**
      * @notice Gets the totalSupply of the fiat token.
@@ -126,7 +145,7 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
 
         _minterAllowed[msg.sender] = mintingAllowedAmount.sub(_amount);
 
-        (bool _success, ) = __coinManager.call(abi.encodeWithSelector(ICoinManager.mint.selector, _to, _amount));
+        (bool _success, ) = __coinManager.call(abi.encodeCall(ICoinManager.mint, (_to, _amount)));
         require(_success, "NativeCoinAdapter: mint failed");
 
         __totalSupply = __totalSupply.add(_amount);
@@ -146,7 +165,7 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
         require(_amount > 0, "NativeCoinAdapter: burn amount not greater than 0");
         require(balance >= _amount, "NativeCoinAdapter: burn amount exceeds balance");
 
-        (bool success, ) = __coinManager.call(abi.encodeWithSelector(ICoinManager.burn.selector, msg.sender, _amount));
+        (bool success, ) = __coinManager.call(abi.encodeCall(ICoinManager.burn, (msg.sender, _amount)));
         require(success, "NativeCoinAdapter: burn failed");
 
         __totalSupply = __totalSupply.sub(_amount);
@@ -198,7 +217,7 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
         require(to != address(0), "NativeCoinAdapter: transfer to the zero address");
         require(value <= _balanceOf(from), "NativeCoinAdapter: transfer amount exceeds balance");
 
-        (bool success, ) = __coinManager.call(abi.encodeWithSelector(ICoinManager.transfer.selector, from, to, value));
+        (bool success, ) = __coinManager.call(abi.encodeCall(ICoinManager.transfer, (from, to, value)));
         require(success, "NativeCoinAdapter: transfer failed");
         // Transfer event is emitted by the EVM
     }
@@ -455,23 +474,6 @@ contract NativeCoinAdapter is AbstractFiatToken, Mintable, Blacklistable, EIP300
         bytes memory signature
     ) external notBlacklisted(owner) notBlacklisted(spender) {
         _permit(owner, spender, value, deadline, signature);
-    }
-
-    // ============================================================================
-    // Blacklistable
-    // ============================================================================
-    /**
-     * @inheritdoc Blacklistable
-     */
-    function updateBlacklister(address) external pure override {
-        revert("NativeCoinAdapter: Blacklister role merged into MasterMinter");
-    }
-
-    /**
-     * @inheritdoc Blacklistable
-     */
-    function _isBlacklister(address _account) internal view override returns (bool) {
-        return _account == masterMinter;
     }
 
     // ============================================================================

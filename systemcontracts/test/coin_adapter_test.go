@@ -28,7 +28,6 @@ func TestTransferLog(t *testing.T) {
 
 		amount = towei(1_000_000)
 	)
-	masterMinter.Address.Hex()
 
 	g, err := NewGovWBFT(t, types.GenesisAlloc{
 		minter.Address: {Balance: new(big.Int).Mul(amount, common.Big3)},
@@ -121,7 +120,7 @@ func TestTransferLog(t *testing.T) {
 		dir := t.TempDir()
 		filename := "Test.sol"
 		testSource := `pragma solidity ^0.8.0;
-		interface CoinAdapter { function transfer(address from, uint256 amount) external; } 
+		interface CoinAdapter { function transfer(address to, uint256 amount) external; } 
 		contract TestContract{
 			function transfer(address _to) payable external {
 				CoinAdapter(` + TestCoinAdapterAddress.String() + `).transfer(_to, msg.value);
@@ -449,20 +448,20 @@ func TestNativeCoinAdapter(t *testing.T) {
 
 		// permit by signature
 		{
-			newApporveAmount := new(big.Int).Mul(approveAmount, common.Big2)
+			newApproveAmount := new(big.Int).Mul(approveAmount, common.Big2)
 			deadline := new(big.Int).Add(blockTime, big.NewInt(86_400))
-			permitWithDeadlineSig, _, _, _ := g.BuildPermitSig(t, owner, spender.Address, newApporveAmount, deadline)
+			permitWithDeadlineSig, _, _, _ := g.BuildPermitSig(t, owner, spender.Address, newApproveAmount, deadline)
 
-			receipt, err := g.ExpectedOk(g.Permit(t, spender, owner.Address, spender.Address, newApporveAmount, deadline, permitWithDeadlineSig))
+			receipt, err := g.ExpectedOk(g.Permit(t, spender, owner.Address, spender.Address, newApproveAmount, deadline, permitWithDeadlineSig))
 			require.NoError(t, err)
 
-			require.True(t, newApporveAmount.Cmp(g.Allowance(t, owner.Address, spender.Address)) == 0)
+			require.True(t, newApproveAmount.Cmp(g.Allowance(t, owner.Address, spender.Address)) == 0)
 
 			// approval event
 			approvalEvent := findEvent("Approval", receipt.Logs)
 			require.Equal(t, owner.Address, approvalEvent["owner"].(common.Address))
 			require.Equal(t, spender.Address, approvalEvent["spender"].(common.Address))
-			require.True(t, newApporveAmount.Cmp(approvalEvent["value"].(*big.Int)) == 0)
+			require.True(t, newApproveAmount.Cmp(approvalEvent["value"].(*big.Int)) == 0)
 		}
 	})
 
@@ -800,5 +799,254 @@ func TestNativeCoinAdapter(t *testing.T) {
 			require.False(t, g.IsMinter(t, minter1.Address))
 			require.True(t, g.MinterAllowance(t, minter1.Address).Sign() == 0)
 		}
+	})
+}
+
+func TestNativeCoinAdapter_Blacklist(t *testing.T) {
+	var (
+		// ctx                = context.Background()
+		masterMinter       = NewEOA()
+		minter             = NewEOA()
+		decimals     uint8 = 18
+
+		amount         = toWeiN(10_000, decimals)
+		initialBalance = toWeiN(1_000_000, decimals) // for gas
+		allowedAmount  = toWeiN(100_000_000, decimals)
+
+		normalAccount      = NewEOA()
+		blacklistedAccount = NewEOA()
+
+		expectedErrMsg = "NativeCoinAdapter: account is blacklisted"
+	)
+
+	g, err := NewGovWBFT(t, types.GenesisAlloc{
+		masterMinter.Address:       {Balance: initialBalance},
+		minter.Address:             {Balance: initialBalance},
+		blacklistedAccount.Address: {Balance: initialBalance, Extra: types.SetBlacklisted(uint64(0))},
+	}, nil, func(coinAdapter *params.SystemContract) {
+		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MASTER_MINTER] = masterMinter.Address.String()
+		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTERS] = minter.Address.String()
+		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTER_ALLOWED] = allowedAmount.String()
+		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_DECIMALS] = strconv.Itoa(int(decimals))
+	}, nil, nil, nil)
+	require.NoError(t, err)
+
+	t.Run("mint", func(t *testing.T) {
+		// not blacklisted
+		{
+			beforeTotalSupply := g.TotalSupply(t)
+			beforeAllowance := g.MinterAllowance(t, minter.Address)
+			require.True(t, g.BalanceOf(t, normalAccount.Address).Sign() == 0)
+
+			_, err := g.ExpectedOk(g.Mint(t, minter, normalAccount.Address, initialBalance))
+			require.NoError(t, err)
+
+			require.True(t, initialBalance.Cmp(g.BalanceOf(t, normalAccount.Address)) == 0)
+			require.True(t, new(big.Int).Add(beforeTotalSupply, initialBalance).Cmp(g.TotalSupply(t)) == 0)
+			require.True(t, new(big.Int).Sub(beforeAllowance, initialBalance).Cmp(g.MinterAllowance(t, minter.Address)) == 0)
+		}
+
+		beforeBalance := g.BalanceOf(t, blacklistedAccount.Address)
+
+		// mint to blacklisted address
+		ExpectedRevert(t, g.ExpectedFail(g.Mint(t, minter, blacklistedAccount.Address, initialBalance)), expectedErrMsg)
+
+		require.True(t, beforeBalance.Cmp(g.BalanceOf(t, blacklistedAccount.Address)) == 0)
+	})
+
+	t.Run("transfer", func(t *testing.T) {
+		from, to := normalAccount, blacklistedAccount
+		// not blacklisted
+		{
+			beforeBalance := g.BalanceOf(t, minter.Address)
+			_, err := g.ExpectedOk(g.Transfer(t, normalAccount, minter.Address, amount))
+			require.NoError(t, err)
+
+			expectedBalance := new(big.Int).Add(beforeBalance, amount)
+			require.True(t, expectedBalance.Cmp(g.BalanceOf(t, minter.Address)) == 0)
+		}
+
+		// transfer to blacklisted address
+		ExpectedRevert(t, g.ExpectedFail(g.Transfer(t, from, to.Address, new(big.Int))), expectedErrMsg)
+		ExpectedRevert(t, g.ExpectedFail(g.Transfer(t, from, to.Address, amount)), expectedErrMsg)
+
+		// blacklisted address transfer
+		ExpectedRevert(t, g.ExpectedFail(g.Transfer(t, to, from.Address, amount)), expectedErrMsg)
+	})
+
+	t.Run("approve and transferFrom", func(t *testing.T) {
+		var (
+			owner, spender = normalAccount, blacklistedAccount
+			approveAmount  = new(big.Int).Div(amount, big.NewInt(10))
+			transferAmount = new(big.Int).Div(approveAmount, common.Big2)
+		)
+		// not blacklisted
+		{
+			_, err := g.ExpectedOk(g.Approve(t, owner, minter.Address, approveAmount))
+			require.NoError(t, err)
+
+			require.True(t, approveAmount.Cmp(g.Allowance(t, owner.Address, minter.Address)) == 0)
+
+			_, err = g.ExpectedOk(g.TransferFrom(t, minter, owner.Address, minter.Address, transferAmount))
+			require.NoError(t, err)
+
+			_, err = g.ExpectedOk(g.TransferFrom(t, owner, minter.Address, owner.Address, new(big.Int)))
+			require.NoError(t, err)
+		}
+		// owner -> blacklist
+		ExpectedRevert(t, g.ExpectedFail(g.Approve(t, owner, spender.Address, approveAmount)), expectedErrMsg)
+		// blacklist -> owner
+		ExpectedRevert(t, g.ExpectedFail(g.Approve(t, spender, owner.Address, approveAmount)), expectedErrMsg)
+
+		// transfer to blacklist
+		ExpectedRevert(t, g.ExpectedFail(g.TransferFrom(t, minter, owner.Address, spender.Address, transferAmount)), expectedErrMsg)
+		// transfer from blacklist
+		ExpectedRevert(t, g.ExpectedFail(g.TransferFrom(t, owner, spender.Address, minter.Address, new(big.Int))), expectedErrMsg)
+		// msg.sender is blacklist
+		ExpectedRevert(t, g.ExpectedFail(g.TransferFrom(t, spender, owner.Address, minter.Address, new(big.Int))), expectedErrMsg)
+	})
+
+	t.Run("permit", func(t *testing.T) {
+		var (
+			owner, spender = normalAccount, blacklistedAccount
+			approveAmount  = new(big.Int).Div(amount, big.NewInt(10))
+		)
+		// spender is blacklisted
+		{
+			permitSig, _, _, _ := g.BuildPermitSig(t, owner, spender.Address, approveAmount, nil) // deadline == MAX_UINT_256
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Permit(t, minter, owner.Address, spender.Address, approveAmount, nil, permitSig)),
+				expectedErrMsg,
+			)
+		}
+		// onwer is blacklisted
+		{
+			permitSig, _, _, _ := g.BuildPermitSig(t, spender, owner.Address, approveAmount, nil) // deadline == MAX_UINT_256
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Permit(t, minter, spender.Address, owner.Address, approveAmount, nil, permitSig)),
+				expectedErrMsg,
+			)
+		}
+		// not blacklisted
+		{
+			permitSig, _, _, _ := g.BuildPermitSig(t, minter, owner.Address, approveAmount, nil)
+
+			// msg.sender is blacklisted
+			receipt, err := g.ExpectedOk(g.Permit(t, spender, minter.Address, owner.Address, approveAmount, nil, permitSig))
+			require.NoError(t, err)
+
+			require.True(t, approveAmount.Cmp(g.Allowance(t, minter.Address, owner.Address)) == 0)
+
+			// approval event
+			approvalEvent := findEvent("Approval", receipt.Logs)
+			require.Equal(t, minter.Address, approvalEvent["owner"].(common.Address))
+			require.Equal(t, owner.Address, approvalEvent["spender"].(common.Address))
+			require.True(t, approveAmount.Cmp(approvalEvent["value"].(*big.Int)) == 0)
+		}
+	})
+
+	t.Run("transfer with authorization", func(t *testing.T) {
+		var (
+			from, to       = normalAccount, blacklistedAccount
+			transferAmount = new(big.Int).Div(amount, big.NewInt(10))
+		)
+		// transfer to blacklist
+		{
+			transferNonce := ToBytes32("transfer_1")
+			transferSig, _, _, _ := g.BuildTransferWithAuthSig(t, from, to.Address, transferAmount, nil, nil, transferNonce)
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferWithAuthorization(t, minter, from.Address, to.Address, transferAmount, nil, nil, transferNonce, transferSig)),
+				expectedErrMsg,
+			)
+		}
+		// transfer from blacklist
+		{
+			transferNonce := ToBytes32("transfer_2")
+			transferSig, _, _, _ := g.BuildTransferWithAuthSig(t, to, from.Address, transferAmount, nil, nil, transferNonce)
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferWithAuthorization(t, minter, to.Address, from.Address, transferAmount, nil, nil, transferNonce, transferSig)),
+				expectedErrMsg,
+			)
+		}
+		// not blacklisted
+		{
+			transferNonce := ToBytes32("transfer_3")
+			transferSig, _, _, _ := g.BuildTransferWithAuthSig(t, from, minter.Address, transferAmount, nil, nil, transferNonce)
+
+			// msg.sender is blacklisted
+			receipt, err := g.ExpectedOk(g.TransferWithAuthorization(t, to, from.Address, minter.Address, transferAmount, nil, nil, transferNonce, transferSig))
+			require.NoError(t, err)
+
+			// transfer event
+			transferEvent := findEvent("Transfer", receipt.Logs)
+			require.Equal(t, from.Address, transferEvent["from"].(common.Address))
+			require.Equal(t, minter.Address, transferEvent["to"].(common.Address))
+			require.True(t, transferAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
+		}
+	})
+
+	t.Run("receive with authorization", func(t *testing.T) {
+		var (
+			from, to       = normalAccount, blacklistedAccount
+			transferAmount = new(big.Int).Div(amount, big.NewInt(10))
+		)
+		// msg.sender is blacklisted
+		{
+			receiveNonce := ToBytes32("receive_1")
+			receiveSig, _, _, _ := g.BuildReceiveWithAuthSig(t, from, to.Address, transferAmount, nil, nil, receiveNonce)
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.ReceiveWithAuthorization(t, to, from.Address, transferAmount, nil, nil, receiveNonce, receiveSig)),
+				expectedErrMsg,
+			)
+		}
+		// receive from blacklist
+		{
+			receiveNonce := ToBytes32("receive_2")
+			receiveSig, _, _, _ := g.BuildReceiveWithAuthSig(t, to, from.Address, transferAmount, nil, nil, receiveNonce)
+
+			ExpectedRevert(t,
+				g.ExpectedFail(g.ReceiveWithAuthorization(t, from, to.Address, transferAmount, nil, nil, receiveNonce, receiveSig)),
+				expectedErrMsg,
+			)
+		}
+		// not blacklisted
+		{
+			receiveNonce := ToBytes32("receive_3")
+			receiveSig, _, _, _ := g.BuildReceiveWithAuthSig(t, minter, from.Address, transferAmount, nil, nil, receiveNonce)
+
+			receipt, err := g.ExpectedOk(
+				g.ReceiveWithAuthorization(t, from, minter.Address, transferAmount, nil, nil, receiveNonce, receiveSig),
+			)
+			require.NoError(t, err)
+
+			// transfer event
+			transferEvent := findEvent("Transfer", receipt.Logs)
+			require.Equal(t, minter.Address, transferEvent["from"].(common.Address))
+			require.Equal(t, from.Address, transferEvent["to"].(common.Address))
+			require.True(t, transferAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
+		}
+	})
+
+	t.Run("cancel authorization", func(t *testing.T) {
+		var (
+			from, to, sender = normalAccount, minter, blacklistedAccount
+			transferAmount   = new(big.Int).Div(amount, big.NewInt(10))
+		)
+		cancelNonce := ToBytes32("cancel_1")
+		cancelSig, _, _, _ := g.BuildCancelAuthSig(t, from, cancelNonce)
+
+		_, err := g.ExpectedOk(g.CancelAuthorization(t, sender, from.Address, cancelNonce, cancelSig))
+		require.NoError(t, err)
+
+		transferSig, _, _, _ := g.BuildTransferWithAuthSig(t, from, to.Address, transferAmount, nil, nil, cancelNonce) // 0 - MAX_UINT_256
+		ExpectedRevert(t,
+			g.ExpectedFail(g.TransferWithAuthorization(t, to, from.Address, to.Address, transferAmount, nil, nil, cancelNonce, transferSig)),
+			"NativeCoinAdapter: authorization is used or canceled",
+		)
 	})
 }

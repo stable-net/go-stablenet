@@ -39,7 +39,7 @@ var (
 	ErrNonceUintOverflow        = errors.New("nonce uint64 overflow")
 
 	// forbid value transfer to precompiled contracts
-	ErrPrecompileValueTransfer = errors.New("precompile value transfer disallowed")
+	ErrValueTransferToPrecompile = errors.New("value transfer to precompiled contract disallowed")
 
 	// forbid value transfer to zero address
 	ErrZeroAddressTransfer = errors.New("transfer to zero address not allowed")

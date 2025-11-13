@@ -38,6 +38,7 @@ type Account struct {
 	Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
 	Balance *big.Int                    `json:"balance" gencodec:"required"`
 	Nonce   uint64                      `json:"nonce,omitempty"`
+	Extra   uint64                      `json:"extra,omitempty"`
 
 	// used in tests
 	PrivateKey []byte `json:"secretKey,omitempty"`
@@ -49,6 +50,8 @@ type accountMarshaling struct {
 	Nonce      math.HexOrDecimal64
 	Storage    map[storageJSON]storageJSON
 	PrivateKey hexutil.Bytes
+
+	Extra math.HexOrDecimal64
 }
 
 // storageJSON represents a 256 bit byte array, but allows less than 256 bits when

@@ -58,6 +58,7 @@ type DumpAccount struct {
 	Address     *common.Address        `json:"address,omitempty"` // Address only present in iterative (line-by-line) mode
 	AddressHash hexutil.Bytes          `json:"key,omitempty"`     // If we don't have address, we can output the key
 
+	Extra uint64 `json:"extra,omitempty"`
 }
 
 // Dump represents the full dump in a collected format, as one large map.
@@ -100,6 +101,7 @@ func (d iterativeDump) OnAccount(addr *common.Address, account DumpAccount) {
 		Storage:     account.Storage,
 		AddressHash: account.AddressHash,
 		Address:     addr,
+		Extra:       account.Extra,
 	}
 	d.Encode(dumpAccount)
 }
@@ -145,6 +147,7 @@ func (s *StateDB) DumpToCollector(c DumpCollector, conf *DumpConfig) (nextKey []
 				Root:        data.Root[:],
 				CodeHash:    data.CodeHash,
 				AddressHash: it.Key,
+				Extra:       data.Extra,
 			}
 			address   *common.Address
 			addr      common.Address

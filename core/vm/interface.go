@@ -79,6 +79,14 @@ type StateDB interface {
 
 	AddLog(*types.Log)
 	AddPreimage(common.Hash, []byte)
+
+	IsBlacklisted(addr common.Address) bool
+	SetBlacklisted(addr common.Address)
+	ClearBlacklisted(addr common.Address)
+
+	IsAuthorized(addr common.Address) bool
+	SetAuthorized(addr common.Address)
+	ClearAuthorized(addr common.Address)
 }
 
 // CallContext provides a basic interface for the EVM calling conventions. The EVM

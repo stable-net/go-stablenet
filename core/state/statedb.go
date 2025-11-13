@@ -297,6 +297,36 @@ func (s *StateDB) GetNonce(addr common.Address) uint64 {
 	return 0
 }
 
+// GetExtra retrieves the extra from the given address or 0 if object not found
+func (s *StateDB) GetExtra(addr common.Address) uint64 {
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.Extra()
+	}
+
+	return 0
+}
+
+// IsBlacklisted returns true if the given account is marked as blacklisted.
+func (s *StateDB) IsBlacklisted(addr common.Address) bool {
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.IsBlacklisted()
+	}
+
+	return false
+}
+
+// IsAuthorized returns true if the account is marked as authorized.
+func (s *StateDB) IsAuthorized(addr common.Address) bool {
+	stateObject := s.getStateObject(addr)
+	if stateObject != nil {
+		return stateObject.IsAuthorized()
+	}
+
+	return false
+}
+
 // GetStorageRoot retrieves the storage root from the given address or empty
 // if object not found.
 func (s *StateDB) GetStorageRoot(addr common.Address) common.Hash {
@@ -398,6 +428,41 @@ func (s *StateDB) SetNonce(addr common.Address, nonce uint64) {
 	stateObject := s.getOrNewStateObject(addr)
 	if stateObject != nil {
 		stateObject.SetNonce(nonce)
+	}
+}
+
+func (s *StateDB) SetBlacklisted(addr common.Address) {
+	stateObject := s.getOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetBlacklisted()
+	}
+}
+
+func (s *StateDB) ClearBlacklisted(addr common.Address) {
+	stateObject := s.getOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.ClearBlacklisted()
+	}
+}
+
+func (s *StateDB) SetAuthorized(addr common.Address) {
+	stateObject := s.getOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetAuthorized()
+	}
+}
+
+func (s *StateDB) ClearAuthorized(addr common.Address) {
+	stateObject := s.getOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.ClearAuthorized()
+	}
+}
+
+func (s *StateDB) SetExtra(addr common.Address, extra uint64) {
+	stateObject := s.getOrNewStateObject(addr)
+	if stateObject != nil {
+		stateObject.SetExtra(extra)
 	}
 }
 
@@ -575,6 +640,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 				Balance:  acc.Balance,
 				CodeHash: acc.CodeHash,
 				Root:     common.BytesToHash(acc.Root),
+				Extra:    acc.Extra,
 			}
 			if len(data.CodeHash) == 0 {
 				data.CodeHash = types.EmptyCodeHash.Bytes()
