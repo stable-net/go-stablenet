@@ -113,24 +113,6 @@ func (s *txByPriceAndTime) Pop() interface{} {
 	return x
 }
 
-// checkIsAuthorized checks if an account is authorized.
-func checkIsAuthorized(addr common.Address, anzeonEnabled bool, stateDB *state.StateDB) bool {
-	// If Anzeon is not enabled, no account is authorized
-	if !anzeonEnabled {
-		return false
-	}
-
-	// TODO(authorizeAddr): Once StateAccount.Extra field is implemented, read from stateDB:
-	// example:
-	// if stateDB != nil {
-	//     return stateDB.IsAuthorized(addr)
-	// }
-	// return false
-
-	// For now, use hardcoded list from protocol_params
-	return params.AuthorizedAccounts[addr]
-}
-
 // transactionsByPriceAndNonce represents a set of transactions that can return
 // transactions in a profit-maximizing sorted order, while supporting removing
 // entire batches of transactions for non-executable accounts.
@@ -156,7 +138,14 @@ func newTransactionsByPriceAndNonce(signer types.Signer, txs map[common.Address]
 	isAuthorizedMap := make(map[common.Address]bool, len(txs))
 	if anzeonEnabled {
 		for from := range txs {
-			isAuthorizedMap[from] = checkIsAuthorized(from, anzeonEnabled, stateDB)
+			// TODO(authorizeAddr): Once StateAccount.Extra field is implemented, read from stateDB:
+			// example:
+			// if stateDB != nil {
+			// 	isAuthorizedMap[from] = stateDB.IsAuthorized(from)
+			// }
+
+			// For now, use hardcoded list from protocol_params
+			isAuthorizedMap[from] = params.AuthorizedAccounts[from]
 		}
 	}
 

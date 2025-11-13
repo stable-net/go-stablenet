@@ -244,22 +244,50 @@ func (oracle *Oracle) getBlockValues(ctx context.Context, blockNum uint64, limit
 	}
 	signer := types.MakeSigner(oracle.backend.ChainConfig(), block.Number(), block.Time())
 
+	// Get receipts for tip calculation when headerGasTip is available
+	receipts, err := oracle.backend.GetReceipts(ctx, block.Hash())
+	if err != nil {
+		receipts = nil
+	}
+
 	// Sort the transaction by effective tip in ascending sort.
 	txs := block.Transactions()
+	baseFee := block.BaseFee()
+
+	var headerGasTip *big.Int
+	if block.Header() != nil && block.Header().GasTip() != nil {
+		headerGasTip = new(big.Int).Set(block.Header().GasTip())
+	}
+
+	// Create a map to store tip for each transaction
+	tipMap := make(map[common.Hash]*big.Int)
+	for i, tx := range txs {
+		var tip *big.Int
+		if headerGasTip != nil && receipts != nil && i < len(receipts) {
+			// stateDB unavailable → can't check authorized account
+			// Therefore, use the receipt's effectiveGasPrice to derive the TIP.
+			// (i.e., EffectiveGasTip = effectiveGasPrice - baseFee)
+			tip = new(big.Int).Sub(receipts[i].EffectiveGasPrice, baseFee)
+		} else {
+			tip, _ = tx.EffectiveGasTip(baseFee)
+		}
+		tipMap[tx.Hash()] = tip
+	}
+
 	sortedTxs := make([]*types.Transaction, len(txs))
 	copy(sortedTxs, txs)
-	baseFee := block.BaseFee()
+
 	slices.SortFunc(sortedTxs, func(a, b *types.Transaction) int {
 		// It's okay to discard the error because a tx would never be
 		// accepted into a block with an invalid effective tip.
-		tip1, _ := a.EffectiveGasTip(baseFee)
-		tip2, _ := b.EffectiveGasTip(baseFee)
+		tip1 := tipMap[a.Hash()]
+		tip2 := tipMap[b.Hash()]
 		return tip1.Cmp(tip2)
 	})
 
 	var prices []*big.Int
 	for _, tx := range sortedTxs {
-		tip, _ := tx.EffectiveGasTip(baseFee)
+		tip := tipMap[tx.Hash()]
 		if ignoreUnder != nil && tip.Cmp(ignoreUnder) == -1 {
 			continue
 		}

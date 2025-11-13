@@ -151,19 +151,6 @@ type Message struct {
 	SkipAccountChecks bool
 }
 
-// checkIsAuthorized checks if an account is authorized.
-func checkIsAuthorized(addr common.Address, stateDB *state.StateDB) bool {
-	// TODO(authorizeAddr): Once StateAccount.Extra field is implemented, read from stateDB:
-	// example:
-	// if stateDB != nil {
-	//     return stateDB.IsAuthorized(addr)
-	// }
-	// return false
-
-	// For now, use hardcoded list from protocol_params
-	return params.AuthorizedAccounts[addr]
-}
-
 // TransactionToMessage converts a transaction into a Message.
 func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, headerGasTip *big.Int, statedb *state.StateDB) (*Message, error) {
 	from, err := types.Sender(s, tx)
@@ -175,7 +162,17 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, header
 	if headerGasTip != nil {
 		// If Anzeon is enabled, and the sender is authorized, use the tx's tx.GasTipCap()
 		// Otherwise, use the header's gas tip
-		if !checkIsAuthorized(from, statedb) {
+
+		// TODO(authorizeAddr): Once StateAccount.Extra field is implemented, read from stateDB:
+		// example:
+		// if statedb != nil {
+		// 	if !statedb.IsAuthorized(from) {
+		// 		gasTipCap = new(big.Int).Set(headerGasTip)
+		// 	}
+		// }
+
+		// For now, use hardcoded list from protocol_params
+		if !params.AuthorizedAccounts[from] {
 			gasTipCap = new(big.Int).Set(headerGasTip)
 		}
 	}
