@@ -143,4 +143,10 @@ var (
 	ErrIsNotWBFTBlock = errors.New("block is not a wbft block")
 
 	ErrEpochInfoIsNotNil = errors.New("epoch info should be nil for non-epoch block")
+
+	// ErrStateNotFound is returned when the state for the given root is missing.
+	ErrStateNotFound = errors.New("state not found")
+
+	// ErrBlacklistedSigner is returned when a block is signed by a blacklisted account.
+	ErrBlacklistedSigner = errors.New("signer is blacklisted")
 )

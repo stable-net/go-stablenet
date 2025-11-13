@@ -356,6 +356,26 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 		return err
 	}
 
+	// Check parent
+	var parent *types.Header
+	if len(parents) > 0 {
+		parent = parents[len(parents)-1]
+	} else {
+		parent = chain.GetHeader(header.ParentHash, number-1)
+	}
+	// Ensure that the block's parent has right number and hash
+	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+		return consensus.ErrUnknownAncestor
+	}
+
+	state, err := chain.StateAt(parent.Root)
+	if err != nil {
+		return fmt.Errorf("%w: parent %v", wbftcommon.ErrStateNotFound, parent.Hash().Hex())
+	}
+	if state.IsBlacklisted(signer) {
+		return fmt.Errorf("%w: signer %v", wbftcommon.ErrBlacklistedSigner, signer.Hex())
+	}
+
 	// Signer should be in the validator set of previous block's extraData.
 	if _, v := validators.GetByAddress(signer); v == nil {
 		return wbftcommon.ErrUnauthorized
