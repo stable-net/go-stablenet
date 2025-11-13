@@ -199,10 +199,10 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	// Fail if the caller or the target address is blacklisted under Anzeon rules
 	if evm.chainRules.IsAnzeon {
 		if callerAddr := caller.Address(); evm.StateDB.IsBlacklisted(callerAddr) {
-			return nil, gas, fmt.Errorf("%w: from %v", ErrBlacklistedAccount, callerAddr.Hex())
+			return nil, gas, fmt.Errorf("%w: caller %s", ErrBlacklistedAccount, callerAddr.Hex())
 		}
 		if evm.StateDB.IsBlacklisted(addr) {
-			return nil, gas, fmt.Errorf("%w: to %v", ErrBlacklistedAccount, addr.Hex())
+			return nil, gas, fmt.Errorf("%w: target %s", ErrBlacklistedAccount, addr.Hex())
 		}
 	}
 	m, isNativeManager := evm.nativeManager(addr)
@@ -474,7 +474,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 	// Fail if the caller is blacklisted under Anzeon rules
 	if evm.chainRules.IsAnzeon && evm.StateDB.IsBlacklisted(caller.Address()) {
-		return nil, common.Address{}, gas, fmt.Errorf("%w: from %v", ErrBlacklistedAccount, caller.Address().Hex())
+		return nil, common.Address{}, gas, fmt.Errorf("%w: caller %s", ErrBlacklistedAccount, caller.Address().Hex())
 	}
 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
 		return nil, common.Address{}, gas, ErrInsufficientBalance

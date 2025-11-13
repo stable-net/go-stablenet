@@ -370,10 +370,10 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 
 	state, err := chain.StateAt(parent.Root)
 	if err != nil {
-		return fmt.Errorf("%w: parent %v", wbftcommon.ErrStateNotFound, parent.Hash().Hex())
+		return fmt.Errorf("%w: parent %s", wbftcommon.ErrStateNotFound, parent.Hash().Hex())
 	}
 	if state.IsBlacklisted(signer) {
-		return fmt.Errorf("%w: signer %v", wbftcommon.ErrBlacklistedSigner, signer.Hex())
+		return fmt.Errorf("%w: signer %s", wbftcommon.ErrBlacklistedSigner, signer.Hex())
 	}
 
 	// Signer should be in the validator set of previous block's extraData.
