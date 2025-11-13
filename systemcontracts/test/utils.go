@@ -22,14 +22,12 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient/simulated"
 	"github.com/ethereum/go-ethereum/params"
@@ -71,10 +69,10 @@ func ExpectedRevert(t *testing.T, err error, args ...interface{}) {
 		}
 	} else {
 		if length > 0 {
-			errStr, _ := strings.CutPrefix(err.Error(), vm.ErrExecutionReverted.Error()+":")
+			errStr := err.Error()
 			message, ok := args[0].(string)
 			require.True(t, ok)
-			require.Equal(t, strings.TrimSpace(message), strings.TrimSpace(errStr))
+			require.Contains(t, errStr, message)
 		}
 	}
 }

@@ -101,6 +101,12 @@ contract GovCouncil is GovBase {
     /// @param proposalId The proposal that caused this change
     event AuthorizedAccountRemoved(address indexed account, uint256 indexed proposalId);
 
+    /// @notice Emitted when proposal execution is skipped because target already exists
+    /// @param account The account address
+    /// @param proposalId The proposal that was skipped
+    /// @param reason The reason for skipping (e.g., "ALREADY_BLACKLISTED", "NOT_IN_BLACKLIST")
+    event ProposalExecutionSkipped(address indexed account, uint256 indexed proposalId, string reason);
+
     // ========== Custom Errors ==========
 
     error AlreadyInBlacklist();
@@ -364,18 +370,26 @@ contract GovCouncil is GovBase {
     /**
      * @notice Add address to blacklist (internal)
      * @dev Updates current state and emits event
+     *      Re-validates state at execution time
      *
      * @param account Address to blacklist
      * @param proposalId Proposal ID that triggered this
-     * @return success True if successful
+     * @return success True if successful, false if already blacklisted
      */
     function _addToBlacklist(address account, uint256 proposalId) private returns (bool success) {
+        // Re-validate at execution time
+        if (_currentBlacklist.contains(account)) {
+            // Already blacklisted - emit event and return false to terminate proposal
+            emit ProposalExecutionSkipped(account, proposalId, "ALREADY_BLACKLISTED");
+            return false;
+        }
+
         // Add to current set
         _currentBlacklist.add(account);
 
         // Update account extra field via AccountManager
-        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.blacklist.selector, account));
-        require(callSuccess, "GovCouncil: blacklist call failed");
+        (bool _success, bytes memory _result) = __accountManager.call(abi.encodeWithSelector(IAccountManager.blacklist.selector, account));
+        require(_success, "GovCouncil: blacklist call failed");
 
         // Emit event
         emit AddressBlacklisted(account, proposalId);
@@ -386,18 +400,26 @@ contract GovCouncil is GovBase {
     /**
      * @notice Remove address from blacklist (internal)
      * @dev Updates current state and emits event
+     *      Re-validates state at execution time
      *
      * @param account Address to remove
      * @param proposalId Proposal ID that triggered this
-     * @return success True if successful
+     * @return success True if successful, false if not in blacklist
      */
     function _removeFromBlacklist(address account, uint256 proposalId) private returns (bool success) {
+        // Re-validate at execution time
+        if (!_currentBlacklist.contains(account)) {
+            // Not in blacklist - emit event and return false to terminate proposal
+            emit ProposalExecutionSkipped(account, proposalId, "NOT_IN_BLACKLIST");
+            return false;
+        }
+
         // Remove from current set
         _currentBlacklist.remove(account);
 
         // Update account extra field via AccountManager
-        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.unBlacklist.selector, account));
-        require(callSuccess, "GovCouncil: unBlacklist call failed");
+        (bool _success, bytes memory _result) = __accountManager.call(abi.encodeWithSelector(IAccountManager.unBlacklist.selector, account));
+        require(_success, "GovCouncil: unBlacklist call failed");
 
         // Emit event
         emit AddressUnblacklisted(account, proposalId);
@@ -411,13 +433,24 @@ contract GovCouncil is GovBase {
 
     /**
      * @notice Add address to authorized account list (internal)
+     * @dev Re-validates state at execution time
+     * @param account Address to authorize
+     * @param proposalId Proposal ID that triggered this
+     * @return success True if successful, false if already authorized
      */
     function _addToAuthorizedAccount(address account, uint256 proposalId) private returns (bool success) {
+        // Re-validate at execution time
+        if (_currentAuthorizedAccounts.contains(account)) {
+            // Already authorized - emit event and return false to terminate proposal
+            emit ProposalExecutionSkipped(account, proposalId, "ALREADY_AUTHORIZED");
+            return false;
+        }
+
         _currentAuthorizedAccounts.add(account);
 
         // Update account extra field via AccountManager
-        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.authorize.selector, account));
-        require(callSuccess, "GovCouncil: authorize call failed");
+        (bool _success, bytes memory _result) = __accountManager.call(abi.encodeWithSelector(IAccountManager.authorize.selector, account));
+        require(_success, "GovCouncil: authorize call failed");
 
         emit AuthorizedAccountAdded(account, proposalId);
 
@@ -426,13 +459,24 @@ contract GovCouncil is GovBase {
 
     /**
      * @notice Remove address from authorized account list (internal)
+     * @dev Re-validates state at execution time
+     * @param account Address to unauthorize
+     * @param proposalId Proposal ID that triggered this
+     * @return success True if successful, false if not authorized
      */
     function _removeFromAuthorizedAccount(address account, uint256 proposalId) private returns (bool success) {
+        // Re-validate at execution time
+        if (!_currentAuthorizedAccounts.contains(account)) {
+            // Not in authorized list - emit event and return false to terminate proposal
+            emit ProposalExecutionSkipped(account, proposalId, "NOT_AUTHORIZED");
+            return false;
+        }
+
         _currentAuthorizedAccounts.remove(account);
 
         // Update account extra field via AccountManager
-        (bool callSuccess, ) = __accountManager.call(abi.encodeWithSelector(IAccountManager.unAuthorize.selector, account));
-        require(callSuccess, "GovCouncil: unAuthorize call failed");
+        (bool _success, bytes memory _result) = __accountManager.call(abi.encodeWithSelector(IAccountManager.unAuthorize.selector, account));
+        require(_success, "GovCouncil: unAuthorize call failed");
 
         emit AuthorizedAccountRemoved(account, proposalId);
 
@@ -440,7 +484,7 @@ contract GovCouncil is GovBase {
     }
 
     // ========================================
-    // BLACKLIST: Query Functions (O(1))
+    // BLACKLIST: Query Functions
     // ========================================
 
     /**
