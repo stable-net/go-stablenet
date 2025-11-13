@@ -51,6 +51,12 @@ func checkSystemContractVersions(systemContracts *params.SystemContracts) error 
 		}
 	}
 
+	if systemContracts.GovCouncil != nil {
+		if SystemContractCodes[CONTRACT_GOV_COUNCIL][systemContracts.GovCouncil.Version] == "" {
+			return fmt.Errorf("`systemContracts.govCouncil`: unsupported version %s", systemContracts.GovCouncil.Version)
+		}
+	}
+
 	return nil
 }
 
