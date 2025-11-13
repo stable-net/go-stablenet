@@ -1060,8 +1060,8 @@ func TestNativeCoinAdapter_Blacklist(t *testing.T) {
 
 	t.Run("cancel authorization", func(t *testing.T) {
 		var (
-			from, to         = normalAccount, minter
-			transferAmount   = new(big.Int).Div(amount, big.NewInt(10))
+			from, to       = normalAccount, minter
+			transferAmount = new(big.Int).Div(amount, big.NewInt(10))
 		)
 
 		// msg.sender is blacklisted - should fail due to Go-level sender validation
