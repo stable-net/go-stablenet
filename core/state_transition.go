@@ -162,17 +162,7 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, header
 	if headerGasTip != nil {
 		// If Anzeon is enabled, and the sender is authorized, use the tx's tx.GasTipCap()
 		// Otherwise, use the header's gas tip
-
-		// TODO(authorizeAddr): Once StateAccount.Extra field is implemented, read from stateDB:
-		// example:
-		// if statedb != nil {
-		// 	if !statedb.IsAuthorized(from) {
-		// 		gasTipCap = new(big.Int).Set(headerGasTip)
-		// 	}
-		// }
-
-		// For now, use hardcoded list from protocol_params
-		if !params.AuthorizedAccounts[from] {
+		if statedb != nil && !statedb.IsAuthorized(from) {
 			gasTipCap = new(big.Int).Set(headerGasTip)
 		}
 	}

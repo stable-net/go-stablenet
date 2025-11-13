@@ -29,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
 
@@ -70,20 +69,10 @@ func setupTestStateDB() *state.StateDB {
 		stateDB.CreateAccount(addr)
 	}
 
-	// TODO(authorizeAddr) : Once StateAccount.Extra field is implemented, use stateDB.SetAccountExtra() instead of params.AuthorizedAccounts
-	// example:
-	// if stateDB != nil {
-	//     stateDB.SetAuthorized(testAuthorizedAddr1)
-	//     stateDB.SetAuthorized(testAuthorizedAddr2)
-	//     stateDB.SetAuthorized(testAuthorizedAddr3)
-	// }
-
-	// TODO(authorizeAddr) : if Once StateAccount.Extra field is implemented, remove this code
-	authorizedAddrs := []common.Address{
-		testAuthorizedAddr1, testAuthorizedAddr2, testAuthorizedAddr3,
-	}
-	for _, addr := range authorizedAddrs {
-		params.AuthorizedAccounts[addr] = true
+	if stateDB != nil {
+		stateDB.SetAuthorized(testAuthorizedAddr1)
+		stateDB.SetAuthorized(testAuthorizedAddr2)
+		stateDB.SetAuthorized(testAuthorizedAddr3)
 	}
 	return stateDB
 }
