@@ -1470,10 +1470,20 @@ func totalFees(c *params.ChainConfig, block *types.Block, receipts []*types.Rece
 	feesWei := new(big.Int)
 	for i, tx := range block.Transactions() {
 		var minerFee *big.Int
+		// When Anzeon is enabled, the baseFee is not burned.
+		// Instead, it is rewarded to the miner, making minerFee = baseFee + gasTip
 		if c.AnzeonEnabled() {
-			// When Anzeon is enabled, the baseFee is not burned.
-			// Instead, it is rewarded to the miner, making minerFee = baseFee + gasTip
-			minerFee = receipts[i].EffectiveGasPrice
+			if receipts[i].EffectiveGasPrice == nil || receipts[i].EffectiveGasPrice.Cmp(big.NewInt(0)) == 0 {
+				// not authorized account
+				var headerGasTip *big.Int
+				if block.Header() != nil && block.Header().GasTip() != nil {
+					headerGasTip = new(big.Int).Set(block.Header().GasTip())
+				}
+				minerFee = tx.EffectiveGasPrice(block.BaseFee(), headerGasTip)
+			} else {
+				// authorized account
+				minerFee = receipts[i].EffectiveGasPrice
+			}
 		} else {
 			minerFee, _ = tx.EffectiveGasTip(block.BaseFee())
 		}
