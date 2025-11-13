@@ -153,17 +153,8 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	receipt.BlockHash = blockHash
 	receipt.BlockNumber = blockNumber
 	receipt.TransactionIndex = uint(statedb.TxIndex())
-	if config.AnzeonEnabled() {
-		// TODO(authorizeAddr): Once StateAccount.Extra field is implemented, read from stateDB:
-		// example:
-		// if statedb.IsAuthorized(msg.From) {
-		// 		receipt.EffectiveGasPrice = tx.EffectiveGasPrice(baseFee, nil)
-		// }
-
-		// For now, use hardcoded list from protocol_params
-		if params.AuthorizedAccounts[msg.From] {
-			receipt.EffectiveGasPrice = tx.EffectiveGasPrice(baseFee, nil)
-		}
+	if config.AnzeonEnabled() && statedb.IsAuthorized(msg.From) {
+		receipt.EffectiveGasPrice = tx.EffectiveGasPrice(baseFee, nil)
 	}
 	return receipt, err
 }

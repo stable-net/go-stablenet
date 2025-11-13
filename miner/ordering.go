@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 )
 
@@ -138,14 +137,9 @@ func newTransactionsByPriceAndNonce(signer types.Signer, txs map[common.Address]
 	isAuthorizedMap := make(map[common.Address]bool, len(txs))
 	if anzeonEnabled {
 		for from := range txs {
-			// TODO(authorizeAddr): Once StateAccount.Extra field is implemented, read from stateDB:
-			// example:
-			// if stateDB != nil {
-			// 	isAuthorizedMap[from] = stateDB.IsAuthorized(from)
-			// }
-
-			// For now, use hardcoded list from protocol_params
-			isAuthorizedMap[from] = params.AuthorizedAccounts[from]
+			if stateDB != nil {
+				isAuthorizedMap[from] = stateDB.IsAuthorized(from)
+			}
 		}
 	}
 

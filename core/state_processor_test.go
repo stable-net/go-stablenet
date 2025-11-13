@@ -451,14 +451,9 @@ func setupTestStateDB() *state.StateDB {
 		stateDB.CreateAccount(addr)
 	}
 
-	// TODO(authorizeAddr): Once StateAccount.Extra field is implemented, use stateDB.SetAccountExtra() instead of params.AuthorizedAccounts
-	// example:
-	// if stateDB != nil {
-	//     stateDB.SetAuthorized(testTxMsgAuthorizedAddr)
-	// }
-	//
-	// For now, temporarily uses hardcoded list from protocol_params for testing.
-	params.AuthorizedAccounts[testTxMsgAuthorizedAddr] = true
+	if stateDB != nil {
+		stateDB.SetAuthorized(testTxMsgAuthorizedAddr)
+	}
 
 	return stateDB
 }
