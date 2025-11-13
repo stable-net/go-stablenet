@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2025 The go-stablenet Authors
-// Copyright 2025 The go-stablenet Authors
 // This file is part of the go-stablenet library.
 //
 // The go-stablenet library is free software: you can redistribute it and/or modify
