@@ -533,6 +533,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		// fee delegation
 		if st.msg.FeePayer != nil {
 			payer = *st.msg.FeePayer
+			if rules.IsAnzeon && st.state.IsBlacklisted(payer) {
+				return nil, fmt.Errorf("%w: fee payer %s", ErrBlacklistedAccount, payer.Hex())
+			}
 		}
 		st.evm.AddTransferLog(payer, st.evm.Context.Coinbase, fee)
 	}
