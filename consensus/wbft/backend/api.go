@@ -50,9 +50,34 @@ type BlockSigners struct {
 	Committers []common.Address
 }
 
+// SealerActivity contains seal signature counts by type
+type SealerActivity struct {
+	Total         map[common.Address]int `json:"total"`         // Total seal signatures
+	Prepared      map[common.Address]int `json:"prepared"`      // PreparedSeal signatures
+	Committed     map[common.Address]int `json:"committed"`     // CommittedSeal signatures
+	PrevPrepared  map[common.Address]int `json:"prevPrepared"`  // PrevPreparedSeal signatures
+	PrevCommitted map[common.Address]int `json:"prevCommitted"` // PrevCommittedSeal signatures
+}
+
+// BlockRange contains block range information for status collection
+type BlockRange struct {
+	StartBlock  uint64 `json:"startBlock"`  // Starting block number
+	EndBlock    uint64 `json:"endBlock"`    // Ending block number
+	TotalBlocks uint64 `json:"totalBlocks"` // Total number of blocks processed
+}
+
+// RoundStats contains round distribution statistics
+type RoundStats struct {
+	RoundDistribution map[uint64]uint64 `json:"roundDistribution"` // Map of round number to occurrence count
+	TotalRounds       uint64            `json:"totalRounds"`       // Total number of rounds processed
+}
+
+// Status contains validator activity statistics
 type Status struct {
-	SigningStatus map[common.Address]int `json:"sealerActivity"`
-	NumBlocks     uint64                 `json:"numBlocks"`
+	SealerActivity SealerActivity         `json:"sealerActivity"` // Seal signature counts by type
+	AuthorCounts   map[common.Address]int `json:"author"`         // Block proposal counts
+	BlockRange     BlockRange             `json:"blockRange"`     // Block range information
+	RoundStats     RoundStats             `json:"roundStats"`     // Round distribution statistics
 }
 
 // NodeAddress returns the public address that is used to sign block headers in IBFT
@@ -140,70 +165,187 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 	return valSet.AddressList(), nil
 }
 
+// Status returns validator activity statistics and round statistics for the specified block range
 func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNumber) (*Status, error) {
-	var (
-		numBlocks   uint64
-		header      = api.chain.CurrentHeader()
-		start       uint64
-		end         uint64
-		blockNumber rpc.BlockNumber
-	)
+	// Calculate block range
+	start, end, numBlocks, blockNumber, err := api.calculateBlockRange(startBlockNum, endBlockNum)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get validators
+	signers, err := api.GetValidators(&blockNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	// Initialize counters
+	authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts := api.initializeCounters(signers)
+
+	// Analyze blocks and collect statistics
+	roundDistribution := make(map[uint64]uint64)
+	for n := start; n <= end; n++ {
+		round := api.analyzeBlock(n, authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts)
+		roundDistribution[round]++
+	}
+
+	// Calculate total rounds (weighted sum) and remove rounds with zero count
+	var totalRounds uint64
+	for round, count := range roundDistribution {
+		if count == 0 {
+			delete(roundDistribution, round)
+		} else {
+			totalRounds += round * count
+		}
+	}
+	return &Status{
+		SealerActivity: SealerActivity{
+			Total:         totalSealCounts,
+			Prepared:      preparedCounts,
+			Committed:     committedCounts,
+			PrevPrepared:  prevPreparedCounts,
+			PrevCommitted: prevCommittedCounts,
+		},
+		AuthorCounts: authorCounts,
+		BlockRange: BlockRange{
+			StartBlock:  start,
+			EndBlock:    end,
+			TotalBlocks: numBlocks,
+		},
+		RoundStats: RoundStats{
+			RoundDistribution: roundDistribution,
+			TotalRounds:       totalRounds,
+		},
+	}, nil
+}
+
+// calculateBlockRange calculates the block range for status collection
+func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNumber) (uint64, uint64, uint64, rpc.BlockNumber, error) {
 	if startBlockNum != nil && endBlockNum == nil {
-		return nil, errors.New("pass the end block number")
+		return 0, 0, 0, 0, errors.New("pass the end block number")
 	}
 
 	if startBlockNum == nil && endBlockNum != nil {
-		return nil, errors.New("pass the start block number")
+		return 0, 0, 0, 0, errors.New("pass the start block number")
 	}
 
+	var start, end uint64
+	var blockNumber rpc.BlockNumber
+
 	if startBlockNum == nil && endBlockNum == nil {
-		numBlocks = uint64(64)
-		header = api.chain.CurrentHeader()
+		// Default: last 64 blocks
+		header := api.chain.CurrentHeader()
 		end = header.Number.Uint64()
-		start = end - numBlocks
+		if end >= 63 {
+			start = end - 63 // 64 blocks total
+		} else {
+			start = 1 // Start from block 1 if not enough blocks
+		}
 		blockNumber = rpc.BlockNumber(header.Number.Int64())
 	} else {
 		end = uint64(*endBlockNum)
 		start = uint64(*startBlockNum)
 		if start > end {
-			return nil, errors.New("start block number should be less than end block number")
+			return 0, 0, 0, 0, errors.New("start block number should be less than end block number")
 		}
 
 		if end > api.chain.CurrentHeader().Number.Uint64() {
-			return nil, errors.New("end block number should be less than or equal to current block height")
+			return 0, 0, 0, 0, errors.New("end block number should be less than or equal to current block height")
 		}
 
-		numBlocks = end - start
 		blockNumber = rpc.BlockNumber(end)
 	}
 
-	signers, err := api.GetValidators(&blockNumber)
+	numBlocks := end - start + 1
+	return start, end, numBlocks, blockNumber, nil
+}
 
-	if err != nil {
-		return nil, err
+// initializeCounters initializes all counter maps for validators
+func (api *API) initializeCounters(signers []common.Address) (map[common.Address]int, map[common.Address]int, map[common.Address]int, map[common.Address]int, map[common.Address]int, map[common.Address]int) {
+	authorCounts := make(map[common.Address]int)
+	preparedCounts := make(map[common.Address]int)
+	committedCounts := make(map[common.Address]int)
+	prevPreparedCounts := make(map[common.Address]int)
+	prevCommittedCounts := make(map[common.Address]int)
+	totalSealCounts := make(map[common.Address]int)
+
+	for _, s := range signers {
+		authorCounts[s] = 0
+		preparedCounts[s] = 0
+		committedCounts[s] = 0
+		prevPreparedCounts[s] = 0
+		prevCommittedCounts[s] = 0
+		totalSealCounts[s] = 0
 	}
 
-	if numBlocks >= end {
-		start = 1
-		if end > start {
-			numBlocks = end - start
-		} else {
-			numBlocks = 0
+	return authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts
+}
+
+// analyzeBlock analyzes a single block and updates counters
+func (api *API) analyzeBlock(blockNum uint64, authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts map[common.Address]int) uint64 {
+	// Fetch header
+	header := api.chain.GetHeaderByNumber(blockNum)
+	if header == nil {
+		return 0
+	}
+
+	// Count block author (proposal creator)
+	author, err := api.backend.Author(header)
+	if err == nil {
+		if _, ok := authorCounts[author]; !ok {
+			authorCounts[author] = 0
+		}
+		authorCounts[author]++
+	}
+
+	// Count signers from prepared/committed and previous-round seals
+	extra, err := types.ExtractWBFTExtra(header)
+	if err != nil {
+		return 0
+	}
+
+	curValidators, prevValidators, err := api.backend.GetValidatorsForVerifying(api.chain, header, nil)
+	if err != nil {
+		return uint64(extra.Round)
+	}
+	curVals := curValidators.AddressList()
+	prevVals := prevValidators.AddressList()
+
+	// helper to add counts safely
+	addCounts := func(indices []uint32, vals []common.Address, target map[common.Address]int, addToTotal bool) {
+		for _, idx := range indices {
+			if int(idx) < len(vals) {
+				addr := vals[idx]
+				// ensure key exists on target
+				if _, ok := target[addr]; !ok {
+					target[addr] = 0
+				}
+				target[addr]++
+				// only add to total if requested (for actual seals, not null ones)
+				if addToTotal {
+					if _, ok := totalSealCounts[addr]; !ok {
+						totalSealCounts[addr] = 0
+					}
+					totalSealCounts[addr]++
+				}
+			}
 		}
 	}
-	signStatus := make(map[common.Address]int)
-	for _, s := range signers {
-		signStatus[s] = 0
+
+	if extra.PreparedSeal != nil {
+		addCounts(extra.PreparedSeal.Sealers.GetSealers(), curVals, preparedCounts, true)
 	}
-	for n := start; n < end; n++ {
-		blockNum := rpc.BlockNumber(int64(n))
-		s, _ := api.GetCommitSignersFromBlock(&blockNum)
-		signStatus[s.Author]++
+	if extra.CommittedSeal != nil {
+		addCounts(extra.CommittedSeal.Sealers.GetSealers(), curVals, committedCounts, true)
 	}
-	return &Status{
-		SigningStatus: signStatus,
-		NumBlocks:     numBlocks,
-	}, nil
+	if extra.PrevPreparedSeal != nil {
+		addCounts(extra.PrevPreparedSeal.Sealers.GetSealers(), prevVals, prevPreparedCounts, true)
+	}
+	if extra.PrevCommittedSeal != nil {
+		addCounts(extra.PrevCommittedSeal.Sealers.GetSealers(), prevVals, prevCommittedCounts, true)
+	}
+
+	return uint64(extra.Round)
 }
 
 func (api *API) IsValidator(blockNum *rpc.BlockNumber) (bool, error) {

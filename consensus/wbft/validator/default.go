@@ -219,7 +219,7 @@ func (valSet *defaultSet) Copy() wbft.ValidatorSet {
 	return NewSetByValidators(validators, valSet.policy)
 }
 
-func (valSet *defaultSet) F() float64 { return float64(valSet.Size()) / 3 }
+func (valSet *defaultSet) F() float64 { return float64(valSet.Size()-1) / 3 }
 
 func (valSet *defaultSet) Policy() wbft.ProposerPolicy { return *valSet.policy }
 
