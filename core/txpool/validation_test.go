@@ -91,13 +91,6 @@ func newAccount(statedb *state.StateDB) *account {
 	return account
 }
 
-func newBlacklistedAccount(statedb *state.StateDB) *account {
-	account := newAccount(statedb)
-	statedb.SetBlacklisted(account.address)
-
-	return account
-}
-
 func newDynamicFeeTx(to *common.Address) types.DynamicFeeTx {
 	return types.DynamicFeeTx{
 		ChainID:    chainConfig.ChainID,
@@ -145,22 +138,17 @@ func signFeeDelegateTx(rawTx *types.Transaction, feePayer *account) (*types.Tran
 func buildAccounts(statedb *state.StateDB, senderBlacklisted, recipientBlacklisted, feePayerBlacklisted bool) testAccounts {
 	var accounts testAccounts
 
+	accounts.sender = newAccount(statedb)
 	if senderBlacklisted {
-		accounts.sender = newBlacklistedAccount(statedb)
-	} else {
-		accounts.sender = newAccount(statedb)
+		statedb.SetBlacklisted(accounts.sender.address)
 	}
-
+	accounts.recipient = newAccount(statedb)
 	if recipientBlacklisted {
-		accounts.recipient = newBlacklistedAccount(statedb)
-	} else {
-		accounts.recipient = newAccount(statedb)
+		statedb.SetBlacklisted(accounts.recipient.address)
 	}
-
+	accounts.feePayer = newAccount(statedb)
 	if feePayerBlacklisted {
-		accounts.feePayer = newBlacklistedAccount(statedb)
-	} else {
-		accounts.feePayer = newAccount(statedb)
+		statedb.SetBlacklisted(accounts.feePayer.address)
 	}
 
 	return accounts
