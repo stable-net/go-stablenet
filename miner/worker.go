@@ -1309,7 +1309,7 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 	}
 	return &newPayloadResult{
 		block:    block,
-		fees:     totalFees(w.chainConfig, block, work.receipts),
+		fees:     totalFees(w.chainConfig, block, work.receipts, work.state),
 		sidecars: work.sidecars,
 	}
 }
@@ -1405,7 +1405,7 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		if !w.isTTDReached(block.Header()) {
 			select {
 			case w.taskCh <- &task{receipts: env.receipts, state: env.state, block: block, createdAt: time.Now()}:
-				fees := totalFees(w.chainConfig, block, env.receipts)
+				fees := totalFees(w.chainConfig, block, env.receipts, env.state)
 				feesInEther := new(big.Float).Quo(new(big.Float).SetInt(fees), big.NewFloat(params.Ether))
 				log.Info("Commit new sealing work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 					"txs", env.tcount, "gas", block.GasUsed(), "fees", feesInEther,
@@ -1466,24 +1466,31 @@ func copyReceipts(receipts []*types.Receipt) []*types.Receipt {
 }
 
 // totalFees computes total consumed miner fees in Wei. Block transactions and receipts have to have the same order.
-func totalFees(c *params.ChainConfig, block *types.Block, receipts []*types.Receipt) *big.Int {
+func totalFees(c *params.ChainConfig, block *types.Block, receipts []*types.Receipt, stateReader types.StateReader) *big.Int {
 	feesWei := new(big.Int)
+	signer := types.MakeSigner(c, block.Number(), block.Time())
+
 	for i, tx := range block.Transactions() {
 		var minerFee *big.Int
 		// When Anzeon is enabled, the baseFee is not burned.
-		// Instead, it is rewarded to the miner, making minerFee = baseFee + gasTip
+		// Instead, it is rewarded to the miner, making minerFee = baseFee + tip
 		if c.AnzeonEnabled() {
-			if receipts[i].EffectiveGasPrice == nil || receipts[i].EffectiveGasPrice.Cmp(big.NewInt(0)) == 0 {
-				// not authorized account
-				var headerGasTip *big.Int
+			var headerGasTip *big.Int
+			isAuthorized := false
+
+			if stateReader != nil {
+				if from, err := types.Sender(signer, tx); err == nil {
+					isAuthorized = stateReader.IsAuthorized(from)
+				}
+			}
+
+			if !isAuthorized {
 				if block.Header() != nil && block.Header().GasTip() != nil {
 					headerGasTip = new(big.Int).Set(block.Header().GasTip())
 				}
-				minerFee = tx.EffectiveGasPrice(block.BaseFee(), headerGasTip)
-			} else {
-				// authorized account
-				minerFee = receipts[i].EffectiveGasPrice
 			}
+
+			minerFee = tx.EffectiveGasPrice(block.BaseFee(), headerGasTip)
 		} else {
 			minerFee, _ = tx.EffectiveGasTip(block.BaseFee())
 		}
