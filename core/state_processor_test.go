@@ -659,7 +659,7 @@ func TestApplyTransactionAuthorizedAccount(t *testing.T) {
 		t.Errorf("txGasFeeCap is less than expectedEffectiveGasPrice")
 	}
 
-	actualEffectiveGasPrice := receipt.EffectiveGasPrice
+	actualEffectiveGasPrice := tx.EffectiveGasPrice(baseFee, nil)
 	if actualEffectiveGasPrice == nil {
 		t.Errorf("actualEffectiveGasPrice is nil")
 	}
