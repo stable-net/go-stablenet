@@ -799,3 +799,164 @@ func TestAnzeonDisabledAndHigherFeeFirst(t *testing.T) {
 		t.Errorf("expected third tx from account 1, got %x", from3)
 	}
 }
+
+// Benchmark helpers
+func generateTransactions(numAccounts, txsPerAccount int, authorizedRatio float64, rng *rand.Rand) (map[common.Address][]*txpool.LazyTransaction, *state.StateDB) {
+	signer := types.LatestSignerForChainID(common.Big1)
+	db := rawdb.NewMemoryDatabase()
+	sdb := state.NewDatabase(db)
+	stateDB, _ := state.New(types.EmptyRootHash, sdb, nil)
+
+	groups := make(map[common.Address][]*txpool.LazyTransaction)
+	authorizedCount := int(float64(numAccounts) * authorizedRatio)
+
+	for i := 0; i < numAccounts; i++ {
+		key, _ := crypto.GenerateKey()
+		addr := crypto.PubkeyToAddress(key.PublicKey)
+		stateDB.CreateAccount(addr)
+
+		isAuthorized := i < authorizedCount
+		if isAuthorized {
+			stateDB.SetAuthorized(addr)
+		}
+
+		for j := 0; j < txsPerAccount; j++ {
+			gasFeeCap := big.NewInt(int64(10 + rng.Intn(100)))
+			gasTipCap := big.NewInt(int64(1 + rng.Intn(int(gasFeeCap.Int64()))))
+			txTime := time.Unix(int64(rng.Intn(1000000)), 0)
+
+			tx, _ := types.SignTx(types.NewTx(&types.DynamicFeeTx{
+				Nonce:     uint64(j),
+				To:        &common.Address{},
+				Value:     big.NewInt(100),
+				Gas:       100,
+				GasFeeCap: gasFeeCap,
+				GasTipCap: gasTipCap,
+				Data:      nil,
+			}), signer, key)
+			tx.SetTime(txTime)
+
+			groups[addr] = append(groups[addr], &txpool.LazyTransaction{
+				Hash:      tx.Hash(),
+				Tx:        tx,
+				Time:      tx.Time(),
+				GasFeeCap: uint256.MustFromBig(tx.GasFeeCap()),
+				GasTipCap: uint256.MustFromBig(tx.GasTipCap()),
+				Gas:       tx.Gas(),
+				BlobGas:   tx.BlobGas(),
+			})
+		}
+	}
+
+	return groups, stateDB
+}
+
+func benchmarkOrdering(b *testing.B, numAccounts, txsPerAccount int, authorizedRatio float64, anzeonEnabled bool) {
+	// Generate transactions once before starting the timer
+	rng := rand.New(rand.NewSource(42))
+	groups, stateDB := generateTransactions(numAccounts, txsPerAccount, authorizedRatio, rng)
+	signer := types.LatestSignerForChainID(common.Big1)
+	baseFee := big.NewInt(0)
+
+	// Prepare groups copy template (will be copied in each iteration)
+	groupsTemplate := make(map[common.Address][]*txpool.LazyTransaction)
+	for addr, txs := range groups {
+		txsCopy := make([]*txpool.LazyTransaction, len(txs))
+		copy(txsCopy, txs)
+		groupsTemplate[addr] = txsCopy
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// Recreate groups for each iteration
+		groupsCopy := make(map[common.Address][]*txpool.LazyTransaction)
+		for addr, txs := range groupsTemplate {
+			txsCopy := make([]*txpool.LazyTransaction, len(txs))
+			copy(txsCopy, txs)
+			groupsCopy[addr] = txsCopy
+		}
+
+		txset := newTransactionsByPriceAndNonce(signer, groupsCopy, baseFee, anzeonEnabled, stateDB)
+
+		// Consume all transactions to measure full sorting performance
+		for tx, _ := txset.Peek(); tx != nil; tx, _ = txset.Peek() {
+			txset.Shift()
+		}
+	}
+}
+
+// Benchmark_10Accounts_10Txs benchmarks ordering with 10 accounts, 10 transactions per account
+// Compares different account types and configurations
+func Benchmark_10Accounts_10Txs(b *testing.B) {
+	b.Run("AuthorizedOnly", func(b *testing.B) {
+		benchmarkOrdering(b, 10, 10, 1.0, true)
+	})
+	b.Run("NormalOnly", func(b *testing.B) {
+		benchmarkOrdering(b, 10, 10, 0.0, true)
+	})
+	b.Run("Mixed_50Percent", func(b *testing.B) {
+		benchmarkOrdering(b, 10, 10, 0.5, true)
+	})
+	b.Run("AnzeonDisabled", func(b *testing.B) {
+		benchmarkOrdering(b, 10, 10, 0.5, false)
+	})
+}
+
+// Benchmark_50Accounts_10Txs benchmarks ordering with 50 accounts, 10 transactions per account
+// Compares different account types and configurations
+func Benchmark_50Accounts_10Txs(b *testing.B) {
+	b.Run("AuthorizedOnly", func(b *testing.B) {
+		benchmarkOrdering(b, 50, 10, 1.0, true)
+	})
+	b.Run("NormalOnly", func(b *testing.B) {
+		benchmarkOrdering(b, 50, 10, 0.0, true)
+	})
+	b.Run("Mixed_50Percent", func(b *testing.B) {
+		benchmarkOrdering(b, 50, 10, 0.5, true)
+	})
+	b.Run("AnzeonDisabled", func(b *testing.B) {
+		benchmarkOrdering(b, 50, 10, 0.5, false)
+	})
+}
+
+// Benchmark_100Accounts_10Txs benchmarks ordering with 100 accounts, 10 transactions per account
+// Compares different account types and configurations
+func Benchmark_100Accounts_10Txs(b *testing.B) {
+	b.Run("AuthorizedOnly", func(b *testing.B) {
+		benchmarkOrdering(b, 100, 10, 1.0, true)
+	})
+	b.Run("NormalOnly", func(b *testing.B) {
+		benchmarkOrdering(b, 100, 10, 0.0, true)
+	})
+	b.Run("Mixed_50Percent", func(b *testing.B) {
+		benchmarkOrdering(b, 100, 10, 0.5, true)
+	})
+	b.Run("Mixed_20Percent", func(b *testing.B) {
+		benchmarkOrdering(b, 100, 10, 0.2, true)
+	})
+	b.Run("Mixed_80Percent", func(b *testing.B) {
+		benchmarkOrdering(b, 100, 10, 0.8, true)
+	})
+	b.Run("AnzeonDisabled", func(b *testing.B) {
+		benchmarkOrdering(b, 100, 10, 0.5, false)
+	})
+}
+
+// Benchmark_100Accounts_50Txs benchmarks ordering with 100 accounts, 50 transactions per account
+// Compares different account types and configurations
+func Benchmark_100Accounts_50Txs(b *testing.B) {
+	b.Run("AuthorizedOnly", func(b *testing.B) {
+		benchmarkOrdering(b, 100, 50, 1.0, true)
+	})
+	b.Run("NormalOnly", func(b *testing.B) {
+		benchmarkOrdering(b, 100, 50, 0.0, true)
+	})
+	b.Run("Mixed_50Percent", func(b *testing.B) {
+		benchmarkOrdering(b, 100, 50, 0.5, true)
+	})
+	b.Run("AnzeonDisabled", func(b *testing.B) {
+		benchmarkOrdering(b, 100, 50, 0.5, false)
+	})
+}
