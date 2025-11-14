@@ -28,8 +28,8 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableNetMainnetGenesisHash = common.HexToHash("0x0c2e5b0ab09eb866eec2b7cf0e134a85ab4c57b4fc2cb0c45666153bf730491a")
-	StableNetTestnetGenesisHash = common.HexToHash("0x0c2e5b0ab09eb866eec2b7cf0e134a85ab4c57b4fc2cb0c45666153bf730491a")
+	StableNetMainnetGenesisHash = common.HexToHash("0x013d7ceca65fafae65a58a751908b833dcad6ece82f8986c9c9c76de9d8a9f07")
+	StableNetTestnetGenesisHash = common.HexToHash("0x013d7ceca65fafae65a58a751908b833dcad6ece82f8986c9c9c76de9d8a9f07")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash          = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")

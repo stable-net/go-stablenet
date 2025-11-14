@@ -384,12 +384,15 @@ contract GovCouncil is GovBase {
             return false;
         }
 
+        // Update account extra field via AccountManager
+        (bool _success, ) = __accountManager.call(abi.encodeCall(IAccountManager.blacklist, (account)));
+        if (!_success) {
+            emit ProposalExecutionSkipped(account, proposalId, "GovCouncil: blacklist call failed");
+            return false;
+        }
+
         // Add to current set
         _currentBlacklist.add(account);
-
-        // Update account extra field via AccountManager
-        (bool _success, bytes memory _result) = __accountManager.call(abi.encodeCall(IAccountManager.blacklist, (account)));
-        require(_success, "GovCouncil: blacklist call failed");
 
         // Emit event
         emit AddressBlacklisted(account, proposalId);
@@ -414,12 +417,15 @@ contract GovCouncil is GovBase {
             return false;
         }
 
+        // Update account extra field via AccountManager
+        (bool _success, ) = __accountManager.call(abi.encodeCall(IAccountManager.unBlacklist, (account)));
+        if (!_success) {
+            emit ProposalExecutionSkipped(account, proposalId, "GovCouncil: unBlacklist call failed");
+            return false;
+        }
+
         // Remove from current set
         _currentBlacklist.remove(account);
-
-        // Update account extra field via AccountManager
-        (bool _success, bytes memory _result) = __accountManager.call(abi.encodeCall(IAccountManager.unBlacklist, (account)));
-        require(_success, "GovCouncil: unBlacklist call failed");
 
         // Emit event
         emit AddressUnblacklisted(account, proposalId);
@@ -446,11 +452,14 @@ contract GovCouncil is GovBase {
             return false;
         }
 
-        _currentAuthorizedAccounts.add(account);
-
         // Update account extra field via AccountManager
-        (bool _success, bytes memory _result) = __accountManager.call(abi.encodeCall(IAccountManager.authorize, (account)));
-        require(_success, "GovCouncil: authorize call failed");
+        (bool _success, ) = __accountManager.call(abi.encodeCall(IAccountManager.authorize, (account)));
+        if (!_success) {
+            emit ProposalExecutionSkipped(account, proposalId, "GovCouncil: authorize call failed");
+            return false;
+        }
+
+        _currentAuthorizedAccounts.add(account);
 
         emit AuthorizedAccountAdded(account, proposalId);
 
@@ -472,11 +481,14 @@ contract GovCouncil is GovBase {
             return false;
         }
 
-        _currentAuthorizedAccounts.remove(account);
-
         // Update account extra field via AccountManager
-        (bool _success, bytes memory _result) = __accountManager.call(abi.encodeCall(IAccountManager.unAuthorize, (account)));
-        require(_success, "GovCouncil: unAuthorize call failed");
+        (bool _success, ) = __accountManager.call(abi.encodeCall(IAccountManager.unAuthorize, (account)));
+        if (!_success) {
+            emit ProposalExecutionSkipped(account, proposalId, "GovCouncil: unAuthorize call failed");
+            return false;
+        }
+        
+        _currentAuthorizedAccounts.remove(account);
 
         emit AuthorizedAccountRemoved(account, proposalId);
 
@@ -497,10 +509,10 @@ contract GovCouncil is GovBase {
             revert AddressSetLib.ZeroAddressNotAllowed();
         }
 
-        (bool success, bytes memory result) = __accountManager.staticcall(
+        (bool _success, bytes memory result) = __accountManager.staticcall(
             abi.encodeCall(IAccountManager.isBlacklisted, (account))
         );
-        require(success, "GovCouncil: isBlacklisted call failed");
+        require(_success, "GovCouncil: isBlacklisted call failed");
         return abi.decode(result, (bool));
     }
 
@@ -558,10 +570,10 @@ contract GovCouncil is GovBase {
             revert AddressSetLib.ZeroAddressNotAllowed();
         }
 
-        (bool success, bytes memory result) = __accountManager.staticcall(
+        (bool _success, bytes memory result) = __accountManager.staticcall(
             abi.encodeCall(IAccountManager.isAuthorized, (account))
         );
-        require(success, "GovCouncil: isAuthorized call failed");
+        require(_success, "GovCouncil: isAuthorized call failed");
         return abi.decode(result, (bool));
     }
 
