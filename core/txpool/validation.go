@@ -247,7 +247,7 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		feePayer := tx.FeePayer()
 		// Ensure that the fee payer is not blacklisted
 		if opts.Config.AnzeonEnabled() && opts.State.IsBlacklisted(*feePayer) {
-			return fmt.Errorf("%w: fee payer: %s", ErrBlacklistedAccount, feePayer.Hex())
+			return fmt.Errorf("%w: fee payer %s", ErrBlacklistedAccount, feePayer.Hex())
 		}
 		if opts.State.GetBalance(from).ToBig().Cmp(tx.Value()) < 0 {
 			return ErrSenderInsufficientFunds
