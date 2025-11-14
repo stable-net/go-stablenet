@@ -227,7 +227,13 @@ func (bc *BlockChain) GetReceiptsByHash(hash common.Hash) types.Receipts {
 	if header == nil {
 		return nil
 	}
-	receipts := rawdb.ReadReceipts(bc.db, hash, *number, header.Time, bc.chainConfig)
+
+	var stateReader rawdb.StateReader
+	if statedb, err := bc.StateAt(header.Root); err == nil {
+		stateReader = statedb
+	}
+
+	receipts := rawdb.ReadReceipts(bc.db, hash, *number, header.Time, bc.chainConfig, stateReader)
 	if receipts == nil {
 		return nil
 	}

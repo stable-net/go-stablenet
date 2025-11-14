@@ -450,7 +450,7 @@ func TestDeriveFields(t *testing.T) {
 	blobGasPrice := big.NewInt(920)
 	headerGasTip := big.NewInt(1000)
 	derivedReceipts := clearComputedFieldsOnReceipts(receipts)
-	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, headerGasTip, blobGasPrice, txs)
+	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, headerGasTip, blobGasPrice, txs, nil)
 	if err != nil {
 		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
 	}
@@ -477,7 +477,8 @@ func TestDeriveFieldsAuthorizedAccount(t *testing.T) {
 	basefee := big.NewInt(1000)
 	blobGasPrice := big.NewInt(920)
 	derivedReceipts := clearComputedFieldsOnReceipts(authorizedReceipts)
-	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, nil, blobGasPrice, txs)
+	// headerGasTip nil means authorized; stateDB not needed.
+	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, nil, blobGasPrice, txs, nil)
 	if err != nil {
 		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
 	}

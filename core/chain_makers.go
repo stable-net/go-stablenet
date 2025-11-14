@@ -414,7 +414,12 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			headerGasTip = block.Header().GasTip()
 		}
 
-		if err := receipts.DeriveFields(config, block.Hash(), block.NumberU64(), block.Time(), block.BaseFee(), headerGasTip, blobGasPrice, txs); err != nil {
+		var stateReader rawdb.StateReader
+		if statedb, err := cm.StateAt(block.Root()); err == nil {
+			stateReader = statedb
+		}
+
+		if err := receipts.DeriveFields(config, block.Hash(), block.NumberU64(), block.Time(), block.BaseFee(), headerGasTip, blobGasPrice, txs, stateReader); err != nil {
 			panic(err)
 		}
 

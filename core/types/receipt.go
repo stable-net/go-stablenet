@@ -31,6 +31,12 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+// StateReader is an interface for reading state data.
+type StateReader interface {
+	// IsAuthorized returns true if the account is marked as authorized
+	IsAuthorized(addr common.Address) bool
+}
+
 //go:generate go run github.com/fjl/gencodec -type Receipt -field-override receiptMarshaling -out gen_receipt_json.go
 
 var (
@@ -323,7 +329,7 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 
 // DeriveFields fills the receipts with their computed fields based on consensus
 // data and contextual infos like containing block and transactions.
-func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, time uint64, baseFee, headerGasTip *big.Int, blobGasPrice *big.Int, txs []*Transaction) error {
+func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, time uint64, baseFee, headerGasTip *big.Int, blobGasPrice *big.Int, txs []*Transaction, stateReader StateReader) error {
 	signer := MakeSigner(config, new(big.Int).SetUint64(number), time)
 
 	logIndex := uint(0)
@@ -334,9 +340,19 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		// The transaction type and hash can be retrieved from the transaction itself
 		rs[i].Type = txs[i].Type()
 		rs[i].TxHash = txs[i].Hash()
-		if rs[i].EffectiveGasPrice == nil || rs[i].EffectiveGasPrice.Cmp(big.NewInt(0)) == 0 {
-			rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(baseFee, headerGasTip)
+
+		var gasTip *big.Int
+		isAuthorized := false
+		if stateReader != nil {
+			if from, err := Sender(signer, txs[i]); err == nil {
+				isAuthorized = stateReader.IsAuthorized(from)
+			}
 		}
+		if !isAuthorized && headerGasTip != nil {
+			gasTip = new(big.Int).Set(headerGasTip)
+		}
+		rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(baseFee, gasTip)
+
 		// EIP-4844 blob transaction fields
 		if txs[i].Type() == BlobTxType {
 			rs[i].BlobGasUsed = txs[i].BlobGas()

@@ -558,7 +558,11 @@ func (b testBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.R
 	if header == nil || err != nil {
 		return nil, err
 	}
-	receipts := rawdb.ReadReceipts(b.db, hash, header.Number.Uint64(), header.Time, b.chain.Config())
+	var stateReader rawdb.StateReader
+	if statedb, err := b.chain.StateAt(header.Root); err == nil {
+		stateReader = statedb
+	}
+	receipts := rawdb.ReadReceipts(b.db, hash, header.Number.Uint64(), header.Time, b.chain.Config(), stateReader)
 	return receipts, nil
 }
 func (b testBackend) GetTd(ctx context.Context, hash common.Hash) *big.Int {

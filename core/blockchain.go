@@ -2120,7 +2120,12 @@ func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
 		headerGasTip = b.Header().GasTip()
 	}
 
-	if err := receipts.DeriveFields(bc.chainConfig, b.Hash(), b.NumberU64(), b.Time(), b.BaseFee(), headerGasTip, blobGasPrice, b.Transactions()); err != nil {
+	var stateReader rawdb.StateReader
+	if statedb, err := bc.StateAt(b.Root()); err == nil {
+		stateReader = statedb
+	}
+
+	if err := receipts.DeriveFields(bc.chainConfig, b.Hash(), b.NumberU64(), b.Time(), b.BaseFee(), headerGasTip, blobGasPrice, b.Transactions(), stateReader); err != nil {
 		log.Error("Failed to derive block receipts fields", "hash", b.Hash(), "number", b.NumberU64(), "err", err)
 	}
 	var logs []*types.Log
