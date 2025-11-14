@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 )
 
 type TwoOperandTestcase struct {
@@ -926,5 +927,107 @@ func TestOpMCopy(t *testing.T) {
 		if haveGas != wantGas {
 			t.Errorf("case %d: gas wrong, want %d have %d\n", i, wantGas, haveGas)
 		}
+	}
+}
+
+func TestSelfdestructBlacklistedAccount(t *testing.T) {
+	contractAddr := common.HexToAddress("0x1000000000000000000000000000000000000001")
+	beneficiaryAddr := common.HexToAddress("0x2000000000000000000000000000000000000002")
+
+	tests := []struct {
+		name                   string
+		contractBlacklisted    bool
+		beneficiaryBlacklisted bool
+		instruction            func(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error)
+		expectErr              bool
+		errPart                string
+	}{
+		{
+			name:                   "opSelfdestruct unrelated to any blacklisted account",
+			contractBlacklisted:    false,
+			beneficiaryBlacklisted: false,
+			instruction:            opSelfdestruct,
+			expectErr:              false,
+		},
+		{
+			name:                   "opSelfdestruct contract is blacklisted",
+			contractBlacklisted:    true,
+			beneficiaryBlacklisted: false,
+			instruction:            opSelfdestruct,
+			expectErr:              true,
+			errPart:                fmt.Sprintf("contract %s", contractAddr.Hex()),
+		},
+		{
+			name:                   "opSelfdestruct beneficiary is blacklisted",
+			contractBlacklisted:    false,
+			beneficiaryBlacklisted: true,
+			instruction:            opSelfdestruct,
+			expectErr:              true,
+			errPart:                fmt.Sprintf("beneficiary %s", beneficiaryAddr.Hex()),
+		},
+		{
+			name:                   "opSelfdestruct6780 unrelated to any blacklisted account",
+			contractBlacklisted:    false,
+			beneficiaryBlacklisted: false,
+			instruction:            opSelfdestruct6780,
+			expectErr:              false,
+		},
+		{
+			name:                   "opSelfdestruct6780 contract is blacklisted",
+			contractBlacklisted:    true,
+			beneficiaryBlacklisted: false,
+			instruction:            opSelfdestruct6780,
+			expectErr:              true,
+			errPart:                fmt.Sprintf("contract %s", contractAddr.Hex()),
+		},
+		{
+			name:                   "opSelfdestruct6780 beneficiary is blacklisted",
+			contractBlacklisted:    false,
+			beneficiaryBlacklisted: true,
+			instruction:            opSelfdestruct6780,
+			expectErr:              true,
+			errPart:                fmt.Sprintf("beneficiary %s", beneficiaryAddr.Hex()),
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				statedb, _     = state.New(types.EmptyRootHash, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+				env            = NewEVM(BlockContext{}, TxContext{}, statedb, params.TestWBFTChainConfig, Config{})
+				stack          = newstack()
+				mem            = NewMemory()
+				pc             = uint64(0)
+				evmInterpreter = env.interpreter
+			)
+
+			statedb.CreateAccount(contractAddr)
+			if tc.contractBlacklisted {
+				statedb.SetBlacklisted(contractAddr)
+			}
+			statedb.CreateAccount(beneficiaryAddr)
+			if tc.beneficiaryBlacklisted {
+				statedb.SetBlacklisted(beneficiaryAddr)
+			}
+
+			stack.push(new(uint256.Int).SetBytes(beneficiaryAddr.Bytes()))
+			contract := Contract{
+				self: contractRef{addr: contractAddr},
+			}
+			_, err := tc.instruction(&pc, evmInterpreter, &ScopeContext{mem, stack, &contract})
+			if err == errStopToken {
+				err = nil
+			}
+
+			if tc.expectErr {
+				require.ErrorIs(t, err, ErrBlacklistedAccount)
+				require.Contains(t, err.Error(), tc.errPart)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
