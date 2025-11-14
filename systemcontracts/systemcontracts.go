@@ -51,6 +51,12 @@ func checkSystemContractVersions(systemContracts *params.SystemContracts) error 
 		}
 	}
 
+	if systemContracts.GovCouncil != nil {
+		if SystemContractCodes[CONTRACT_GOV_COUNCIL][systemContracts.GovCouncil.Version] == "" {
+			return fmt.Errorf("`systemContracts.govCouncil`: unsupported version %s", systemContracts.GovCouncil.Version)
+		}
+	}
+
 	return nil
 }
 
@@ -87,6 +93,15 @@ func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc
 	if systemContracts.GovMasterMinter != nil {
 		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovMasterMinter.Address, Code: SystemContractCodes[CONTRACT_GOV_MASTER_MINTER][systemContracts.GovMasterMinter.Version]})
 		sp, err := initializeMasterMinter(systemContracts.GovMasterMinter.Address, systemContracts.GovMasterMinter.Params)
+		if err != nil {
+			return nil, err
+		}
+		st.States = append(st.States, sp...)
+	}
+
+	if systemContracts.GovCouncil != nil {
+		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovCouncil.Address, Code: SystemContractCodes[CONTRACT_GOV_COUNCIL][systemContracts.GovCouncil.Version]})
+		sp, err := initializeGovCouncil(systemContracts.GovCouncil.Address, systemContracts.GovCouncil.Params)
 		if err != nil {
 			return nil, err
 		}

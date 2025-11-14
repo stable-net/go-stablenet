@@ -85,7 +85,7 @@ func initGovMasterMinter(t *testing.T) {
 			sc.GOV_BASE_PARAM_EXPIRY:                        "604800",
 			sc.GOV_BASE_PARAM_MEMBER_VERSION:                "1",
 		}
-	}, nil)
+	}, nil, nil)
 	require.NoError(t, err)
 }
 

@@ -474,6 +474,19 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		return nil, fmt.Errorf("%w: code size %v limit %v", ErrMaxInitCodeSizeExceeded, len(msg.Data), params.MaxInitCodeSize)
 	}
 
+	// Transfer Validation Hook - Check blacklist for Anzeon network
+	if rules.IsAnzeon {
+		// Check sender blacklist
+		if st.state.IsBlacklisted(msg.From) {
+			return nil, fmt.Errorf("%w: sender %v", ErrBlacklistedAccount, msg.From.Hex())
+		}
+
+		// Check recipient blacklist (only for transfers, not for contract creation)
+		if msg.To != nil && st.state.IsBlacklisted(*msg.To) {
+			return nil, fmt.Errorf("%w: recipient %v", ErrBlacklistedAccount, msg.To.Hex())
+		}
+	}
+
 	// Execute the preparatory steps for state transition which includes:
 	// - prepare accessList(post-berlin)
 	// - reset transient storage(eip 1153)

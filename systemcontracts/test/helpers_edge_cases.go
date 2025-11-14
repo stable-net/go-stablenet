@@ -40,6 +40,14 @@ var (
 	minterMembers    []*TestCandidate
 	minterNonMember  *EOA
 	fiatTokenAddress common.Address
+
+	// GovCouncil test globals
+	gCouncil                  *GovWBFT
+	councilMembers            []*TestCandidate
+	councilNonMember          *EOA
+	initialBlacklist          []common.Address
+	initialAuthorizedAccounts []common.Address
+	zeroAddress               = common.Address{}
 )
 
 // GovMinterTestEnv holds the initialized test environment
@@ -103,7 +111,7 @@ func createGovMinterTestEnv(t *testing.T) *GovMinterTestEnv {
 			sc.GOV_BASE_PARAM_EXPIRY:         "604800",
 			sc.GOV_BASE_PARAM_MEMBER_VERSION: "1",
 		}
-	}, nil, func(fiatToken *params.SystemContract) {
+	}, nil, nil, func(fiatToken *params.SystemContract) {
 		// Deploy MockFiatToken at genesis for testing
 		// This is a test helper contract, not a production system contract
 		fiatToken.Params = map[string]string{
@@ -130,6 +138,96 @@ func createGovMinterTestEnv(t *testing.T) *GovMinterTestEnv {
 		MinterMembers:    members,
 		MinterNonMember:  nonMember,
 		FiatTokenAddress: fiatToken,
+	}
+}
+
+// ==================== GovCouncil Test Setup ====================
+
+// GovCouncilTestEnv holds the initialized test environment
+type GovCouncilTestEnv struct {
+	GCouncil                  *GovWBFT
+	CouncilMembers            []*TestCandidate
+	CouncilNonMember          *EOA
+	InitialBlacklist          []common.Address
+	InitialAuthorizedAccounts []common.Address
+}
+
+// initGovCouncil initializes the global test environment for GovCouncil testing
+func initGovCouncil(t *testing.T) {
+	env := createGovCouncilTestEnv(t)
+	// Update globals for backward compatibility
+	gCouncil = env.GCouncil
+	councilMembers = env.CouncilMembers
+	councilNonMember = env.CouncilNonMember
+	initialBlacklist = env.InitialBlacklist
+	initialAuthorizedAccounts = env.InitialAuthorizedAccounts
+}
+
+// createGovCouncilTestEnv creates a new test environment without using global variables
+func createGovCouncilTestEnv(t *testing.T) *GovCouncilTestEnv {
+	members := []*TestCandidate{NewTestCandidate(), NewTestCandidate(), NewTestCandidate()}
+	nonMember := NewEOA()
+
+	// Create initial blacklist and authorized account addresses
+	blacklist := []common.Address{
+		NewEOA().Address,
+		NewEOA().Address,
+	}
+	authorizedAccounts := []common.Address{
+		NewEOA().Address,
+		NewEOA().Address,
+	}
+
+	// Convert address slices to comma-separated strings
+	blacklistStr := blacklist[0].Hex() + "," + blacklist[1].Hex()
+	authorizedAccountsStr := authorizedAccounts[0].Hex() + "," + authorizedAccounts[1].Hex()
+
+	var err error
+	govCouncil, err := NewGovWBFT(t, types.GenesisAlloc{
+		members[0].Operator.Address: {Balance: towei(1_000_000)},
+		members[1].Operator.Address: {Balance: towei(1_000_000)},
+		members[2].Operator.Address: {Balance: towei(1_000_000)},
+		nonMember.Address:           {Balance: towei(1_000_000)},
+	}, func(govValidator *params.SystemContract) {
+		// Setup governance members for voting
+		var memberAddrs, validators, blsPubKeys string
+		for i, m := range members {
+			if i > 0 {
+				memberAddrs = memberAddrs + ","
+				validators = validators + ","
+				blsPubKeys = blsPubKeys + ","
+			}
+			memberAddrs = memberAddrs + m.Operator.Address.String()
+			validators = validators + m.Validator.Address.String()
+			blsPubKeys = blsPubKeys + hexutil.Encode(m.GetBLSPublicKey(t).Marshal())
+		}
+		govValidator.Params = map[string]string{
+			"members":       memberAddrs,
+			"quorum":        "2",
+			"expiry":        "604800",
+			"memberVersion": "1",
+			"validators":    validators,
+			"blsPublicKeys": blsPubKeys,
+		}
+	}, nil, nil, nil, func(govCouncil *params.SystemContract) {
+		// Initialize GovCouncil with blacklist and authorized accounts
+		govCouncil.Params = map[string]string{
+			sc.GOV_BASE_PARAM_MEMBERS:        members[0].Operator.Address.String() + "," + members[1].Operator.Address.String() + "," + members[2].Operator.Address.String(),
+			sc.GOV_BASE_PARAM_QUORUM:         "2",
+			sc.GOV_BASE_PARAM_EXPIRY:         "604800",
+			sc.GOV_BASE_PARAM_MEMBER_VERSION: "1",
+			"blacklist":                      blacklistStr,
+			"authorizedAccounts":             authorizedAccountsStr,
+		}
+	}, nil)
+	require.NoError(t, err)
+
+	return &GovCouncilTestEnv{
+		GCouncil:                  govCouncil,
+		CouncilMembers:            members,
+		CouncilNonMember:          nonMember,
+		InitialBlacklist:          blacklist,
+		InitialAuthorizedAccounts: authorizedAccounts,
 	}
 }
 

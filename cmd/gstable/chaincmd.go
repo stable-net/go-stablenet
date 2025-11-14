@@ -256,6 +256,7 @@ func checkAllocAddress(genesis *core.Genesis) error {
 			genesis.Config.Anzeon.SystemContracts.NativeCoinAdapter.Address,
 			genesis.Config.Anzeon.SystemContracts.GovMinter.Address,
 			genesis.Config.Anzeon.SystemContracts.GovMasterMinter.Address,
+			genesis.Config.Anzeon.SystemContracts.GovCouncil.Address,
 		}
 		for _, addr := range forbidden {
 			if _, exists := genesis.Alloc[addr]; exists {

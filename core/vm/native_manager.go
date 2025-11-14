@@ -408,7 +408,7 @@ func canRunAccountManager(evm *EVM, op OpCode, caller ContractRef) error {
 	if err := validateCallContext(CALL, op); err != nil {
 		return err
 	}
-	return validateCaller(evm.chainConfig.Anzeon.SystemContracts.NativeCoinAdapter.Address, caller.Address())
+	return validateCaller(evm.chainConfig.Anzeon.SystemContracts.GovCouncil.Address, caller.Address())
 }
 
 func validateCaller(required, caller common.Address) error {

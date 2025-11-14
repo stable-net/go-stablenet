@@ -56,7 +56,8 @@ var (
 	TestCoinAdapterAddress     = params.DefaultNativeCoinAdapterAddress
 	TestGovMinterAddress       = params.DefaultGovMinterAddress
 	TestGovMasterMinterAddress = params.DefaultGovMasterMinterAddress
-	TestMockFiatTokenAddress   = common.HexToAddress("0x1004")
+	TestGovCouncilAddress      = params.DefaultGovCouncilAddress
+	TestMockFiatTokenAddress   = common.HexToAddress("0x1005")
 )
 
 var (
@@ -72,6 +73,7 @@ type compiledContractWBFT struct {
 	CoinAdapter     *bindContract
 	GovMinter       *bindContract
 	GovMasterMinter *bindContract
+	GovCouncil      *bindContract
 	MockFiatToken   *bindContract
 }
 
@@ -81,6 +83,7 @@ func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 		filepath.Join(root, "NativeCoinAdapter.sol"),
 		filepath.Join(root, "GovMinter.sol"),
 		filepath.Join(root, "GovMasterMinter.sol"),
+		filepath.Join(root, "GovCouncil.sol"),
 		filepath.Join(root, "../test", "MockFiatToken.sol"),
 	); err != nil {
 		panic(err)
@@ -97,6 +100,9 @@ func (c *compiledContractWBFT) Compile(root, openzeppelinPath string) {
 		if c.GovMasterMinter, err = newBindContract(contracts["GovMasterMinter"]); err != nil {
 			panic(err)
 		}
+		if c.GovCouncil, err = newBindContract(contracts["GovCouncil"]); err != nil {
+			panic(err)
+		}
 		if c.MockFiatToken, err = newBindContract(contracts["MockFiatToken"]); err != nil {
 			panic(err)
 		}
@@ -110,6 +116,7 @@ type GovWBFT struct {
 	coinAdapter     *bind.BoundContract
 	govMinter       *bind.BoundContract
 	govMasterMinter *bind.BoundContract
+	govCouncil      *bind.BoundContract
 	mockFiatToken   *bind.BoundContract
 }
 
@@ -158,7 +165,7 @@ func (s *TestCandidate) GetBLSPoPSignature(t *testing.T) bls.Signature {
 
 var defaultBlockPeriod time.Duration
 
-func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapterOption, minterOption, masterMinterOption, fiatTokenOption func(*params.SystemContract)) (*GovWBFT, error) {
+func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapterOption, minterOption, masterMinterOption, councilOption, fiatTokenOption func(*params.SystemContract)) (*GovWBFT, error) {
 	owner := getTxOpt(t, "owner")
 
 	if alloc == nil {
@@ -207,6 +214,14 @@ func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapter
 				}
 				masterMinterOption(anzeonConfig.SystemContracts.GovMasterMinter)
 			}
+
+			if councilOption != nil {
+				anzeonConfig.SystemContracts.GovCouncil = &params.SystemContract{
+					Address: TestGovCouncilAddress,
+					Version: "v1",
+				}
+				councilOption(anzeonConfig.SystemContracts.GovCouncil)
+			}
 		}),
 	}
 
@@ -218,6 +233,9 @@ func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapter
 	}
 	if masterMinterOption != nil {
 		g.govMasterMinter = compiledWBFT.GovMasterMinter.New(g.backend.Client(), TestGovMasterMinterAddress)
+	}
+	if councilOption != nil {
+		g.govCouncil = compiledWBFT.GovCouncil.New(g.backend.Client(), TestGovCouncilAddress)
 	}
 	if fiatTokenOption != nil {
 		g.mockFiatToken = compiledWBFT.MockFiatToken.New(g.backend.Client(), TestMockFiatTokenAddress)
@@ -675,6 +693,10 @@ func (g *GovWBFT) masterMinterContractTx(t *testing.T, method string, sender *EO
 
 func (g *GovWBFT) masterMinterCall(method string, sender *EOA, result *[]interface{}, params ...interface{}) error {
 	return g.govMasterMinter.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, result, method, params...)
+}
+
+func (g *GovWBFT) councilCall(method string, sender *EOA, result *[]interface{}, params ...interface{}) error {
+	return g.govCouncil.Call(&bind.CallOpts{From: sender.Address, Context: context.TODO()}, result, method, params...)
 }
 
 // General Functions
@@ -1209,6 +1231,138 @@ func (g *GovWBFT) BuildReceiveWithAuthSig(
 	t *testing.T, from *EOA, to common.Address, amount, validAfter, validBefore *big.Int, nonce common.Hash,
 ) (sig []byte, r, s common.Hash, v uint8) {
 	return g.buildAuthorizationSig(t, "RECEIVE_WITH_AUTHORIZATION_TYPEHASH", from, to, amount, validAfter, validBefore, nonce)
+}
+
+// ==================== GovCouncil Transaction Helpers ====================
+
+// TxProposeAddBlacklist proposes to add an address to the blacklist
+func (g *GovWBFT) TxProposeAddBlacklist(t *testing.T, sender *EOA, account common.Address) (*types.Transaction, error) {
+	return g.govCouncil.Transact(NewTxOpts(t, sender), "proposeAddBlacklist", account)
+}
+
+// TxProposeRemoveBlacklist proposes to remove an address from the blacklist
+func (g *GovWBFT) TxProposeRemoveBlacklist(t *testing.T, sender *EOA, account common.Address) (*types.Transaction, error) {
+	return g.govCouncil.Transact(NewTxOpts(t, sender), "proposeRemoveBlacklist", account)
+}
+
+// TxProposeAddBlacklistBatch proposes to add multiple addresses to the blacklist
+func (g *GovWBFT) TxProposeAddBlacklistBatch(t *testing.T, sender *EOA, accounts []common.Address) (*types.Transaction, error) {
+	return g.govCouncil.Transact(NewTxOpts(t, sender), "proposeAddBlacklistBatch", accounts)
+}
+
+// TxProposeRemoveBlacklistBatch proposes to remove multiple addresses from the blacklist
+func (g *GovWBFT) TxProposeRemoveBlacklistBatch(t *testing.T, sender *EOA, accounts []common.Address) (*types.Transaction, error) {
+	return g.govCouncil.Transact(NewTxOpts(t, sender), "proposeRemoveBlacklistBatch", accounts)
+}
+
+// TxProposeAddAuthorizedAccount proposes to add an address to the authorized accounts list
+func (g *GovWBFT) TxProposeAddAuthorizedAccount(t *testing.T, sender *EOA, account common.Address) (*types.Transaction, error) {
+	return g.govCouncil.Transact(NewTxOpts(t, sender), "proposeAddAuthorizedAccount", account)
+}
+
+// TxProposeRemoveAuthorizedAccount proposes to remove an address from the authorized accounts list
+func (g *GovWBFT) TxProposeRemoveAuthorizedAccount(t *testing.T, sender *EOA, account common.Address) (*types.Transaction, error) {
+	return g.govCouncil.Transact(NewTxOpts(t, sender), "proposeRemoveAuthorizedAccount", account)
+}
+
+// TxProposeAddAuthorizedAccountBatch proposes to add multiple addresses to the authorized accounts list
+func (g *GovWBFT) TxProposeAddAuthorizedAccountBatch(t *testing.T, sender *EOA, accounts []common.Address) (*types.Transaction, error) {
+	return g.govCouncil.Transact(NewTxOpts(t, sender), "proposeAddAuthorizedAccountBatch", accounts)
+}
+
+// TxProposeRemoveAuthorizedAccountBatch proposes to remove multiple addresses from the authorized accounts list
+func (g *GovWBFT) TxProposeRemoveAuthorizedAccountBatch(t *testing.T, sender *EOA, accounts []common.Address) (*types.Transaction, error) {
+	return g.govCouncil.Transact(NewTxOpts(t, sender), "proposeRemoveAuthorizedAccountBatch", accounts)
+}
+
+// TxApprove approves a proposal (works for any governance contract)
+func (g *GovWBFT) TxApprove(t *testing.T, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	return g.govCouncil.Transact(NewTxOpts(t, sender), "approveProposal", proposalId)
+}
+
+// TxReject rejects a proposal (works for any governance contract)
+func (g *GovWBFT) TxReject(t *testing.T, sender *EOA, proposalId *big.Int) (*types.Transaction, error) {
+	return g.govCouncil.Transact(NewTxOpts(t, sender), "disapproveProposal", proposalId)
+}
+
+// IsBlacklisted checks if an address is blacklisted
+func (g *GovWBFT) IsBlacklisted(caller *EOA, account common.Address) (bool, error) {
+	var result []interface{}
+	err := g.councilCall("isBlacklisted", caller, &result, account)
+	if err != nil {
+		return false, err
+	}
+	return result[0].(bool), nil
+}
+
+// GetBlacklistCount returns the number of blacklisted addresses
+func (g *GovWBFT) GetBlacklistCount(caller *EOA) (*big.Int, error) {
+	var result []interface{}
+	err := g.councilCall("getBlacklistCount", caller, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+// GetBlacklistedAddress returns the blacklisted address at the given index
+func (g *GovWBFT) GetBlacklistedAddress(caller *EOA, index *big.Int) (common.Address, error) {
+	var result []interface{}
+	err := g.councilCall("getBlacklistedAddress", caller, &result, index)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return result[0].(common.Address), nil
+}
+
+// GetAllBlacklisted returns all blacklisted addresses
+func (g *GovWBFT) GetAllBlacklisted(caller *EOA) ([]common.Address, error) {
+	var result []interface{}
+	err := g.councilCall("getAllBlacklisted", caller, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].([]common.Address), nil
+}
+
+// IsAuthorizedAccount checks if an address is an authorized account
+func (g *GovWBFT) IsAuthorizedAccount(caller *EOA, account common.Address) (bool, error) {
+	var result []interface{}
+	err := g.councilCall("isAuthorizedAccount", caller, &result, account)
+	if err != nil {
+		return false, err
+	}
+	return result[0].(bool), nil
+}
+
+// GetAuthorizedAccountCount returns the number of authorized accounts
+func (g *GovWBFT) GetAuthorizedAccountCount(caller *EOA) (*big.Int, error) {
+	var result []interface{}
+	err := g.councilCall("getAuthorizedAccountCount", caller, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+// GetAuthorizedAccountAddress returns the authorized account address at the given index
+func (g *GovWBFT) GetAuthorizedAccountAddress(caller *EOA, index *big.Int) (common.Address, error) {
+	var result []interface{}
+	err := g.councilCall("getAuthorizedAccountAddress", caller, &result, index)
+	if err != nil {
+		return common.Address{}, err
+	}
+	return result[0].(common.Address), nil
+}
+
+// GetAllAuthorizedAccounts returns all authorized account addresses
+func (g *GovWBFT) GetAllAuthorizedAccounts(caller *EOA) ([]common.Address, error) {
+	var result []interface{}
+	err := g.councilCall("getAllAuthorizedAccounts", caller, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].([]common.Address), nil
 }
 
 func (g *GovWBFT) buildAuthorizationSig(

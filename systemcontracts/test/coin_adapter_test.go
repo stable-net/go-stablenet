@@ -35,7 +35,7 @@ func TestTransferLog(t *testing.T) {
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MASTER_MINTER] = masterMinter.Address.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTERS] = minter.Address.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTER_ALLOWED] = MAX_UINT_128.String()
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	checkGasFeeTransferEvent := func(event map[string]interface{}, sender common.Address, receipt *types.Receipt) {
@@ -199,7 +199,7 @@ func TestNativeCoinAdapter(t *testing.T) {
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTERS] = minter1.Address.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTER_ALLOWED] = allowedAmount.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_DECIMALS] = strconv.Itoa(int(decimals))
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 	require.NoError(t, err)
 
 	calcGasCost := func(receipt *types.Receipt) *big.Int {
@@ -816,19 +816,28 @@ func TestNativeCoinAdapter_Blacklist(t *testing.T) {
 		normalAccount      = NewEOA()
 		blacklistedAccount = NewEOA()
 
-		expectedErrMsg = "NativeCoinAdapter: account is blacklisted"
+		expectedErrMsg = "account is blacklisted"
 	)
 
+	councilMember := NewEOA()
 	g, err := NewGovWBFT(t, types.GenesisAlloc{
 		masterMinter.Address:       {Balance: initialBalance},
 		minter.Address:             {Balance: initialBalance},
 		blacklistedAccount.Address: {Balance: initialBalance, Extra: types.SetBlacklisted(uint64(0))},
+		councilMember.Address:      {Balance: initialBalance},
 	}, nil, func(coinAdapter *params.SystemContract) {
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MASTER_MINTER] = masterMinter.Address.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTERS] = minter.Address.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_MINTER_ALLOWED] = allowedAmount.String()
 		coinAdapter.Params[systemcontracts.COIN_ADAPTER_PARAM_DECIMALS] = strconv.Itoa(int(decimals))
-	}, nil, nil, nil)
+	}, nil, nil, func(govCouncil *params.SystemContract) {
+		govCouncil.Params = map[string]string{
+			systemcontracts.GOV_BASE_PARAM_MEMBERS:        councilMember.Address.String(),
+			systemcontracts.GOV_BASE_PARAM_QUORUM:         "1",
+			systemcontracts.GOV_BASE_PARAM_EXPIRY:         "86400",
+			systemcontracts.GOV_BASE_PARAM_MEMBER_VERSION: "1",
+		}
+	}, nil)
 	require.NoError(t, err)
 
 	t.Run("mint", func(t *testing.T) {
@@ -929,12 +938,20 @@ func TestNativeCoinAdapter_Blacklist(t *testing.T) {
 				expectedErrMsg,
 			)
 		}
-		// not blacklisted
+		// msg.sender is blacklisted - should fail due to Go-level sender validation
 		{
 			permitSig, _, _, _ := g.BuildPermitSig(t, minter, owner.Address, approveAmount, nil)
 
-			// msg.sender is blacklisted
-			receipt, err := g.ExpectedOk(g.Permit(t, spender, minter.Address, owner.Address, approveAmount, nil, permitSig))
+			ExpectedRevert(t,
+				g.ExpectedFail(g.Permit(t, spender, minter.Address, owner.Address, approveAmount, nil, permitSig)),
+				expectedErrMsg,
+			)
+		}
+		// not blacklisted - success case
+		{
+			permitSig, _, _, _ := g.BuildPermitSig(t, minter, owner.Address, approveAmount, nil)
+
+			receipt, err := g.ExpectedOk(g.Permit(t, minter, minter.Address, owner.Address, approveAmount, nil, permitSig))
 			require.NoError(t, err)
 
 			require.True(t, approveAmount.Cmp(g.Allowance(t, minter.Address, owner.Address)) == 0)
@@ -972,13 +989,22 @@ func TestNativeCoinAdapter_Blacklist(t *testing.T) {
 				expectedErrMsg,
 			)
 		}
-		// not blacklisted
+		// msg.sender is blacklisted - should fail due to Go-level sender validation
 		{
 			transferNonce := ToBytes32("transfer_3")
 			transferSig, _, _, _ := g.BuildTransferWithAuthSig(t, from, minter.Address, transferAmount, nil, nil, transferNonce)
 
-			// msg.sender is blacklisted
-			receipt, err := g.ExpectedOk(g.TransferWithAuthorization(t, to, from.Address, minter.Address, transferAmount, nil, nil, transferNonce, transferSig))
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferWithAuthorization(t, to, from.Address, minter.Address, transferAmount, nil, nil, transferNonce, transferSig)),
+				expectedErrMsg,
+			)
+		}
+		// not blacklisted - success case
+		{
+			transferNonce := ToBytes32("transfer_4")
+			transferSig, _, _, _ := g.BuildTransferWithAuthSig(t, from, minter.Address, transferAmount, nil, nil, transferNonce)
+
+			receipt, err := g.ExpectedOk(g.TransferWithAuthorization(t, minter, from.Address, minter.Address, transferAmount, nil, nil, transferNonce, transferSig))
 			require.NoError(t, err)
 
 			// transfer event
@@ -1034,19 +1060,34 @@ func TestNativeCoinAdapter_Blacklist(t *testing.T) {
 
 	t.Run("cancel authorization", func(t *testing.T) {
 		var (
-			from, to, sender = normalAccount, minter, blacklistedAccount
-			transferAmount   = new(big.Int).Div(amount, big.NewInt(10))
+			from, to       = normalAccount, minter
+			transferAmount = new(big.Int).Div(amount, big.NewInt(10))
 		)
-		cancelNonce := ToBytes32("cancel_1")
-		cancelSig, _, _, _ := g.BuildCancelAuthSig(t, from, cancelNonce)
 
-		_, err := g.ExpectedOk(g.CancelAuthorization(t, sender, from.Address, cancelNonce, cancelSig))
-		require.NoError(t, err)
+		// msg.sender is blacklisted - should fail due to Go-level sender validation
+		{
+			cancelNonce := ToBytes32("cancel_1")
+			cancelSig, _, _, _ := g.BuildCancelAuthSig(t, from, cancelNonce)
 
-		transferSig, _, _, _ := g.BuildTransferWithAuthSig(t, from, to.Address, transferAmount, nil, nil, cancelNonce) // 0 - MAX_UINT_256
-		ExpectedRevert(t,
-			g.ExpectedFail(g.TransferWithAuthorization(t, to, from.Address, to.Address, transferAmount, nil, nil, cancelNonce, transferSig)),
-			"NativeCoinAdapter: authorization is used or canceled",
-		)
+			ExpectedRevert(t,
+				g.ExpectedFail(g.CancelAuthorization(t, blacklistedAccount, from.Address, cancelNonce, cancelSig)),
+				expectedErrMsg,
+			)
+		}
+
+		// not blacklisted - success case
+		{
+			cancelNonce := ToBytes32("cancel_2")
+			cancelSig, _, _, _ := g.BuildCancelAuthSig(t, from, cancelNonce)
+
+			_, err := g.ExpectedOk(g.CancelAuthorization(t, to, from.Address, cancelNonce, cancelSig))
+			require.NoError(t, err)
+
+			transferSig, _, _, _ := g.BuildTransferWithAuthSig(t, from, to.Address, transferAmount, nil, nil, cancelNonce)
+			ExpectedRevert(t,
+				g.ExpectedFail(g.TransferWithAuthorization(t, to, from.Address, to.Address, transferAmount, nil, nil, cancelNonce, transferSig)),
+				"NativeCoinAdapter: authorization is used or canceled",
+			)
+		}
 	})
 }

@@ -284,6 +284,9 @@ func getSystemContracts(blockNumber *big.Int, wbftCfg *Config) params.SystemCont
 			if upgrade.GovMinter != nil {
 				gc.GovMinter = upgrade.GovMinter
 			}
+			if upgrade.GovCouncil != nil {
+				gc.GovCouncil = upgrade.GovCouncil
+			}
 		})
 	}
 	return gc
