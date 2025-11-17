@@ -370,7 +370,7 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 
 	state, err := chain.StateAt(parent.Root)
 	if err != nil {
-		return fmt.Errorf("%w: parent %s", wbftcommon.ErrStateNotFound, parent.Hash().Hex())
+		return err
 	}
 	if state.IsBlacklisted(signer) {
 		return fmt.Errorf("%w: signer %s", wbftcommon.ErrBlacklistedSigner, signer.Hex())
