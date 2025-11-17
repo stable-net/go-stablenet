@@ -888,13 +888,10 @@ func TestComputeShuffledIndex(t *testing.T) {
 }
 
 func TestBlacklistedSigner(t *testing.T) {
-	signers := newAccounts(2)
-	signer := signers[0]
-	blacklistedSigner := signers[1]
+	signer := testAccount1
 
 	tests := []struct {
 		name            string
-		signer          account
 		parentExists    bool
 		blacklisted     bool
 		expectErr       error
@@ -902,25 +899,22 @@ func TestBlacklistedSigner(t *testing.T) {
 	}{
 		{
 			name:         "missing parent header",
-			signer:       signer,
 			parentExists: false,
 			blacklisted:  false,
 			expectErr:    consensus.ErrUnknownAncestor,
 		},
 		{
 			name:         "not blacklisted signer",
-			signer:       signer,
 			parentExists: true,
 			blacklisted:  false,
 			expectErr:    nil,
 		},
 		{
 			name:            "blacklisted signer",
-			signer:          blacklistedSigner,
 			parentExists:    true,
 			blacklisted:     true,
 			expectErr:       wbftcommon.ErrBlacklistedSigner,
-			errContainsPart: fmt.Sprintf("signer %s", blacklistedSigner.addr.Hex()),
+			errContainsPart: fmt.Sprintf("signer %s", signer.addr.Hex()),
 		},
 	}
 
@@ -936,9 +930,9 @@ func TestBlacklistedSigner(t *testing.T) {
 			}
 
 			mockState, _ := state.New(types.EmptyRootHash, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-			mockState.CreateAccount(tc.signer.addr)
+			mockState.CreateAccount(signer.addr)
 			if tc.blacklisted {
-				mockState.SetBlacklisted(tc.signer.addr)
+				mockState.SetBlacklisted(signer.addr)
 			}
 
 			fc := &fakeChain{
@@ -952,7 +946,7 @@ func TestBlacklistedSigner(t *testing.T) {
 			header := &types.Header{
 				Number:     big.NewInt(2),
 				ParentHash: common.HexToHash("0x1"),
-				Coinbase:   tc.signer.addr,
+				Coinbase:   signer.addr,
 			}
 
 			var parents []*types.Header
@@ -962,10 +956,10 @@ func TestBlacklistedSigner(t *testing.T) {
 			}
 
 			addrs := []common.Address{
-				tc.signer.addr,
+				signer.addr,
 			}
 			blsPubKeys := [][]byte{
-				tc.signer.blsKey.PublicKey().Marshal(),
+				signer.blsKey.PublicKey().Marshal(),
 			}
 			validators := validator.NewSet(addrs, blsPubKeys, wbft.NewRoundRobinProposerPolicy())
 
