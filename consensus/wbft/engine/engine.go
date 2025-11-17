@@ -1002,7 +1002,6 @@ func (e *Engine) GetValidators(chain consensus.ChainHeaderReader, blockNumber *b
 
 	_, epochInfo, err = e.getEpochInfo(chain, blockNumber, parentHash, parents)
 	if err != nil {
-		log.Error("WBFT: failed to get epochInfo", "number", blockNumber, "err", err)
 		return nil, err
 	}
 
