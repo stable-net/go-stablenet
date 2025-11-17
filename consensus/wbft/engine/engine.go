@@ -288,7 +288,12 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 
 	// Verify signer
 	if err := e.verifySigner(chain, header, parents, validators); err != nil {
-		return err
+		if !errors.Is(err, wbftcommon.ErrStateUnavailable) {
+			return err
+		}
+		// Skip blacklisted signer verification when state is not yet available.
+		// For more details, refer to the comment in verifyGasTip.
+		log.Trace("WBFT: Skipping blacklisted signer verification due to unavailable state", "number", header.Number, "err", err)
 	}
 
 	// extract the extra data from the header
@@ -356,6 +361,11 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 		return err
 	}
 
+	// Signer should be in the validator set of previous block's extraData.
+	if _, v := validators.GetByAddress(signer); v == nil {
+		return wbftcommon.ErrUnauthorized
+	}
+
 	// Check parent
 	var parent *types.Header
 	if len(parents) > 0 {
@@ -370,15 +380,10 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 
 	state, err := chain.StateAt(parent.Root)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %v", wbftcommon.ErrStateUnavailable, err)
 	}
 	if state.IsBlacklisted(signer) {
 		return fmt.Errorf("%w: signer %s", wbftcommon.ErrBlacklistedSigner, signer.Hex())
-	}
-
-	// Signer should be in the validator set of previous block's extraData.
-	if _, v := validators.GetByAddress(signer); v == nil {
-		return wbftcommon.ErrUnauthorized
 	}
 
 	return nil
