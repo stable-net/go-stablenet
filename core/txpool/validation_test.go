@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -206,7 +207,7 @@ func TestBlacklistedAccountTx(t *testing.T) {
 
 				err := ValidateTransactionWithState(signedTx, signer, opts)
 				if tc.expectErr {
-					require.ErrorIs(t, err, ErrBlacklistedAccount)
+					require.ErrorIs(t, err, core.ErrBlacklistedAccount)
 					require.Contains(t, err.Error(), tc.getErrPart(accts))
 				} else {
 					require.NoError(t, err)
@@ -282,7 +283,7 @@ func TestBlacklistedAccountTx(t *testing.T) {
 
 				err := ValidateTransactionWithState(feePayerSignedTx, signer, opts)
 				if tc.expectErr {
-					require.ErrorIs(t, err, ErrBlacklistedAccount)
+					require.ErrorIs(t, err, core.ErrBlacklistedAccount)
 					require.Contains(t, err.Error(), tc.getErrPart(accts))
 				} else {
 					require.NoError(t, err)
