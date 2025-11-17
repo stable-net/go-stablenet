@@ -1,4 +1,8 @@
 ## StableNet Specification
+
+[![dev-ci](https://github.com/stable-net/go-stablenet/actions/workflows/dev-ci.yml/badge.svg)](https://github.com/stable-net/go-stablenet/actions/workflows/dev-ci.yml)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/stable-net/go-stablenet)
+
 This is the official Go implementation of the StableNet protocol, a fork of the WBFT protocol(https://github.com/wemixarchive/go-wbft) which is fully EVM compatible.
 
 StableNet is a Chain Protocol with a Proof-of-Authority (PoA) architecture underpinned by a BFT consensus algorithm tailored for stablecoins. Our BFT implementation leverages the WBFT engine, an enhanced version of QBFT, designed for more practical applications. (For an in-depth understanding of WBFT, please refer to: https://github.com/wemixarchive/go-wbft?tab=readme-ov-file#wbft-protocol-specification)
@@ -248,16 +252,16 @@ make all
 The go-ethereum project comes with several wrappers/executables found in the `cmd`
 directory.
 
-|          Command          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|:-------------------------:|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|        **`gstable`**         | Our main Ethereum CLI client. It is the entry point into the Ethereum network (main-, test- or private net), capable of running as a full node (default), archive node (retaining all historical state) or a light node (retrieving data live). It can be used by other processes as a gateway into the Ethereum network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `gstable --help` and the [CLI page](https://gstable.ethereum.org/docs/fundamentals/command-line-options) for command line options. |
-| `genesis_generator` | Genesis generator tool. It is used for the first genesis.json file. |
+|          Command          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+|:-------------------------:|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|        **`gstable`**         | Our main Ethereum CLI client. It is the entry point into the Ethereum network (main-, test- or private net), capable of running as a full node (default), archive node (retaining all historical state) or a light node (retrieving data live). It can be used by other processes as a gateway into the Ethereum network via JSON RPC endpoints exposed on top of HTTP, WebSocket and/or IPC transports. `gstable --help` and the [CLI page](https://geth.ethereum.org/docs/fundamentals/command-line-options) for command line options. |
+| `genesis_generator` | Genesis generator tool. It is used for the first genesis.json file.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 |          `clef`           | Stand-alone signing tool, which can be used as a backend signer for `gstable`.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|         `devp2p`          | Utilities to interact with nodes on the networking layer, without running a full blockchain.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-|         `abigen`          | Source code generator to convert Ethereum contract definitions into easy-to-use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://docs.soliditylang.org/en/develop/abi-spec.html) with expanded functionality if the contract bytecode is also available. However, it also accepts Solidity source files, making development much more streamlined. Please see our [Native DApps](https://geth.ethereum.org/docs/developers/dapp-developer/native-bindings) page for details.                |
-|        `bootnode`         | Stripped down version of our Ethereum client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks.                                                                                                                                                                                                                                                  |
-|           `evm`           | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug run`).                                                                                                                                                                                                                                                  |
-|         `rlpdump`         | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp)) dumps (data encoding used by the Ethereum protocol both network as well as consensus wise) to user-friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`).                                                                                                                                                                                   |
+|         `devp2p`          | Utilities to interact with nodes on the networking layer, without running a full blockchain.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|         `abigen`          | Source code generator to convert Ethereum contract definitions into easy-to-use, compile-time type-safe Go packages. It operates on plain [Ethereum contract ABIs](https://docs.soliditylang.org/en/develop/abi-spec.html) with expanded functionality if the contract bytecode is also available. However, it also accepts Solidity source files, making development much more streamlined. Please see our [Native DApps](https://geth.ethereum.org/docs/developers/dapp-developer/native-bindings) page for details.                   |
+|        `bootnode`         | Stripped down version of our Ethereum client implementation that only takes part in the network node discovery protocol, but does not run any of the higher level application protocols. It can be used as a lightweight bootstrap node to aid in finding peers in private networks.                                                                                                                                                                                                                                                     |
+|           `evm`           | Developer utility version of the EVM (Ethereum Virtual Machine) that is capable of running bytecode snippets within a configurable environment and execution mode. Its purpose is to allow isolated, fine-grained debugging of EVM opcodes (e.g. `evm --code 60ff60ff --debug run`).                                                                                                                                                                                                                                                     |
+|         `rlpdump`         | Developer utility tool to convert binary RLP ([Recursive Length Prefix](https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp)) dumps (data encoding used by the Ethereum protocol both network as well as consensus wise) to user-friendlier hierarchical representation (e.g. `rlpdump --hex CE0183FFFFFFC4C304050583616263`).                                                                                                                                                                                      |
 
 ## Running `gstable`
 
@@ -399,9 +403,10 @@ And you can see the public key, address, and a bls public key derived from the n
 ```
 > bootnode -nodekey mynodekey -writeaddress
 
-public key: 0x9afad81eb6c7807b2f0edd2e4b55e07084d3ee66f28b563fa8ef1ca7147534f6acc734d069636263de70aa09f9f235398146684927fd147d75dcabb9c0762998
-address: 0x6e817a2b618bdcabcf15587af4f04b787a8894bc
-derived bls public key: 0xb7cfb997db1ccb18f4d84c5754ed0cbf1126791dec2ffa490c402c88bb0d5ea67df67a6d83c25dd047796376b59ac7b3
+public key: 0xc1da7b0b9cf78695d1cd0bfb43d7eb292fb5d2317382c2354b0dc4c9cd527b8ce95fcddc7978ee2782905a2bade0617734e1eb5075512e3a1b952be8ecd68e02
+address: 0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697
+derived bls public key: 0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b
+bls PoP (Proof of Possession): 0xaf936...
 ```
 
 Use these information to define the genesis file. The address and bls key are used to define the `validators` and `blsPublicKeys` in the genesis file.
@@ -447,19 +452,52 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
           "address": "0x0000000000000000000000000000000000001001",
           "version": "v1",
           "params": {
-            "members": "0xaA5FAA65e9cC0F74a85b6fDfb5f6991f5C094697",
-            "quorum": "1",
+            "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
             "expiry": "604800",
             "memberVersion": "1",
-            "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
-            "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
+            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+            "quorum": "1",
+            "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697"
+          }
+        },
+        "nativeCoinAdapter": {
+          "address": "0x0000000000000000000000000000000000001000",
+          "version": "v1",
+          "params": {
+            "currency": "KRW",
+            "decimals": "18",
+            "masterMinter": "0x0000000000000000000000000000000000001002",
+            "minterAllowed": "10000000000000000000000000000",
+            "minters": "0x0000000000000000000000000000000000001003",
+            "name": "KRC",
+            "symbol": "KRC"
+          }
+        },
+        "govMinter": {
+          "address": "0x0000000000000000000000000000000000001003",
+          "version": "v1",
+          "params": {
+            "expiry": "604800",
+            "memberVersion": "1",
+            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+            "quorum": "1"
+          }
+        },
+        "govMasterMinter": {
+          "address": "0x0000000000000000000000000000000000001002",
+          "version": "v1",
+          "params": {
+            "expiry": "604800",
+            "memberVersion": "1",
+            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+            "quorum": "1"
           }
         }
       }
     }
   },
   "nonce": "0x0",
-  "timestamp": "0x68c93de9",
+  "timestamp": "0x6907f190",
   "extraData": "0x",
   "gasLimit": "0x47b760",
   "difficulty": "0x1",
@@ -474,7 +512,6 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
   "gasUsed": "0x0",
   "parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "baseFeePerGas": null,
-  "fees": null,
   "excessBlobGas": null,
   "blobGasUsed": null
 }
@@ -510,9 +547,9 @@ set:
 $ gstable init path/to/genesis.json
 ```
 
-#### Setting local private chain with wbft engine
+#### Setting local private chain with anzeon engine
 
-Here's a simple example running single node for private chain with wbft engine.  
+Here's a simple example running single node for private chain with anzeon engine.  
 Note that this setting is not recommended for production.
  
 1. Make `working directory`  
@@ -602,7 +639,7 @@ Note that this setting is not recommended for production.
 8. run gstable
 
     ```shell
-    $ ./build/bin/gstable --datadir {working directory} --http --http.addr "0.0.0.0" --http.port {httpPortNum}  --syncmode full --port {portNum}  --mine 
+    $ ./build/bin/gstable --datadir {working directory} --http --http.addr "0.0.0.0" --http.port {httpPortNum} --port {portNum} --mine 
     ```
 
 #### Creating the rendezvous point
@@ -639,23 +676,6 @@ $ gstable --datadir=path/to/custom/data/folder --bootnodes=<bootnode-enode-url-f
 *Note: Since your network will be completely cut off from the main and test networks, you'll
 also need to configure a miner to process transactions and create new blocks for you.*
 
-#### Running a private miner
-
-
-In a private network setting a single CPU miner instance is more than enough for
-practical purposes as it can produce a stable stream of blocks at the correct intervals
-without needing heavy resources (consider running on a single thread, no need for multiple
-ones either). To start a `gstable` instance for mining, run it with all your usual flags, extended
-by:
-
-```shell
-$ gstable <usual-flags> --mine --miner.threads=1 --miner.etherbase=0x0000000000000000000000000000000000000000
-```
-
-Which will start mining blocks and transactions on a single CPU thread, crediting all
-proceedings to the account specified by `--miner.etherbase`. You can further tune the mining
-by changing the default gas limit blocks converge to (`--miner.targetgaslimit`) and the price
-transactions are accepted at (`--miner.gasprice`).
 
 ## Contribution
 
