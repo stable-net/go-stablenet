@@ -801,14 +801,8 @@ func opSelfdestruct(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext
 		return nil, ErrWriteProtection
 	}
 	beneficiary := scope.Stack.pop()
-	// Deny SELFDESTRUCT if the contract or beneficiary is blacklisted under Anzeon rules
-	if interpreter.evm.chainRules.IsAnzeon {
-		if contractAddr := scope.Contract.Address(); interpreter.evm.StateDB.IsBlacklisted(contractAddr) {
-			return nil, &ErrBlacklistedAccount{Address: contractAddr, Role: contractRole}
-		}
-		if beneficiaryAddr := beneficiary.Bytes20(); interpreter.evm.StateDB.IsBlacklisted(beneficiaryAddr) {
-			return nil, &ErrBlacklistedAccount{Address: beneficiaryAddr, Role: beneficiaryRole}
-		}
+	if err := interpreter.evm.checkBlacklisted(scope.Contract.Address(), beneficiary.Bytes20()); err != nil {
+		return nil, err
 	}
 	balance := interpreter.evm.StateDB.GetBalance(scope.Contract.Address())
 	interpreter.evm.StateDB.AddBalance(beneficiary.Bytes20(), balance)
@@ -829,14 +823,8 @@ func opSelfdestruct6780(pc *uint64, interpreter *EVMInterpreter, scope *ScopeCon
 		return nil, ErrWriteProtection
 	}
 	beneficiary := scope.Stack.pop()
-	// Deny SELFDESTRUCT if the contract or beneficiary is blacklisted under Anzeon rules
-	if interpreter.evm.chainRules.IsAnzeon {
-		if contractAddr := scope.Contract.Address(); interpreter.evm.StateDB.IsBlacklisted(contractAddr) {
-			return nil, &ErrBlacklistedAccount{Address: contractAddr, Role: contractRole}
-		}
-		if beneficiaryAddr := beneficiary.Bytes20(); interpreter.evm.StateDB.IsBlacklisted(beneficiaryAddr) {
-			return nil, &ErrBlacklistedAccount{Address: beneficiaryAddr, Role: beneficiaryRole}
-		}
+	if err := interpreter.evm.checkBlacklisted(scope.Contract.Address(), beneficiary.Bytes20()); err != nil {
+		return nil, err
 	}
 	balance := interpreter.evm.StateDB.GetBalance(scope.Contract.Address())
 	interpreter.evm.StateDB.SubBalance(scope.Contract.Address(), balance)

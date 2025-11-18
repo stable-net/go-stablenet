@@ -817,7 +817,7 @@ func TestNativeCoinAdapter_Blacklist(t *testing.T) {
 		blacklistedAccount = NewEOA()
 
 		expectedRevertMsg = "account is blacklisted" // Revert triggered in contract(NativeCoinAdapter)
-		expectedErrMsg    = "blacklisted sender"     // Error occurred in EVM
+		expectedErrMsg    = "blacklisted account"    // Error occurred in EVM
 	)
 
 	councilMember := NewEOA()

@@ -1016,8 +1016,6 @@ func TestBlacklistedAccountSelfdestruct(t *testing.T) {
 
 				var haveErr *ErrBlacklistedAccount
 				require.ErrorAs(t, err, &haveErr)
-
-				require.Equal(t, tc.blacklistedRole, haveErr.Role)
 				require.Equal(t, testAccts[tc.blacklistedRole].address, haveErr.Address)
 			} else {
 				require.NoError(t, err)

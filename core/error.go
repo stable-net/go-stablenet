@@ -114,20 +114,10 @@ var (
 	ErrBlobTxCreate = errors.New("blob transaction of type create")
 )
 
-type BlacklistRole string
-
-const (
-	NoneRole      BlacklistRole = "" // sentinel: no blacklisted role
-	SenderRole    BlacklistRole = "sender"
-	RecipientRole BlacklistRole = "recipient"
-	FeePayerRole  BlacklistRole = "feePayer"
-)
-
 type ErrBlacklistedAccount struct {
 	Address common.Address
-	Role    BlacklistRole
 }
 
 func (e *ErrBlacklistedAccount) Error() string {
-	return fmt.Sprintf("blacklisted %s: %s", string(e.Role), e.Address.Hex())
+	return fmt.Sprintf("blacklisted account: %s", e.Address.Hex())
 }

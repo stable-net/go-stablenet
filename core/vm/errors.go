@@ -80,21 +80,10 @@ type ErrInvalidOpCode struct {
 
 func (e *ErrInvalidOpCode) Error() string { return fmt.Sprintf("invalid opcode: %s", e.opcode) }
 
-type BlacklistRole string
-
-const (
-	noneRole        BlacklistRole = "" // sentinel: no blacklisted role
-	callerRole      BlacklistRole = "caller"
-	targetRole      BlacklistRole = "target"
-	contractRole    BlacklistRole = "contract"
-	beneficiaryRole BlacklistRole = "beneficiary"
-)
-
 type ErrBlacklistedAccount struct {
 	Address common.Address
-	Role    BlacklistRole
 }
 
 func (e *ErrBlacklistedAccount) Error() string {
-	return fmt.Sprintf("blacklisted %s: %s", string(e.Role), e.Address.Hex())
+	return fmt.Sprintf("blacklisted account: %s", e.Address.Hex())
 }

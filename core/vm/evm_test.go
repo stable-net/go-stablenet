@@ -33,6 +33,16 @@ import (
 
 const testGas = 100000
 
+type BlacklistRole uint8
+
+const (
+	noneRole BlacklistRole = iota
+	callerRole
+	targetRole
+	contractRole
+	beneficiaryRole
+)
+
 type account struct {
 	privKey *ecdsa.PrivateKey
 	address common.Address
@@ -195,8 +205,6 @@ func TestBlacklistedAccountExecution(t *testing.T) {
 
 					var haveErr *ErrBlacklistedAccount
 					require.ErrorAs(t, err, &haveErr)
-
-					require.Equal(t, tc.blacklistedRole, haveErr.Role)
 					require.Equal(t, testAccts[tc.blacklistedRole].address, haveErr.Address)
 				} else {
 					require.NoError(t, err)
@@ -253,8 +261,6 @@ func TestBlacklistedAccountExecution(t *testing.T) {
 
 					var haveErr *ErrBlacklistedAccount
 					require.ErrorAs(t, err, &haveErr)
-
-					require.Equal(t, tc.blacklistedRole, haveErr.Role)
 					require.Equal(t, testAccts[tc.blacklistedRole].address, haveErr.Address)
 				} else {
 					require.NoError(t, err)

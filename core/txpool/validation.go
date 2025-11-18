@@ -225,10 +225,10 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 	// Ensure that neither the sender nor the recipient is blacklisted
 	if opts.Config.AnzeonEnabled() {
 		if opts.State.IsBlacklisted(from) {
-			return &core.ErrBlacklistedAccount{Address: from, Role: core.SenderRole}
+			return &core.ErrBlacklistedAccount{Address: from}
 		}
 		if to := tx.To(); to != nil && opts.State.IsBlacklisted(*to) {
-			return &core.ErrBlacklistedAccount{Address: *to, Role: core.RecipientRole}
+			return &core.ErrBlacklistedAccount{Address: *to}
 		}
 	}
 	next := opts.State.GetNonce(from)
@@ -247,7 +247,7 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		feePayer := tx.FeePayer()
 		// Ensure that the fee payer is not blacklisted
 		if opts.Config.AnzeonEnabled() && opts.State.IsBlacklisted(*feePayer) {
-			return &core.ErrBlacklistedAccount{Address: *feePayer, Role: core.FeePayerRole}
+			return &core.ErrBlacklistedAccount{Address: *feePayer}
 		}
 		if opts.State.GetBalance(from).ToBig().Cmp(tx.Value()) < 0 {
 			return ErrSenderInsufficientFunds
