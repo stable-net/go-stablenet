@@ -1358,11 +1358,14 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 // - Add precompiles to access list (2929)
 // - Add the contents of the optional tx access list (2930)
 //
+// Anzeon fork:
+// - Add native managers to access list
+//
 // Potential EIPs:
 // - Reset access list (Berlin)
 // - Add coinbase to access list (EIP-3651)
 // - Reset transient storage (EIP-1153)
-func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dst *common.Address, precompiles []common.Address, list types.AccessList) {
+func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dst *common.Address, precompiles, nativeManagers []common.Address, list types.AccessList) {
 	if rules.IsBerlin {
 		// Clear out any leftover from previous executions
 		al := newAccessList()
@@ -1385,10 +1388,8 @@ func (s *StateDB) Prepare(rules params.Rules, sender, coinbase common.Address, d
 		if rules.IsShanghai { // EIP-3651: warm coinbase
 			al.AddAddress(coinbase)
 		}
-
-		if rules.IsAnzeon {
-			al.AddAddress(params.NativeCoinManagerAddress)
-			al.AddAddress(params.AccountManagerAddress)
+		for _, addr := range nativeManagers {
+			al.AddAddress(addr)
 		}
 	}
 	// Reset transient storage at the beginning of transaction execution
