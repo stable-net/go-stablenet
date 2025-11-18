@@ -42,7 +42,7 @@ func newAccount(statedb StateDB) *account {
 
 	account := &account{key, address}
 	statedb.CreateAccount(account.address)
-	statedb.AddBalance(account.address, uint256.NewInt(0))
+	statedb.AddBalance(account.address, uint256.NewInt(1000000000000000000))
 
 	return account
 }
