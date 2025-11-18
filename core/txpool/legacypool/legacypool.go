@@ -760,7 +760,13 @@ func (pool *LegacyPool) add(tx *types.Transaction, local bool) (replaced bool, e
 			// Add all transactions back to the priced queue
 			if replacesPending {
 				for _, dropTx := range drop {
-					pool.priced.Put(dropTx, false)
+					if pool.chainconfig.AnzeonEnabled() {
+						dropSender, _ := types.Sender(pool.signer, dropTx)
+						isAuthorized := pool.currentState.IsAuthorized(dropSender)
+						pool.priced.PutAnzeon(dropTx, false, isAuthorized)
+					} else {
+						pool.priced.Put(dropTx, false)
+					}
 				}
 				log.Trace("Discarding future transaction replacing pending tx", "hash", hash)
 				return false, txpool.ErrFutureReplacePending
@@ -794,7 +800,12 @@ func (pool *LegacyPool) add(tx *types.Transaction, local bool) (replaced bool, e
 			pendingReplaceMeter.Mark(1)
 		}
 		pool.all.Add(tx, isLocal)
-		pool.priced.Put(tx, isLocal)
+		if pool.chainconfig.AnzeonEnabled() {
+			isAuthorized := pool.currentState.IsAuthorized(from)
+			pool.priced.PutAnzeon(tx, isLocal, isAuthorized)
+		} else {
+			pool.priced.Put(tx, isLocal)
+		}
 		pool.journalTx(from, tx)
 		pool.queueTxEvent(tx)
 		log.Trace("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
@@ -878,7 +889,12 @@ func (pool *LegacyPool) enqueueTx(hash common.Hash, tx *types.Transaction, local
 	}
 	if addAll {
 		pool.all.Add(tx, local)
-		pool.priced.Put(tx, local)
+		if pool.chainconfig.AnzeonEnabled() {
+			isAuthorized := pool.currentState.IsAuthorized(from)
+			pool.priced.PutAnzeon(tx, local, isAuthorized)
+		} else {
+			pool.priced.Put(tx, local)
+		}
 	}
 	// If we never record the heartbeat, do it right now.
 	if _, exist := pool.beats[from]; !exist {
@@ -1307,9 +1323,14 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 			if pool.chainconfig.IsLondon(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
 				pendingBaseFee := eip1559.CalcBaseFee(pool.chainconfig, reset.newHead)
 				pool.priced.SetBaseFee(pendingBaseFee)
-			} else {
-				pool.priced.Reheap()
 			}
+
+			if pool.chainconfig.AnzeonEnabled() {
+				headerGasTip := reset.newHead.GasTip()
+				pool.priced.SetHeaderGasTip(headerGasTip)
+			}
+
+			pool.priced.Reheap()
 		}
 		// Update all accounts to the latest known pending nonce
 		nonces := make(map[common.Address]uint64, len(pool.pending))

@@ -25,9 +25,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core/state"
-
 	"github.com/ethereum/go-ethereum/common"
+	cmmath "github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"golang.org/x/exp/slices"
@@ -480,8 +480,10 @@ func (l *list) subTotalCost(txs []*types.Transaction) {
 // then the heap is sorted based on the effective tip based on the given base fee.
 // If baseFee is nil then the sorting is based on gasFeeCap.
 type priceHeap struct {
-	baseFee *big.Int // heap should always be re-sorted after baseFee is changed
-	list    []*types.Transaction
+	baseFee      *big.Int // heap should always be re-sorted after baseFee is changed
+	list         []*types.Transaction
+	isAuthorized map[common.Hash]bool // authorized status map
+	headerGasTip *big.Int             // heap should always be re-sorted after headerGasTip is changed
 }
 
 func (h *priceHeap) Len() int      { return len(h.list) }
@@ -498,19 +500,52 @@ func (h *priceHeap) Less(i, j int) bool {
 	}
 }
 
+// getEffectiveTip returns the effective tip for a transaction based on its authorization status.
+// Authorized accounts use their own GasTipCap, while normal accounts use the fixed headerGasTip.
+func (h *priceHeap) getEffectiveTip(tx *types.Transaction) *big.Int {
+	if h.isAuthorized[tx.Hash()] {
+		return tx.GasTipCap()
+	}
+	if h.headerGasTip == nil {
+		return big.NewInt(0)
+	}
+	return h.headerGasTip
+}
+
 func (h *priceHeap) cmp(a, b *types.Transaction) int {
+	// Get fee caps
+	aFeeCap := a.GasFeeCap()
+	bFeeCap := b.GasFeeCap()
+
+	// Get tip caps
+	var aTipCap, bTipCap *big.Int
+	if h.headerGasTip != nil {
+		// Anzeon enabled: authorized accounts use GasTipCap, normal accounts use headerGasTip
+		aTipCap = h.getEffectiveTip(a)
+		bTipCap = h.getEffectiveTip(b)
+	} else {
+		// Anzeon disabled: all accounts use their own GasTipCap
+		aTipCap = a.GasTipCap()
+		bTipCap = b.GasTipCap()
+	}
+
+	// Compare effective tips: min(tipCap, feeCap - baseFee)
 	if h.baseFee != nil {
-		// Compare effective tips if baseFee is specified
-		if c := a.EffectiveGasTipCmp(b, h.baseFee); c != 0 {
+		aEffectiveGasTip := cmmath.BigMin(aTipCap, new(big.Int).Sub(aFeeCap, h.baseFee))
+		bEffectiveGasTip := cmmath.BigMin(bTipCap, new(big.Int).Sub(bFeeCap, h.baseFee))
+
+		if c := aEffectiveGasTip.Cmp(bEffectiveGasTip); c != 0 {
 			return c
 		}
 	}
-	// Compare fee caps if baseFee is not specified or effective tips are equal
-	if c := a.GasFeeCapCmp(b); c != 0 {
+
+	// compare fee caps
+	if c := aFeeCap.Cmp(bFeeCap); c != 0 {
 		return c
 	}
-	// Compare tips if effective tips and fee caps are equal
-	return a.GasTipCapCmp(b)
+
+	// compare tip caps
+	return aTipCap.Cmp(bTipCap)
 }
 
 func (h *priceHeap) Push(x interface{}) {
@@ -566,6 +601,21 @@ func (l *pricedList) Put(tx *types.Transaction, local bool) {
 		return
 	}
 	// Insert every new transaction to the urgent heap first; Discard will balance the heaps
+	heap.Push(&l.urgent, tx)
+}
+
+// PutAnzeon inserts a new transaction into the heap with authorization status.
+func (l *pricedList) PutAnzeon(tx *types.Transaction, local bool, isAuthorized bool) {
+	if local {
+		return
+	}
+
+	// isAuthorized 맵 초기화 (필요시)
+	if l.urgent.isAuthorized == nil {
+		l.urgent.isAuthorized = make(map[common.Hash]bool)
+	}
+
+	l.urgent.isAuthorized[tx.Hash()] = isAuthorized
 	heap.Push(&l.urgent, tx)
 }
 
@@ -664,10 +714,24 @@ func (l *pricedList) Reheap() {
 	start := time.Now()
 	l.stales.Store(0)
 	l.urgent.list = make([]*types.Transaction, 0, l.all.RemoteCount())
-	l.all.Range(func(hash common.Hash, tx *types.Transaction, local bool) bool {
-		l.urgent.list = append(l.urgent.list, tx)
-		return true
-	}, false, true) // Only iterate remotes
+
+	if l.urgent.headerGasTip != nil {
+		newMap := make(map[common.Hash]bool, l.all.RemoteCount())
+		l.all.Range(func(hash common.Hash, tx *types.Transaction, local bool) bool {
+			l.urgent.list = append(l.urgent.list, tx)
+			// Preserve authorization status if it exists
+			if authorized, exists := l.urgent.isAuthorized[hash]; exists {
+				newMap[hash] = authorized
+			}
+			return true
+		}, false, true) // Only iterate remotes
+		l.urgent.isAuthorized = newMap
+	} else {
+		l.all.Range(func(hash common.Hash, tx *types.Transaction, local bool) bool {
+			l.urgent.list = append(l.urgent.list, tx)
+			return true
+		}, false, true) // Only iterate remotes
+	}
 	heap.Init(&l.urgent)
 
 	// balance out the two heaps by moving the worse half of transactions into the
@@ -684,9 +748,12 @@ func (l *pricedList) Reheap() {
 	reheapTimer.Update(time.Since(start))
 }
 
-// SetBaseFee updates the base fee and triggers a re-heap. Note that Removed is not
-// necessary to call right before SetBaseFee when processing a new block.
+// SetBaseFee updates the base fee. Note that Reheap must be called separately.
 func (l *pricedList) SetBaseFee(baseFee *big.Int) {
 	l.urgent.baseFee = baseFee
-	l.Reheap()
+}
+
+// SetHeaerGasTip updates the header gas tip. Note that Reheap must be called separately.
+func (l *pricedList) SetHeaderGasTip(headerGasTip *big.Int) {
+	l.urgent.headerGasTip = headerGasTip
 }
