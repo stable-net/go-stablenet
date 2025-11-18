@@ -714,19 +714,11 @@ func TestPricedListIntegration(t *testing.T) {
 	// dynAuthTx2: tipCap=15000 >= headerGasTip(10000) ✓, feeCap=30000 >= tipCap(15000) + baseFee(10000) = 25000 ✓
 	dynAuthTx2 = dynamicFeeTx(0, 21000, big.NewInt(30000), big.NewInt(15000), authorizedKey2)
 
-	// Normal transactions - must satisfy: feeCap >= headerGasTip + baseFee for both 10000 and 25000
-	// For headerGasTip=25000: feeCap >= 25000 + 10000 = 35000
-	// dynNormTx1: tipCap=25000 >= headerGasTip(10000, 25000) ✓, feeCap=40000 >= headerGasTip(25000) + baseFee(10000) = 35000 ✓
-	// headerGasTip=10000: effectiveTip=min(10000, 40000-10000)=min(10000, 30000)=10000
-	// headerGasTip=25000: effectiveTip=min(25000, 40000-10000)=min(25000, 30000)=25000
+	// dynNormTx1: headerGasTip=25000: effectiveTip=min(25000, 40000-10000)=min(25000, 30000)=25000
 	dynNormTx1 = dynamicFeeTx(0, 21000, big.NewInt(40000), big.NewInt(25000), normalKey1)
-	// dynNormTx2: tipCap=30000 >= headerGasTip(10000, 25000) ✓, feeCap=45000 >= headerGasTip(25000) + baseFee(10000) = 35000 ✓
-	// headerGasTip=10000: effectiveTip=min(10000, 45000-10000)=min(10000, 35000)=10000
-	// headerGasTip=25000: effectiveTip=min(25000, 45000-10000)=min(25000, 35000)=25000
+	// dynNormTx2: headerGasTip=25000: effectiveTip=min(25000, 45000-10000)=min(25000, 35000)=25000
 	dynNormTx2 = dynamicFeeTx(0, 21000, big.NewInt(45000), big.NewInt(30000), normalKey2)
-	// dynNormTx3: tipCap=20000 >= headerGasTip(10000) ✓, feeCap=35000 >= headerGasTip(25000) + baseFee(10000) = 35000 ✓
-	// headerGasTip=10000: effectiveTip=min(10000, 35000-10000)=min(10000, 25000)=10000
-	// headerGasTip=25000: effectiveTip=min(25000, 35000-10000)=min(25000, 25000)=25000
+	// dynNormTx3: headerGasTip=25000: effectiveTip=min(25000, 35000-10000)=min(25000, 25000)=25000
 	dynNormTx3 = dynamicFeeTx(0, 21000, big.NewInt(35000), big.NewInt(20000), normalKey3)
 
 	lookup.Add(dynAuthTx1, false)

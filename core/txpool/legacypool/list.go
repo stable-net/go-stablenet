@@ -610,7 +610,7 @@ func (l *pricedList) PutAnzeon(tx *types.Transaction, local bool, isAuthorized b
 		return
 	}
 
-	// isAuthorized 맵 초기화 (필요시)
+	// Initialize isAuthorized map if needed
 	if l.urgent.isAuthorized == nil {
 		l.urgent.isAuthorized = make(map[common.Hash]bool)
 	}
