@@ -980,7 +980,7 @@ func TestBlacklistedAccountSelfdestruct(t *testing.T) {
 
 			var (
 				statedb, _     = state.New(types.EmptyRootHash, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-				env            = NewEVM(BlockContext{}, TxContext{}, statedb, params.TestWBFTChainConfig, Config{})
+				env            = NewEVM(BlockContext{BlockNumber: new(big.Int).SetUint64(1)}, TxContext{}, statedb, params.TestWBFTChainConfig, Config{})
 				stack          = newstack()
 				mem            = NewMemory()
 				pc             = uint64(0)
