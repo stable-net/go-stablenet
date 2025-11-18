@@ -478,12 +478,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if rules.IsAnzeon {
 		// Check sender blacklist
 		if st.state.IsBlacklisted(msg.From) {
-			return nil, fmt.Errorf("%w: sender %v", ErrBlacklistedAccount, msg.From.Hex())
+			return nil, &ErrBlacklistedAccount{Address: msg.From, Role: SenderRole}
 		}
 
 		// Check recipient blacklist (only for transfers, not for contract creation)
 		if msg.To != nil && st.state.IsBlacklisted(*msg.To) {
-			return nil, fmt.Errorf("%w: recipient %v", ErrBlacklistedAccount, msg.To.Hex())
+			return nil, &ErrBlacklistedAccount{Address: *msg.To, Role: RecipientRole}
 		}
 	}
 
@@ -534,7 +534,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		if st.msg.FeePayer != nil {
 			payer = *st.msg.FeePayer
 			if rules.IsAnzeon && st.state.IsBlacklisted(payer) {
-				return nil, fmt.Errorf("%w: fee payer %s", ErrBlacklistedAccount, payer.Hex())
+				return nil, &ErrBlacklistedAccount{Address: payer, Role: FeePayerRole}
 			}
 		}
 		st.evm.AddTransferLog(payer, st.evm.Context.Coinbase, fee)

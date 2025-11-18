@@ -19,7 +19,6 @@ package txpool
 
 import (
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -37,12 +36,6 @@ import (
 type account struct {
 	privKey *ecdsa.PrivateKey
 	address common.Address
-}
-
-type testAccounts struct {
-	sender    *account
-	recipient *account
-	feePayer  *account
 }
 
 var (
@@ -136,57 +129,26 @@ func signFeeDelegateTx(rawTx *types.Transaction, feePayer *account) (*types.Tran
 	return types.SignTx(tx, feeDelegateSigner, feePayer.privKey)
 }
 
-func buildAccounts(statedb *state.StateDB, senderBlacklisted, recipientBlacklisted, feePayerBlacklisted bool) testAccounts {
-	var accounts testAccounts
-
-	accounts.sender = newAccount(statedb)
-	if senderBlacklisted {
-		statedb.SetBlacklisted(accounts.sender.address)
-	}
-	accounts.recipient = newAccount(statedb)
-	if recipientBlacklisted {
-		statedb.SetBlacklisted(accounts.recipient.address)
-	}
-	accounts.feePayer = newAccount(statedb)
-	if feePayerBlacklisted {
-		statedb.SetBlacklisted(accounts.feePayer.address)
-	}
-
-	return accounts
-}
-
 func TestBlacklistedAccountTx(t *testing.T) {
 	t.Run("DynamicFeeTx", func(t *testing.T) {
 		tests := []struct {
-			name                 string
-			senderBlacklisted    bool
-			recipientBlacklisted bool
-			expectErr            bool
-			getErrPart           func(accts testAccounts) string
+			name            string
+			blacklistedRole core.BlacklistRole
+			expectErr       bool
 		}{
 			{
-				name:                 "unrelated to any blacklisted account",
-				senderBlacklisted:    false,
-				recipientBlacklisted: false,
-				expectErr:            false,
+				name:      "unrelated to any blacklisted account",
+				expectErr: false,
 			},
 			{
-				name:                 "sender is blacklisted",
-				senderBlacklisted:    true,
-				recipientBlacklisted: false,
-				expectErr:            true,
-				getErrPart: func(accts testAccounts) string {
-					return fmt.Sprintf("from %s", accts.sender.address.Hex())
-				},
+				name:            "sender is blacklisted",
+				blacklistedRole: core.SenderRole,
+				expectErr:       true,
 			},
 			{
-				name:                 "recipient is blacklisted",
-				senderBlacklisted:    false,
-				recipientBlacklisted: true,
-				expectErr:            true,
-				getErrPart: func(accts testAccounts) string {
-					return fmt.Sprintf("to %s", accts.recipient.address.Hex())
-				},
+				name:            "recipient is blacklisted",
+				blacklistedRole: core.RecipientRole,
+				expectErr:       true,
 			},
 		}
 
@@ -196,19 +158,31 @@ func TestBlacklistedAccountTx(t *testing.T) {
 				t.Parallel()
 
 				statedb, opts := newTestState()
+				testAccts := map[core.BlacklistRole]*account{
+					core.SenderRole:    newAccount(statedb),
+					core.RecipientRole: newAccount(statedb),
+				}
 
-				accts := buildAccounts(statedb, tc.senderBlacklisted, tc.recipientBlacklisted, false)
+				blacklistedAcct, ok := testAccts[tc.blacklistedRole]
+				if ok {
+					statedb.SetBlacklisted(blacklistedAcct.address)
+				}
 
-				sender := accts.sender
-				recipient := accts.recipient
+				sender := testAccts[core.SenderRole]
+				recipient := testAccts[core.RecipientRole]
 
 				tx := newDynamicFeeTx(&recipient.address)
 				signedTx, _ := signDynamicFeeTx(tx, sender)
 
 				err := ValidateTransactionWithState(signedTx, signer, opts)
+
 				if tc.expectErr {
-					require.ErrorIs(t, err, core.ErrBlacklistedAccount)
-					require.Contains(t, err.Error(), tc.getErrPart(accts))
+					require.Error(t, err)
+
+					var haveErr *core.ErrBlacklistedAccount
+					require.ErrorAs(t, err, &haveErr)
+					require.Equal(t, tc.blacklistedRole, haveErr.Role)
+					require.Equal(t, testAccts[tc.blacklistedRole].address, haveErr.Address)
 				} else {
 					require.NoError(t, err)
 				}
@@ -218,49 +192,28 @@ func TestBlacklistedAccountTx(t *testing.T) {
 
 	t.Run("FeeDelegateDynamicFeeTx", func(t *testing.T) {
 		tests := []struct {
-			name                 string
-			senderBlacklisted    bool
-			recipientBlacklisted bool
-			feePayerBlacklisted  bool
-			expectErr            bool
-			getErrPart           func(accts testAccounts) string
+			name            string
+			blacklistedRole core.BlacklistRole
+			expectErr       bool
 		}{
 			{
-				name:                 "unrelated to any blacklisted account",
-				senderBlacklisted:    false,
-				recipientBlacklisted: false,
-				feePayerBlacklisted:  false,
-				expectErr:            false,
+				name:      "unrelated to any blacklisted account",
+				expectErr: false,
 			},
 			{
-				name:                 "sender is blacklisted",
-				senderBlacklisted:    true,
-				recipientBlacklisted: false,
-				feePayerBlacklisted:  false,
-				expectErr:            true,
-				getErrPart: func(accts testAccounts) string {
-					return fmt.Sprintf("from %s", accts.sender.address.Hex())
-				},
+				name:            "sender is blacklisted",
+				blacklistedRole: core.SenderRole,
+				expectErr:       true,
 			},
 			{
-				name:                 "recipient is blacklisted",
-				senderBlacklisted:    false,
-				recipientBlacklisted: true,
-				feePayerBlacklisted:  false,
-				expectErr:            true,
-				getErrPart: func(accts testAccounts) string {
-					return fmt.Sprintf("to %s", accts.recipient.address.Hex())
-				},
+				name:            "recipient is blacklisted",
+				blacklistedRole: core.RecipientRole,
+				expectErr:       true,
 			},
 			{
-				name:                 "fee payer is blacklisted",
-				senderBlacklisted:    false,
-				recipientBlacklisted: false,
-				feePayerBlacklisted:  true,
-				expectErr:            true,
-				getErrPart: func(accts testAccounts) string {
-					return fmt.Sprintf("fee payer %s", accts.feePayer.address.Hex())
-				},
+				name:            "feePayer is blacklisted",
+				blacklistedRole: core.FeePayerRole,
+				expectErr:       true,
 			},
 		}
 
@@ -270,21 +223,35 @@ func TestBlacklistedAccountTx(t *testing.T) {
 				t.Parallel()
 
 				statedb, opts := newTestState()
+				testAccts := map[core.BlacklistRole]*account{
+					core.SenderRole:    newAccount(statedb),
+					core.RecipientRole: newAccount(statedb),
+					core.FeePayerRole:  newAccount(statedb),
+				}
 
-				accts := buildAccounts(statedb, tc.senderBlacklisted, tc.recipientBlacklisted, tc.feePayerBlacklisted)
+				blacklistedAcct, ok := testAccts[tc.blacklistedRole]
+				if ok {
+					statedb.SetBlacklisted(blacklistedAcct.address)
+				}
 
-				sender := accts.sender
-				recipient := accts.recipient
-				feePayer := accts.feePayer
+				sender := testAccts[core.SenderRole]
+				recipient := testAccts[core.RecipientRole]
+				feePayer := testAccts[core.FeePayerRole]
 
 				tx := newDynamicFeeTx(&recipient.address)
 				signedTx, _ := signDynamicFeeTx(tx, sender)
 				feePayerSignedTx, _ := signFeeDelegateTx(signedTx, feePayer)
 
 				err := ValidateTransactionWithState(feePayerSignedTx, signer, opts)
+
 				if tc.expectErr {
-					require.ErrorIs(t, err, core.ErrBlacklistedAccount)
-					require.Contains(t, err.Error(), tc.getErrPart(accts))
+					require.Error(t, err)
+
+					var haveErr *core.ErrBlacklistedAccount
+					require.ErrorAs(t, err, &haveErr)
+
+					require.Equal(t, tc.blacklistedRole, haveErr.Role)
+					require.Equal(t, testAccts[tc.blacklistedRole].address, haveErr.Address)
 				} else {
 					require.NoError(t, err)
 				}

@@ -930,63 +930,46 @@ func TestOpMCopy(t *testing.T) {
 	}
 }
 
-func TestSelfdestructBlacklistedAccount(t *testing.T) {
-	contractAddr := common.HexToAddress("0x1000000000000000000000000000000000000001")
-	beneficiaryAddr := common.HexToAddress("0x2000000000000000000000000000000000000002")
-
+func TestBlacklistedAccountSelfdestruct(t *testing.T) {
 	tests := []struct {
-		name                   string
-		contractBlacklisted    bool
-		beneficiaryBlacklisted bool
-		instruction            func(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error)
-		expectErr              bool
-		errPart                string
+		name            string
+		blacklistedRole BlacklistRole
+		instruction     func(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error)
+		expectErr       bool
 	}{
 		{
-			name:                   "opSelfdestruct unrelated to any blacklisted account",
-			contractBlacklisted:    false,
-			beneficiaryBlacklisted: false,
-			instruction:            opSelfdestruct,
-			expectErr:              false,
+			name:        "opSelfdestruct unrelated to any blacklisted account",
+			instruction: opSelfdestruct,
+			expectErr:   false,
 		},
 		{
-			name:                   "opSelfdestruct contract is blacklisted",
-			contractBlacklisted:    true,
-			beneficiaryBlacklisted: false,
-			instruction:            opSelfdestruct,
-			expectErr:              true,
-			errPart:                fmt.Sprintf("contract %s", contractAddr.Hex()),
+			name:            "opSelfdestruct contract is blacklisted",
+			blacklistedRole: contractRole,
+			instruction:     opSelfdestruct,
+			expectErr:       true,
 		},
 		{
-			name:                   "opSelfdestruct beneficiary is blacklisted",
-			contractBlacklisted:    false,
-			beneficiaryBlacklisted: true,
-			instruction:            opSelfdestruct,
-			expectErr:              true,
-			errPart:                fmt.Sprintf("beneficiary %s", beneficiaryAddr.Hex()),
+			name:            "opSelfdestruct beneficiary is blacklisted",
+			blacklistedRole: beneficiaryRole,
+			instruction:     opSelfdestruct,
+			expectErr:       true,
 		},
 		{
-			name:                   "opSelfdestruct6780 unrelated to any blacklisted account",
-			contractBlacklisted:    false,
-			beneficiaryBlacklisted: false,
-			instruction:            opSelfdestruct6780,
-			expectErr:              false,
+			name:        "opSelfdestruct6780 unrelated to any blacklisted account",
+			instruction: opSelfdestruct6780,
+			expectErr:   false,
 		},
 		{
-			name:                   "opSelfdestruct6780 contract is blacklisted",
-			contractBlacklisted:    true,
-			beneficiaryBlacklisted: false,
-			instruction:            opSelfdestruct6780,
-			expectErr:              true,
-			errPart:                fmt.Sprintf("contract %s", contractAddr.Hex()),
+			name:            "opSelfdestruct6780 contract is blacklisted",
+			blacklistedRole: contractRole,
+			instruction:     opSelfdestruct6780,
+			expectErr:       true,
 		},
 		{
-			name:                   "opSelfdestruct6780 beneficiary is blacklisted",
-			contractBlacklisted:    false,
-			beneficiaryBlacklisted: true,
-			instruction:            opSelfdestruct6780,
-			expectErr:              true,
-			errPart:                fmt.Sprintf("beneficiary %s", beneficiaryAddr.Hex()),
+			name:            "opSelfdestruct6780 beneficiary is blacklisted",
+			blacklistedRole: beneficiaryRole,
+			instruction:     opSelfdestruct6780,
+			expectErr:       true,
 		},
 	}
 
@@ -1004,14 +987,18 @@ func TestSelfdestructBlacklistedAccount(t *testing.T) {
 				evmInterpreter = env.interpreter
 			)
 
-			statedb.CreateAccount(contractAddr)
-			if tc.contractBlacklisted {
-				statedb.SetBlacklisted(contractAddr)
+			testAccts := map[BlacklistRole]*account{
+				contractRole:    newAccount(statedb),
+				beneficiaryRole: newAccount(statedb),
 			}
-			statedb.CreateAccount(beneficiaryAddr)
-			if tc.beneficiaryBlacklisted {
-				statedb.SetBlacklisted(beneficiaryAddr)
+
+			blacklistedAcct, ok := testAccts[tc.blacklistedRole]
+			if ok {
+				statedb.SetBlacklisted(blacklistedAcct.address)
 			}
+
+			contractAddr := testAccts[contractRole].address
+			beneficiaryAddr := testAccts[beneficiaryRole].address
 
 			stack.push(new(uint256.Int).SetBytes(beneficiaryAddr.Bytes()))
 			contract := Contract{
@@ -1023,8 +1010,13 @@ func TestSelfdestructBlacklistedAccount(t *testing.T) {
 			}
 
 			if tc.expectErr {
-				require.ErrorIs(t, err, ErrBlacklistedAccount)
-				require.Contains(t, err.Error(), tc.errPart)
+				require.Error(t, err)
+
+				var haveErr *ErrBlacklistedAccount
+				require.ErrorAs(t, err, &haveErr)
+
+				require.Equal(t, tc.blacklistedRole, haveErr.Role)
+				require.Equal(t, testAccts[tc.blacklistedRole].address, haveErr.Address)
 			} else {
 				require.NoError(t, err)
 			}

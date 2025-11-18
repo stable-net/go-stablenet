@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
 	"math/big"
 	"reflect"
 	"slices"
@@ -914,7 +913,7 @@ func TestBlacklistedSigner(t *testing.T) {
 			parentExists:    true,
 			blacklisted:     true,
 			expectErr:       wbftcommon.ErrBlacklistedSigner,
-			errContainsPart: fmt.Sprintf("signer %s", signer.addr.Hex()),
+			errContainsPart: signer.addr.Hex(),
 		},
 	}
 

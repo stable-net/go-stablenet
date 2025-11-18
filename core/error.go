@@ -18,7 +18,9 @@ package core
 
 import (
 	"errors"
+	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -101,9 +103,6 @@ var (
 	// ErrSenderNoEOA is returned if the sender of a transaction is a contract.
 	ErrSenderNoEOA = errors.New("sender not an eoa")
 
-	// ErrBlacklistedAccount is returned if the sender or recipient is blacklisted.
-	ErrBlacklistedAccount = errors.New("account is blacklisted")
-
 	// ErrBlobFeeCapTooLow is returned if the transaction fee cap is less than the
 	// blob gas fee of the block.
 	ErrBlobFeeCapTooLow = errors.New("max fee per blob gas less than block blob gas fee")
@@ -114,3 +113,20 @@ var (
 	// ErrBlobTxCreate is returned if a blob transaction has no explicit to field.
 	ErrBlobTxCreate = errors.New("blob transaction of type create")
 )
+
+type BlacklistRole string
+
+const (
+	SenderRole    BlacklistRole = "sender"
+	RecipientRole BlacklistRole = "recipient"
+	FeePayerRole  BlacklistRole = "feePayer"
+)
+
+type ErrBlacklistedAccount struct {
+	Address common.Address
+	Role    BlacklistRole
+}
+
+func (e *ErrBlacklistedAccount) Error() string {
+	return fmt.Sprintf("blacklisted %s: %s", string(e.Role), e.Address.Hex())
+}

@@ -147,5 +147,5 @@ var (
 	ErrStateUnavailable = errors.New("state unavailable for verification")
 
 	// ErrBlacklistedSigner is returned when a block is signed by a blacklisted account.
-	ErrBlacklistedSigner = errors.New("signer is blacklisted")
+	ErrBlacklistedSigner = errors.New("blacklisted signer")
 )

@@ -19,6 +19,8 @@ package vm
 import (
 	"errors"
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // List evm execution errors
@@ -47,9 +49,6 @@ var (
 	// errStopToken is an internal token indicating interpreter loop termination,
 	// never returned to outside callers.
 	errStopToken = errors.New("stop token")
-
-	// ErrBlacklistedAccount indicates EVM execution with a blacklisted account
-	ErrBlacklistedAccount = errors.New("account is blacklisted")
 )
 
 // ErrStackUnderflow wraps an evm error when the items on the stack less
@@ -80,3 +79,21 @@ type ErrInvalidOpCode struct {
 }
 
 func (e *ErrInvalidOpCode) Error() string { return fmt.Sprintf("invalid opcode: %s", e.opcode) }
+
+type BlacklistRole string
+
+const (
+	callerRole      BlacklistRole = "caller"
+	targetRole      BlacklistRole = "target"
+	contractRole    BlacklistRole = "contract"
+	beneficiaryRole BlacklistRole = "beneficiary"
+)
+
+type ErrBlacklistedAccount struct {
+	Address common.Address
+	Role    BlacklistRole
+}
+
+func (e *ErrBlacklistedAccount) Error() string {
+	return fmt.Sprintf("blacklisted %s: %s", string(e.Role), e.Address.Hex())
+}

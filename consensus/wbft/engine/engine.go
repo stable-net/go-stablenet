@@ -383,7 +383,7 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 		return fmt.Errorf("%w: %v", wbftcommon.ErrStateUnavailable, err)
 	}
 	if state.IsBlacklisted(signer) {
-		return fmt.Errorf("%w: signer %s", wbftcommon.ErrBlacklistedSigner, signer.Hex())
+		return fmt.Errorf("%w: %s", wbftcommon.ErrBlacklistedSigner, signer.Hex())
 	}
 
 	return nil

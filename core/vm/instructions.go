@@ -17,7 +17,6 @@
 package vm
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -805,10 +804,10 @@ func opSelfdestruct(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext
 	// Deny SELFDESTRUCT if the contract or beneficiary is blacklisted under Anzeon rules
 	if interpreter.evm.chainRules.IsAnzeon {
 		if contractAddr := scope.Contract.Address(); interpreter.evm.StateDB.IsBlacklisted(contractAddr) {
-			return nil, fmt.Errorf("%w: contract %s", ErrBlacklistedAccount, contractAddr.Hex())
+			return nil, &ErrBlacklistedAccount{Address: contractAddr, Role: contractRole}
 		}
 		if beneficiaryAddr := beneficiary.Bytes20(); interpreter.evm.StateDB.IsBlacklisted(beneficiaryAddr) {
-			return nil, fmt.Errorf("%w: beneficiary %s", ErrBlacklistedAccount, common.Address(beneficiaryAddr).Hex())
+			return nil, &ErrBlacklistedAccount{Address: beneficiaryAddr, Role: beneficiaryRole}
 		}
 	}
 	balance := interpreter.evm.StateDB.GetBalance(scope.Contract.Address())
@@ -833,10 +832,10 @@ func opSelfdestruct6780(pc *uint64, interpreter *EVMInterpreter, scope *ScopeCon
 	// Deny SELFDESTRUCT if the contract or beneficiary is blacklisted under Anzeon rules
 	if interpreter.evm.chainRules.IsAnzeon {
 		if contractAddr := scope.Contract.Address(); interpreter.evm.StateDB.IsBlacklisted(contractAddr) {
-			return nil, fmt.Errorf("%w: contract %s", ErrBlacklistedAccount, contractAddr.Hex())
+			return nil, &ErrBlacklistedAccount{Address: contractAddr, Role: contractRole}
 		}
 		if beneficiaryAddr := beneficiary.Bytes20(); interpreter.evm.StateDB.IsBlacklisted(beneficiaryAddr) {
-			return nil, fmt.Errorf("%w: beneficiary %s", ErrBlacklistedAccount, common.Address(beneficiaryAddr).Hex())
+			return nil, &ErrBlacklistedAccount{Address: beneficiaryAddr, Role: beneficiaryRole}
 		}
 	}
 	balance := interpreter.evm.StateDB.GetBalance(scope.Contract.Address())

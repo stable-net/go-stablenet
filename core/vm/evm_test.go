@@ -19,7 +19,6 @@ package vm
 
 import (
 	"crypto/ecdsa"
-	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -35,26 +34,6 @@ import (
 type account struct {
 	privKey *ecdsa.PrivateKey
 	address common.Address
-}
-
-type testAccounts struct {
-	caller *account
-	target *account
-}
-
-func buildAccounts(statedb StateDB, callerBlacklisted, targetBlacklisted bool) testAccounts {
-	var accounts testAccounts
-
-	accounts.caller = newAccount(statedb)
-	if callerBlacklisted {
-		statedb.SetBlacklisted(accounts.caller.address)
-	}
-	accounts.target = newAccount(statedb)
-	if targetBlacklisted {
-		statedb.SetBlacklisted(accounts.target.address)
-	}
-
-	return accounts
 }
 
 func newAccount(statedb StateDB) *account {
@@ -81,40 +60,28 @@ func newTestEvm(statedb StateDB) *EVM {
 	return NewEVM(vmctx, TxContext{}, statedb, params.TestWBFTChainConfig, Config{})
 }
 
-func TestBlacklistedAccountTx(t *testing.T) {
+func TestBlacklistedAccountExecution(t *testing.T) {
 	t.Run("Call", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name              string
-			callerBlacklisted bool
-			targetBlacklisted bool
-			expectErr         bool
-			getErrPart        func(accts testAccounts) string
+			name            string
+			blacklistedRole BlacklistRole
+			expectErr       bool
 		}{
 			{
-				name:              "unrelated to any blacklisted account",
-				callerBlacklisted: false,
-				targetBlacklisted: false,
-				expectErr:         false,
+				name:      "unrelated to any blacklisted account",
+				expectErr: false,
 			},
 			{
-				name:              "caller is blacklisted",
-				callerBlacklisted: true,
-				targetBlacklisted: false,
-				expectErr:         true,
-				getErrPart: func(accts testAccounts) string {
-					return fmt.Sprintf("caller %s", accts.caller.address.Hex())
-				},
+				name:            "caller is blacklisted",
+				blacklistedRole: callerRole,
+				expectErr:       true,
 			},
 			{
-				name:              "target is blacklisted",
-				callerBlacklisted: false,
-				targetBlacklisted: true,
-				expectErr:         true,
-				getErrPart: func(accts testAccounts) string {
-					return fmt.Sprintf("target %s", accts.target.address.Hex())
-				},
+				name:            "target is blacklisted",
+				blacklistedRole: targetRole,
+				expectErr:       true,
 			},
 		}
 
@@ -125,17 +92,31 @@ func TestBlacklistedAccountTx(t *testing.T) {
 
 				statedb := newStateDB()
 				evm := newTestEvm(statedb)
-				accts := buildAccounts(statedb, tc.callerBlacklisted, tc.targetBlacklisted)
 
-				caller := accts.caller
-				target := accts.target
+				testAccts := map[BlacklistRole]*account{
+					callerRole: newAccount(statedb),
+					targetRole: newAccount(statedb),
+				}
+
+				blacklistedAcct, ok := testAccts[tc.blacklistedRole]
+				if ok {
+					statedb.SetBlacklisted(blacklistedAcct.address)
+				}
+
+				caller := testAccts[callerRole]
+				target := testAccts[targetRole]
 
 				callerRef := AccountRef(caller.address)
 
 				_, _, err := evm.Call(callerRef, target.address, []byte{}, 0, uint256.NewInt(0))
 				if tc.expectErr {
-					require.ErrorIs(t, err, ErrBlacklistedAccount)
-					require.Contains(t, err.Error(), tc.getErrPart(accts))
+					require.Error(t, err)
+
+					var haveErr *ErrBlacklistedAccount
+					require.ErrorAs(t, err, &haveErr)
+
+					require.Equal(t, tc.blacklistedRole, haveErr.Role)
+					require.Equal(t, testAccts[tc.blacklistedRole].address, haveErr.Address)
 				} else {
 					require.NoError(t, err)
 				}
@@ -147,23 +128,18 @@ func TestBlacklistedAccountTx(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name              string
-			callerBlacklisted bool
-			expectErr         bool
-			getErrPart        func(accts testAccounts) string
+			name            string
+			blacklistedRole BlacklistRole
+			expectErr       bool
 		}{
 			{
-				name:              "unrelated to any blacklisted account",
-				callerBlacklisted: false,
-				expectErr:         false,
+				name:      "unrelated to any blacklisted account",
+				expectErr: false,
 			},
 			{
-				name:              "caller is blacklisted",
-				callerBlacklisted: true,
-				expectErr:         true,
-				getErrPart: func(accts testAccounts) string {
-					return fmt.Sprintf("caller %s", accts.caller.address.Hex())
-				},
+				name:            "caller is blacklisted",
+				blacklistedRole: callerRole,
+				expectErr:       true,
 			},
 		}
 
@@ -174,9 +150,17 @@ func TestBlacklistedAccountTx(t *testing.T) {
 
 				statedb := newStateDB()
 				evm := newTestEvm(statedb)
-				accts := buildAccounts(statedb, tc.callerBlacklisted, false)
 
-				caller := accts.caller
+				testAccts := map[BlacklistRole]*account{
+					callerRole: newAccount(statedb),
+				}
+
+				blacklistedAcct, ok := testAccts[tc.blacklistedRole]
+				if ok {
+					statedb.SetBlacklisted(blacklistedAcct.address)
+				}
+
+				caller := testAccts[callerRole]
 				callerRef := AccountRef(caller.address)
 
 				constructorCode := []byte{0x00}
@@ -186,8 +170,13 @@ func TestBlacklistedAccountTx(t *testing.T) {
 
 				_, _, _, err := evm.create(callerRef, &codeAndHash, 0, uint256.NewInt(0), common.Address{}, CREATE)
 				if tc.expectErr {
-					require.ErrorIs(t, err, ErrBlacklistedAccount)
-					require.Contains(t, err.Error(), tc.getErrPart(accts))
+					require.Error(t, err)
+
+					var haveErr *ErrBlacklistedAccount
+					require.ErrorAs(t, err, &haveErr)
+
+					require.Equal(t, tc.blacklistedRole, haveErr.Role)
+					require.Equal(t, testAccts[tc.blacklistedRole].address, haveErr.Address)
 				} else {
 					require.NoError(t, err)
 				}
