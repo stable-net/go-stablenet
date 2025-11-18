@@ -31,6 +31,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testGas = 100000
+
 type account struct {
 	privKey *ecdsa.PrivateKey
 	address common.Address
@@ -42,7 +44,7 @@ func newAccount(statedb StateDB) *account {
 
 	account := &account{key, address}
 	statedb.CreateAccount(account.address)
-	statedb.AddBalance(account.address, uint256.NewInt(1000000000000000000))
+	statedb.AddBalance(account.address, uint256.NewInt(params.Ether))
 
 	return account
 }
@@ -60,26 +62,105 @@ func newTestEvm(statedb StateDB) *EVM {
 	return NewEVM(vmctx, TxContext{}, statedb, params.TestWBFTChainConfig, Config{})
 }
 
+type callFn func(evm *EVM, caller *Contract, target common.Address) error
+
+func invokeCall(evm *EVM, caller *Contract, target common.Address) error {
+	_, _, err := evm.Call(caller, target, []byte{}, testGas, uint256.NewInt(0))
+	return err
+}
+
+func invokeDelegateCall(evm *EVM, caller *Contract, target common.Address) error {
+	_, _, err := evm.DelegateCall(caller, target, []byte{}, testGas)
+	return err
+}
+
+func invokeCallCode(evm *EVM, caller *Contract, target common.Address) error {
+	_, _, err := evm.CallCode(caller, target, []byte{}, testGas, uint256.NewInt(0))
+	return err
+}
+
+func invokeStaticCall(evm *EVM, caller *Contract, target common.Address) error {
+	_, _, err := evm.StaticCall(caller, target, []byte{}, testGas)
+	return err
+}
+
 func TestBlacklistedAccountExecution(t *testing.T) {
 	t.Run("Call", func(t *testing.T) {
-		t.Parallel()
-
 		tests := []struct {
 			name            string
+			invoke          callFn
 			blacklistedRole BlacklistRole
 			expectErr       bool
 		}{
 			{
-				name:      "unrelated to any blacklisted account",
-				expectErr: false,
+				name:            "Call: unrelated to any blacklisted account",
+				invoke:          invokeCall,
+				blacklistedRole: noneRole,
+				expectErr:       false,
 			},
 			{
-				name:            "caller is blacklisted",
+				name:            "Call: caller is blacklisted",
+				invoke:          invokeCall,
 				blacklistedRole: callerRole,
 				expectErr:       true,
 			},
 			{
-				name:            "target is blacklisted",
+				name:            "Call: target is blacklisted",
+				invoke:          invokeCall,
+				blacklistedRole: targetRole,
+				expectErr:       true,
+			},
+			{
+				name:            "DelegateCall: unrelated to any blacklisted account",
+				invoke:          invokeDelegateCall,
+				blacklistedRole: noneRole,
+				expectErr:       false,
+			},
+			{
+				name:            "DelegateCall: caller is blacklisted",
+				invoke:          invokeDelegateCall,
+				blacklistedRole: callerRole,
+				expectErr:       true,
+			},
+			{
+				name:            "DelegateCall: target is blacklisted",
+				invoke:          invokeDelegateCall,
+				blacklistedRole: targetRole,
+				expectErr:       true,
+			},
+			{
+				name:            "CallCode: unrelated to any blacklisted account",
+				invoke:          invokeCallCode,
+				blacklistedRole: noneRole,
+				expectErr:       false,
+			},
+			{
+				name:            "CallCode: caller is blacklisted",
+				invoke:          invokeCallCode,
+				blacklistedRole: callerRole,
+				expectErr:       true,
+			},
+			{
+				name:            "CallCode: target is blacklisted",
+				invoke:          invokeCallCode,
+				blacklistedRole: targetRole,
+				expectErr:       true,
+			},
+			{
+				name:            "StaticCall: unrelated to any blacklisted account",
+				invoke:          invokeStaticCall,
+				blacklistedRole: noneRole,
+				expectErr:       false,
+			},
+			{
+				name:            "StaticCall: caller is blacklisted",
+				invoke:          invokeStaticCall,
+				blacklistedRole: callerRole,
+				expectErr:       true,
+			},
+			{
+				name:            "StaticCall: target is blacklisted",
+				invoke:          invokeStaticCall,
 				blacklistedRole: targetRole,
 				expectErr:       true,
 			},
@@ -98,17 +179,17 @@ func TestBlacklistedAccountExecution(t *testing.T) {
 					targetRole: newAccount(statedb),
 				}
 
-				blacklistedAcct, ok := testAccts[tc.blacklistedRole]
-				if ok {
+				if tc.blacklistedRole != noneRole {
+					blacklistedAcct := testAccts[tc.blacklistedRole]
 					statedb.SetBlacklisted(blacklistedAcct.address)
 				}
 
 				caller := testAccts[callerRole]
 				target := testAccts[targetRole]
 
-				callerRef := AccountRef(caller.address)
+				callerRef := NewContract(AccountRef(caller.address), AccountRef(caller.address), uint256.NewInt(0), 0)
 
-				_, _, err := evm.Call(callerRef, target.address, []byte{}, 0, uint256.NewInt(0))
+				err := tc.invoke(evm, callerRef, target.address)
 				if tc.expectErr {
 					require.Error(t, err)
 
@@ -125,19 +206,18 @@ func TestBlacklistedAccountExecution(t *testing.T) {
 	})
 
 	t.Run("Create", func(t *testing.T) {
-		t.Parallel()
-
 		tests := []struct {
 			name            string
 			blacklistedRole BlacklistRole
 			expectErr       bool
 		}{
 			{
-				name:      "unrelated to any blacklisted account",
-				expectErr: false,
+				name:            "Create: unrelated to any blacklisted account",
+				blacklistedRole: noneRole,
+				expectErr:       false,
 			},
 			{
-				name:            "caller is blacklisted",
+				name:            "Create: caller is blacklisted",
 				blacklistedRole: callerRole,
 				expectErr:       true,
 			},
@@ -155,8 +235,8 @@ func TestBlacklistedAccountExecution(t *testing.T) {
 					callerRole: newAccount(statedb),
 				}
 
-				blacklistedAcct, ok := testAccts[tc.blacklistedRole]
-				if ok {
+				if tc.blacklistedRole != noneRole {
+					blacklistedAcct := testAccts[tc.blacklistedRole]
 					statedb.SetBlacklisted(blacklistedAcct.address)
 				}
 
@@ -167,8 +247,7 @@ func TestBlacklistedAccountExecution(t *testing.T) {
 				codeAndHash := codeAndHash{
 					code: constructorCode,
 				}
-
-				_, _, _, err := evm.create(callerRef, &codeAndHash, 0, uint256.NewInt(0), common.Address{}, CREATE)
+				_, _, _, err := evm.create(callerRef, &codeAndHash, testGas, uint256.NewInt(0), common.Address{}, CREATE)
 				if tc.expectErr {
 					require.Error(t, err)
 

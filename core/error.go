@@ -117,6 +117,7 @@ var (
 type BlacklistRole string
 
 const (
+	NoneRole      BlacklistRole = "" // sentinel: no blacklisted role
 	SenderRole    BlacklistRole = "sender"
 	RecipientRole BlacklistRole = "recipient"
 	FeePayerRole  BlacklistRole = "feePayer"

@@ -938,9 +938,10 @@ func TestBlacklistedAccountSelfdestruct(t *testing.T) {
 		expectErr       bool
 	}{
 		{
-			name:        "opSelfdestruct unrelated to any blacklisted account",
-			instruction: opSelfdestruct,
-			expectErr:   false,
+			name:            "opSelfdestruct unrelated to any blacklisted account",
+			blacklistedRole: noneRole,
+			instruction:     opSelfdestruct,
+			expectErr:       false,
 		},
 		{
 			name:            "opSelfdestruct contract is blacklisted",
@@ -955,9 +956,10 @@ func TestBlacklistedAccountSelfdestruct(t *testing.T) {
 			expectErr:       true,
 		},
 		{
-			name:        "opSelfdestruct6780 unrelated to any blacklisted account",
-			instruction: opSelfdestruct6780,
-			expectErr:   false,
+			name:            "opSelfdestruct6780 unrelated to any blacklisted account",
+			blacklistedRole: noneRole,
+			instruction:     opSelfdestruct6780,
+			expectErr:       false,
 		},
 		{
 			name:            "opSelfdestruct6780 contract is blacklisted",
@@ -992,8 +994,8 @@ func TestBlacklistedAccountSelfdestruct(t *testing.T) {
 				beneficiaryRole: newAccount(statedb),
 			}
 
-			blacklistedAcct, ok := testAccts[tc.blacklistedRole]
-			if ok {
+			if tc.blacklistedRole != noneRole {
+				blacklistedAcct := testAccts[tc.blacklistedRole]
 				statedb.SetBlacklisted(blacklistedAcct.address)
 			}
 

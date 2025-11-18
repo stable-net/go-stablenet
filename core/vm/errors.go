@@ -83,6 +83,7 @@ func (e *ErrInvalidOpCode) Error() string { return fmt.Sprintf("invalid opcode: 
 type BlacklistRole string
 
 const (
+	noneRole        BlacklistRole = "" // sentinel: no blacklisted role
 	callerRole      BlacklistRole = "caller"
 	targetRole      BlacklistRole = "target"
 	contractRole    BlacklistRole = "contract"

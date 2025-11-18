@@ -137,8 +137,9 @@ func TestBlacklistedAccountTx(t *testing.T) {
 			expectErr       bool
 		}{
 			{
-				name:      "unrelated to any blacklisted account",
-				expectErr: false,
+				name:            "unrelated to any blacklisted account",
+				blacklistedRole: core.NoneRole,
+				expectErr:       false,
 			},
 			{
 				name:            "sender is blacklisted",
@@ -163,8 +164,8 @@ func TestBlacklistedAccountTx(t *testing.T) {
 					core.RecipientRole: newAccount(statedb),
 				}
 
-				blacklistedAcct, ok := testAccts[tc.blacklistedRole]
-				if ok {
+				if tc.blacklistedRole != core.NoneRole {
+					blacklistedAcct := testAccts[tc.blacklistedRole]
 					statedb.SetBlacklisted(blacklistedAcct.address)
 				}
 
@@ -197,8 +198,9 @@ func TestBlacklistedAccountTx(t *testing.T) {
 			expectErr       bool
 		}{
 			{
-				name:      "unrelated to any blacklisted account",
-				expectErr: false,
+				name:            "unrelated to any blacklisted account",
+				blacklistedRole: core.NoneRole,
+				expectErr:       false,
 			},
 			{
 				name:            "sender is blacklisted",
@@ -229,8 +231,8 @@ func TestBlacklistedAccountTx(t *testing.T) {
 					core.FeePayerRole:  newAccount(statedb),
 				}
 
-				blacklistedAcct, ok := testAccts[tc.blacklistedRole]
-				if ok {
+				if tc.blacklistedRole != core.NoneRole {
+					blacklistedAcct := testAccts[tc.blacklistedRole]
 					statedb.SetBlacklisted(blacklistedAcct.address)
 				}
 
