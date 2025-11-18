@@ -308,6 +308,15 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+	// Fail if the caller or the target address is blacklisted under Anzeon rules
+	if evm.chainRules.IsAnzeon {
+		if callerAddr := caller.Address(); evm.StateDB.IsBlacklisted(callerAddr) {
+			return nil, gas, &ErrBlacklistedAccount{Address: caller.Address(), Role: callerRole}
+		}
+		if evm.StateDB.IsBlacklisted(addr) {
+			return nil, gas, &ErrBlacklistedAccount{Address: addr, Role: targetRole}
+		}
+	}
 	// Fail if we're trying to transfer more than the available balance
 	// Note although it's noop to transfer X ether to caller itself. But
 	// if caller doesn't have enough balance, it would be an error to allow
@@ -358,6 +367,15 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+	// Fail if the caller or the target address is blacklisted under Anzeon rules
+	if evm.chainRules.IsAnzeon {
+		if callerAddr := caller.Address(); evm.StateDB.IsBlacklisted(callerAddr) {
+			return nil, gas, &ErrBlacklistedAccount{Address: caller.Address(), Role: callerRole}
+		}
+		if evm.StateDB.IsBlacklisted(addr) {
+			return nil, gas, &ErrBlacklistedAccount{Address: addr, Role: targetRole}
+		}
+	}
 	var snapshot = evm.StateDB.Snapshot()
 
 	// Invoke tracer hooks that signal entering/exiting a call frame
@@ -402,6 +420,15 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
+	}
+	// Fail if the caller or the target address is blacklisted under Anzeon rules
+	if evm.chainRules.IsAnzeon {
+		if callerAddr := caller.Address(); evm.StateDB.IsBlacklisted(callerAddr) {
+			return nil, gas, &ErrBlacklistedAccount{Address: caller.Address(), Role: callerRole}
+		}
+		if evm.StateDB.IsBlacklisted(addr) {
+			return nil, gas, &ErrBlacklistedAccount{Address: addr, Role: targetRole}
+		}
 	}
 	// We take a snapshot here. This is a bit counter-intuitive, and could probably be skipped.
 	// However, even a staticcall is considered a 'touch'. On mainnet, static calls were introduced
