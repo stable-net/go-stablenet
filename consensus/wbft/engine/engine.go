@@ -287,7 +287,7 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 	}
 
 	// Verify signer
-	if err := e.verifySigner(chain, header, parents, validators); err != nil {
+	if err := e.verifySigner(chain, header, parent, validators); err != nil {
 		if !errors.Is(err, wbftcommon.ErrStateUnavailable) {
 			return err
 		}
@@ -348,7 +348,7 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 	return nil
 }
 
-func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, validators wbft.ValidatorSet) error {
+func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.Header, parent *types.Header, validators wbft.ValidatorSet) error {
 	// Verifying the genesis block is not supported
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -366,18 +366,9 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 		return wbftcommon.ErrUnauthorized
 	}
 
-	// Check parent
-	var parent *types.Header
-	if len(parents) > 0 {
-		parent = parents[len(parents)-1]
-	} else {
-		parent = chain.GetHeader(header.ParentHash, number-1)
-	}
-	// Ensure that the block's parent has right number and hash
-	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-
 	state, err := chain.StateAt(parent.Root)
 	if err != nil {
 		return fmt.Errorf("%w: %v", wbftcommon.ErrStateUnavailable, err)
@@ -480,7 +471,12 @@ func (e *Engine) VerifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 		return wbftcommon.ErrInvalidDifficulty
 	}
 
-	return e.verifySigner(chain, header, nil, validators)
+	parent := chain.GetHeader(header.ParentHash, number-1)
+	if parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+
+	return e.verifySigner(chain, header, parent, validators)
 }
 
 func (e *Engine) PeriodToNextBlock(blockNumber *big.Int) uint64 {

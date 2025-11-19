@@ -948,12 +948,6 @@ func TestBlacklistedSigner(t *testing.T) {
 				Coinbase:   signer.addr,
 			}
 
-			var parents []*types.Header
-			if tc.parentExists {
-				header.ParentHash = parent.Hash()
-				parents = []*types.Header{parent}
-			}
-
 			addrs := []common.Address{
 				signer.addr,
 			}
@@ -962,7 +956,7 @@ func TestBlacklistedSigner(t *testing.T) {
 			}
 			validators := validator.NewSet(addrs, blsPubKeys, wbft.NewRoundRobinProposerPolicy())
 
-			err := engine.verifySigner(fc, header, parents, validators)
+			err := engine.verifySigner(fc, header, parent, validators)
 
 			if tc.expectErr == nil {
 				require.NoError(t, err)
