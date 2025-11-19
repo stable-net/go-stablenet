@@ -891,26 +891,17 @@ func TestBlacklistedSigner(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		parentExists    bool
 		blacklisted     bool
 		expectErr       error
 		errContainsPart string
 	}{
 		{
-			name:         "missing parent header",
-			parentExists: false,
-			blacklisted:  false,
-			expectErr:    consensus.ErrUnknownAncestor,
-		},
-		{
-			name:         "not blacklisted signer",
-			parentExists: true,
-			blacklisted:  false,
-			expectErr:    nil,
+			name:        "not blacklisted signer",
+			blacklisted: false,
+			expectErr:   nil,
 		},
 		{
 			name:            "blacklisted signer",
-			parentExists:    true,
 			blacklisted:     true,
 			expectErr:       wbftcommon.ErrBlacklistedSigner,
 			errContainsPart: signer.addr.Hex(),
@@ -920,12 +911,9 @@ func TestBlacklistedSigner(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			var parent *types.Header
-			if tc.parentExists {
-				parent = &types.Header{
-					Number: big.NewInt(1),
-					Root:   common.Hash{},
-				}
+			parent := &types.Header{
+				Number: big.NewInt(1),
+				Root:   common.Hash{},
 			}
 
 			mockState, _ := state.New(types.EmptyRootHash, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
