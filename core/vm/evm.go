@@ -195,6 +195,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+	if err := evm.checkBlacklisted(caller.Address(), addr); err != nil {
+		return nil, gas, err
+	}
 	m, isNativeManager := evm.nativeManager(addr)
 	p, isPrecompile := evm.precompile(addr)
 	if !value.IsZero() {
@@ -299,6 +302,9 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+	if err := evm.checkBlacklisted(caller.Address(), addr); err != nil {
+		return nil, gas, err
+	}
 	// Fail if we're trying to transfer more than the available balance
 	// Note although it's noop to transfer X ether to caller itself. But
 	// if caller doesn't have enough balance, it would be an error to allow
@@ -349,6 +355,9 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
 	}
+	if err := evm.checkBlacklisted(caller.Address(), addr); err != nil {
+		return nil, gas, err
+	}
 	var snapshot = evm.StateDB.Snapshot()
 
 	// Invoke tracer hooks that signal entering/exiting a call frame
@@ -393,6 +402,9 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, gas, ErrDepth
+	}
+	if err := evm.checkBlacklisted(caller.Address(), addr); err != nil {
+		return nil, gas, err
 	}
 	// We take a snapshot here. This is a bit counter-intuitive, and could probably be skipped.
 	// However, even a staticcall is considered a 'touch'. On mainnet, static calls were introduced
@@ -461,6 +473,10 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	// limit.
 	if evm.depth > int(params.CallCreateDepth) {
 		return nil, common.Address{}, gas, ErrDepth
+	}
+	// Fail if the caller is blacklisted under Anzeon rules
+	if evm.chainRules.IsAnzeon && evm.StateDB.IsBlacklisted(caller.Address()) {
+		return nil, common.Address{}, gas, &ErrBlacklistedAccount{Address: caller.Address()}
 	}
 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
 		return nil, common.Address{}, gas, ErrInsufficientBalance
@@ -590,4 +606,19 @@ func (evm *EVM) AddTransferLog(sender, recipient common.Address, amount *uint256
 		Data:        data,
 		BlockNumber: evm.Context.BlockNumber.Uint64(),
 	})
+}
+
+// Fail if from or to address is blacklisted under Anzeon rules
+func (evm *EVM) checkBlacklisted(from common.Address, to common.Address) error {
+	if !evm.chainRules.IsAnzeon {
+		return nil
+	}
+
+	if evm.StateDB.IsBlacklisted(from) {
+		return &ErrBlacklistedAccount{from}
+	}
+	if evm.StateDB.IsBlacklisted(to) {
+		return &ErrBlacklistedAccount{to}
+	}
+	return nil
 }

@@ -478,19 +478,19 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	if rules.IsAnzeon {
 		// Check sender blacklist
 		if st.state.IsBlacklisted(msg.From) {
-			return nil, fmt.Errorf("%w: sender %v", ErrBlacklistedAccount, msg.From.Hex())
+			return nil, &ErrBlacklistedAccount{Address: msg.From}
 		}
 
 		// Check recipient blacklist (only for transfers, not for contract creation)
 		if msg.To != nil && st.state.IsBlacklisted(*msg.To) {
-			return nil, fmt.Errorf("%w: recipient %v", ErrBlacklistedAccount, msg.To.Hex())
+			return nil, &ErrBlacklistedAccount{Address: *msg.To}
 		}
 	}
 
 	// Execute the preparatory steps for state transition which includes:
 	// - prepare accessList(post-berlin)
 	// - reset transient storage(eip 1153)
-	st.state.Prepare(rules, msg.From, st.evm.Context.Coinbase, msg.To, vm.ActivePrecompiles(rules), msg.AccessList)
+	st.state.Prepare(rules, msg.From, st.evm.Context.Coinbase, msg.To, vm.ActivePrecompiles(rules), vm.ActiveNativeManagers(rules), msg.AccessList)
 
 	var (
 		ret   []byte
@@ -533,6 +533,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		// fee delegation
 		if st.msg.FeePayer != nil {
 			payer = *st.msg.FeePayer
+			if rules.IsAnzeon && st.state.IsBlacklisted(payer) {
+				return nil, &ErrBlacklistedAccount{Address: payer}
+			}
 		}
 		st.evm.AddTransferLog(payer, st.evm.Context.Coinbase, fee)
 	}
