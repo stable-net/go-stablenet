@@ -366,9 +366,8 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 		return wbftcommon.ErrUnauthorized
 	}
 
-	if parent == nil {
-		return consensus.ErrUnknownAncestor
-	}
+	// The caller ensures that parent is non-nil.
+	// It is already validated in the calling context.
 	state, err := chain.StateAt(parent.Root)
 	if err != nil {
 		return fmt.Errorf("%w: %v", wbftcommon.ErrStateUnavailable, err)
