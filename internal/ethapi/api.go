@@ -731,6 +731,7 @@ type AccountResult struct {
 	Nonce        hexutil.Uint64  `json:"nonce"`
 	StorageHash  common.Hash     `json:"storageHash"`
 	StorageProof []StorageResult `json:"storageProof"`
+	Extra        hexutil.Uint64  `json:"extra,omitempty"`
 }
 
 type StorageResult struct {
@@ -826,6 +827,7 @@ func (s *BlockChainAPI) GetProof(ctx context.Context, address common.Address, st
 		Nonce:        hexutil.Uint64(statedb.GetNonce(address)),
 		StorageHash:  storageRoot,
 		StorageProof: storageProof,
+		Extra:        hexutil.Uint64(statedb.GetExtra(address)),
 	}, statedb.Error()
 }
 
