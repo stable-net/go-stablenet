@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient/simulated"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -151,6 +152,35 @@ func CreateDynamicTx(backend IBackend, opts *bind.TransactOpts, to *common.Addre
 	}
 
 	return opts.Signer(opts.From, types.NewTx(baseTx))
+}
+
+func SendFeeDelegateTx(backend IBackend, feePayer *EOA, baseTx *types.Transaction) (*types.Transaction, error) {
+	txData, err := baseTx.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	var senderTx types.DynamicFeeTx
+	// First byte is tx.Type; exclude when decoding
+	rlp.DecodeBytes(txData[1:], &senderTx)
+
+	feeDelegateTx := types.NewTx(&types.FeeDelegateDynamicFeeTx{
+		SenderTx: senderTx,
+		FeePayer: &feePayer.Address,
+	})
+
+	signer := types.NewFeeDelegateSigner(params.TestWBFTChainConfig.ChainID)
+	signature, err := crypto.Sign(signer.Hash(feeDelegateTx).Bytes(), feePayer.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := feeDelegateTx.WithSignature(signer, signature)
+	if err != nil {
+		return nil, err
+	}
+
+	return tx, backend.SendTransaction(context.Background(), tx)
 }
 
 func TransferCoin(backend IBackend, opts *bind.TransactOpts, value *big.Int, to *common.Address) (*types.Transaction, error) {

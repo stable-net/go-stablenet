@@ -174,6 +174,49 @@ func TestTransferLog(t *testing.T) {
 
 		checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
 	})
+
+	t.Run("fee delegation", func(t *testing.T) {
+		transferAmount := new(big.Int).Div(amount, common.Big2)
+		// native transfer
+		{
+			baseTx, err := CreateDynamicTx(g.backend.Client(), NewTxOptsWithValue(t, sender, transferAmount), &(recipient.Address), nil)
+			require.NoError(t, err)
+
+			receipt, err := g.ExpectedOk(SendFeeDelegateTx(g.backend.Client(), minter, baseTx))
+			require.NoError(t, err)
+
+			transferEvents := findEvents("Transfer", receipt.Logs)
+			require.Equal(t, 2, len(transferEvents)) // mint, gas
+
+			eventTransfer := transferEvents[0]
+			require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
+			require.Equal(t, recipient.Address, eventTransfer["to"].(common.Address))
+			require.True(t, transferAmount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
+
+			checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
+		}
+
+		// transfer by NativeCoinAdapter
+		{
+			opts := NewTxOpts(t, sender)
+			opts.NoSend = true
+			baseTx, err := g.coinAdapter.Transact(opts, "transfer", recipient.Address, transferAmount)
+			require.NoError(t, err)
+
+			receipt, err := g.ExpectedOk(SendFeeDelegateTx(g.backend.Client(), minter, baseTx))
+			require.NoError(t, err)
+
+			transferEvents := findEvents("Transfer", receipt.Logs)
+			require.Equal(t, 2, len(transferEvents)) // mint, gas
+
+			eventTransfer := transferEvents[0]
+			require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
+			require.Equal(t, recipient.Address, eventTransfer["to"].(common.Address))
+			require.True(t, transferAmount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
+
+			checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
+		}
+	})
 }
 
 func TestNativeCoinAdapter(t *testing.T) {

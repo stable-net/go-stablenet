@@ -186,6 +186,7 @@ func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapter
 	g := &GovWBFT{
 		owner: owner,
 		backend: simulated.NewWBFTBackend(alloc, func(nodeConf *node.Config, ethConf *ethconfig.Config) {
+			ethConf.Genesis.Config.ApplepieBlock = big.NewInt(0)
 			anzeonConfig := ethConf.Genesis.Config.Anzeon
 			defaultBlockPeriod = time.Duration(anzeonConfig.WBFT.BlockPeriodSeconds) * time.Second
 
