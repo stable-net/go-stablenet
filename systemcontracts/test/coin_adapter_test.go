@@ -167,10 +167,10 @@ func TestTransferLog(t *testing.T) {
 		transferEvents := findEvents("Transfer", receipt.Logs)
 		require.Equal(t, 2, len(transferEvents)) // mint, gas
 
-		eventMint := transferEvents[0]
-		require.Equal(t, minter.Address, eventMint["from"].(common.Address))
-		require.Equal(t, common.Address{}, eventMint["to"].(common.Address))
-		require.True(t, burnAmount.Cmp(eventMint["value"].(*big.Int)) == 0)
+		eventTransfer := transferEvents[0]
+		require.Equal(t, minter.Address, eventTransfer["from"].(common.Address))
+		require.Equal(t, common.Address{}, eventTransfer["to"].(common.Address))
+		require.True(t, burnAmount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
 
 		checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
 	})
