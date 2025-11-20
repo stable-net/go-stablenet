@@ -568,3 +568,128 @@ func testCallContractWithBlockOverrides(t *testing.T, client *rpc.Client) {
 		t.Fatalf("unexpected result: %x", res)
 	}
 }
+
+// TestGetProofWithExtraFields tests the Extra field in GetProof responses
+// with various account configurations
+func TestGetProofWithExtraFields(t *testing.T) {
+	// Test case 1: All accounts have Extra field set
+	t.Run("AllAccountsWithExtra", func(t *testing.T) {
+		addr1 := common.HexToAddress("0x1111")
+		addr2 := common.HexToAddress("0x2222")
+		addr3 := common.HexToAddress("0x3333")
+
+		genesis := &core.Genesis{
+			Config: params.AllEthashProtocolChanges,
+			Alloc: types.GenesisAlloc{
+				addr1: {Balance: big.NewInt(1e18), Extra: 0x1234567890abcdef},
+				addr2: {Balance: big.NewInt(2e18), Extra: 0xfedcba0987654321},
+				addr3: {Balance: big.NewInt(3e18), Extra: 0xaaaaaaaaaaaaaaaa},
+			},
+			ExtraData: []byte("test genesis"),
+			Timestamp: 9000,
+		}
+
+		testExtraFieldsWithGenesis(t, genesis, []extraTestCase{
+			{addr1, 0x1234567890abcdef},
+			{addr2, 0xfedcba0987654321},
+			{addr3, 0xaaaaaaaaaaaaaaaa},
+		})
+	})
+
+	// Test case 2: Mixed - some accounts with Extra, some without
+	t.Run("MixedAccountsWithExtra", func(t *testing.T) {
+		addr1 := common.HexToAddress("0x4444")
+		addr2 := common.HexToAddress("0x5555")
+		addr3 := common.HexToAddress("0x6666")
+		addr4 := common.HexToAddress("0x7777")
+
+		genesis := &core.Genesis{
+			Config: params.AllEthashProtocolChanges,
+			Alloc: types.GenesisAlloc{
+				addr1: {Balance: big.NewInt(1e18), Extra: 0x1111111111111111},
+				addr2: {Balance: big.NewInt(2e18)},                            // No Extra (default 0)
+				addr3: {Balance: big.NewInt(3e18), Extra: 0},                  // Explicit 0
+				addr4: {Balance: big.NewInt(4e18), Extra: 0xffffffffffffffff}, // Max uint64
+			},
+			ExtraData: []byte("test genesis"),
+			Timestamp: 9000,
+		}
+
+		testExtraFieldsWithGenesis(t, genesis, []extraTestCase{
+			{addr1, 0x1111111111111111},
+			{addr2, 0},                  // No Extra field
+			{addr3, 0},                  // Explicit zero
+			{addr4, 0xffffffffffffffff}, // Max value
+		})
+	})
+}
+
+type extraTestCase struct {
+	addr  common.Address
+	extra uint64
+}
+
+// testExtraFieldsWithGenesis is a helper function that creates a backend with
+// the given genesis and tests Extra field for specified accounts
+func testExtraFieldsWithGenesis(t *testing.T, genesis *core.Genesis, testCases []extraTestCase) {
+	// Generate blocks
+	generate := func(i int, g *core.BlockGen) {
+		g.OffsetTime(5)
+		g.SetExtra([]byte("test"))
+	}
+	_, blocks, _ := core.GenerateChainWithGenesis(genesis, ethash.NewFaker(), 1, generate)
+	blocks = append([]*types.Block{genesis.ToBlock()}, blocks...)
+
+	// Create node
+	n, err := node.New(&node.Config{})
+	if err != nil {
+		t.Fatalf("can't create new node: %v", err)
+	}
+	defer n.Close()
+
+	// Create Ethereum Service
+	config := &ethconfig.Config{Genesis: genesis}
+	ethservice, err := eth.New(n, config)
+	if err != nil {
+		t.Fatalf("can't create new ethereum service: %v", err)
+	}
+	filterSystem := filters.NewFilterSystem(ethservice.APIBackend, filters.Config{})
+	n.RegisterAPIs([]rpc.API{{
+		Namespace: "eth",
+		Service:   filters.NewFilterAPI(filterSystem, false),
+	}})
+
+	// Start the node
+	if err := n.Start(); err != nil {
+		t.Fatalf("can't start test node: %v", err)
+	}
+
+	// Import blocks
+	if _, err := ethservice.BlockChain().InsertChain(blocks[1:]); err != nil {
+		t.Fatalf("can't import test blocks: %v", err)
+	}
+
+	// Get client
+	client := n.Attach()
+	defer client.Close()
+
+	ec := New(client)
+
+	// Test each account
+	for _, tc := range testCases {
+		result, err := ec.GetProof(context.Background(), tc.addr, nil, nil)
+		if err != nil {
+			t.Fatalf("GetProof failed for %v: %v", tc.addr, err)
+		}
+
+		if result.Address != tc.addr {
+			t.Fatalf("unexpected address, have: %v want: %v", result.Address, tc.addr)
+		}
+
+		// Verify Extra field
+		if result.Extra != tc.extra {
+			t.Fatalf("invalid extra for %v, want: %d (0x%x) got: %d (0x%x)",
+				tc.addr, tc.extra, tc.extra, result.Extra, result.Extra)
+		}
+	}
+}
