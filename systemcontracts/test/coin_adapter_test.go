@@ -61,12 +61,12 @@ func TestTransferLog(t *testing.T) {
 		require.NoError(t, err)
 
 		transferEvents := findEvents("Transfer", receipt.Logs)
-		require.Equal(t, 2, len(transferEvents)) // mint, gas
+		require.Equal(t, 2, len(transferEvents))
 
-		eventMint := transferEvents[0]
-		require.Equal(t, common.Address{}, eventMint["from"].(common.Address))
-		require.Equal(t, sender.Address, eventMint["to"].(common.Address))
-		require.True(t, mintAmount.Cmp(eventMint["value"].(*big.Int)) == 0)
+		eventTransfer := transferEvents[0]
+		require.Equal(t, common.Address{}, eventTransfer["from"].(common.Address))
+		require.Equal(t, sender.Address, eventTransfer["to"].(common.Address))
+		require.True(t, mintAmount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
 
 		checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
 	})
@@ -76,12 +76,12 @@ func TestTransferLog(t *testing.T) {
 		require.NoError(t, err)
 
 		transferEvents := findEvents("Transfer", receipt.Logs)
-		require.Equal(t, 2, len(transferEvents)) // mint, gas
+		require.Equal(t, 2, len(transferEvents))
 
-		eventMint := transferEvents[0]
-		require.Equal(t, sender.Address, eventMint["from"].(common.Address))
-		require.Equal(t, recipient.Address, eventMint["to"].(common.Address))
-		require.True(t, amount.Cmp(eventMint["value"].(*big.Int)) == 0)
+		eventTransfer := transferEvents[0]
+		require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
+		require.Equal(t, recipient.Address, eventTransfer["to"].(common.Address))
+		require.True(t, amount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
 
 		checkGasFeeTransferEvent(transferEvents[1], sender.Address, receipt)
 	})
@@ -91,7 +91,7 @@ func TestTransferLog(t *testing.T) {
 		require.NoError(t, err)
 
 		transferEvents := findEvents("Transfer", receipt.Logs)
-		require.Equal(t, 2, len(transferEvents)) // mint, gas
+		require.Equal(t, 2, len(transferEvents))
 
 		eventTransfer := transferEvents[0]
 		require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
@@ -106,7 +106,7 @@ func TestTransferLog(t *testing.T) {
 		require.NoError(t, err)
 
 		transferEvents := findEvents("Transfer", receipt.Logs)
-		require.Equal(t, 2, len(transferEvents)) // mint, gas
+		require.Equal(t, 2, len(transferEvents))
 
 		eventTransfer := transferEvents[0]
 		require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
@@ -143,7 +143,7 @@ func TestTransferLog(t *testing.T) {
 			require.NoError(t, err)
 
 			transferEvents := findEvents("Transfer", receipt.Logs)
-			require.Equal(t, 3, len(transferEvents)) // mint, gas
+			require.Equal(t, 3, len(transferEvents))
 
 			eventTxValue := transferEvents[0]
 			require.Equal(t, recipient.Address, eventTxValue["from"].(common.Address))
@@ -165,7 +165,7 @@ func TestTransferLog(t *testing.T) {
 		require.NoError(t, err)
 
 		transferEvents := findEvents("Transfer", receipt.Logs)
-		require.Equal(t, 2, len(transferEvents)) // mint, gas
+		require.Equal(t, 2, len(transferEvents))
 
 		eventTransfer := transferEvents[0]
 		require.Equal(t, minter.Address, eventTransfer["from"].(common.Address))
@@ -186,7 +186,7 @@ func TestTransferLog(t *testing.T) {
 			require.NoError(t, err)
 
 			transferEvents := findEvents("Transfer", receipt.Logs)
-			require.Equal(t, 2, len(transferEvents)) // mint, gas
+			require.Equal(t, 2, len(transferEvents))
 
 			eventTransfer := transferEvents[0]
 			require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
@@ -207,7 +207,7 @@ func TestTransferLog(t *testing.T) {
 			require.NoError(t, err)
 
 			transferEvents := findEvents("Transfer", receipt.Logs)
-			require.Equal(t, 2, len(transferEvents)) // mint, gas
+			require.Equal(t, 2, len(transferEvents))
 
 			eventTransfer := transferEvents[0]
 			require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
