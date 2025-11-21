@@ -19,7 +19,6 @@ package legacypool
 
 import (
 	"errors"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"math"
 	"math/big"
 	"sort"
@@ -33,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -313,6 +313,7 @@ func (pool *LegacyPool) Init(gasTip uint64, head *types.Header, reserve txpool.A
 	pool.currentHead.Store(head)
 	pool.currentState = statedb
 	pool.pendingNonces = newNoncer(statedb)
+	pool.anzeonTipEnv.SetCurrentBlock(head)
 
 	// Start the reorg loop early, so it can handle requests generated during
 	// journal loading.
