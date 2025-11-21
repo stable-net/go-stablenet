@@ -19,6 +19,8 @@ package vm
 import (
 	"errors"
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // List evm execution errors
@@ -77,3 +79,11 @@ type ErrInvalidOpCode struct {
 }
 
 func (e *ErrInvalidOpCode) Error() string { return fmt.Sprintf("invalid opcode: %s", e.opcode) }
+
+type ErrBlacklistedAccount struct {
+	Address common.Address
+}
+
+func (e *ErrBlacklistedAccount) Error() string {
+	return fmt.Sprintf("blacklisted account: %s", e.Address.Hex())
+}

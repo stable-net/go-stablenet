@@ -662,6 +662,7 @@ func (l *pricedList) Reheap() {
 	start := time.Now()
 	l.stales.Store(0)
 	l.urgent.list = make([]*types.Transaction, 0, l.all.RemoteCount())
+
 	l.all.Range(func(hash common.Hash, tx *types.Transaction, local bool) bool {
 		l.urgent.list = append(l.urgent.list, tx)
 		return true

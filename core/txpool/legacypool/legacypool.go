@@ -637,6 +637,8 @@ func (pool *LegacyPool) validateTxBasics(tx *types.Transaction, local bool) erro
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *LegacyPool) validateTx(tx *types.Transaction, local bool) error {
 	opts := &txpool.ValidationOptionsWithState{
+		Config: pool.chainconfig,
+
 		State: pool.currentState,
 
 		FirstNonceGap: nil, // Pool allows arbitrary arrival order, don't invalidate nonce gaps

@@ -143,4 +143,9 @@ var (
 	ErrIsNotWBFTBlock = errors.New("block is not a wbft block")
 
 	ErrEpochInfoIsNotNil = errors.New("epoch info should be nil for non-epoch block")
+
+	ErrStateUnavailable = errors.New("state unavailable for verification")
+
+	// ErrBlacklistedSigner is returned when a block is signed by a blacklisted account.
+	ErrBlacklistedSigner = errors.New("blacklisted signer")
 )

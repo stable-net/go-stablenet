@@ -287,8 +287,13 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 	}
 
 	// Verify signer
-	if err := e.verifySigner(chain, header, parents, validators); err != nil {
-		return err
+	if err := e.verifySigner(chain, header, parent, validators); err != nil {
+		if !errors.Is(err, wbftcommon.ErrStateUnavailable) {
+			return err
+		}
+		// Skip blacklisted signer verification when state is not yet available.
+		// For more details, refer to the comment in verifyGasTip.
+		log.Trace("WBFT: Skipping blacklisted signer verification due to unavailable state", "number", header.Number, "err", err)
 	}
 
 	// extract the extra data from the header
@@ -343,7 +348,7 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 	return nil
 }
 
-func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, validators wbft.ValidatorSet) error {
+func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.Header, parent *types.Header, validators wbft.ValidatorSet) error {
 	// Verifying the genesis block is not supported
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -359,6 +364,16 @@ func (e *Engine) verifySigner(chain consensus.ChainHeaderReader, header *types.H
 	// Signer should be in the validator set of previous block's extraData.
 	if _, v := validators.GetByAddress(signer); v == nil {
 		return wbftcommon.ErrUnauthorized
+	}
+
+	// The caller ensures that parent is non-nil.
+	// It is already validated in the calling context.
+	state, err := chain.StateAt(parent.Root)
+	if err != nil {
+		return fmt.Errorf("%w: %v", wbftcommon.ErrStateUnavailable, err)
+	}
+	if state.IsBlacklisted(signer) {
+		return fmt.Errorf("%w: %s", wbftcommon.ErrBlacklistedSigner, signer.Hex())
 	}
 
 	return nil
@@ -455,7 +470,12 @@ func (e *Engine) VerifySeal(chain consensus.ChainHeaderReader, header *types.Hea
 		return wbftcommon.ErrInvalidDifficulty
 	}
 
-	return e.verifySigner(chain, header, nil, validators)
+	parent := chain.GetHeader(header.ParentHash, number-1)
+	if parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+
+	return e.verifySigner(chain, header, parent, validators)
 }
 
 func (e *Engine) PeriodToNextBlock(blockNumber *big.Int) uint64 {

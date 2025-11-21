@@ -70,6 +70,7 @@ func (s txByPriceAndTime) Less(i, j int) bool {
 	}
 	return cmp > 0
 }
+
 func (s txByPriceAndTime) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
 func (s *txByPriceAndTime) Push(x interface{}) {

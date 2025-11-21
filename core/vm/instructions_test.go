@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
 )
 
 type TwoOperandTestcase struct {
@@ -643,7 +644,7 @@ func BenchmarkOpKeccak256(bench *testing.B) {
 	}
 }
 
-func TestCreate2Addreses(t *testing.T) {
+func TestCreate2Addresses(t *testing.T) {
 	type testcase struct {
 		origin   string
 		salt     string
@@ -926,5 +927,99 @@ func TestOpMCopy(t *testing.T) {
 		if haveGas != wantGas {
 			t.Errorf("case %d: gas wrong, want %d have %d\n", i, wantGas, haveGas)
 		}
+	}
+}
+
+func TestBlacklistedAccountSelfdestruct(t *testing.T) {
+	tests := []struct {
+		name            string
+		blacklistedRole BlacklistRole
+		instruction     func(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error)
+		expectErr       bool
+	}{
+		{
+			name:            "opSelfdestruct unrelated to any blacklisted account",
+			blacklistedRole: noneRole,
+			instruction:     opSelfdestruct,
+			expectErr:       false,
+		},
+		{
+			name:            "opSelfdestruct contract is blacklisted",
+			blacklistedRole: contractRole,
+			instruction:     opSelfdestruct,
+			expectErr:       true,
+		},
+		{
+			name:            "opSelfdestruct beneficiary is blacklisted",
+			blacklistedRole: beneficiaryRole,
+			instruction:     opSelfdestruct,
+			expectErr:       true,
+		},
+		{
+			name:            "opSelfdestruct6780 unrelated to any blacklisted account",
+			blacklistedRole: noneRole,
+			instruction:     opSelfdestruct6780,
+			expectErr:       false,
+		},
+		{
+			name:            "opSelfdestruct6780 contract is blacklisted",
+			blacklistedRole: contractRole,
+			instruction:     opSelfdestruct6780,
+			expectErr:       true,
+		},
+		{
+			name:            "opSelfdestruct6780 beneficiary is blacklisted",
+			blacklistedRole: beneficiaryRole,
+			instruction:     opSelfdestruct6780,
+			expectErr:       true,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				statedb, _     = state.New(types.EmptyRootHash, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+				env            = NewEVM(BlockContext{BlockNumber: new(big.Int).SetUint64(1)}, TxContext{}, statedb, params.TestWBFTChainConfig, Config{})
+				stack          = newstack()
+				mem            = NewMemory()
+				pc             = uint64(0)
+				evmInterpreter = env.interpreter
+			)
+
+			testAccts := map[BlacklistRole]*account{
+				contractRole:    newAccount(statedb),
+				beneficiaryRole: newAccount(statedb),
+			}
+
+			if tc.blacklistedRole != noneRole {
+				blacklistedAcct := testAccts[tc.blacklistedRole]
+				statedb.SetBlacklisted(blacklistedAcct.address)
+			}
+
+			contractAddr := testAccts[contractRole].address
+			beneficiaryAddr := testAccts[beneficiaryRole].address
+
+			stack.push(new(uint256.Int).SetBytes(beneficiaryAddr.Bytes()))
+			contract := Contract{
+				self: contractRef{addr: contractAddr},
+			}
+			_, err := tc.instruction(&pc, evmInterpreter, &ScopeContext{mem, stack, &contract})
+			if err == errStopToken {
+				err = nil
+			}
+
+			if tc.expectErr {
+				require.Error(t, err)
+
+				var haveErr *ErrBlacklistedAccount
+				require.ErrorAs(t, err, &haveErr)
+				require.Equal(t, testAccts[tc.blacklistedRole].address, haveErr.Address)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }

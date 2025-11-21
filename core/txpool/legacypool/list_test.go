@@ -583,7 +583,7 @@ func TestPricedListIntegration(t *testing.T) {
 
 	priced.Put(mixedNonceTx1, false)
 	priced.Put(mixedNonceTx2, false)
-	//priced.Put(mixedNonceTx3, false)
+	priced.Put(mixedNonceTx3, false)
 
 	priced.Reheap()
 
