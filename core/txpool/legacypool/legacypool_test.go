@@ -2066,13 +2066,14 @@ func TestDualHeapEviction(t *testing.T) {
 		}
 		pending, queued := pool.Stats()
 		if pending+queued != 20 {
-			t.Fatalf("transaction count mismatch: have %d, want %d", pending+queued, 10)
+			t.Fatalf("transaction count mismatch: have %d, want %d", pending+queued, 20)
 		}
 	}
 
 	add(false)
 	for baseFee = 0; baseFee <= 1000; baseFee += 100 {
 		pool.anzeonTipEnv.SetBaseFee(big.NewInt(int64(baseFee)))
+		pool.priced.Reheap()
 		add(true)
 		check(highCap, "fee cap")
 		add(false)

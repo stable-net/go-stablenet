@@ -659,10 +659,12 @@ func TestApplyTransactionAuthorizedAccount(t *testing.T) {
 		t.Errorf("txGasFeeCap is less than expectedEffectiveGasPrice")
 	}
 
-	actualEffectiveGasPrice := tx.EffectiveGasPrice(baseFee, nil)
+	anzeonGasTip := types.NewInstantAnzeonTipEnv(signer, baseFee, headerGasTip, stateDB)
+	actualEffectiveGasPrice, _ := tx.EffectiveGasTip(anzeonGasTip)
 	if actualEffectiveGasPrice == nil {
 		t.Errorf("actualEffectiveGasPrice is nil")
 	}
+	actualEffectiveGasPrice = actualEffectiveGasPrice.Add(actualEffectiveGasPrice, baseFee)
 
 	// Verify effective gas price matches expected value
 	if actualEffectiveGasPrice.Cmp(expectedEffectiveGasPrice) != 0 {
@@ -804,10 +806,12 @@ func TestApplyTransactionNormalAccount(t *testing.T) {
 		t.Errorf("txGasFeeCap is less than expectedEffectiveGasPrice")
 	}
 
-	actualEffectiveGasPrice := tx.EffectiveGasPrice(baseFee, headerGasTip)
+	anzeonGasTip := types.NewInstantAnzeonTipEnv(signer, baseFee, headerGasTip, stateDB)
+	actualEffectiveGasPrice, _ := tx.EffectiveGasTip(anzeonGasTip)
 	if actualEffectiveGasPrice == nil {
 		t.Errorf("actualEffectiveGasPrice is nil")
 	}
+	actualEffectiveGasPrice = actualEffectiveGasPrice.Add(actualEffectiveGasPrice, baseFee)
 
 	// Verify effective gas price matches expected value
 	if actualEffectiveGasPrice.Cmp(expectedEffectiveGasPrice) != 0 {

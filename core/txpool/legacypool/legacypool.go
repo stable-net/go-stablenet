@@ -19,6 +19,7 @@ package legacypool
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"math"
 	"math/big"
 	"sort"
@@ -1312,8 +1313,10 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	if reset != nil {
 		pool.demoteUnexecutables()
 		if reset.newHead != nil {
-			// In previous implementations, reheaping was based on the base fee changing.
-			// But it doesn't matter on reheaping so we use just base fee of current head.
+			if pool.chainconfig.IsLondon(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
+				pendingBaseFee := eip1559.CalcBaseFee(pool.chainconfig, reset.newHead)
+				pool.anzeonTipEnv.SetBaseFee(pendingBaseFee)
+			}
 			pool.priced.Reheap()
 		}
 		// Update all accounts to the latest known pending nonce
