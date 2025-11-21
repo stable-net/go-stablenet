@@ -165,7 +165,7 @@ func (tx *BlobTx) blobGas() uint64        { return params.BlobTxBlobGasPerBlob *
 
 func (tx *BlobTx) effectiveGasPrice(txOuter *Transaction, anzeonTipEnv AnzeonGasTipEnv) *big.Int {
 	baseFee := common.Big0
-	if anzeonTipEnv != nil || anzeonTipEnv.GetBaseFee() != nil {
+	if anzeonTipEnv != nil && anzeonTipEnv.GetBaseFee() != nil {
 		baseFee = anzeonTipEnv.GetBaseFee()
 	}
 

@@ -70,9 +70,6 @@ type Transaction struct {
 
 	// WEMIX fee delegation
 	feePayer atomic.Value
-
-	// Anzeon gas tip
-	anzeonTip AnzeonGasTipEnv
 }
 
 // NewTx creates a new transaction.
@@ -315,11 +312,6 @@ func (tx *Transaction) GasTipCap() *big.Int {
 	return new(big.Int).Set(tx.inner.gasTipCap())
 }
 
-// AnzeonGasTipCap returns the gasTipCap per gas of the transaction.
-func (tx *Transaction) AnzeonGasTipCap(anzeonTipEnv AnzeonGasTipEnv) *big.Int {
-	return anzeonTipEnv.GetAnzeonTipCap(tx)
-}
-
 // GasFeeCap returns the fee cap per gas of the transaction.
 func (tx *Transaction) GasFeeCap() *big.Int { return new(big.Int).Set(tx.inner.gasFeeCap()) }
 
@@ -391,7 +383,7 @@ func (tx *Transaction) EffectiveGasTip(anzeonTipEnv AnzeonGasTipEnv) (*big.Int, 
 	if gasFeeCap.Cmp(anzeonTipEnv.GetBaseFee()) == -1 {
 		err = ErrGasFeeCapTooLow
 	}
-	return math.BigMin(tx.AnzeonGasTipCap(anzeonTipEnv), gasFeeCap.Sub(gasFeeCap, anzeonTipEnv.GetBaseFee())), err
+	return math.BigMin(anzeonTipEnv.GetAnzeonTipCap(tx), gasFeeCap.Sub(gasFeeCap, anzeonTipEnv.GetBaseFee())), err
 }
 
 // EffectiveGasTipValue is identical to EffectiveGasTip, but does not return an

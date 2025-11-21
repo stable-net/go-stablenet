@@ -19,7 +19,6 @@ package legacypool
 
 import (
 	"errors"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"math"
 	"math/big"
 	"sort"
@@ -29,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"

@@ -99,7 +99,7 @@ func (tx *DynamicFeeTx) to() *common.Address    { return tx.To }
 
 func (tx *DynamicFeeTx) effectiveGasPrice(txOuter *Transaction, anzeonTipEnv AnzeonGasTipEnv) *big.Int {
 	baseFee := common.Big0
-	if anzeonTipEnv != nil || anzeonTipEnv.GetBaseFee() != nil {
+	if anzeonTipEnv != nil && anzeonTipEnv.GetBaseFee() != nil {
 		baseFee = anzeonTipEnv.GetBaseFee()
 	}
 
