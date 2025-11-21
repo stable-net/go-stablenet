@@ -41,6 +41,7 @@ type account struct {
 	Code    string                      `json:"code"`
 	Nonce   uint64                      `json:"nonce"`
 	Storage map[common.Hash]common.Hash `json:"storage"`
+	Extra   uint64                      `json:"extra,omitempty"`
 }
 
 // testcase defines a single test to check the stateDiff tracer against.

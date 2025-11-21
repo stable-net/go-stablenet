@@ -80,6 +80,8 @@ type StateDB interface {
 	AddLog(*types.Log)
 	AddPreimage(common.Hash, []byte)
 
+	GetExtra(common.Address) uint64
+
 	IsBlacklisted(addr common.Address) bool
 	SetBlacklisted(addr common.Address)
 	ClearBlacklisted(addr common.Address)

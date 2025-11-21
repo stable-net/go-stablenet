@@ -930,6 +930,22 @@ func TestCall(t *testing.T) {
 			},
 			want: "0x000000000000000000000000000000000000000000000000000000000000007b",
 		},
+		// State override with Extra field
+		{
+			blockNumber: rpc.LatestBlockNumber,
+			call: TransactionArgs{
+				From:  &randomAccounts[0].addr,
+				To:    &randomAccounts[1].addr,
+				Value: (*hexutil.Big)(big.NewInt(1000)),
+			},
+			overrides: StateOverride{
+				randomAccounts[0].addr: OverrideAccount{
+					Balance: newRPCBalance(new(big.Int).Mul(big.NewInt(1), big.NewInt(params.Ether))),
+					Extra:   func() *hexutil.Uint64 { v := hexutil.Uint64(12345); return &v }(),
+				},
+			},
+			want: "0x",
+		},
 		// Block overrides should work
 		{
 			blockNumber: rpc.LatestBlockNumber,

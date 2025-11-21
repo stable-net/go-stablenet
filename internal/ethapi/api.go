@@ -1025,6 +1025,7 @@ type OverrideAccount struct {
 	Balance   **hexutil.Big                `json:"balance"`
 	State     *map[common.Hash]common.Hash `json:"state"`
 	StateDiff *map[common.Hash]common.Hash `json:"stateDiff"`
+	Extra     *hexutil.Uint64              `json:"extra"`
 }
 
 // StateOverride is the collection of overridden accounts.
@@ -1039,6 +1040,10 @@ func (diff *StateOverride) Apply(state *state.StateDB) error {
 		// Override account nonce.
 		if account.Nonce != nil {
 			state.SetNonce(addr, uint64(*account.Nonce))
+		}
+		// Override account extra.
+		if account.Extra != nil {
+			state.SetExtra(addr, uint64(*account.Extra))
 		}
 		// Override account(contract) code.
 		if account.Code != nil {
