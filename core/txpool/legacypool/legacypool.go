@@ -19,6 +19,7 @@ package legacypool
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"math"
 	"math/big"
 	"sort"
@@ -28,7 +29,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
-	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -232,6 +232,9 @@ type LegacyPool struct {
 	initDoneCh      chan struct{}  // is closed once the pool is initialized (for tests)
 
 	changesSinceReorg int // A counter for how many drops we've performed in-between reorg.
+
+	// anzeon gas tip environment
+	anzeonTipEnv *gasprice.AnzeonTipEnv
 }
 
 type txpoolResetRequest struct {
@@ -266,7 +269,8 @@ func New(config Config, chain BlockChain) *LegacyPool {
 		log.Info("Setting new local account", "address", addr)
 		pool.locals.add(addr)
 	}
-	pool.priced = newPricedList(pool.all)
+	pool.anzeonTipEnv = gasprice.NewAnzeonTipEnv(chain.Config(), chain.StateAt)
+	pool.priced = newPricedList(pool.all, pool.anzeonTipEnv)
 
 	if !config.NoLocals && config.Journal != "" {
 		pool.journal = newTxJournal(config.Journal)
@@ -539,14 +543,14 @@ func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address]
 
 	// Convert the new uint256.Int types to the old big.Int ones used by the legacy pool
 	var (
-		minTipBig  *big.Int
-		baseFeeBig *big.Int
+		minTipBig *big.Int
 	)
 	if filter.MinTip != nil {
 		minTipBig = filter.MinTip.ToBig()
 	}
+	pool.anzeonTipEnv.SetCurrentBlock(filter.NewHeader) // filter.NewHeader can be nil, but it doesn't matter
 	if filter.BaseFee != nil {
-		baseFeeBig = filter.BaseFee.ToBig()
+		pool.anzeonTipEnv.SetBaseFee(filter.BaseFee.ToBig())
 	}
 	pending := make(map[common.Address][]*txpool.LazyTransaction, len(pool.pending))
 	for addr, list := range pool.pending {
@@ -555,7 +559,7 @@ func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address]
 		// If the miner requests tip enforcement, cap the lists now
 		if minTipBig != nil && !pool.locals.contains(addr) {
 			for i, tx := range txs {
-				if tx.EffectiveGasTipIntCmp(minTipBig, baseFeeBig) < 0 {
+				if tx.EffectiveGasTipIntCmp(minTipBig, pool.anzeonTipEnv) < 0 {
 					txs = txs[:i]
 					break
 				}
@@ -760,13 +764,7 @@ func (pool *LegacyPool) add(tx *types.Transaction, local bool) (replaced bool, e
 			// Add all transactions back to the priced queue
 			if replacesPending {
 				for _, dropTx := range drop {
-					if pool.chainconfig.AnzeonEnabled() {
-						dropSender, _ := types.Sender(pool.signer, dropTx)
-						isAuthorized := pool.currentState.IsAuthorized(dropSender)
-						pool.priced.PutAnzeon(dropTx, false, isAuthorized)
-					} else {
-						pool.priced.Put(dropTx, false)
-					}
+					pool.priced.Put(dropTx, false)
 				}
 				log.Trace("Discarding future transaction replacing pending tx", "hash", hash)
 				return false, txpool.ErrFutureReplacePending
@@ -800,12 +798,7 @@ func (pool *LegacyPool) add(tx *types.Transaction, local bool) (replaced bool, e
 			pendingReplaceMeter.Mark(1)
 		}
 		pool.all.Add(tx, isLocal)
-		if pool.chainconfig.AnzeonEnabled() {
-			isAuthorized := pool.currentState.IsAuthorized(from)
-			pool.priced.PutAnzeon(tx, isLocal, isAuthorized)
-		} else {
-			pool.priced.Put(tx, isLocal)
-		}
+		pool.priced.Put(tx, isLocal)
 		pool.journalTx(from, tx)
 		pool.queueTxEvent(tx)
 		log.Trace("Pooled new executable transaction", "hash", hash, "from", from, "to", tx.To())
@@ -889,12 +882,7 @@ func (pool *LegacyPool) enqueueTx(hash common.Hash, tx *types.Transaction, local
 	}
 	if addAll {
 		pool.all.Add(tx, local)
-		if pool.chainconfig.AnzeonEnabled() {
-			isAuthorized := pool.currentState.IsAuthorized(from)
-			pool.priced.PutAnzeon(tx, local, isAuthorized)
-		} else {
-			pool.priced.Put(tx, local)
-		}
+		pool.priced.Put(tx, local)
 	}
 	// If we never record the heartbeat, do it right now.
 	if _, exist := pool.beats[from]; !exist {
@@ -1294,6 +1282,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 		promoteAddrs = dirtyAccounts.flatten()
 	}
 	pool.mu.Lock()
+
 	if reset != nil {
 		// Reset from the old head to the new, rescheduling any reorged transactions
 		pool.reset(reset.oldHead, reset.newHead)
@@ -1320,16 +1309,8 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 	if reset != nil {
 		pool.demoteUnexecutables()
 		if reset.newHead != nil {
-			if pool.chainconfig.IsLondon(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
-				pendingBaseFee := eip1559.CalcBaseFee(pool.chainconfig, reset.newHead)
-				pool.priced.SetBaseFee(pendingBaseFee)
-			}
-
-			if pool.chainconfig.AnzeonEnabled() {
-				headerGasTip := reset.newHead.GasTip()
-				pool.priced.SetHeaderGasTip(headerGasTip)
-			}
-
+			// In previous implementations, reheaping was based on the base fee changing.
+			// But it doesn't matter on reheaping so we use just base fee of current head.
 			pool.priced.Reheap()
 		}
 		// Update all accounts to the latest known pending nonce
@@ -1457,6 +1438,7 @@ func (pool *LegacyPool) reset(oldHead, newHead *types.Header) {
 	pool.currentHead.Store(newHead)
 	pool.currentState = statedb
 	pool.pendingNonces = newNoncer(statedb)
+	pool.anzeonTipEnv.SetCurrentBlock(newHead) // update tip env if new head is given
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))

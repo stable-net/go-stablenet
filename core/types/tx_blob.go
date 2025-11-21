@@ -163,16 +163,13 @@ func (tx *BlobTx) nonce() uint64          { return tx.Nonce }
 func (tx *BlobTx) to() *common.Address    { tmp := tx.To; return &tmp }
 func (tx *BlobTx) blobGas() uint64        { return params.BlobTxBlobGasPerBlob * uint64(len(tx.BlobHashes)) }
 
-func (tx *BlobTx) effectiveGasPrice(baseFee, headerGasTip *big.Int) *big.Int {
-	if baseFee == nil {
-		baseFee = common.Big0
+func (tx *BlobTx) effectiveGasPrice(txOuter *Transaction, anzeonTipEnv AnzeonGasTipEnv) *big.Int {
+	baseFee := common.Big0
+	if anzeonTipEnv != nil || anzeonTipEnv.GetBaseFee() != nil {
+		baseFee = anzeonTipEnv.GetBaseFee()
 	}
 
-	tipCap := tx.GasTipCap.ToBig()
-	if headerGasTip != nil {
-		tipCap = new(big.Int).Set(headerGasTip)
-	}
-
+	tipCap := anzeonTipEnv.GetAnzeonTipCap(txOuter)
 	tip := new(big.Int).Sub(tx.GasFeeCap.ToBig(), baseFee)
 	if tip.Cmp(tipCap) > 0 {
 		tip.Set(tipCap)

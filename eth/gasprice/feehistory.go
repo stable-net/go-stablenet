@@ -106,25 +106,11 @@ func (oracle *Oracle) processBlock(bf *blockFees, percentiles []float64) {
 		return
 	}
 
-	var headerGasTip *big.Int
-	if bf.header != nil && bf.header.GasTip() != nil {
-		headerGasTip = new(big.Int).Set(bf.header.GasTip())
-	}
-
+	oracle.anzeonTipEnv.SetCurrentBlock(bf.block.Header())
 	sorter := make([]txGasAndReward, len(bf.block.Transactions()))
 	for i, tx := range bf.block.Transactions() {
 		var reward *big.Int
-		// Anzeon enablement cannot be checked here.
-		// If header.GasTip() is not nil, Anzeon is determined to be enabled.
-		// otherwise, it’s disabled.
-		if headerGasTip != nil {
-			// stateDB unavailable → can't check authorized account
-			// Therefore, use the receipt's effectiveGasPrice to derive the TIP.
-			// (i.e., EffectiveGasTip = effectiveGasPrice - baseFee)
-			reward = new(big.Int).Sub(bf.receipts[i].EffectiveGasPrice, bf.block.BaseFee())
-		} else {
-			reward, _ = tx.EffectiveGasTip(bf.block.BaseFee())
-		}
+		reward, _ = tx.EffectiveGasTip(oracle.anzeonTipEnv)
 		sorter[i] = txGasAndReward{gasUsed: bf.receipts[i].GasUsed, reward: reward}
 	}
 	slices.SortStableFunc(sorter, func(a, b txGasAndReward) int {

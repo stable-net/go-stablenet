@@ -19,6 +19,8 @@ package gasprice
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"math/big"
 	"sync"
 
@@ -58,6 +60,7 @@ type OracleBackend interface {
 	PendingBlockAndReceipts() (*types.Block, types.Receipts)
 	ChainConfig() *params.ChainConfig
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
+	StateAt(root common.Hash) (*state.StateDB, error)
 }
 
 // Oracle recommends gas prices based on the content of recent
@@ -75,6 +78,61 @@ type Oracle struct {
 	maxHeaderHistory, maxBlockHistory uint64
 
 	historyCache *lru.Cache[cacheKey, processedFees]
+
+	anzeonTipEnv *AnzeonTipEnv
+}
+
+type AnzeonTipEnv struct {
+	config  *params.ChainConfig
+	stateAt func(root common.Hash) (*state.StateDB, error)
+
+	// should be updated per block
+	signer      types.Signer
+	baseFee     *big.Int
+	headerTip   *big.Int
+	stateReader rawdb.StateReader
+}
+
+func NewAnzeonTipEnv(config *params.ChainConfig, stateAt func(root common.Hash) (*state.StateDB, error)) *AnzeonTipEnv {
+	return &AnzeonTipEnv{
+		config:  config,
+		stateAt: stateAt, // can be nil then it is no Anzeon
+	}
+}
+
+func (atEnv *AnzeonTipEnv) GetBaseFee() *big.Int {
+	return atEnv.baseFee
+}
+
+func (atEnv *AnzeonTipEnv) GetAnzeonTipCap(tx *types.Transaction) *big.Int {
+	from, err := types.Sender(atEnv.signer, tx)
+	if err == nil && atEnv.stateReader != nil && !atEnv.stateReader.IsAuthorized(from) && atEnv.headerTip != nil {
+		// In Anzeon, normal account gas tip cap is determined by the block header gas tip
+		return atEnv.headerTip
+	}
+	return tx.GasTipCap()
+}
+
+func (atEnv *AnzeonTipEnv) SetCurrentBlock(header *types.Header) {
+	if header == nil {
+		atEnv.baseFee = nil
+		atEnv.headerTip = nil
+		return
+	}
+	atEnv.baseFee = header.BaseFee
+	if header.GasTip() != nil {
+		atEnv.headerTip = new(big.Int).Set(header.GasTip())
+	} else {
+		atEnv.headerTip = nil
+	}
+	if atEnv.stateAt != nil {
+		atEnv.stateReader, _ = atEnv.stateAt(header.Root) // if error, stateReader remains nil
+	}
+	atEnv.signer = types.MakeSigner(atEnv.config, header.Number, header.Time)
+}
+
+func (atEnv *AnzeonTipEnv) SetBaseFee(baseFee *big.Int) {
+	atEnv.baseFee = baseFee
 }
 
 // NewOracle returns a new gasprice oracle which can recommend suitable
@@ -139,6 +197,7 @@ func NewOracle(backend OracleBackend, params Config) *Oracle {
 		maxHeaderHistory: maxHeaderHistory,
 		maxBlockHistory:  maxBlockHistory,
 		historyCache:     cache,
+		anzeonTipEnv:     NewAnzeonTipEnv(backend.ChainConfig(), backend.StateAt),
 	}
 }
 
@@ -244,33 +303,14 @@ func (oracle *Oracle) getBlockValues(ctx context.Context, blockNum uint64, limit
 	}
 	signer := types.MakeSigner(oracle.backend.ChainConfig(), block.Number(), block.Time())
 
-	// Get receipts for tip calculation when headerGasTip is available
-	receipts, err := oracle.backend.GetReceipts(ctx, block.Hash())
-	if err != nil {
-		receipts = nil
-	}
-
 	// Sort the transaction by effective tip in ascending sort.
 	txs := block.Transactions()
-	baseFee := block.BaseFee()
-
-	var headerGasTip *big.Int
-	if block.Header() != nil && block.Header().GasTip() != nil {
-		headerGasTip = new(big.Int).Set(block.Header().GasTip())
-	}
 
 	// Create a map to store tip for each transaction
 	tipMap := make(map[common.Hash]*big.Int)
-	for i, tx := range txs {
+	for _, tx := range txs {
 		var tip *big.Int
-		if headerGasTip != nil && receipts != nil && i < len(receipts) {
-			// stateDB unavailable → can't check authorized account
-			// Therefore, use the receipt's effectiveGasPrice to derive the TIP.
-			// (i.e., EffectiveGasTip = effectiveGasPrice - baseFee)
-			tip = new(big.Int).Sub(receipts[i].EffectiveGasPrice, baseFee)
-		} else {
-			tip, _ = tx.EffectiveGasTip(baseFee)
-		}
+		tip, _ = tx.EffectiveGasTip(oracle.anzeonTipEnv)
 		tipMap[tx.Hash()] = tip
 	}
 

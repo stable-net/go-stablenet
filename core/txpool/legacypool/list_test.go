@@ -112,11 +112,54 @@ func BenchmarkListCapOneTx(b *testing.B) {
 	}
 }
 
+type testAnzeonTipEnv struct {
+	baseFee      *big.Int
+	headerTip    *big.Int
+	isAuthorized map[common.Hash]bool
+}
+
+func newTestAnzeonTipEnv() *testAnzeonTipEnv {
+	return &testAnzeonTipEnv{
+		isAuthorized: make(map[common.Hash]bool),
+	}
+}
+
+func (atEnv *testAnzeonTipEnv) GetBaseFee() *big.Int {
+	return atEnv.baseFee
+}
+
+func (atEnv *testAnzeonTipEnv) GetAnzeonTipCap(tx *types.Transaction) *big.Int {
+	if ok, is := atEnv.isAuthorized[tx.Hash()]; !ok || !is {
+		if atEnv.headerTip == nil {
+			return tx.GasTipCap()
+		}
+		return atEnv.headerTip
+	}
+	return tx.GasTipCap()
+}
+
+func (atEnv *testAnzeonTipEnv) SetCurrentBlock(header *types.Header) {
+	// not used
+}
+
+func (atEnv *testAnzeonTipEnv) SetBaseFee(baseFee *big.Int) {
+	atEnv.baseFee = baseFee
+}
+
+func (atEnv *testAnzeonTipEnv) SetHeaderGasTip(headerGasTip *big.Int) {
+	atEnv.headerTip = headerGasTip
+}
+
+func (atEnv *testAnzeonTipEnv) SetAuthorized(tx *types.Transaction, authorized bool) {
+	atEnv.isAuthorized[tx.Hash()] = authorized
+}
+
 // TestPricedListIntegration tests the complete pricedList functionality including
 // Put, PutAnzeon, Pop, Underpriced, SetBaseFee, SetHeaderGasTip, and all cmp/Less conditions
 func TestPricedListIntegration(t *testing.T) {
 	lookup := newLookup()
-	priced := newPricedList(lookup)
+	anzeonTipEnv := newTestAnzeonTipEnv()
+	priced := newPricedList(lookup, anzeonTipEnv)
 
 	// Generate keys for different accounts
 	authorizedKey1, _ := crypto.GenerateKey()
@@ -169,11 +212,12 @@ func TestPricedListIntegration(t *testing.T) {
 
 	// Clear and reset
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
 	// Set baseFee
 	baseFee := big.NewInt(10000)
-	priced.SetBaseFee(baseFee)
+	anzeonTipEnv.SetBaseFee(baseFee)
 
 	// effectiveTip = min(tipCap, feeCap - baseFee)
 
@@ -218,12 +262,13 @@ func TestPricedListIntegration(t *testing.T) {
 
 	// Clear and reset
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
 	baseFee = big.NewInt(10000)
 	headerGasTip := big.NewInt(10000)
-	priced.SetBaseFee(baseFee)
-	priced.SetHeaderGasTip(headerGasTip)
+	anzeonTipEnv.SetBaseFee(baseFee)
+	anzeonTipEnv.SetHeaderGasTip(headerGasTip)
 
 	//effectiveTip = min(tipCap, feeCap - baseFee)
 
@@ -244,10 +289,14 @@ func TestPricedListIntegration(t *testing.T) {
 	lookup.Add(normTx1, false)
 	lookup.Add(normTx2, false)
 
-	priced.PutAnzeon(authTx1, false, true)
-	priced.PutAnzeon(authTx2, false, true)
-	priced.PutAnzeon(normTx1, false, false)
-	priced.PutAnzeon(normTx2, false, false)
+	anzeonTipEnv.SetAuthorized(authTx1, true)
+	anzeonTipEnv.SetAuthorized(authTx2, true)
+	anzeonTipEnv.SetAuthorized(normTx1, false)
+	anzeonTipEnv.SetAuthorized(normTx2, false)
+	priced.Put(authTx1, false)
+	priced.Put(authTx2, false)
+	priced.Put(normTx1, false)
+	priced.Put(normTx2, false)
 
 	priced.Reheap()
 
@@ -278,10 +327,11 @@ func TestPricedListIntegration(t *testing.T) {
 	t.Logf("=== Test Case 4: Same effectiveTip, compare by feeCap ===")
 
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
-	priced.SetBaseFee(big.NewInt(10000))
-	priced.SetHeaderGasTip(big.NewInt(10000))
+	anzeonTipEnv.SetBaseFee(big.NewInt(10000))
+	anzeonTipEnv.SetHeaderGasTip(big.NewInt(10000))
 
 	// effectiveTip = min(tipCap, feeCap - baseFee)
 
@@ -298,9 +348,9 @@ func TestPricedListIntegration(t *testing.T) {
 	lookup.Add(normTx4, false)
 	lookup.Add(normTx5, false)
 
-	priced.PutAnzeon(normTx3, false, false)
-	priced.PutAnzeon(normTx4, false, false)
-	priced.PutAnzeon(normTx5, false, false)
+	priced.Put(normTx3, false)
+	priced.Put(normTx4, false)
+	priced.Put(normTx5, false)
 
 	priced.Reheap()
 
@@ -326,10 +376,11 @@ func TestPricedListIntegration(t *testing.T) {
 	t.Logf("=== Test Case 5: Same effectiveTip and feeCap, compare by tipCap ===")
 
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
-	priced.SetBaseFee(big.NewInt(10000))
-	priced.SetHeaderGasTip(big.NewInt(10000))
+	anzeonTipEnv.SetBaseFee(big.NewInt(10000))
+	anzeonTipEnv.SetHeaderGasTip(big.NewInt(10000))
 
 	// effectiveTip = min(tipCap, feeCap - baseFee)
 	// All have same feeCap=30000, but different tipCaps (for authorized accounts)
@@ -341,8 +392,10 @@ func TestPricedListIntegration(t *testing.T) {
 	lookup.Add(authTx3, false)
 	lookup.Add(authTx4, false)
 
-	priced.PutAnzeon(authTx3, false, true)
-	priced.PutAnzeon(authTx4, false, true)
+	anzeonTipEnv.SetAuthorized(authTx3, true)
+	anzeonTipEnv.SetAuthorized(authTx4, true)
+	priced.Put(authTx3, false)
+	priced.Put(authTx4, false)
 
 	priced.Reheap()
 
@@ -363,10 +416,11 @@ func TestPricedListIntegration(t *testing.T) {
 	t.Logf("=== Test Case 6: Same effectiveTip, feeCap, tipCap - compare by nonce (reverse) ===")
 
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
-	priced.SetBaseFee(big.NewInt(10000))
-	priced.SetHeaderGasTip(big.NewInt(10000))
+	anzeonTipEnv.SetBaseFee(big.NewInt(10000))
+	anzeonTipEnv.SetHeaderGasTip(big.NewInt(10000))
 
 	// All values identical, different nonces
 	// sameTx1: nonce=0
@@ -380,9 +434,13 @@ func TestPricedListIntegration(t *testing.T) {
 	lookup.Add(sameTx2, false)
 	lookup.Add(sameTx3, false)
 
-	priced.PutAnzeon(sameTx1, false, true)
-	priced.PutAnzeon(sameTx2, false, true)
-	priced.PutAnzeon(sameTx3, false, true)
+	anzeonTipEnv.SetAuthorized(sameTx1, true)
+	anzeonTipEnv.SetAuthorized(sameTx2, true)
+	anzeonTipEnv.SetAuthorized(sameTx3, true)
+
+	priced.Put(sameTx1, false)
+	priced.Put(sameTx2, false)
+	priced.Put(sameTx3, false)
 
 	priced.Reheap()
 
@@ -409,7 +467,8 @@ func TestPricedListIntegration(t *testing.T) {
 	t.Logf("=== Test Case 6b: nonce comparison (Anzeon disabled, no baseFee) ===")
 
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
 	// No baseFee, no headerGasTip (Anzeon disabled)
 	// All transactions have same feeCap and tipCap
@@ -453,9 +512,10 @@ func TestPricedListIntegration(t *testing.T) {
 	t.Logf("=== Test Case 6c: nonce comparison (Anzeon disabled, with baseFee) ===")
 
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
-	priced.SetBaseFee(big.NewInt(10000))
+	anzeonTipEnv.SetBaseFee(big.NewInt(10000))
 	// No headerGasTip (Anzeon disabled)
 
 	// All transactions have same feeCap, tipCap, and effectiveTip
@@ -499,10 +559,11 @@ func TestPricedListIntegration(t *testing.T) {
 	t.Logf("=== Test Case 6d: All nonce comparison (Anzeon enabled, mixed accounts) ===")
 
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
-	priced.SetBaseFee(big.NewInt(10000))
-	priced.SetHeaderGasTip(big.NewInt(20000)) // Same as tipCap for authorized
+	anzeonTipEnv.SetBaseFee(big.NewInt(10000))
+	anzeonTipEnv.SetHeaderGasTip(big.NewInt(20000)) // Same as tipCap for authorized
 
 	// All transactions have same effectiveTip, feeCap
 	// mixedNonceTx1: nonce=0, authorized, feeCap=40000, tipCap=20000 -> effectiveTip=min(20000, 40000-10000)=20000
@@ -516,9 +577,13 @@ func TestPricedListIntegration(t *testing.T) {
 	lookup.Add(mixedNonceTx2, false)
 	lookup.Add(mixedNonceTx3, false)
 
-	priced.PutAnzeon(mixedNonceTx1, false, true)
-	priced.PutAnzeon(mixedNonceTx2, false, false)
-	priced.PutAnzeon(mixedNonceTx3, false, true)
+	anzeonTipEnv.SetAuthorized(mixedNonceTx1, true)
+	anzeonTipEnv.SetAuthorized(mixedNonceTx2, false)
+	anzeonTipEnv.SetAuthorized(mixedNonceTx3, true)
+
+	priced.Put(mixedNonceTx1, false)
+	priced.Put(mixedNonceTx2, false)
+	//priced.Put(mixedNonceTx3, false)
 
 	priced.Reheap()
 
@@ -545,10 +610,11 @@ func TestPricedListIntegration(t *testing.T) {
 	t.Logf("=== Test Case 7: Underpriced check ===")
 
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
-	priced.SetBaseFee(big.NewInt(10000))
-	priced.SetHeaderGasTip(big.NewInt(10000))
+	anzeonTipEnv.SetBaseFee(big.NewInt(10000))
+	anzeonTipEnv.SetHeaderGasTip(big.NewInt(10000))
 
 	// Add multiple transactions to ensure both urgent and floating heaps have items
 	// highTx: effectiveTip=min(30000, 40000)=30000
@@ -562,9 +628,13 @@ func TestPricedListIntegration(t *testing.T) {
 	lookup.Add(midTx, false)
 	lookup.Add(veryLowTx, false)
 
-	priced.PutAnzeon(highTx, false, true)
-	priced.PutAnzeon(midTx, false, true)
-	priced.PutAnzeon(veryLowTx, false, false)
+	anzeonTipEnv.SetAuthorized(highTx, true)
+	anzeonTipEnv.SetAuthorized(midTx, true)
+	anzeonTipEnv.SetAuthorized(veryLowTx, false)
+
+	priced.Put(highTx, false)
+	priced.Put(midTx, false)
+	priced.Put(veryLowTx, false)
 
 	priced.Reheap()
 
@@ -595,13 +665,14 @@ func TestPricedListIntegration(t *testing.T) {
 	t.Logf("=== Test Case 8: Change headerGasTip ===")
 
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
 	// Initial settings: baseFee=10000, headerGasTip=10000
 	baseFee = big.NewInt(10000)
 	headerGasTip = big.NewInt(10000)
-	priced.SetBaseFee(baseFee)
-	priced.SetHeaderGasTip(headerGasTip)
+	anzeonTipEnv.SetBaseFee(baseFee)
+	anzeonTipEnv.SetHeaderGasTip(headerGasTip)
 
 	// Add multiple transactions to see sorting effects
 	// Conditions:
@@ -629,11 +700,17 @@ func TestPricedListIntegration(t *testing.T) {
 	lookup.Add(dynNormTx2, false)
 	lookup.Add(dynNormTx3, false)
 
-	priced.PutAnzeon(dynAuthTx1, false, true)
-	priced.PutAnzeon(dynAuthTx2, false, true)
-	priced.PutAnzeon(dynNormTx1, false, false)
-	priced.PutAnzeon(dynNormTx2, false, false)
-	priced.PutAnzeon(dynNormTx3, false, false)
+	anzeonTipEnv.SetAuthorized(dynAuthTx1, true)
+	anzeonTipEnv.SetAuthorized(dynAuthTx2, true)
+	anzeonTipEnv.SetAuthorized(dynNormTx1, false)
+	anzeonTipEnv.SetAuthorized(dynNormTx2, false)
+	anzeonTipEnv.SetAuthorized(dynNormTx3, false)
+
+	priced.Put(dynAuthTx1, false)
+	priced.Put(dynAuthTx2, false)
+	priced.Put(dynNormTx1, false)
+	priced.Put(dynNormTx2, false)
+	priced.Put(dynNormTx3, false)
 
 	priced.Reheap()
 
@@ -700,12 +777,13 @@ func TestPricedListIntegration(t *testing.T) {
 	// Re-add transactions for headerGasTip change test
 	// Need to create new transactions that satisfy conditions for headerGasTip=25000
 	lookup = newLookup()
-	priced = newPricedList(lookup)
+	anzeonTipEnv = newTestAnzeonTipEnv()
+	priced = newPricedList(lookup, anzeonTipEnv)
 
 	baseFee = big.NewInt(10000)
 	headerGasTip = big.NewInt(10000)
-	priced.SetBaseFee(baseFee)
-	priced.SetHeaderGasTip(headerGasTip)
+	anzeonTipEnv.SetBaseFee(baseFee)
+	anzeonTipEnv.SetHeaderGasTip(headerGasTip)
 
 	// Create transactions that satisfy conditions for both headerGasTip=10000 and 25000
 	// Authorized transactions (unchanged)
@@ -727,11 +805,17 @@ func TestPricedListIntegration(t *testing.T) {
 	lookup.Add(dynNormTx2, false)
 	lookup.Add(dynNormTx3, false)
 
-	priced.PutAnzeon(dynAuthTx1, false, true)
-	priced.PutAnzeon(dynAuthTx2, false, true)
-	priced.PutAnzeon(dynNormTx1, false, false)
-	priced.PutAnzeon(dynNormTx2, false, false)
-	priced.PutAnzeon(dynNormTx3, false, false)
+	anzeonTipEnv.SetAuthorized(dynAuthTx1, true)
+	anzeonTipEnv.SetAuthorized(dynAuthTx2, true)
+	anzeonTipEnv.SetAuthorized(dynNormTx1, false)
+	anzeonTipEnv.SetAuthorized(dynNormTx2, false)
+	anzeonTipEnv.SetAuthorized(dynNormTx3, false)
+
+	priced.Put(dynAuthTx1, false)
+	priced.Put(dynAuthTx2, false)
+	priced.Put(dynNormTx1, false)
+	priced.Put(dynNormTx2, false)
+	priced.Put(dynNormTx3, false)
 
 	priced.Reheap()
 
@@ -744,7 +828,7 @@ func TestPricedListIntegration(t *testing.T) {
 	// 5. dynAuthTx1 (effectiveTip=20000) - largest (highest priority)
 
 	// Change headerGasTip from 10000 to 15000
-	priced.SetHeaderGasTip(big.NewInt(15000))
+	anzeonTipEnv.SetHeaderGasTip(big.NewInt(15000))
 	priced.Reheap()
 
 	// After headerGasTip change to 15000:

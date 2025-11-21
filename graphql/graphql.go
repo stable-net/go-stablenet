@@ -375,7 +375,7 @@ func (t *Transaction) EffectiveTip(ctx context.Context) (*hexutil.Big, error) {
 		return (*hexutil.Big)(tx.GasPrice()), nil
 	}
 
-	tip, err := tx.EffectiveGasTip(header.BaseFee)
+	tip, err := tx.EffectiveGasTip(nil) // not used
 	if err != nil {
 		return nil, err
 	}
