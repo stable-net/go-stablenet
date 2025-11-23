@@ -2060,7 +2060,9 @@ func TestDualHeapEviction(t *testing.T) {
 				highTip = tx
 			} else {
 				tx = dynamicFeeTx(0, 100000, big.NewInt(int64(baseFee+200+i)), big.NewInt(1), key)
-				highCap = tx
+				if highCap == nil || highCap.GasFeeCapCmp(tx) < 0 {
+					highCap = tx
+				}
 			}
 			pool.addRemotesSync([]*types.Transaction{tx})
 		}
