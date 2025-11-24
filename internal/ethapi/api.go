@@ -731,6 +731,7 @@ type AccountResult struct {
 	Nonce        hexutil.Uint64  `json:"nonce"`
 	StorageHash  common.Hash     `json:"storageHash"`
 	StorageProof []StorageResult `json:"storageProof"`
+	Extra        hexutil.Uint64  `json:"extra,omitempty"`
 }
 
 type StorageResult struct {
@@ -826,6 +827,7 @@ func (s *BlockChainAPI) GetProof(ctx context.Context, address common.Address, st
 		Nonce:        hexutil.Uint64(statedb.GetNonce(address)),
 		StorageHash:  storageRoot,
 		StorageProof: storageProof,
+		Extra:        hexutil.Uint64(statedb.GetExtra(address)),
 	}, statedb.Error()
 }
 
@@ -1023,6 +1025,7 @@ type OverrideAccount struct {
 	Balance   **hexutil.Big                `json:"balance"`
 	State     *map[common.Hash]common.Hash `json:"state"`
 	StateDiff *map[common.Hash]common.Hash `json:"stateDiff"`
+	Extra     *hexutil.Uint64              `json:"extra"`
 }
 
 // StateOverride is the collection of overridden accounts.
@@ -1037,6 +1040,10 @@ func (diff *StateOverride) Apply(state *state.StateDB) error {
 		// Override account nonce.
 		if account.Nonce != nil {
 			state.SetNonce(addr, uint64(*account.Nonce))
+		}
+		// Override account extra.
+		if account.Extra != nil {
+			state.SetExtra(addr, uint64(*account.Extra))
 		}
 		// Override account(contract) code.
 		if account.Code != nil {

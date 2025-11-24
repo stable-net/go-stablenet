@@ -69,6 +69,7 @@ type AccountResult struct {
 	Nonce        uint64          `json:"nonce"`
 	StorageHash  common.Hash     `json:"storageHash"`
 	StorageProof []StorageResult `json:"storageProof"`
+	Extra        uint64          `json:"extra,omitempty"`
 }
 
 // StorageResult provides a proof for a key-value pair.
@@ -95,6 +96,7 @@ func (ec *Client) GetProof(ctx context.Context, account common.Address, keys []s
 		Nonce        hexutil.Uint64  `json:"nonce"`
 		StorageHash  common.Hash     `json:"storageHash"`
 		StorageProof []storageResult `json:"storageProof"`
+		Extra        hexutil.Uint64  `json:"extra,omitempty"`
 	}
 
 	// Avoid keys being 'null'.
@@ -121,6 +123,7 @@ func (ec *Client) GetProof(ctx context.Context, account common.Address, keys []s
 		CodeHash:     res.CodeHash,
 		StorageHash:  res.StorageHash,
 		StorageProof: storageResults,
+		Extra:        uint64(res.Extra),
 	}
 	return &result, err
 }
