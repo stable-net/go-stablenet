@@ -89,6 +89,25 @@ func TestTransactionPriceNonceSort1559(t *testing.T) {
 	testTransactionPriceNonceSort(t, big.NewInt(50))
 }
 
+type noAnzeonTIpEnv struct {
+	baseFee *big.Int
+}
+
+func (natEnv *noAnzeonTIpEnv) GetBaseFee() *big.Int {
+	return natEnv.baseFee
+}
+
+func (natEnv *noAnzeonTIpEnv) GetAnzeonTipCap(tx *types.Transaction) *big.Int {
+	return tx.GasTipCap()
+}
+
+func (natEnv *noAnzeonTIpEnv) SetCurrentBlock(header *types.Header) {
+}
+
+func (natEnv *noAnzeonTIpEnv) SetBaseFee(baseFee *big.Int) {
+	natEnv.baseFee = baseFee
+}
+
 // Tests that transactions can be correctly sorted according to their price in
 // decreasing order, but at the same time with increasing nonces when issued by
 // the same account.
@@ -149,7 +168,7 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 		expectedCount += count
 	}
 	// Sort the transactions and cross check the nonce ordering
-	txset := newTransactionsByPriceAndNonce(signer, groups, baseFee, false, nil)
+	txset := newTransactionsByPriceAndNonce(signer, groups, baseFee, nil, false, nil)
 
 	txs := types.Transactions{}
 	for tx, _ := txset.Peek(); tx != nil; tx, _ = txset.Peek() {
@@ -159,6 +178,7 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 	if len(txs) != expectedCount {
 		t.Errorf("expected %d transactions, found %d", expectedCount, len(txs))
 	}
+	anzeonTIpEnv := &noAnzeonTIpEnv{baseFee: baseFee}
 	for i, txi := range txs {
 		fromi, _ := types.Sender(signer, txi)
 
@@ -173,8 +193,8 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 		if i+1 < len(txs) {
 			next := txs[i+1]
 			fromNext, _ := types.Sender(signer, next)
-			tip, err := txi.EffectiveGasTip(baseFee)
-			nextTip, nextErr := next.EffectiveGasTip(baseFee)
+			tip, err := txi.EffectiveGasTip(anzeonTIpEnv)
+			nextTip, nextErr := next.EffectiveGasTip(anzeonTIpEnv)
 			if err != nil || nextErr != nil {
 				t.Errorf("error calculating effective tip: %v, %v", err, nextErr)
 			}
@@ -215,7 +235,7 @@ func TestTransactionTimeSort(t *testing.T) {
 		})
 	}
 	// Sort the transactions and cross check the nonce ordering
-	txset := newTransactionsByPriceAndNonce(signer, groups, nil, false, nil)
+	txset := newTransactionsByPriceAndNonce(signer, groups, nil, nil, false, nil)
 
 	txs := types.Transactions{}
 	for tx, _ := txset.Peek(); tx != nil; tx, _ = txset.Peek() {
@@ -337,7 +357,7 @@ func TestAuthorizedAccountPriority(t *testing.T) {
 		BlobGas:   tx4.BlobGas(),
 	}}
 
-	txset := newTransactionsByPriceAndNonce(signer, groups, big.NewInt(0), true, stateDB)
+	txset := newTransactionsByPriceAndNonce(signer, groups, big.NewInt(0), nil, true, stateDB)
 
 	txs := types.Transactions{}
 	for tx, _ := txset.Peek(); tx != nil; tx, _ = txset.Peek() {
@@ -452,7 +472,7 @@ func TestAuthorizedAccountPrioritySameFee(t *testing.T) {
 		BlobGas:   tx3.BlobGas(),
 	}}
 
-	txset := newTransactionsByPriceAndNonce(signer, groups, big.NewInt(0), true, stateDB)
+	txset := newTransactionsByPriceAndNonce(signer, groups, big.NewInt(0), nil, true, stateDB)
 
 	txs := types.Transactions{}
 	for tx, _ := txset.Peek(); tx != nil; tx, _ = txset.Peek() {
@@ -559,7 +579,7 @@ func TestNotAuthorizedFIFO(t *testing.T) {
 		BlobGas:   tx3.BlobGas(),
 	}}
 
-	txset := newTransactionsByPriceAndNonce(signer, groups, big.NewInt(0), true, stateDB)
+	txset := newTransactionsByPriceAndNonce(signer, groups, big.NewInt(0), nil, true, stateDB)
 
 	txs := types.Transactions{}
 	for tx, _ := txset.Peek(); tx != nil; tx, _ = txset.Peek() {
@@ -663,7 +683,7 @@ func TestAnzeonDisabledAndFIFO(t *testing.T) {
 		BlobGas:   tx3.BlobGas(),
 	}}
 
-	txset := newTransactionsByPriceAndNonce(signer, groups, big.NewInt(0), false, nil)
+	txset := newTransactionsByPriceAndNonce(signer, groups, big.NewInt(0), nil, false, nil)
 
 	txs := types.Transactions{}
 	for tx, _ := txset.Peek(); tx != nil; tx, _ = txset.Peek() {
@@ -767,7 +787,7 @@ func TestAnzeonDisabledAndHigherFeeFirst(t *testing.T) {
 		BlobGas:   tx3.BlobGas(),
 	}}
 
-	txset := newTransactionsByPriceAndNonce(signer, groups, big.NewInt(0), false, nil)
+	txset := newTransactionsByPriceAndNonce(signer, groups, big.NewInt(0), nil, false, nil)
 
 	txs := types.Transactions{}
 	for tx, _ := txset.Peek(); tx != nil; tx, _ = txset.Peek() {
@@ -878,7 +898,7 @@ func benchmarkOrdering(b *testing.B, numAccounts, txsPerAccount int, authorizedR
 			groupsCopy[addr] = txsCopy
 		}
 
-		txset := newTransactionsByPriceAndNonce(signer, groupsCopy, baseFee, anzeonEnabled, stateDB)
+		txset := newTransactionsByPriceAndNonce(signer, groupsCopy, baseFee, nil, anzeonEnabled, stateDB)
 
 		// Consume all transactions to measure full sorting performance
 		for tx, _ := txset.Peek(); tx != nil; tx, _ = txset.Peek() {

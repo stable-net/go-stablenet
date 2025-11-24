@@ -496,16 +496,18 @@ func (h *priceHeap) Less(i, j int) bool {
 }
 
 func (h *priceHeap) cmp(a, b *types.Transaction) int {
-	if h.anzeonTipEnv != nil {
+	if h.anzeonTipEnv != nil && h.anzeonTipEnv.GetBaseFee() != nil {
 		// Compare effective tips if baseFee is specified
 		if c := a.EffectiveGasTipCmp(b, h.anzeonTipEnv); c != 0 {
 			return c
 		}
 	}
 	// Compare fee caps if baseFee is not specified or effective tips are equal
-	return a.GasFeeCapCmp(b)
-	// In previous implementation, if gas fee caps are equal, we compare a.GasTipCapCmp(b),
-	// but it seems unnecessary because effective tips are already equal.
+	if c := a.GasFeeCapCmp(b); c != 0 {
+		return c
+	}
+	// Compare tips if effective tips and fee caps are equal
+	return a.GasTipCapCmp(b)
 }
 
 func (h *priceHeap) Push(x interface{}) {
