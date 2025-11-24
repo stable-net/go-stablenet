@@ -258,7 +258,7 @@ var (
 			// derived fields:
 			TxHash:            txs[4].Hash(),
 			GasUsed:           5,
-			EffectiveGasPrice: big.NewInt(3000),
+			EffectiveGasPrice: big.NewInt(3000), // anzeon disabled(no sign in tx)
 			BlockHash:         blockHash,
 			BlockNumber:       blockNumber,
 			TransactionIndex:  4,
@@ -443,6 +443,14 @@ func TestDecodeEmptyTypedReceipt(t *testing.T) {
 	}
 }
 
+type mockStateReader struct {
+	authorized bool
+}
+
+func (msr *mockStateReader) IsAuthorized(addr common.Address) bool {
+	return msr.authorized
+}
+
 // Tests that receipt data can be correctly derived from the contextual infos
 func TestDeriveFields(t *testing.T) {
 	// Re-derive receipts.
@@ -450,7 +458,8 @@ func TestDeriveFields(t *testing.T) {
 	blobGasPrice := big.NewInt(920)
 	headerGasTip := big.NewInt(1000)
 	derivedReceipts := clearComputedFieldsOnReceipts(receipts)
-	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, headerGasTip, blobGasPrice, txs, nil)
+	allNoAuthorized := &mockStateReader{authorized: false}
+	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, headerGasTip, blobGasPrice, txs, allNoAuthorized)
 	if err != nil {
 		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
 	}
@@ -478,7 +487,8 @@ func TestDeriveFieldsAuthorizedAccount(t *testing.T) {
 	blobGasPrice := big.NewInt(920)
 	derivedReceipts := clearComputedFieldsOnReceipts(authorizedReceipts)
 	// headerGasTip nil means authorized; stateDB not needed.
-	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, nil, blobGasPrice, txs, nil)
+	allAuthorized := &mockStateReader{authorized: true}
+	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, nil, blobGasPrice, txs, allAuthorized)
 	if err != nil {
 		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
 	}

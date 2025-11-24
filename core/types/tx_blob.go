@@ -169,7 +169,10 @@ func (tx *BlobTx) effectiveGasPrice(txOuter *Transaction, anzeonTipEnv AnzeonGas
 		baseFee = anzeonTipEnv.GetBaseFee()
 	}
 
-	tipCap := anzeonTipEnv.GetAnzeonTipCap(txOuter)
+	tipCap := tx.GasTipCap.ToBig()
+	if anzeonTipEnv != nil {
+		tipCap = anzeonTipEnv.GetAnzeonTipCap(txOuter)
+	}
 	tip := new(big.Int).Sub(tx.GasFeeCap.ToBig(), baseFee)
 	if tip.Cmp(tipCap) > 0 {
 		tip.Set(tipCap)

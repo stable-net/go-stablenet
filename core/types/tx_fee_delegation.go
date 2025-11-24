@@ -135,7 +135,10 @@ func (tx *FeeDelegateDynamicFeeTx) effectiveGasPrice(txOuter *Transaction, anzeo
 		baseFee = anzeonTipEnv.GetBaseFee()
 	}
 
-	tipCap := anzeonTipEnv.GetAnzeonTipCap(txOuter)
+	tipCap := tx.SenderTx.GasTipCap
+	if anzeonTipEnv != nil {
+		tipCap = anzeonTipEnv.GetAnzeonTipCap(txOuter)
+	}
 	tip := new(big.Int).Sub(tx.SenderTx.GasFeeCap, baseFee)
 	if tip.Cmp(tipCap) > 0 {
 		tip.Set(tipCap)
