@@ -125,7 +125,7 @@ func (atEnv *AnzeonTipEnv) SetCurrentBlock(header *types.Header) {
 	} else {
 		atEnv.headerTip = nil
 	}
-	if atEnv.stateAt != nil {
+	if atEnv.stateAt != nil && header.Root != (common.Hash{}) {
 		atEnv.stateReader, _ = atEnv.stateAt(header.Root) // if error, stateReader remains nil
 	}
 	atEnv.signer = types.MakeSigner(atEnv.config, header.Number, header.Time)
