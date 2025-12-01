@@ -129,19 +129,13 @@ func (tx *FeeDelegateDynamicFeeTx) rawFeePayerSignatureValues() (v, r, s *big.In
 	return tx.FV, tx.FR, tx.FS
 }
 
-func (tx *FeeDelegateDynamicFeeTx) effectiveGasPrice(txOuter *Transaction, anzeonTipEnv AnzeonGasTipEnv) *big.Int {
-	baseFee := common.Big0
-	tipCap := tx.SenderTx.GasTipCap
-	if anzeonTipEnv != nil {
-		if anzeonTipEnv.GetBaseFee() != nil {
-			baseFee = anzeonTipEnv.GetBaseFee()
-		}
-		tipCap = anzeonTipEnv.GetAnzeonTipCap(txOuter)
+func (tx *FeeDelegateDynamicFeeTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
+	if baseFee == nil {
+		return dst.Set(tx.SenderTx.GasFeeCap)
 	}
-
-	tip := new(big.Int).Sub(tx.SenderTx.GasFeeCap, baseFee)
-	if tip.Cmp(tipCap) > 0 {
-		tip.Set(tipCap)
+	tip := dst.Sub(tx.SenderTx.GasFeeCap, baseFee)
+	if tip.Cmp(tx.SenderTx.GasTipCap) > 0 {
+		tip.Set(tx.SenderTx.GasTipCap)
 	}
 	return tip.Add(tip, baseFee)
 }

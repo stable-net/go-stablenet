@@ -109,7 +109,8 @@ type TxData interface {
 	//
 	// Unlike other TxData methods, the returned *big.Int should be an independent
 	// copy of the computed value, i.e. callers are allowed to mutate the result.
-	effectiveGasPrice(txOuter *Transaction, anzeonTipEnv AnzeonGasTipEnv) *big.Int
+	// Method implementations can use 'dst' to store the result.
+	effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int
 
 	encode(*bytes.Buffer) error
 	decode([]byte) error

@@ -105,6 +105,7 @@ type storedReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Logs              []*Log
+	EffectiveGasPrice *big.Int `rlp:"optional"`
 }
 
 // NewReceipt creates a barebone transaction receipt, copying the init fields.
@@ -281,6 +282,12 @@ func (r *ReceiptForStorage) EncodeRLP(_w io.Writer) error {
 		}
 	}
 	w.ListEnd(logList)
+	// Write EffectiveGasPrice only if not nil (matches rlp:"optional" semantics)
+	// When custom EncodeRLP is implemented, we must manually handle optional fields
+	// by only writing them when they have non-zero values
+	if r.EffectiveGasPrice != nil {
+		w.WriteBigInt(r.EffectiveGasPrice)
+	}
 	w.ListEnd(outerList)
 	return w.Flush()
 }
@@ -297,6 +304,7 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	}
 	r.CumulativeGasUsed = stored.CumulativeGasUsed
 	r.Logs = stored.Logs
+	r.EffectiveGasPrice = stored.EffectiveGasPrice
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 
 	return nil
@@ -364,9 +372,9 @@ func (atEnv *anzeonTipEnv) SetBaseFee(baseFee *big.Int) {
 
 // DeriveFields fills the receipts with their computed fields based on consensus
 // data and contextual infos like containing block and transactions.
-func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, time uint64, baseFee, headerGasTip *big.Int, blobGasPrice *big.Int, txs []*Transaction, stateReader StateReader) error {
+func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, time uint64, baseFee, blobGasPrice *big.Int, txs []*Transaction) error {
 	signer := MakeSigner(config, new(big.Int).SetUint64(number), time)
-	atEnv := NewInstantAnzeonTipEnv(signer, baseFee, headerGasTip, stateReader)
+
 	logIndex := uint(0)
 	if len(txs) != len(rs) {
 		return errors.New("transaction and receipt count mismatch")
@@ -375,8 +383,9 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		// The transaction type and hash can be retrieved from the transaction itself
 		rs[i].Type = txs[i].Type()
 		rs[i].TxHash = txs[i].Hash()
-		rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(txs[i], atEnv)
-
+		if !config.AnzeonEnabled() {
+			rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(new(big.Int), baseFee)
+		}
 		// EIP-4844 blob transaction fields
 		if txs[i].Type() == BlobTxType {
 			rs[i].BlobGasUsed = txs[i].BlobGas()

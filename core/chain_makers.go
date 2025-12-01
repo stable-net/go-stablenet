@@ -409,17 +409,7 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			blobGasPrice = eip4844.CalcBlobFee(*block.ExcessBlobGas())
 		}
 
-		var headerGasTip *big.Int
-		if block.Header() != nil && block.Header().GasTip() != nil {
-			headerGasTip = block.Header().GasTip()
-		}
-
-		var stateReader rawdb.StateReader
-		if statedb, err := cm.StateAt(block.Root()); err == nil {
-			stateReader = statedb
-		}
-
-		if err := receipts.DeriveFields(config, block.Hash(), block.NumberU64(), block.Time(), block.BaseFee(), headerGasTip, blobGasPrice, txs, stateReader); err != nil {
+		if err := receipts.DeriveFields(config, block.Hash(), block.NumberU64(), block.Time(), block.BaseFee(), blobGasPrice, txs); err != nil {
 			panic(err)
 		}
 

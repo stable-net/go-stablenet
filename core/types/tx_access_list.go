@@ -108,8 +108,8 @@ func (tx *AccessListTx) value() *big.Int        { return tx.Value }
 func (tx *AccessListTx) nonce() uint64          { return tx.Nonce }
 func (tx *AccessListTx) to() *common.Address    { return tx.To }
 
-func (tx *AccessListTx) effectiveGasPrice(txOuter *Transaction, anzeonTipEnv AnzeonGasTipEnv) *big.Int {
-	return new(big.Int).Set(tx.GasPrice)
+func (tx *AccessListTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
+	return dst.Set(tx.GasPrice)
 }
 
 func (tx *AccessListTx) rawSignatureValues() (v, r, s *big.Int) {

@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -115,13 +114,7 @@ func (b *testBackend) GetBody(ctx context.Context, hash common.Hash, number rpc.
 func (b *testBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
 	if number := rawdb.ReadHeaderNumber(b.db, hash); number != nil {
 		if header := rawdb.ReadHeader(b.db, hash, *number); header != nil {
-			var stateReader rawdb.StateReader
-			if stateDatabase := state.NewDatabase(b.db); stateDatabase != nil {
-				if statedb, err := state.New(header.Root, stateDatabase, nil); err == nil {
-					stateReader = statedb
-				}
-			}
-			return rawdb.ReadReceipts(b.db, hash, *number, header.Time, params.TestChainConfig, stateReader), nil
+			return rawdb.ReadReceipts(b.db, hash, *number, header.Time, params.TestChainConfig), nil
 		}
 	}
 	return nil, nil

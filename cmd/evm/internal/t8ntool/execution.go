@@ -284,6 +284,11 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 			//receipt.BlockHash
 			//receipt.BlockNumber
 			receipt.TransactionIndex = uint(txIndex)
+
+			if chainConfig.AnzeonEnabled() {
+				receipt.EffectiveGasPrice = msg.GasPrice
+			}
+
 			receipts = append(receipts, receipt)
 		}
 

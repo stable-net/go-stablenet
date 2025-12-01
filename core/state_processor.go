@@ -153,6 +153,10 @@ func applyTransaction(msg *Message, config *params.ChainConfig, gp *GasPool, sta
 	receipt.BlockHash = blockHash
 	receipt.BlockNumber = blockNumber
 	receipt.TransactionIndex = uint(statedb.TxIndex())
+
+	if config.AnzeonEnabled() {
+		receipt.EffectiveGasPrice = msg.GasPrice
+	}
 	return receipt, err
 }
 
