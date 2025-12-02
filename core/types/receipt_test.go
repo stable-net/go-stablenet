@@ -443,14 +443,6 @@ func TestDecodeEmptyTypedReceipt(t *testing.T) {
 	}
 }
 
-type mockStateReader struct {
-	authorized bool
-}
-
-func (msr *mockStateReader) IsAuthorized(addr common.Address) bool {
-	return msr.authorized
-}
-
 // Tests that receipt data can be correctly derived from the contextual infos
 func TestDeriveFields(t *testing.T) {
 	// Re-derive receipts.
