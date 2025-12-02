@@ -68,7 +68,7 @@ func (env *AnzeonTipEnv) GetBaseFee() *big.Int {
 	if env.currentBlock != nil && env.currentBlock.BaseFee != nil {
 		return env.currentBlock.BaseFee
 	}
-	return new(big.Int)
+	return nil
 }
 
 // GetAnzeonTipCap returns the effective gas tip cap for a transaction in the Anzeon network.
