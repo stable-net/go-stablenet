@@ -2060,19 +2060,22 @@ func TestDualHeapEviction(t *testing.T) {
 				highTip = tx
 			} else {
 				tx = dynamicFeeTx(0, 100000, big.NewInt(int64(baseFee+200+i)), big.NewInt(1), key)
-				highCap = tx
+				if highCap == nil || highCap.GasFeeCapCmp(tx) < 0 {
+					highCap = tx
+				}
 			}
 			pool.addRemotesSync([]*types.Transaction{tx})
 		}
 		pending, queued := pool.Stats()
 		if pending+queued != 20 {
-			t.Fatalf("transaction count mismatch: have %d, want %d", pending+queued, 10)
+			t.Fatalf("transaction count mismatch: have %d, want %d", pending+queued, 20)
 		}
 	}
 
 	add(false)
 	for baseFee = 0; baseFee <= 1000; baseFee += 100 {
-		pool.priced.SetBaseFee(big.NewInt(int64(baseFee)))
+		pool.anzeonTipEnv.SetBaseFee(big.NewInt(int64(baseFee)))
+		pool.priced.Reheap()
 		add(true)
 		check(highCap, "fee cap")
 		add(false)

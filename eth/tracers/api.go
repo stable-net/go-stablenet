@@ -275,7 +275,7 @@ func (api *API) traceChain(start, end *types.Block, config *TraceConfig, closed 
 					if task.block.Header() != nil && task.block.Header().GasTip() != nil {
 						headerGasTip = task.block.Header().GasTip()
 					}
-					msg, _ := core.TransactionToMessage(tx, signer, task.block.BaseFee(), headerGasTip)
+					msg, _ := core.TransactionToMessage(tx, signer, task.block.BaseFee(), headerGasTip, task.statedb)
 					txctx := &Context{
 						BlockHash:   task.block.Hash(),
 						BlockNumber: task.block.Number(),
@@ -541,7 +541,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 		}
 
 		var (
-			msg, _    = core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip)
+			msg, _    = core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip, statedb)
 			txContext = core.NewEVMTxContext(msg)
 			vmenv     = vm.NewEVM(vmctx, txContext, statedb, chainConfig, vm.Config{})
 		)
@@ -619,7 +619,7 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 			headerGasTip = block.Header().GasTip()
 		}
 		// Generate the next state snapshot fast without tracing
-		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip)
+		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip, statedb)
 		txctx := &Context{
 			BlockHash:   blockHash,
 			BlockNumber: block.Number(),
@@ -666,7 +666,7 @@ func (api *API) traceBlockParallel(ctx context.Context, block *types.Block, stat
 				if block.Header() != nil && block.Header().GasTip() != nil {
 					headerGasTip = block.Header().GasTip()
 				}
-				msg, _ := core.TransactionToMessage(txs[task.index], signer, block.BaseFee(), headerGasTip)
+				msg, _ := core.TransactionToMessage(txs[task.index], signer, block.BaseFee(), headerGasTip, task.statedb)
 				txctx := &Context{
 					BlockHash:   blockHash,
 					BlockNumber: block.Number(),
@@ -702,7 +702,7 @@ txloop:
 		}
 
 		// Generate the next state snapshot fast without tracing
-		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip)
+		msg, _ := core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip, statedb)
 		statedb.SetTxContext(tx.Hash(), i)
 		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.GasLimit)); err != nil {
@@ -787,7 +787,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		}
 
 		var (
-			msg, _    = core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip)
+			msg, _    = core.TransactionToMessage(tx, signer, block.BaseFee(), headerGasTip, statedb)
 			txContext = core.NewEVMTxContext(msg)
 			vmConf    vm.Config
 			dump      *os.File

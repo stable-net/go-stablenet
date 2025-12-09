@@ -129,19 +129,13 @@ func (tx *FeeDelegateDynamicFeeTx) rawFeePayerSignatureValues() (v, r, s *big.In
 	return tx.FV, tx.FR, tx.FS
 }
 
-func (tx *FeeDelegateDynamicFeeTx) effectiveGasPrice(baseFee, headerGasTip *big.Int) *big.Int {
+func (tx *FeeDelegateDynamicFeeTx) effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int {
 	if baseFee == nil {
-		baseFee = common.Big0
+		baseFee = big.NewInt(0)
 	}
-
-	tipCap := tx.SenderTx.GasTipCap
-	if headerGasTip != nil {
-		tipCap = new(big.Int).Set(headerGasTip)
-	}
-
-	tip := new(big.Int).Sub(tx.SenderTx.GasFeeCap, baseFee)
-	if tip.Cmp(tipCap) > 0 {
-		tip.Set(tipCap)
+	tip := dst.Sub(tx.SenderTx.GasFeeCap, baseFee)
+	if tip.Cmp(tx.SenderTx.GasTipCap) > 0 {
+		tip.Set(tx.SenderTx.GasTipCap)
 	}
 	return tip.Add(tip, baseFee)
 }

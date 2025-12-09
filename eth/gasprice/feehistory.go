@@ -106,9 +106,18 @@ func (oracle *Oracle) processBlock(bf *blockFees, percentiles []float64) {
 		return
 	}
 
+	header := bf.block.Header()
+	var stateReader types.StateReader
+	if header.Root != (common.Hash{}) {
+		stateReader, _ = oracle.backend.StateAt(header.Root)
+	}
+	signer := types.MakeSigner(oracle.backend.ChainConfig(), header.Number, header.Time)
+	atEnv := types.NewInstantAnzeonTipEnv(signer, header.BaseFee, header.GasTip(), stateReader)
+
 	sorter := make([]txGasAndReward, len(bf.block.Transactions()))
 	for i, tx := range bf.block.Transactions() {
-		reward, _ := tx.EffectiveGasTip(bf.block.BaseFee())
+		var reward *big.Int
+		reward, _ = tx.EffectiveGasTip(atEnv)
 		sorter[i] = txGasAndReward{gasUsed: bf.receipts[i].GasUsed, reward: reward}
 	}
 	slices.SortStableFunc(sorter, func(a, b txGasAndReward) int {

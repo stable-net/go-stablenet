@@ -504,13 +504,9 @@ func testStatusFunctions(t *testing.T, client *rpc.Client) {
 	}
 
 	// SuggestGasPrice
-	// Note: The expected gas price is calculated as SuggestGasTipCap + BaseFee
-	// SuggestGasTipCap returns 100 GWei (from miner.DefaultConfig.GasPrice)
-	// BaseFee is dynamically calculated based on EIP-1559 mechanism:
-	// - Genesis block: 1 GWei (params.InitialBaseFee)
-	// - Block 1: Decreased to ~0.77 GWei due to no transactions (GasUsed < GasTarget)
-	// - Block 2: Further adjusted based on block 1's gas usage
-	// Total: 100 GWei + 0.77 GWei = 100.77 GWei
+	// Note: Returns the suggested gas price from the oracle.
+	// Formula: eth_gasPrice = eth_maxPriorityFeePerGas + BaseFee
+	// The gas price oracle samples recent blocks to determine appropriate tip.
 	gasPrice, err := ec.SuggestGasPrice(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -520,8 +516,9 @@ func testStatusFunctions(t *testing.T, client *rpc.Client) {
 	}
 
 	// SuggestGasTipCap
-	// Note: Returns the configured miner gas price (100 GWei)
-	// This value is set in miner.DefaultConfig.GasPrice and applied as GasTip
+	// Note: Returns the suggested gas tip cap (priority fee) from the oracle.
+	// For non-Anzeon chains, the oracle analyzes recent transaction gas prices
+	// from historical blocks to determine an appropriate tip value.
 	gasTipCap, err := ec.SuggestGasTipCap(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

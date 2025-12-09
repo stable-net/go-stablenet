@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/lru"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -58,6 +59,7 @@ type OracleBackend interface {
 	PendingBlockAndReceipts() (*types.Block, types.Receipts)
 	ChainConfig() *params.ChainConfig
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
+	StateAt(root common.Hash) (*state.StateDB, error)
 }
 
 // Oracle recommends gas prices based on the content of recent
@@ -242,24 +244,40 @@ func (oracle *Oracle) getBlockValues(ctx context.Context, blockNum uint64, limit
 		}
 		return
 	}
+
+	header := block.Header()
+	var stateReader types.StateReader
+	if header.Root != (common.Hash{}) {
+		stateReader, _ = oracle.backend.StateAt(header.Root)
+	}
 	signer := types.MakeSigner(oracle.backend.ChainConfig(), block.Number(), block.Time())
+	atEnv := types.NewInstantAnzeonTipEnv(signer, header.BaseFee, header.GasTip(), stateReader)
 
 	// Sort the transaction by effective tip in ascending sort.
 	txs := block.Transactions()
+
+	// Create a map to store tip for each transaction
+	tipMap := make(map[common.Hash]*big.Int)
+	for _, tx := range txs {
+		var tip *big.Int
+		tip, _ = tx.EffectiveGasTip(atEnv)
+		tipMap[tx.Hash()] = tip
+	}
+
 	sortedTxs := make([]*types.Transaction, len(txs))
 	copy(sortedTxs, txs)
-	baseFee := block.BaseFee()
+
 	slices.SortFunc(sortedTxs, func(a, b *types.Transaction) int {
 		// It's okay to discard the error because a tx would never be
 		// accepted into a block with an invalid effective tip.
-		tip1, _ := a.EffectiveGasTip(baseFee)
-		tip2, _ := b.EffectiveGasTip(baseFee)
+		tip1 := tipMap[a.Hash()]
+		tip2 := tipMap[b.Hash()]
 		return tip1.Cmp(tip2)
 	})
 
 	var prices []*big.Int
 	for _, tx := range sortedTxs {
-		tip, _ := tx.EffectiveGasTip(baseFee)
+		tip := tipMap[tx.Hash()]
 		if ignoreUnder != nil && tip.Cmp(ignoreUnder) == -1 {
 			continue
 		}

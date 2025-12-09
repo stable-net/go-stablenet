@@ -25,9 +25,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core/state"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 	"golang.org/x/exp/slices"
@@ -476,12 +475,10 @@ func (l *list) subTotalCost(txs []*types.Transaction) {
 }
 
 // priceHeap is a heap.Interface implementation over transactions for retrieving
-// price-sorted transactions to discard when the pool fills up. If baseFee is set
-// then the heap is sorted based on the effective tip based on the given base fee.
-// If baseFee is nil then the sorting is based on gasFeeCap.
+// price-sorted transactions to discard when the pool fills up.
 type priceHeap struct {
-	baseFee *big.Int // heap should always be re-sorted after baseFee is changed
-	list    []*types.Transaction
+	list         []*types.Transaction
+	anzeonTipEnv types.AnzeonGasTipEnv
 }
 
 func (h *priceHeap) Len() int      { return len(h.list) }
@@ -499,17 +496,22 @@ func (h *priceHeap) Less(i, j int) bool {
 }
 
 func (h *priceHeap) cmp(a, b *types.Transaction) int {
-	if h.baseFee != nil {
+	anzeonTipSame := false
+	if h.anzeonTipEnv != nil && h.anzeonTipEnv.GetBaseFee() != nil {
 		// Compare effective tips if baseFee is specified
-		if c := a.EffectiveGasTipCmp(b, h.baseFee); c != 0 {
+		if c := a.EffectiveGasTipCmp(b, h.anzeonTipEnv); c != 0 {
 			return c
 		}
+		anzeonTipSame = true
 	}
 	// Compare fee caps if baseFee is not specified or effective tips are equal
 	if c := a.GasFeeCapCmp(b); c != 0 {
 		return c
 	}
 	// Compare tips if effective tips and fee caps are equal
+	if anzeonTipSame {
+		return 0
+	}
 	return a.GasTipCapCmp(b)
 }
 
@@ -554,10 +556,13 @@ const (
 )
 
 // newPricedList creates a new price-sorted transaction heap.
-func newPricedList(all *lookup) *pricedList {
-	return &pricedList{
+func newPricedList(all *lookup, anzeonTipEnv types.AnzeonGasTipEnv) *pricedList {
+	result := &pricedList{
 		all: all,
 	}
+	result.urgent.anzeonTipEnv = anzeonTipEnv
+	result.floating.anzeonTipEnv = anzeonTipEnv
+	return result
 }
 
 // Put inserts a new transaction into the heap.
@@ -664,6 +669,7 @@ func (l *pricedList) Reheap() {
 	start := time.Now()
 	l.stales.Store(0)
 	l.urgent.list = make([]*types.Transaction, 0, l.all.RemoteCount())
+
 	l.all.Range(func(hash common.Hash, tx *types.Transaction, local bool) bool {
 		l.urgent.list = append(l.urgent.list, tx)
 		return true
@@ -682,11 +688,4 @@ func (l *pricedList) Reheap() {
 	}
 	heap.Init(&l.floating)
 	reheapTimer.Update(time.Since(start))
-}
-
-// SetBaseFee updates the base fee and triggers a re-heap. Note that Removed is not
-// necessary to call right before SetBaseFee when processing a new block.
-func (l *pricedList) SetBaseFee(baseFee *big.Int) {
-	l.urgent.baseFee = baseFee
-	l.Reheap()
 }

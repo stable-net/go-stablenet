@@ -125,8 +125,8 @@ var (
 			Nonce:     5,
 			Value:     big.NewInt(5),
 			Gas:       5,
-			GasTipCap: big.NewInt(1000),
-			GasFeeCap: big.NewInt(2000),
+			GasTipCap: big.NewInt(2000),
+			GasFeeCap: big.NewInt(4000),
 		}),
 		// EIP-4844 transactions.
 		NewTx(&BlobTx{
@@ -144,8 +144,8 @@ var (
 			Nonce:      7,
 			Value:      uint256.NewInt(7),
 			Gas:        7,
-			GasTipCap:  uint256.NewInt(1000),
-			GasFeeCap:  uint256.NewInt(2000),
+			GasTipCap:  uint256.NewInt(1600),
+			GasFeeCap:  uint256.NewInt(3000),
 			BlobFeeCap: uint256.NewInt(100077),
 			BlobHashes: []common.Hash{{}, {}, {}},
 		}),
@@ -258,7 +258,7 @@ var (
 			// derived fields:
 			TxHash:            txs[4].Hash(),
 			GasUsed:           5,
-			EffectiveGasPrice: big.NewInt(2000),
+			EffectiveGasPrice: big.NewInt(3000), // anzeon disabled(no sign in tx)
 			BlockHash:         blockHash,
 			BlockNumber:       blockNumber,
 			TransactionIndex:  4,
@@ -286,7 +286,145 @@ var (
 			// derived fields:
 			TxHash:            txs[6].Hash(),
 			GasUsed:           7,
+			EffectiveGasPrice: big.NewInt(2600),
+			BlobGasUsed:       3 * params.BlobTxBlobGasPerBlob,
+			BlobGasPrice:      big.NewInt(920),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  6,
+		},
+	}
+	authorizedReceipts = Receipts{
+		&Receipt{
+			Status:            ReceiptStatusFailed,
+			CumulativeGasUsed: 1,
+			Logs: []*Log{
+				{
+					Address: common.BytesToAddress([]byte{0x11}),
+					Topics:  []common.Hash{common.HexToHash("dead"), common.HexToHash("beef")},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[0].Hash(),
+					TxIndex:     0,
+					BlockHash:   blockHash,
+					Index:       0,
+				},
+				{
+					Address: common.BytesToAddress([]byte{0x01, 0x11}),
+					Topics:  []common.Hash{common.HexToHash("dead"), common.HexToHash("beef")},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[0].Hash(),
+					TxIndex:     0,
+					BlockHash:   blockHash,
+					Index:       1,
+				},
+			},
+			// derived fields:
+			TxHash:            txs[0].Hash(),
+			ContractAddress:   common.HexToAddress("0x5a443704dd4b594b382c22a083e2bd3090a6fef3"),
+			GasUsed:           1,
+			EffectiveGasPrice: big.NewInt(11),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  0,
+		},
+		&Receipt{
+			PostState:         common.Hash{2}.Bytes(),
+			CumulativeGasUsed: 3,
+			Logs: []*Log{
+				{
+					Address: common.BytesToAddress([]byte{0x22}),
+					Topics:  []common.Hash{common.HexToHash("dead"), common.HexToHash("beef")},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[1].Hash(),
+					TxIndex:     1,
+					BlockHash:   blockHash,
+					Index:       2,
+				},
+				{
+					Address: common.BytesToAddress([]byte{0x02, 0x22}),
+					Topics:  []common.Hash{common.HexToHash("dead"), common.HexToHash("beef")},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[1].Hash(),
+					TxIndex:     1,
+					BlockHash:   blockHash,
+					Index:       3,
+				},
+			},
+			// derived fields:
+			TxHash:            txs[1].Hash(),
+			GasUsed:           2,
+			EffectiveGasPrice: big.NewInt(22),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  1,
+		},
+		&Receipt{
+			Type:              AccessListTxType,
+			PostState:         common.Hash{3}.Bytes(),
+			CumulativeGasUsed: 6,
+			Logs:              []*Log{},
+			// derived fields:
+			TxHash:            txs[2].Hash(),
+			GasUsed:           3,
+			EffectiveGasPrice: big.NewInt(33),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  2,
+		},
+		&Receipt{
+			Type:              DynamicFeeTxType,
+			PostState:         common.Hash{4}.Bytes(),
+			CumulativeGasUsed: 10,
+			Logs:              []*Log{},
+			// derived fields:
+			TxHash:            txs[3].Hash(),
+			GasUsed:           4,
 			EffectiveGasPrice: big.NewInt(2000),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  3,
+		},
+		&Receipt{
+			Type:              DynamicFeeTxType,
+			PostState:         common.Hash{5}.Bytes(),
+			CumulativeGasUsed: 15,
+			Logs:              []*Log{},
+			// derived fields:
+			TxHash:            txs[4].Hash(),
+			GasUsed:           5,
+			EffectiveGasPrice: big.NewInt(3000),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  4,
+		},
+		&Receipt{
+			Type:              BlobTxType,
+			PostState:         common.Hash{6}.Bytes(),
+			CumulativeGasUsed: 21,
+			Logs:              []*Log{},
+			// derived fields:
+			TxHash:            txs[5].Hash(),
+			GasUsed:           6,
+			EffectiveGasPrice: big.NewInt(2000),
+			BlobGasUsed:       params.BlobTxBlobGasPerBlob,
+			BlobGasPrice:      big.NewInt(920),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  5,
+		},
+		&Receipt{
+			Type:              BlobTxType,
+			PostState:         common.Hash{7}.Bytes(),
+			CumulativeGasUsed: 28,
+			Logs:              []*Log{},
+			// derived fields:
+			TxHash:            txs[6].Hash(),
+			GasUsed:           7,
+			EffectiveGasPrice: big.NewInt(2600),
 			BlobGasUsed:       3 * params.BlobTxBlobGasPerBlob,
 			BlobGasPrice:      big.NewInt(920),
 			BlockHash:         blockHash,
@@ -310,15 +448,41 @@ func TestDeriveFields(t *testing.T) {
 	// Re-derive receipts.
 	basefee := big.NewInt(1000)
 	blobGasPrice := big.NewInt(920)
-	headerGasTip := big.NewInt(1000)
 	derivedReceipts := clearComputedFieldsOnReceipts(receipts)
-	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, headerGasTip, blobGasPrice, txs)
+	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, blobGasPrice, txs)
 	if err != nil {
 		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
 	}
 
 	// Check diff of receipts against derivedReceipts.
 	r1, err := json.MarshalIndent(receipts, "", "  ")
+	if err != nil {
+		t.Fatal("error marshaling input receipts:", err)
+	}
+
+	r2, err := json.MarshalIndent(derivedReceipts, "", "  ")
+	if err != nil {
+		t.Fatal("error marshaling derived receipts:", err)
+	}
+	d := diff.Diff(string(r1), string(r2))
+	if d != "" {
+		t.Fatal("receipts differ:", d)
+	}
+}
+
+// Tests that receipt data can be correctly derived for authorized accounts
+func TestDeriveFieldsAuthorizedAccount(t *testing.T) {
+	// Re-derive receipts.
+	basefee := big.NewInt(1000)
+	blobGasPrice := big.NewInt(920)
+	derivedReceipts := clearComputedFieldsOnReceipts(authorizedReceipts)
+	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, blobGasPrice, txs)
+	if err != nil {
+		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
+	}
+
+	// Check diff of receipts against derivedReceipts.
+	r1, err := json.MarshalIndent(authorizedReceipts, "", "  ")
 	if err != nil {
 		t.Fatal("error marshaling input receipts:", err)
 	}

@@ -52,6 +52,12 @@ const (
 	FeeDelegateDynamicFeeTxType = 0x16 // fee delegation(22)
 )
 
+type AnzeonGasTipEnv interface {
+	GetBaseFee() *big.Int
+	GetAnzeonTipCap(tx *Transaction) *big.Int
+	SetCurrentBlock(header *Header)
+}
+
 // Transaction is an Ethereum transaction.
 type Transaction struct {
 	inner TxData    // Consensus contents of a transaction
@@ -103,7 +109,8 @@ type TxData interface {
 	//
 	// Unlike other TxData methods, the returned *big.Int should be an independent
 	// copy of the computed value, i.e. callers are allowed to mutate the result.
-	effectiveGasPrice(baseFee *big.Int, gasTip *big.Int) *big.Int
+	// Method implementations can use 'dst' to store the result.
+	effectiveGasPrice(dst *big.Int, baseFee *big.Int) *big.Int
 
 	encode(*bytes.Buffer) error
 	decode([]byte) error
@@ -302,7 +309,9 @@ func (tx *Transaction) Gas() uint64 { return tx.inner.gas() }
 func (tx *Transaction) GasPrice() *big.Int { return new(big.Int).Set(tx.inner.gasPrice()) }
 
 // GasTipCap returns the gasTipCap per gas of the transaction.
-func (tx *Transaction) GasTipCap() *big.Int { return new(big.Int).Set(tx.inner.gasTipCap()) }
+func (tx *Transaction) GasTipCap() *big.Int {
+	return new(big.Int).Set(tx.inner.gasTipCap())
+}
 
 // GasFeeCap returns the fee cap per gas of the transaction.
 func (tx *Transaction) GasFeeCap() *big.Int { return new(big.Int).Set(tx.inner.gasFeeCap()) }
@@ -366,46 +375,39 @@ func (tx *Transaction) GasTipCapIntCmp(other *big.Int) int {
 // EffectiveGasTip returns the effective miner gasTipCap for the given base fee.
 // Note: if the effective gasTipCap is negative, this method returns both error
 // the actual negative value, _and_ ErrGasFeeCapTooLow
-func (tx *Transaction) EffectiveGasTip(baseFee *big.Int) (*big.Int, error) {
-	if baseFee == nil {
+func (tx *Transaction) EffectiveGasTip(anzeonTipEnv AnzeonGasTipEnv) (*big.Int, error) {
+	if anzeonTipEnv == nil || anzeonTipEnv.GetBaseFee() == nil {
 		return tx.GasTipCap(), nil
 	}
 	var err error
 	gasFeeCap := tx.GasFeeCap()
-	if gasFeeCap.Cmp(baseFee) == -1 {
+	if gasFeeCap.Cmp(anzeonTipEnv.GetBaseFee()) == -1 {
 		err = ErrGasFeeCapTooLow
 	}
-	return math.BigMin(tx.GasTipCap(), gasFeeCap.Sub(gasFeeCap, baseFee)), err
+	return math.BigMin(anzeonTipEnv.GetAnzeonTipCap(tx), gasFeeCap.Sub(gasFeeCap, anzeonTipEnv.GetBaseFee())), err
 }
 
 // EffectiveGasTipValue is identical to EffectiveGasTip, but does not return an
 // error in case the effective gasTipCap is negative
-func (tx *Transaction) EffectiveGasTipValue(baseFee *big.Int) *big.Int {
-	effectiveTip, _ := tx.EffectiveGasTip(baseFee)
+func (tx *Transaction) EffectiveGasTipValue(anzeonTipEnv AnzeonGasTipEnv) *big.Int {
+	effectiveTip, _ := tx.EffectiveGasTip(anzeonTipEnv)
 	return effectiveTip
 }
 
 // EffectiveGasTipCmp compares the effective gasTipCap of two transactions assuming the given base fee.
-func (tx *Transaction) EffectiveGasTipCmp(other *Transaction, baseFee *big.Int) int {
-	if baseFee == nil {
+func (tx *Transaction) EffectiveGasTipCmp(other *Transaction, anzeonTipEnv AnzeonGasTipEnv) int {
+	if anzeonTipEnv == nil || anzeonTipEnv.GetBaseFee() == nil {
 		return tx.GasTipCapCmp(other)
 	}
-	return tx.EffectiveGasTipValue(baseFee).Cmp(other.EffectiveGasTipValue(baseFee))
+	return tx.EffectiveGasTipValue(anzeonTipEnv).Cmp(other.EffectiveGasTipValue(anzeonTipEnv))
 }
 
 // EffectiveGasTipIntCmp compares the effective gasTipCap of a transaction to the given gasTipCap.
-func (tx *Transaction) EffectiveGasTipIntCmp(other *big.Int, baseFee *big.Int) int {
-	if baseFee == nil {
+func (tx *Transaction) EffectiveGasTipIntCmp(other *big.Int, anzeonTipEnv AnzeonGasTipEnv) int {
+	if anzeonTipEnv == nil || anzeonTipEnv.GetBaseFee() == nil {
 		return tx.GasTipCapIntCmp(other)
 	}
-	return tx.EffectiveGasTipValue(baseFee).Cmp(other)
-}
-
-// EffectiveGasPrice returns the actual gas price the transaction will pay, given the base fee and gasTip.
-// This is different from EffectiveGasTip which returns only the miner tip portion.
-// The formula is: min(gasTipCap, gasFeeCap - baseFee) + baseFee, capped by gasTip if applicable.
-func (tx *Transaction) EffectiveGasPrice(baseFee, headerGasTip *big.Int) *big.Int {
-	return tx.inner.effectiveGasPrice(baseFee, headerGasTip)
+	return tx.EffectiveGasTipValue(anzeonTipEnv).Cmp(other)
 }
 
 // fee delegation

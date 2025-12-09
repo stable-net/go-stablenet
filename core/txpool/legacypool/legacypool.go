@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -232,6 +233,9 @@ type LegacyPool struct {
 	initDoneCh      chan struct{}  // is closed once the pool is initialized (for tests)
 
 	changesSinceReorg int // A counter for how many drops we've performed in-between reorg.
+
+	// anzeon gas tip environment
+	anzeonTipEnv *gasprice.AnzeonTipEnv
 }
 
 type txpoolResetRequest struct {
@@ -266,7 +270,8 @@ func New(config Config, chain BlockChain) *LegacyPool {
 		log.Info("Setting new local account", "address", addr)
 		pool.locals.add(addr)
 	}
-	pool.priced = newPricedList(pool.all)
+	pool.anzeonTipEnv = gasprice.NewAnzeonTipEnv(chain.Config(), chain.StateAt)
+	pool.priced = newPricedList(pool.all, pool.anzeonTipEnv)
 
 	if !config.NoLocals && config.Journal != "" {
 		pool.journal = newTxJournal(config.Journal)
@@ -309,6 +314,7 @@ func (pool *LegacyPool) Init(gasTip uint64, head *types.Header, reserve txpool.A
 	pool.currentHead.Store(head)
 	pool.currentState = statedb
 	pool.pendingNonces = newNoncer(statedb)
+	pool.anzeonTipEnv.SetCurrentBlock(head)
 
 	// Start the reorg loop early, so it can handle requests generated during
 	// journal loading.
@@ -539,14 +545,14 @@ func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address]
 
 	// Convert the new uint256.Int types to the old big.Int ones used by the legacy pool
 	var (
-		minTipBig  *big.Int
-		baseFeeBig *big.Int
+		minTipBig *big.Int
 	)
 	if filter.MinTip != nil {
 		minTipBig = filter.MinTip.ToBig()
 	}
+	pool.anzeonTipEnv.SetCurrentBlock(filter.NewHeader) // filter.NewHeader can be nil, but it doesn't matter
 	if filter.BaseFee != nil {
-		baseFeeBig = filter.BaseFee.ToBig()
+		pool.anzeonTipEnv.SetBaseFee(filter.BaseFee.ToBig())
 	}
 	pending := make(map[common.Address][]*txpool.LazyTransaction, len(pool.pending))
 	for addr, list := range pool.pending {
@@ -555,7 +561,7 @@ func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address]
 		// If the miner requests tip enforcement, cap the lists now
 		if minTipBig != nil && !pool.locals.contains(addr) {
 			for i, tx := range txs {
-				if tx.EffectiveGasTipIntCmp(minTipBig, baseFeeBig) < 0 {
+				if tx.EffectiveGasTipIntCmp(minTipBig, pool.anzeonTipEnv) < 0 {
 					txs = txs[:i]
 					break
 				}
@@ -1280,6 +1286,7 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 		promoteAddrs = dirtyAccounts.flatten()
 	}
 	pool.mu.Lock()
+
 	if reset != nil {
 		// Reset from the old head to the new, rescheduling any reorged transactions
 		pool.reset(reset.oldHead, reset.newHead)
@@ -1308,10 +1315,9 @@ func (pool *LegacyPool) runReorg(done chan struct{}, reset *txpoolResetRequest, 
 		if reset.newHead != nil {
 			if pool.chainconfig.IsLondon(new(big.Int).Add(reset.newHead.Number, big.NewInt(1))) {
 				pendingBaseFee := eip1559.CalcBaseFee(pool.chainconfig, reset.newHead)
-				pool.priced.SetBaseFee(pendingBaseFee)
-			} else {
-				pool.priced.Reheap()
+				pool.anzeonTipEnv.SetBaseFee(pendingBaseFee)
 			}
+			pool.priced.Reheap()
 		}
 		// Update all accounts to the latest known pending nonce
 		nonces := make(map[common.Address]uint64, len(pool.pending))
@@ -1438,6 +1444,7 @@ func (pool *LegacyPool) reset(oldHead, newHead *types.Header) {
 	pool.currentHead.Store(newHead)
 	pool.currentState = statedb
 	pool.pendingNonces = newNoncer(statedb)
+	pool.anzeonTipEnv.SetCurrentBlock(newHead) // update tip env if new head is given
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))

@@ -35,6 +35,10 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+// StateReader is an alias for types.StateReader to maintain backward compatibility.
+// The interface is defined in types package to avoid circular dependencies.
+type StateReader = types.StateReader
+
 // ReadCanonicalHash retrieves the hash assigned to a canonical block number.
 func ReadCanonicalHash(db ethdb.Reader, number uint64) common.Hash {
 	var data []byte
@@ -649,12 +653,7 @@ func ReadReceipts(db ethdb.Reader, hash common.Hash, number uint64, time uint64,
 		blobGasPrice = eip4844.CalcBlobFee(*header.ExcessBlobGas)
 	}
 
-	var headerGasTip *big.Int
-	if header != nil && header.GasTip() != nil {
-		headerGasTip = new(big.Int).Set(header.GasTip())
-	}
-
-	if err := receipts.DeriveFields(config, hash, number, time, baseFee, headerGasTip, blobGasPrice, body.Transactions); err != nil {
+	if err := receipts.DeriveFields(config, hash, number, time, baseFee, blobGasPrice, body.Transactions); err != nil {
 		log.Error("Failed to derive block receipts fields", "hash", hash, "number", number, "err", err)
 		return nil
 	}
@@ -692,6 +691,7 @@ type storedReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Logs              []*types.Log
+	EffectiveGasPrice *big.Int `rlp:"optional"`
 }
 
 // ReceiptLogs is a barebone version of ReceiptForStorage which only keeps

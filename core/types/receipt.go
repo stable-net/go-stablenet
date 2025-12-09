@@ -31,6 +31,12 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+// StateReader is an interface for reading state data.
+type StateReader interface {
+	// IsAuthorized returns true if the account is marked as authorized
+	IsAuthorized(addr common.Address) bool
+}
+
 //go:generate go run github.com/fjl/gencodec -type Receipt -field-override receiptMarshaling -out gen_receipt_json.go
 
 var (
@@ -99,6 +105,7 @@ type storedReceiptRLP struct {
 	PostStateOrStatus []byte
 	CumulativeGasUsed uint64
 	Logs              []*Log
+	EffectiveGasPrice *big.Int `rlp:"optional"`
 }
 
 // NewReceipt creates a barebone transaction receipt, copying the init fields.
@@ -275,6 +282,12 @@ func (r *ReceiptForStorage) EncodeRLP(_w io.Writer) error {
 		}
 	}
 	w.ListEnd(logList)
+	// Write EffectiveGasPrice only if not nil (matches rlp:"optional" semantics)
+	// When custom EncodeRLP is implemented, we must manually handle optional fields
+	// by only writing them when they have non-zero values
+	if r.EffectiveGasPrice != nil {
+		w.WriteBigInt(r.EffectiveGasPrice)
+	}
 	w.ListEnd(outerList)
 	return w.Flush()
 }
@@ -291,6 +304,7 @@ func (r *ReceiptForStorage) DecodeRLP(s *rlp.Stream) error {
 	}
 	r.CumulativeGasUsed = stored.CumulativeGasUsed
 	r.Logs = stored.Logs
+	r.EffectiveGasPrice = stored.EffectiveGasPrice
 	r.Bloom = CreateBloom(Receipts{(*Receipt)(r)})
 
 	return nil
@@ -321,9 +335,44 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 	}
 }
 
+type anzeonTipEnv struct {
+	stateReader StateReader
+	signer      Signer
+	baseFee     *big.Int
+	headerTip   *big.Int
+}
+
+func NewInstantAnzeonTipEnv(signer Signer, baseFee, headerTip *big.Int, stateReader StateReader) AnzeonGasTipEnv {
+	return &anzeonTipEnv{
+		signer:      signer,
+		baseFee:     baseFee,
+		headerTip:   headerTip,
+		stateReader: stateReader,
+	}
+}
+
+func (atEnv *anzeonTipEnv) GetBaseFee() *big.Int {
+	return atEnv.baseFee
+}
+
+func (atEnv *anzeonTipEnv) GetAnzeonTipCap(tx *Transaction) *big.Int {
+	from, err := Sender(atEnv.signer, tx)
+	if err == nil && atEnv.stateReader != nil && !atEnv.stateReader.IsAuthorized(from) && atEnv.headerTip != nil {
+		// In Anzeon, normal account gas tip cap is determined by the block header gas tip
+		return atEnv.headerTip
+	}
+	return tx.GasTipCap()
+}
+
+func (atEnv *anzeonTipEnv) SetCurrentBlock(header *Header) {
+}
+
+func (atEnv *anzeonTipEnv) SetBaseFee(baseFee *big.Int) {
+}
+
 // DeriveFields fills the receipts with their computed fields based on consensus
 // data and contextual infos like containing block and transactions.
-func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, time uint64, baseFee, headerGasTip *big.Int, blobGasPrice *big.Int, txs []*Transaction) error {
+func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, time uint64, baseFee, blobGasPrice *big.Int, txs []*Transaction) error {
 	signer := MakeSigner(config, new(big.Int).SetUint64(number), time)
 
 	logIndex := uint(0)
@@ -334,7 +383,9 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		// The transaction type and hash can be retrieved from the transaction itself
 		rs[i].Type = txs[i].Type()
 		rs[i].TxHash = txs[i].Hash()
-		rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(baseFee, headerGasTip)
+		if !config.AnzeonEnabled() {
+			rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(new(big.Int), baseFee)
+		}
 		// EIP-4844 blob transaction fields
 		if txs[i].Type() == BlobTxType {
 			rs[i].BlobGasUsed = txs[i].BlobGas()

@@ -206,7 +206,7 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 			rejectedTxs = append(rejectedTxs, &rejectedTx{i, errMsg})
 			continue
 		}
-		msg, err := core.TransactionToMessage(tx, signer, pre.Env.BaseFee, nil)
+		msg, err := core.TransactionToMessage(tx, signer, pre.Env.BaseFee, nil, statedb)
 		if err != nil {
 			log.Warn("rejected tx", "index", i, "hash", tx.Hash(), "error", err)
 			rejectedTxs = append(rejectedTxs, &rejectedTx{i, err.Error()})
@@ -284,6 +284,11 @@ func (pre *Prestate) Apply(vmConfig vm.Config, chainConfig *params.ChainConfig,
 			//receipt.BlockHash
 			//receipt.BlockNumber
 			receipt.TransactionIndex = uint(txIndex)
+
+			if chainConfig.AnzeonEnabled() {
+				receipt.EffectiveGasPrice = msg.GasPrice
+			}
+
 			receipts = append(receipts, receipt)
 		}
 

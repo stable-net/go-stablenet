@@ -381,7 +381,6 @@ func (w *worker) setGasTipUnsafe(tip *big.Int) bool {
 	}
 	w.tip = uint256.MustFromBig(tip)
 
-	// TODO: This part will be refactored to implement Minter transaction prioritization.
 	// Update txPool's gas tip to filter pending transactions accordingly
 	w.eth.TxPool().SetGasTip(tip)
 
@@ -731,8 +730,9 @@ func (w *worker) mainLoop() {
 						BlobGas:   tx.BlobGas(),
 					})
 				}
-				plainTxs := newTransactionsByPriceAndNonce(w.current.signer, txs, w.current.header.BaseFee) // Mixed bag of everrything, yolo
-				blobTxs := newTransactionsByPriceAndNonce(w.current.signer, nil, w.current.header.BaseFee)  // Empty bag, don't bother optimising
+				anzeonEnabled := w.chainConfig.AnzeonEnabled()
+				plainTxs := newTransactionsByPriceAndNonce(w.current.signer, txs, w.current.header.BaseFee, w.current.header.GasTip(), anzeonEnabled, w.current.state) // Mixed bag of everrything, yolo
+				blobTxs := newTransactionsByPriceAndNonce(w.current.signer, nil, w.current.header.BaseFee, w.current.header.GasTip(), anzeonEnabled, w.current.state)  // Empty bag, don't bother optimising
 
 				tcount := w.current.tcount
 				w.commitTransactions(w.current, plainTxs, blobTxs, nil)
@@ -1236,6 +1236,7 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 	filter := txpool.PendingFilter{
 		MinTip: tip,
 	}
+	filter.NewHeader = env.header
 	if env.header.BaseFee != nil {
 		filter.BaseFee = uint256.MustFromBig(env.header.BaseFee)
 	}
@@ -1263,17 +1264,18 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 		}
 	}
 	// Fill the block with all available pending transactions.
+	anzeonEnabled := w.chainConfig.AnzeonEnabled()
 	if len(localPlainTxs) > 0 || len(localBlobTxs) > 0 {
-		plainTxs := newTransactionsByPriceAndNonce(env.signer, localPlainTxs, env.header.BaseFee)
-		blobTxs := newTransactionsByPriceAndNonce(env.signer, localBlobTxs, env.header.BaseFee)
+		plainTxs := newTransactionsByPriceAndNonce(env.signer, localPlainTxs, env.header.BaseFee, env.header.GasTip(), anzeonEnabled, env.state)
+		blobTxs := newTransactionsByPriceAndNonce(env.signer, localBlobTxs, env.header.BaseFee, env.header.GasTip(), anzeonEnabled, env.state)
 
 		if err := w.commitTransactions(env, plainTxs, blobTxs, interrupt); err != nil {
 			return err
 		}
 	}
 	if len(remotePlainTxs) > 0 || len(remoteBlobTxs) > 0 {
-		plainTxs := newTransactionsByPriceAndNonce(env.signer, remotePlainTxs, env.header.BaseFee)
-		blobTxs := newTransactionsByPriceAndNonce(env.signer, remoteBlobTxs, env.header.BaseFee)
+		plainTxs := newTransactionsByPriceAndNonce(env.signer, remotePlainTxs, env.header.BaseFee, env.header.GasTip(), anzeonEnabled, env.state)
+		blobTxs := newTransactionsByPriceAndNonce(env.signer, remoteBlobTxs, env.header.BaseFee, env.header.GasTip(), anzeonEnabled, env.state)
 
 		if err := w.commitTransactions(env, plainTxs, blobTxs, interrupt); err != nil {
 			return err
@@ -1308,7 +1310,7 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 	}
 	return &newPayloadResult{
 		block:    block,
-		fees:     totalFees(w.chainConfig, block, work.receipts),
+		fees:     totalFees(w.chainConfig, block, work.receipts, work.state),
 		sidecars: work.sidecars,
 	}
 }
@@ -1404,7 +1406,7 @@ func (w *worker) commit(env *environment, interval func(), update bool, start ti
 		if !w.isTTDReached(block.Header()) {
 			select {
 			case w.taskCh <- &task{receipts: env.receipts, state: env.state, block: block, createdAt: time.Now()}:
-				fees := totalFees(w.chainConfig, block, env.receipts)
+				fees := totalFees(w.chainConfig, block, env.receipts, env.state)
 				feesInEther := new(big.Float).Quo(new(big.Float).SetInt(fees), big.NewFloat(params.Ether))
 				log.Info("Commit new sealing work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 					"txs", env.tcount, "gas", block.GasUsed(), "fees", feesInEther,
@@ -1465,19 +1467,16 @@ func copyReceipts(receipts []*types.Receipt) []*types.Receipt {
 }
 
 // totalFees computes total consumed miner fees in Wei. Block transactions and receipts have to have the same order.
-func totalFees(c *params.ChainConfig, block *types.Block, receipts []*types.Receipt) *big.Int {
+func totalFees(c *params.ChainConfig, block *types.Block, receipts []*types.Receipt, stateReader types.StateReader) *big.Int {
 	feesWei := new(big.Int)
+	signer := types.MakeSigner(c, block.Number(), block.Time())
+	anzeonTipEnv := types.NewInstantAnzeonTipEnv(signer, block.BaseFee(), block.Header().GasTip(), stateReader)
 	for i, tx := range block.Transactions() {
-		var minerFee *big.Int
+		minerFee, _ := tx.EffectiveGasTip(anzeonTipEnv)
+		// When Anzeon is enabled, the baseFee is not burned.
+		// Instead, it is rewarded to the miner, making minerFee = baseFee + tip
 		if c.AnzeonEnabled() {
-			// TODO: EffectiveGasPrice will be removed and replaced with the updated EffectiveGasTip function
-			var headerGasTip *big.Int
-			if block.Header() != nil && block.Header().GasTip() != nil {
-				headerGasTip = block.Header().GasTip()
-			}
-			minerFee = tx.EffectiveGasPrice(block.BaseFee(), headerGasTip)
-		} else {
-			minerFee, _ = tx.EffectiveGasTip(block.BaseFee())
+			minerFee = minerFee.Add(minerFee, block.BaseFee())
 		}
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
 	}

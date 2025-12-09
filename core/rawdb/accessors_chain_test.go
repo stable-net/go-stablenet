@@ -357,9 +357,10 @@ func TestBlockReceiptStorage(t *testing.T) {
 			{Address: common.BytesToAddress([]byte{0x11})},
 			{Address: common.BytesToAddress([]byte{0x01, 0x11})},
 		},
-		TxHash:          tx1.Hash(),
-		ContractAddress: common.BytesToAddress([]byte{0x01, 0x11, 0x11}),
-		GasUsed:         111111,
+		EffectiveGasPrice: big.NewInt(10000000000000),
+		TxHash:            tx1.Hash(),
+		ContractAddress:   common.BytesToAddress([]byte{0x01, 0x11, 0x11}),
+		GasUsed:           111111,
 	}
 	receipt1.Bloom = types.CreateBloom(types.Receipts{receipt1})
 
@@ -370,9 +371,10 @@ func TestBlockReceiptStorage(t *testing.T) {
 			{Address: common.BytesToAddress([]byte{0x22})},
 			{Address: common.BytesToAddress([]byte{0x02, 0x22})},
 		},
-		TxHash:          tx2.Hash(),
-		ContractAddress: common.BytesToAddress([]byte{0x02, 0x22, 0x22}),
-		GasUsed:         222222,
+		EffectiveGasPrice: big.NewInt(10000000000000),
+		TxHash:            tx2.Hash(),
+		ContractAddress:   common.BytesToAddress([]byte{0x02, 0x22, 0x22}),
+		GasUsed:           222222,
 	}
 	receipt2.Bloom = types.CreateBloom(types.Receipts{receipt2})
 	receipts := []*types.Receipt{receipt1, receipt2}
@@ -705,9 +707,10 @@ func TestReadLogs(t *testing.T) {
 			{Address: common.BytesToAddress([]byte{0x11})},
 			{Address: common.BytesToAddress([]byte{0x01, 0x11})},
 		},
-		TxHash:          tx1.Hash(),
-		ContractAddress: common.BytesToAddress([]byte{0x01, 0x11, 0x11}),
-		GasUsed:         111111,
+		TxHash:            tx1.Hash(),
+		ContractAddress:   common.BytesToAddress([]byte{0x01, 0x11, 0x11}),
+		EffectiveGasPrice: big.NewInt(10000000000000),
+		GasUsed:           111111,
 	}
 	receipt1.Bloom = types.CreateBloom(types.Receipts{receipt1})
 
@@ -718,9 +721,10 @@ func TestReadLogs(t *testing.T) {
 			{Address: common.BytesToAddress([]byte{0x22})},
 			{Address: common.BytesToAddress([]byte{0x02, 0x22})},
 		},
-		TxHash:          tx2.Hash(),
-		ContractAddress: common.BytesToAddress([]byte{0x02, 0x22, 0x22}),
-		GasUsed:         222222,
+		TxHash:            tx2.Hash(),
+		ContractAddress:   common.BytesToAddress([]byte{0x02, 0x22, 0x22}),
+		EffectiveGasPrice: big.NewInt(10000000000000),
+		GasUsed:           222222,
 	}
 	receipt2.Bloom = types.CreateBloom(types.Receipts{receipt2})
 	receipts := []*types.Receipt{receipt1, receipt2}
