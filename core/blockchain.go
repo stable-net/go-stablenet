@@ -1643,17 +1643,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, setHead bool) (int, error)
 	// First block is pruned
 	case errors.Is(err, consensus.ErrPrunedAncestor):
 		if setHead {
-			if bc.Config().AnzeonEnabled() {
-				log.Info("Pruned ancestor on Anzeon during insertChain, discard the obsolete block", "number", block.Number(), "hash", block.Hash())
-				if bc.futureBlocks.Contains(block.Hash()) {
-					bc.futureBlocks.Remove(block.Hash())
-				}
-				return it.index, nil
-			} else {
-				// First block is pruned, insert as sidechain and reorg only if TD grows enough
-				log.Debug("Pruned ancestor, inserting as sidechain", "number", block.Number(), "hash", block.Hash())
-				return bc.insertSideChain(block, it)
-			}
+			// First block is pruned, insert as sidechain and reorg only if TD grows enough
+			log.Debug("Pruned ancestor, inserting as sidechain", "number", block.Number(), "hash", block.Hash())
+			return bc.insertSideChain(block, it)
 		} else {
 			// We're post-merge and the parent is pruned, try to recover the parent state
 			log.Debug("Pruned ancestor", "number", block.Number(), "hash", block.Hash())
