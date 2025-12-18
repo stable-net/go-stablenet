@@ -133,6 +133,9 @@ func newAnzeonInstructionSet() JumpTable {
 	enable5656(&instructionSet) // EIP-5656 (MCOPY opcode)
 	enable6780(&instructionSet) // EIP-6780 SELFDESTRUCT only in same transaction
 
+	// prague
+	enable7702(&instructionSet) // EIP-7702 Setcode transaction type
+
 	return validate(instructionSet)
 }
 

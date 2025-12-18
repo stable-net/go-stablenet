@@ -634,12 +634,13 @@ func TestEstimateGas(t *testing.T) {
 	var (
 		nodeKey, _ = crypto.HexToECDSA("9c1d1ede9b6cb8cdcd1991d9cd911dfc40ca95d31451f7a2f17dd955f2f6956e")
 		nodeAddr   = crypto.PubkeyToAddress(nodeKey.PublicKey)
-		accounts   = newAccounts(2)
+		accounts   = newAccounts(4)
 		genesis    = &core.Genesis{
 			Config: params.AllDevChainProtocolChanges,
 			Alloc: types.GenesisAlloc{
 				accounts[0].addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
 				accounts[1].addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
+				accounts[2].addr: {Balance: big.NewInt(params.Ether), Code: append(types.DelegationPrefix, accounts[3].addr.Bytes()...)},
 			},
 			Difficulty: big.NewInt(1),
 			ExtraData:  genExtraData(nodeKey),
@@ -768,6 +769,25 @@ func TestEstimateGas(t *testing.T) {
 				Value:      (*hexutil.Big)(big.NewInt(1)),
 				BlobHashes: []common.Hash{common.Hash{0x01, 0x22}},
 				BlobFeeCap: (*hexutil.Big)(big.NewInt(1)),
+			},
+			want: 21000,
+		},
+		{
+			blockNumber: rpc.LatestBlockNumber,
+			call: TransactionArgs{
+				From:  &accounts[0].addr,
+				To:    &accounts[2].addr,
+				Value: (*hexutil.Big)(big.NewInt(1)),
+			},
+			want: 21000,
+		},
+		// Should be able to send as EIP-7702 delegated account.
+		{
+			blockNumber: rpc.LatestBlockNumber,
+			call: TransactionArgs{
+				From:  &accounts[2].addr,
+				To:    &accounts[1].addr,
+				Value: (*hexutil.Big)(big.NewInt(1)),
 			},
 			want: 21000,
 		},

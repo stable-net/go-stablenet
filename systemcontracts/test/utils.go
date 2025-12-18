@@ -170,12 +170,7 @@ func SendFeeDelegateTx(backend IBackend, feePayer *EOA, baseTx *types.Transactio
 	})
 
 	signer := types.NewFeeDelegateSigner(params.TestWBFTChainConfig.ChainID)
-	signature, err := crypto.Sign(signer.Hash(feeDelegateTx).Bytes(), feePayer.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	tx, err := feeDelegateTx.WithSignature(signer, signature)
+	tx, err := types.SignTx(feeDelegateTx, signer, feePayer.PrivateKey)
 	if err != nil {
 		return nil, err
 	}

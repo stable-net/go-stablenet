@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/tracers"
@@ -68,6 +69,8 @@ type prestateTracer struct {
 	reason    error       // Textual reason for the interruption
 	created   map[common.Address]bool
 	deleted   map[common.Address]bool
+
+	authList []types.Authorization
 }
 
 type prestateTracerConfig struct {
@@ -112,6 +115,15 @@ func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	fromBal.Add(fromBal, new(big.Int).Add(value, consumedGas))
 	t.pre[from].Balance = fromBal
 	t.pre[from].Nonce--
+
+	// Add accounts with authorizations to the prestate before they get applied.
+	for _, auth := range t.authList {
+		addr, err := auth.Authority()
+		if err != nil {
+			continue
+		}
+		t.lookupAccount(addr)
+	}
 
 	if create && t.config.DiffMode {
 		t.created[to] = true
@@ -180,8 +192,9 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 	}
 }
 
-func (t *prestateTracer) CaptureTxStart(gasLimit uint64) {
+func (t *prestateTracer) CaptureTxStart(gasLimit uint64, authList []types.Authorization) {
 	t.gasLimit = gasLimit
+	t.authList = authList
 }
 
 func (t *prestateTracer) CaptureTxEnd(restGas uint64) {

@@ -49,6 +49,7 @@ const (
 	AccessListTxType            = 0x01
 	DynamicFeeTxType            = 0x02
 	BlobTxType                  = 0x03
+	SetCodeTxType               = 0x04
 	FeeDelegateDynamicFeeTxType = 0x16 // fee delegation(22)
 )
 
@@ -220,6 +221,8 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		inner = new(DynamicFeeTx)
 	case BlobTxType:
 		inner = new(BlobTx)
+	case SetCodeTxType:
+		inner = new(SetCodeTx)
 	// fee delegation
 	case FeeDelegateDynamicFeeTxType:
 		inner = new(FeeDelegateDynamicFeeTx)
@@ -480,6 +483,15 @@ func (tx *Transaction) WithoutBlobTxSidecar() *Transaction {
 		cpy.from.Store(f)
 	}
 	return cpy
+}
+
+// AuthList returns the authorizations list of the transaction.
+func (tx *Transaction) AuthList() []Authorization {
+	setcodetx, ok := tx.inner.(*SetCodeTx)
+	if !ok {
+		return nil
+	}
+	return setcodetx.AuthList
 }
 
 // SetTime sets the decoding time of a transaction. This is used by tests to set
