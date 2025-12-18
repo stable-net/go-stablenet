@@ -102,7 +102,7 @@ func (t *muxTracer) CaptureExit(output []byte, gasUsed uint64, err error) {
 	}
 }
 
-func (t *muxTracer) CaptureTxStart(gasLimit uint64, authList []types.Authorization) {
+func (t *muxTracer) CaptureTxStart(gasLimit uint64, authList []types.SetCodeAuthorization) {
 	for _, t := range t.tracers {
 		t.CaptureTxStart(gasLimit, authList)
 	}

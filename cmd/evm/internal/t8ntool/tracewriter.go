@@ -57,7 +57,7 @@ func (t *traceWriter) CaptureTxEnd(restGas uint64) {
 	}
 }
 
-func (t *traceWriter) CaptureTxStart(gasLimit uint64, authList []types.Authorization) {
+func (t *traceWriter) CaptureTxStart(gasLimit uint64, authList []types.SetCodeAuthorization) {
 	t.inner.CaptureTxStart(gasLimit, authList)
 }
 func (t *traceWriter) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {

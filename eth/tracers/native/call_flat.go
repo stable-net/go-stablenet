@@ -204,7 +204,7 @@ func (t *flatCallTracer) CaptureExit(output []byte, gasUsed uint64, err error) {
 	}
 }
 
-func (t *flatCallTracer) CaptureTxStart(gasLimit uint64, authList []types.Authorization) {
+func (t *flatCallTracer) CaptureTxStart(gasLimit uint64, authList []types.SetCodeAuthorization) {
 	t.tracer.CaptureTxStart(gasLimit, authList)
 }
 

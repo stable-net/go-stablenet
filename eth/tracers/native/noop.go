@@ -64,7 +64,7 @@ func (t *noopTracer) CaptureEnter(typ vm.OpCode, from common.Address, to common.
 func (t *noopTracer) CaptureExit(output []byte, gasUsed uint64, err error) {
 }
 
-func (*noopTracer) CaptureTxStart(gasLimit uint64, authList []types.Authorization) {}
+func (*noopTracer) CaptureTxStart(gasLimit uint64, authList []types.SetCodeAuthorization) {}
 
 func (*noopTracer) CaptureTxEnd(restGas uint64) {}
 

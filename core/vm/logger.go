@@ -30,7 +30,7 @@ import (
 // if you need to retain them beyond the current call.
 type EVMLogger interface {
 	// Transaction level
-	CaptureTxStart(gasLimit uint64, authList []types.Authorization)
+	CaptureTxStart(gasLimit uint64, authList []types.SetCodeAuthorization)
 	CaptureTxEnd(restGas uint64)
 	// Top call frame
 	CaptureStart(env *EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int)

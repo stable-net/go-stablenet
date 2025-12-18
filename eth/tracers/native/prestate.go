@@ -70,7 +70,7 @@ type prestateTracer struct {
 	created   map[common.Address]bool
 	deleted   map[common.Address]bool
 
-	authList []types.Authorization
+	authList []types.SetCodeAuthorization
 }
 
 type prestateTracerConfig struct {
@@ -192,7 +192,7 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 	}
 }
 
-func (t *prestateTracer) CaptureTxStart(gasLimit uint64, authList []types.Authorization) {
+func (t *prestateTracer) CaptureTxStart(gasLimit uint64, authList []types.SetCodeAuthorization) {
 	t.gasLimit = gasLimit
 	t.authList = authList
 }
