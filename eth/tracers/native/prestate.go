@@ -70,7 +70,7 @@ type prestateTracer struct {
 	created   map[common.Address]bool
 	deleted   map[common.Address]bool
 
-	authList []types.SetCodeAuthorization
+	SetCodeAuthorizations []types.SetCodeAuthorization
 }
 
 type prestateTracerConfig struct {
@@ -117,7 +117,7 @@ func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	t.pre[from].Nonce--
 
 	// Add accounts with authorizations to the prestate before they get applied.
-	for _, auth := range t.authList {
+	for _, auth := range t.SetCodeAuthorizations {
 		addr, err := auth.Authority()
 		if err != nil {
 			continue
@@ -192,9 +192,9 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 	}
 }
 
-func (t *prestateTracer) CaptureTxStart(gasLimit uint64, authList []types.SetCodeAuthorization) {
+func (t *prestateTracer) CaptureTxStart(gasLimit uint64, SetCodeAuthorizations []types.SetCodeAuthorization) {
 	t.gasLimit = gasLimit
-	t.authList = authList
+	t.SetCodeAuthorizations = SetCodeAuthorizations
 }
 
 func (t *prestateTracer) CaptureTxEnd(restGas uint64) {

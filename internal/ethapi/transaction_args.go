@@ -448,19 +448,19 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (*
 		accessList = *args.AccessList
 	}
 	msg := &core.Message{
-		From:              addr,
-		To:                args.To,
-		Value:             value,
-		GasLimit:          gas,
-		GasPrice:          gasPrice,
-		GasFeeCap:         gasFeeCap,
-		GasTipCap:         gasTipCap,
-		Data:              data,
-		AccessList:        accessList,
-		BlobGasFeeCap:     blobFeeCap,
-		BlobHashes:        args.BlobHashes,
-		AuthList:          args.AuthorizationList,
-		SkipAccountChecks: true,
+		From:                  addr,
+		To:                    args.To,
+		Value:                 value,
+		GasLimit:              gas,
+		GasPrice:              gasPrice,
+		GasFeeCap:             gasFeeCap,
+		GasTipCap:             gasTipCap,
+		Data:                  data,
+		AccessList:            accessList,
+		BlobGasFeeCap:         blobFeeCap,
+		BlobHashes:            args.BlobHashes,
+		SetCodeAuthorizations: args.AuthorizationList,
+		SkipAccountChecks:     true,
 	}
 	return msg, nil
 }
