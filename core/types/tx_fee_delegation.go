@@ -28,9 +28,9 @@ type FeeDelegateDynamicFeeTx struct {
 	SenderTx DynamicFeeTx
 	FeePayer *common.Address `rlp:"nil"`
 	// Signature values
-	FV *big.Int `json:"fv" gencodec:"required"` // feePayer V
-	FR *big.Int `json:"fr" gencodec:"required"` // feePayer R
-	FS *big.Int `json:"fs" gencodec:"required"` // feePayer S
+	FV *big.Int // feePayer V
+	FR *big.Int // feePayer R
+	FS *big.Int // feePayer S
 }
 
 func (tx *FeeDelegateDynamicFeeTx) SetSenderTx(senderTx DynamicFeeTx) {
