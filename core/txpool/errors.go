@@ -61,6 +61,9 @@ var (
 	// transactions is reached for specific accounts.
 	ErrInflightTxLimitReached = errors.New("in-flight transaction limit reached for delegated accounts")
 
+	// ErrKZGVerificationError is returned when a KZG proof was not verified correctly.
+	ErrKZGVerificationError = errors.New("KZG verification error")
+
 	// WEMIX fee delegation
 	// ErrInvalidFeePayer is returned if the transaction contains an invalid feePayer's signature.
 	ErrInvalidFeePayer = errors.New("fee delegation: invalid feePayer")
