@@ -75,6 +75,9 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	if !opts.Config.IsCancun(head.Number, head.Time) && tx.Type() == types.BlobTxType {
 		return fmt.Errorf("%w: type %d rejected, pool not yet in Cancun", core.ErrTxTypeNotSupported, tx.Type())
 	}
+	if !opts.Config.AnzeonEnabled() && tx.Type() == types.SetCodeTxType {
+		return fmt.Errorf("%w: type %d rejected, pool not yet in Anzeon", core.ErrTxTypeNotSupported, tx.Type())
+	}
 	// Check whether the init code size has been exceeded
 	if opts.Config.IsShanghai(head.Number, head.Time) && tx.To() == nil && len(tx.Data()) > params.MaxInitCodeSize {
 		return fmt.Errorf("%w: code size %v, limit %v", core.ErrMaxInitCodeSizeExceeded, len(tx.Data()), params.MaxInitCodeSize)
@@ -125,6 +128,12 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 		feePayer, err := types.FeePayer(types.NewFeeDelegateSigner(opts.Config.ChainID), tx)
 		if err != nil || *tx.FeePayer() != feePayer {
 			return ErrInvalidFeePayer
+		}
+	}
+
+	if tx.Type() == types.SetCodeTxType {
+		if len(tx.SetCodeAuthorizations()) == 0 {
+			return fmt.Errorf("set code tx must have at least one authorization tuple")
 		}
 	}
 
@@ -208,6 +217,11 @@ type ValidationOptionsWithState struct {
 	// ExistingCost is a mandatory callback to retrieve an already pooled
 	// transaction's cost with the given nonce to check for overdrafts.
 	ExistingCost func(addr common.Address, nonce uint64) *big.Int
+
+	// KnownConflicts is an optional callback which iterates over the list of
+	// addresses and returns all addresses known to the pool with in-flight
+	// transactions.
+	KnownConflicts func(sender common.Address, authorizers []common.Address) []common.Address
 }
 
 // ValidateTransactionWithState is a helper method to check whether a transaction
@@ -264,6 +278,22 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 			return fmt.Errorf("%w: balance %v, tx cost %v, overshot %v", core.ErrInsufficientFunds, balance, cost, new(big.Int).Sub(cost, balance))
 		}
 	}
+
+	// Verify no authorizations will invalidate existing transactions known to the pool.
+	if opts.KnownConflicts != nil {
+		if conflicts := opts.KnownConflicts(from, tx.SetCodeAuthorities()); len(conflicts) > 0 {
+			return fmt.Errorf("%w: authorization conflicts with other known tx", ErrAuthorityReserved)
+		}
+	}
+
+	// EIP-7702: Ensure delegated accounts or accounts with pending authorizations
+	// don't exceed their transaction slot limit.
+	if opts.UsedAndLeftSlots != nil {
+		if used, left := opts.UsedAndLeftSlots(from); left <= 0 {
+			return fmt.Errorf("%w: pooled %d txs", ErrAccountLimitExceeded, used)
+		}
+	}
+
 	// WEMIX does not support tx replacement so bumping cost is not checked
 	//// Ensure the transactor has enough funds to cover for replacements or nonce
 	//// expansions without overdrafts
