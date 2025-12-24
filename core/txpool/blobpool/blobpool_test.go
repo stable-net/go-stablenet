@@ -1135,12 +1135,12 @@ func TestAdd(t *testing.T) {
 				{ // New account, 16 pooled tx, 0 slots left: accept nonce 15 replacement
 					from: "alice",
 					tx:   makeUnsignedTx(15, 10, 10, 10),
-					err:  nil,
+					err:  txpool.ErrAccountLimitExceeded, // go-stablenet does not support tx replacement
 				},
 				{ // New account, 16 pooled tx, 0 slots left: reject nonce 16 with overcap
 					from: "alice",
 					tx:   makeUnsignedTx(16, 1, 1, 1),
-					err:  nil, //txpool.ErrAccountLimitExceeded,; WEMIX does not return error
+					err:  txpool.ErrAccountLimitExceeded,
 				},
 			},
 		},
