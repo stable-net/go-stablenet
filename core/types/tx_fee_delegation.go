@@ -154,3 +154,25 @@ func (tx *FeeDelegateDynamicFeeTx) encode(b *bytes.Buffer) error {
 func (tx *FeeDelegateDynamicFeeTx) decode(input []byte) error {
 	return rlp.DecodeBytes(input, tx)
 }
+
+func (tx *FeeDelegateDynamicFeeTx) sigHash(chainID *big.Int) common.Hash {
+	return prefixedRlpHash(
+		FeeDelegateDynamicFeeTxType,
+		[]any{
+			[]any{
+				chainID,
+				tx.SenderTx.Nonce,
+				tx.SenderTx.GasTipCap,
+				tx.SenderTx.GasFeeCap,
+				tx.SenderTx.Gas,
+				tx.SenderTx.To,
+				tx.SenderTx.Value,
+				tx.SenderTx.Data,
+				tx.SenderTx.AccessList,
+				tx.SenderTx.V,
+				tx.SenderTx.R,
+				tx.SenderTx.S,
+			},
+			tx.FeePayer,
+		})
+}

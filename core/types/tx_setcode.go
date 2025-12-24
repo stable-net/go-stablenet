@@ -230,3 +230,20 @@ func (tx *SetCodeTx) feePayer() *common.Address { return nil }
 func (tx *SetCodeTx) rawFeePayerSignatureValues() (v, r, s *big.Int) {
 	return nil, nil, nil
 }
+
+func (tx *SetCodeTx) sigHash(chainID *big.Int) common.Hash {
+	return prefixedRlpHash(
+		SetCodeTxType,
+		[]any{
+			chainID,
+			tx.Nonce,
+			tx.GasTipCap,
+			tx.GasFeeCap,
+			tx.Gas,
+			tx.To,
+			tx.Value,
+			tx.Data,
+			tx.AccessList,
+			tx.AuthList,
+		})
+}
