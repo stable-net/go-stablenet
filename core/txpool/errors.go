@@ -57,6 +57,10 @@ var (
 	// remains pending (and vice-versa).
 	ErrAlreadyReserved = errors.New("address already reserved")
 
+	// ErrInflightTxLimitReached is returned when the maximum number of in-flight
+	// transactions is reached for specific accounts.
+	ErrInflightTxLimitReached = errors.New("in-flight transaction limit reached for delegated accounts")
+
 	// WEMIX fee delegation
 	// ErrInvalidFeePayer is returned if the transaction contains an invalid feePayer's signature.
 	ErrInvalidFeePayer = errors.New("fee delegation: invalid feePayer")
