@@ -25,6 +25,7 @@ import (
 	"math/rand"
 	"os"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -171,8 +172,39 @@ func setupPool() (*LegacyPool, *ecdsa.PrivateKey) {
 	return setupPoolWithConfig(params.TestChainConfig)
 }
 
-func newReserver() *txpool.Reserver {
-	return txpool.NewReservationTracker().NewHandle(42)
+// reserver is a utility struct to sanity check that accounts are
+// properly reserved by the blobpool (no duplicate reserves or unreserves).
+type reserver struct {
+	accounts map[common.Address]struct{}
+	lock     sync.RWMutex
+}
+
+func newReserver() txpool.Reserver {
+	return &reserver{accounts: make(map[common.Address]struct{})}
+}
+
+func (r *reserver) Hold(addr common.Address) error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if _, exists := r.accounts[addr]; exists {
+		panic("already reserved")
+	}
+	r.accounts[addr] = struct{}{}
+	return nil
+}
+
+func (r *reserver) Release(addr common.Address) error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if _, exists := r.accounts[addr]; !exists {
+		panic("not reserved")
+	}
+	delete(r.accounts, addr)
+	return nil
+}
+
+func (r *reserver) Has(address common.Address) bool {
+	return false // reserver only supports a single pool
 }
 
 func setupPoolWithConfig(config *params.ChainConfig) (*LegacyPool, *ecdsa.PrivateKey) {
@@ -2612,14 +2644,13 @@ func TestSetCodeTransactions(t *testing.T) {
 		pool.mu.Lock()
 		defer pool.mu.Unlock()
 
-		// Release reservations for all pooled transactions.
-		for _, tx := range pool.all.locals {
-			senderAddr, _ := types.Sender(pool.signer, tx)
-			pool.reserver.Release(senderAddr)
+		for addr := range pool.pending {
+			if _, ok := pool.queue[addr]; !ok {
+				pool.reserver.Release(addr)
+			}
 		}
-		for _, tx := range pool.all.remotes {
-			senderAddr, _ := types.Sender(pool.signer, tx)
-			pool.reserver.Release(senderAddr)
+		for addr := range pool.queue {
+			pool.reserver.Release(addr)
 		}
 		// Reset all pool state.
 		pool.all = newLookup()
@@ -2637,14 +2668,14 @@ func TestSetCodeTransactions(t *testing.T) {
 	}{
 		{
 			// Check that only one in-flight transaction is allowed for accounts
-			// with delegation set. Also verify the accepted transaction can be
-			// replaced by fee.
-			name:    "only-one-in-flight",
+			// with delegation set.
+			name:    "accept-one-inflight-tx-of-delegated-account",
 			pending: 1,
 			run: func(name string) {
 				aa := common.Address{0xaa, 0xaa}
 				statedb.SetCode(addrA, append(types.DelegationPrefix, aa.Bytes()...))
 				statedb.SetCode(aa, []byte{byte(vm.ADDRESS), byte(vm.PUSH0), byte(vm.SSTORE)})
+
 				// Send gapped transaction, it should be rejected.
 				if err := pool.addRemoteSync(pricedTransaction(2, 100000, big.NewInt(1), keyA)); !errors.Is(err, ErrOutOfOrderTxFromDelegated) {
 					t.Fatalf("%s: error mismatch: want %v, have %v", name, ErrOutOfOrderTxFromDelegated, err)
@@ -2653,6 +2684,7 @@ func TestSetCodeTransactions(t *testing.T) {
 				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1), keyA)); err != nil {
 					t.Fatalf("%s: failed to add remote transaction: %v", name, err)
 				}
+				// Second and further transactions shall be rejected
 				if err := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(1), keyA)); !errors.Is(err, txpool.ErrInflightTxLimitReached) {
 					t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
 				}
@@ -2660,13 +2692,73 @@ func TestSetCodeTransactions(t *testing.T) {
 				if err := pool.addRemoteSync(pricedTransaction(2, 100000, big.NewInt(1), keyA)); !errors.Is(err, txpool.ErrInflightTxLimitReached) {
 					t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
 				}
-				// Also, slot limit blocks this since the account is already at limit.
+				// Replace by fee.
 				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(10), keyA)); err != nil {
-					// SKIPPED(go-stablenet): tx replacement is not supported in go-stablenet.
-					// t.Fatalf("%s: failed to replace with remote transaction: %v", name, err)
-					if !errors.Is(err, txpool.ErrInflightTxLimitReached) {
-						t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
-					}
+					t.Fatalf("%s: failed to replace with remote transaction: %v", name, err)
+				}
+
+				// Reset the delegation, avoid leaking state into the other tests
+				statedb.SetCode(addrA, nil)
+			},
+		},
+		{
+			// This test is analogous to the previous one, but the delegation is pending
+			// instead of set.
+			name:    "allow-one-tx-from-pooled-delegation",
+			pending: 2,
+			run: func(name string) {
+				// Create a pending delegation request from B.
+				if err := pool.addRemoteSync(setCodeTx(0, keyA, []unsignedAuth{{0, keyB}})); err != nil {
+					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
+				}
+				// First transaction from B is accepted.
+				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1), keyB)); err != nil {
+					t.Fatalf("%s: failed to add remote transaction: %v", name, err)
+				}
+				// Second transaction fails due to limit.
+				if err := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(1), keyB)); !errors.Is(err, txpool.ErrInflightTxLimitReached) {
+					t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
+				}
+				// Replace by fee for first transaction from B works.
+				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(2), keyB)); err != nil {
+					t.Fatalf("%s: failed to add remote transaction: %v", name, err)
+				}
+			},
+		},
+		{
+			// This is the symmetric case of the previous one, where the delegation request
+			// is received after the transaction. The resulting state shall be the same.
+			name:    "accept-authorization-from-sender-of-one-inflight-tx",
+			pending: 2,
+			run: func(name string) {
+				// The first in-flight transaction is accepted.
+				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1), keyB)); err != nil {
+					t.Fatalf("%s: failed to add with pending delegation: %v", name, err)
+				}
+				// Delegation is accepted.
+				if err := pool.addRemoteSync(setCodeTx(0, keyA, []unsignedAuth{{0, keyB}})); err != nil {
+					t.Fatalf("%s: failed to add remote transaction: %v", name, err)
+				}
+				// The second in-flight transaction is rejected.
+				if err := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(1), keyB)); !errors.Is(err, txpool.ErrInflightTxLimitReached) {
+					t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
+				}
+			},
+		},
+		{
+			name:    "reject-authorization-from-sender-with-more-than-one-inflight-tx",
+			pending: 2,
+			run: func(name string) {
+				// Submit two transactions.
+				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1), keyB)); err != nil {
+					t.Fatalf("%s: failed to add with pending delegation: %v", name, err)
+				}
+				if err := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(1), keyB)); err != nil {
+					t.Fatalf("%s: failed to add with pending delegation: %v", name, err)
+				}
+				// Delegation rejected since two txs are already in-flight.
+				if err := pool.addRemoteSync(setCodeTx(0, keyA, []unsignedAuth{{0, keyB}})); !errors.Is(err, ErrAuthorityReserved) {
+					t.Fatalf("%s: error mismatch: want %v, have %v", name, ErrAuthorityReserved, err)
 				}
 			},
 		},
@@ -2675,7 +2767,7 @@ func TestSetCodeTransactions(t *testing.T) {
 			pending: 2,
 			run: func(name string) {
 				// Send two transactions where the first has no conflicting delegations and
-				// the second should be allowed despite conflicting with the authorities in 1).
+				// the second should be allowed despite conflicting with the authorities in the first.
 				if err := pool.addRemoteSync(setCodeTx(0, keyA, []unsignedAuth{{1, keyC}})); err != nil {
 					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
 				}
@@ -2685,27 +2777,9 @@ func TestSetCodeTransactions(t *testing.T) {
 			},
 		},
 		{
-			name:    "allow-one-tx-from-pooled-delegation",
-			pending: 2,
-			run: func(name string) {
-				// Verify C cannot originate another transaction when it has a pooled delegation.
-				if err := pool.addRemoteSync(setCodeTx(0, keyA, []unsignedAuth{{0, keyC}})); err != nil {
-					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
-				}
-				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1), keyC)); err != nil {
-					t.Fatalf("%s: failed to add with pending delegatio: %v", name, err)
-				}
-				// Also check gapped transaction is rejected.
-				if err := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(1), keyC)); !errors.Is(err, txpool.ErrInflightTxLimitReached) {
-					t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
-				}
-			},
-		},
-		{
 			name:    "replace-by-fee-setcode-tx",
 			pending: 1,
 			run: func(name string) {
-				// 4. Fee bump the setcode tx send.
 				if err := pool.addRemoteSync(setCodeTx(0, keyB, []unsignedAuth{{1, keyC}})); err != nil {
 					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
 				}
@@ -2715,56 +2789,85 @@ func TestSetCodeTransactions(t *testing.T) {
 			},
 		},
 		{
-			name:    "allow-tx-from-replaced-authority",
-			pending: 2,
+			name:    "allow-more-than-one-tx-from-replaced-authority",
+			pending: 3,
 			run: func(name string) {
-				// Fee bump with a different auth list. Make sure that unlocks the authorities.
+				// Send transaction from A with B as an authority.
 				if err := pool.addRemoteSync(pricedSetCodeTx(0, 250000, uint256.NewInt(10), uint256.NewInt(3), keyA, []unsignedAuth{{0, keyB}})); err != nil {
 					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
 				}
+				// Replace transaction with another having C as an authority.
 				if err := pool.addRemoteSync(pricedSetCodeTx(0, 250000, uint256.NewInt(3000), uint256.NewInt(300), keyA, []unsignedAuth{{0, keyC}})); err != nil {
-					// SKIPPED(go-stablenet): tx replacement is not supported in go-stablenet.
-					// t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
-					if !errors.Is(err, txpool.ErrInflightTxLimitReached) {
-						t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
-					}
+					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
 				}
-				// Now send a regular tx from B.
+				// B should not be considred as having an in-flight delegation, so
+				// should allow more than one pooled transaction.
 				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(10), keyB)); err != nil {
 					t.Fatalf("%s: failed to replace with remote transaction: %v", name, err)
 				}
-			},
-		},
-		{
-			name:    "allow-tx-from-replaced-self-sponsor-authority",
-			pending: 2,
-			run: func(name string) {
-				//
-				if err := pool.addRemoteSync(pricedSetCodeTx(0, 250000, uint256.NewInt(10), uint256.NewInt(3), keyA, []unsignedAuth{{0, keyA}})); err != nil {
-					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
-				}
-				if err := pool.addRemoteSync(pricedSetCodeTx(0, 250000, uint256.NewInt(30), uint256.NewInt(30), keyA, []unsignedAuth{{0, keyB}})); err != nil {
-					// SKIPPED(go-stablenet): tx replacement is not supported in go-stablenet.
-					// t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
-					if !errors.Is(err, txpool.ErrInflightTxLimitReached) {
-						t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
-					}
-				}
-				// Now send a regular tx from keyA.
-				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1000), keyA)); err != nil {
-					// SKIPPED(go-stablenet): tx replacement is not supported in go-stablenet.
-					// t.Fatalf("%s: failed to replace with remote transaction: %v", name, err)
-					if !errors.Is(err, txpool.ErrInflightTxLimitReached) {
-						t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
-					}
-				}
-				// Make sure we can still send from keyB.
-				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1000), keyB)); err != nil {
+				if err := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(10), keyB)); err != nil {
 					t.Fatalf("%s: failed to replace with remote transaction: %v", name, err)
 				}
 			},
 		},
 		{
+			// This test is analogous to the previous one, but the the replaced
+			// transaction is self-sponsored.
+			name:    "allow-tx-from-replaced-self-sponsor-authority",
+			pending: 3,
+			run: func(name string) {
+				// Send transaction from A with A as an authority.
+				if err := pool.addRemoteSync(pricedSetCodeTx(0, 250000, uint256.NewInt(10), uint256.NewInt(3), keyA, []unsignedAuth{{0, keyA}})); err != nil {
+					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
+				}
+				// Replace transaction with a transaction with B as an authority.
+				if err := pool.addRemoteSync(pricedSetCodeTx(0, 250000, uint256.NewInt(30), uint256.NewInt(30), keyA, []unsignedAuth{{0, keyB}})); err != nil {
+					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
+				}
+				// The one in-flight transaction limit from A no longer applies, so we
+				// can stack a second transaction for the account.
+				if err := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(1000), keyA)); err != nil {
+					t.Fatalf("%s: failed to replace with remote transaction: %v", name, err)
+				}
+				// B should still be able to send transactions.
+				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1000), keyB)); err != nil {
+					t.Fatalf("%s: failed to replace with remote transaction: %v", name, err)
+				}
+				// However B still has the limitation to one in-flight transaction.
+				if err := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(1), keyB)); !errors.Is(err, txpool.ErrInflightTxLimitReached) {
+					t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
+				}
+			},
+		},
+		{
+			name:    "replacements-respect-inflight-tx-count",
+			pending: 2,
+			run: func(name string) {
+				// Send transaction from A with B as an authority.
+				if err := pool.addRemoteSync(pricedSetCodeTx(0, 250000, uint256.NewInt(10), uint256.NewInt(3), keyA, []unsignedAuth{{0, keyB}})); err != nil {
+					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
+				}
+				// Send two transactions from B. Only the first should be accepted due
+				// to in-flight limit.
+				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1), keyB)); err != nil {
+					t.Fatalf("%s: failed to add remote transaction: %v", name, err)
+				}
+				if err := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(1), keyB)); !errors.Is(err, txpool.ErrInflightTxLimitReached) {
+					t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
+				}
+				// Replace the in-flight transaction from B.
+				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(30), keyB)); err != nil {
+					t.Fatalf("%s: failed to replace with remote transaction: %v", name, err)
+				}
+				// Ensure the in-flight limit for B is still in place.
+				if err := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(1), keyB)); !errors.Is(err, txpool.ErrInflightTxLimitReached) {
+					t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
+				}
+			},
+		},
+		{
+			// Since multiple authorizations can be pending simultaneously, replacing
+			// one of them should not break the one in-flight-transaction limit.
 			name:    "track-multiple-conflicting-delegations",
 			pending: 3,
 			run: func(name string) {
@@ -2777,11 +2880,7 @@ func TestSetCodeTransactions(t *testing.T) {
 				}
 				// Replace the tx from A with a non-setcode tx.
 				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1000), keyA)); err != nil {
-					// SKIPPED(go-stablenet): tx replacement is not supported in go-stablenet.
-					// t.Fatalf("%s: failed to replace with remote transaction: %v", name, err)
-					if !errors.Is(err, txpool.ErrInflightTxLimitReached) {
-						t.Fatalf("%s: error mismatch: want %v, have %v", name, txpool.ErrInflightTxLimitReached, err)
-					}
+					t.Fatalf("%s: failed to replace with remote transaction: %v", name, err)
 				}
 				// Make sure we can only pool one tx from keyC since it is still a
 				// pending authority.
@@ -2789,19 +2888,6 @@ func TestSetCodeTransactions(t *testing.T) {
 					t.Fatalf("%s: failed to added single pooled for account with pending delegation: %v", name, err)
 				}
 				if err, want := pool.addRemoteSync(pricedTransaction(1, 100000, big.NewInt(1000), keyC)), txpool.ErrInflightTxLimitReached; !errors.Is(err, want) {
-					t.Fatalf("%s: error mismatch: want %v, have %v", name, want, err)
-				}
-			},
-		},
-		{
-			name:    "reject-delegation-from-pending-account",
-			pending: 1,
-			run: func(name string) {
-				// Attempt to submit a delegation from an account with a pending tx.
-				if err := pool.addRemoteSync(pricedTransaction(0, 100000, big.NewInt(1000), keyC)); err != nil {
-					t.Fatalf("%s: failed to add with remote setcode transaction: %v", name, err)
-				}
-				if err, want := pool.addRemoteSync(setCodeTx(0, keyA, []unsignedAuth{{1, keyC}})), ErrAuthorityReserved; !errors.Is(err, want) {
 					t.Fatalf("%s: error mismatch: want %v, have %v", name, want, err)
 				}
 			},
