@@ -2661,7 +2661,7 @@ func TestSetCodeTransactions(t *testing.T) {
 			pool.all.auths = make(map[common.Address][]common.Hash)
 			pool.all.lock.Unlock()
 		}
-		pool.priced = newPricedList(pool.all, nil)
+		pool.priced.Reheap()
 		pool.pending = make(map[common.Address]*list)
 		pool.queue = make(map[common.Address]*list)
 		pool.pendingNonces = newNoncer(pool.currentState)
