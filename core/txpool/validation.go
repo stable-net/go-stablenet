@@ -252,57 +252,70 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		}
 	}
 	// Ensure the transactor has enough funds to cover the transaction costs
+	var (
+		balance = opts.State.GetBalance(from).ToBig()
+		cost    = tx.Cost()
+	)
 	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
-		feePayer := tx.FeePayer()
+		var (
+			txValue         = tx.Value()
+			txFeeCost       = tx.FeeCost()
+			feePayer        = *tx.FeePayer()
+			feePayerBalance = opts.State.GetBalance(feePayer).ToBig()
+		)
 		// Ensure that the fee payer is not blacklisted
-		if opts.Config.AnzeonEnabled() && opts.State.IsBlacklisted(*feePayer) {
-			return &core.ErrBlacklistedAccount{Address: *feePayer}
+		if opts.Config.AnzeonEnabled() && opts.State.IsBlacklisted(feePayer) {
+			return &core.ErrBlacklistedAccount{Address: feePayer}
 		}
-		if opts.State.GetBalance(from).ToBig().Cmp(tx.Value()) < 0 {
-			return ErrSenderInsufficientFunds
+		if balance.Cmp(txValue) < 0 {
+			return fmt.Errorf("%w: balance %v, tx value %v, overshot %v", ErrSenderInsufficientFunds, balance, txValue, new(big.Int).Sub(txValue, balance))
 		}
-		if opts.State.GetBalance(*feePayer).ToBig().Cmp(tx.FeeCost()) < 0 {
-			return ErrFeePayerInsufficientFunds
+		if feePayerBalance.Cmp(txFeeCost) < 0 {
+			return fmt.Errorf("%w: balance %v, fee cost %v, overshot %v", ErrFeePayerInsufficientFunds, feePayerBalance, txFeeCost, new(big.Int).Sub(txFeeCost, feePayerBalance))
 		}
 	} else {
-		var (
-			balance = opts.State.GetBalance(from).ToBig()
-			cost    = tx.Cost()
-		)
-		if opts.State.GetBalance(from).ToBig().Cmp(tx.Cost()) < 0 {
+		if balance.Cmp(cost) < 0 {
 			return fmt.Errorf("%w: balance %v, tx cost %v, overshot %v", core.ErrInsufficientFunds, balance, cost, new(big.Int).Sub(cost, balance))
 		}
 	}
 
 	// EIP-7702: Ensure delegated accounts or accounts with pending authorizations
-	// don't exceed their transaction slot limit.
-	if opts.UsedAndLeftSlots != nil {
+	// don't exceed their transaction slot limit when adding new transactions.
+	// Replacements (same nonce) are allowed without slot limit check.
+	if opts.UsedAndLeftSlots != nil && opts.ExistingCost(from, tx.Nonce()) == nil {
 		if used, left := opts.UsedAndLeftSlots(from); left <= 0 {
 			return fmt.Errorf("%w: pooled %d txs", ErrAccountLimitExceeded, used)
 		}
 	}
 
-	// WEMIX does not support tx replacement so bumping cost is not checked
-	//// Ensure the transactor has enough funds to cover for replacements or nonce
-	//// expansions without overdrafts
-	//spent := opts.ExistingExpenditure(from)
-	//if prev := opts.ExistingCost(from, tx.Nonce()); prev != nil {
-	//	bump := new(big.Int).Sub(cost, prev)
-	//	need := new(big.Int).Add(spent, bump)
-	//	if balance.Cmp(need) < 0 {
-	//		return fmt.Errorf("%w: balance %v, queued cost %v, tx bumped %v, overshot %v", core.ErrInsufficientFunds, balance, spent, bump, new(big.Int).Sub(need, balance))
-	//	}
-	//} else {
-	//	need := new(big.Int).Add(spent, cost)
-	//	if balance.Cmp(need) < 0 {
-	//		return fmt.Errorf("%w: balance %v, queued cost %v, tx cost %v, overshot %v", core.ErrInsufficientFunds, balance, spent, cost, new(big.Int).Sub(need, balance))
-	//	}
-	//	// Transaction takes a new nonce value out of the pool. Ensure it doesn't
-	//	// overflow the number of permitted transactions from a single account
-	//	// (i.e. max cancellable via out-of-bound transaction).
-	//	if used, left := opts.UsedAndLeftSlots(from); left <= 0 {
-	//		return fmt.Errorf("%w: pooled %d txs", ErrAccountLimitExceeded, used)
-	//	}
-	//}
+	// go-stablenet skips cumulative balance validation for fee delegation tx compatibility.
+	// Fee delegation transactions split costs between sender (value only) and feePayer (gas fees),
+	// but ExistingExpenditure callback sums total tx.Cost() which is incompatible with this model.
+	// Enabling this validation would incorrectly reject transactions when fee delegation txs exist
+	// in the pending pool, as it would compare sender's balance against the full cost (value + gas).
+	// Transaction replacement is still supported via legacypool's price bump mechanism.
+	/*
+		// Ensure the transactor has enough funds to cover for replacements or nonce
+		// expansions without overdrafts
+		spent := opts.ExistingExpenditure(from)
+		if prev := opts.ExistingCost(from, tx.Nonce()); prev != nil {
+			bump := new(big.Int).Sub(cost, prev)
+			need := new(big.Int).Add(spent, bump)
+			if balance.Cmp(need) < 0 {
+				return fmt.Errorf("%w: balance %v, queued cost %v, tx bumped %v, overshot %v", core.ErrInsufficientFunds, balance, spent, bump, new(big.Int).Sub(need, balance))
+			}
+		} else {
+			need := new(big.Int).Add(spent, cost)
+			if balance.Cmp(need) < 0 {
+				return fmt.Errorf("%w: balance %v, queued cost %v, tx cost %v, overshot %v", core.ErrInsufficientFunds, balance, spent, cost, new(big.Int).Sub(need, balance))
+			}
+			// Transaction takes a new nonce value out of the pool. Ensure it doesn't
+			// overflow the number of permitted transactions from a single account
+			// (i.e. max cancellable via out-of-bound transaction).
+			if used, left := opts.UsedAndLeftSlots(from); left <= 0 {
+				return fmt.Errorf("%w: pooled %d txs", ErrAccountLimitExceeded, used)
+			}
+		}
+	*/
 	return nil
 }
