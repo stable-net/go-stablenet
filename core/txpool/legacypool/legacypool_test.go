@@ -2653,7 +2653,14 @@ func TestSetCodeTransactions(t *testing.T) {
 			pool.reserver.Release(addr)
 		}
 		// Reset all pool state.
-		pool.all = newLookup()
+		{
+			pool.all.lock.Lock()
+			pool.all.slots = 0
+			pool.all.locals = make(map[common.Hash]*types.Transaction)
+			pool.all.remotes = make(map[common.Hash]*types.Transaction)
+			pool.all.auths = make(map[common.Address][]common.Hash)
+			pool.all.lock.Unlock()
+		}
 		pool.priced = newPricedList(pool.all, nil)
 		pool.pending = make(map[common.Address]*list)
 		pool.queue = make(map[common.Address]*list)
