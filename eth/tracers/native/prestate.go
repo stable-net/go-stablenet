@@ -98,6 +98,22 @@ func (t *prestateTracer) CaptureStart(from common.Address, to common.Address, cr
 	t.create = create
 	t.to = to
 
+	// Lookup the delegation target.
+	// For authority accounts, use pre-captured code (before EIP-7702 authorization)
+	// to correctly resolve the original delegation target.
+	if !create && t.env.ChainConfig().AnzeonEnabled() {
+		var code []byte
+		if t.authorities[to] {
+			// Authority's code was captured in CaptureTxStart before authorization was applied
+			code = t.pre[t.to].Code
+		} else {
+			code = t.env.StateDB.GetCode(t.to)
+		}
+		if target, ok := types.ParseDelegation(code); ok {
+			t.lookupAccount(target)
+		}
+	}
+
 	t.lookupAccount(from)
 	t.lookupAccount(to)
 	t.lookupAccount(t.env.Context.Coinbase)
@@ -106,8 +122,8 @@ func (t *prestateTracer) CaptureStart(from common.Address, to common.Address, cr
 	// Skip adjustment for authority accounts: their balance was captured in CaptureTxStart
 	// before value transfer, so no subtraction is needed.
 	if !t.authorities[to] {
-	toBal := new(big.Int).Sub(t.pre[to].Balance, value)
-	t.pre[to].Balance = toBal
+		toBal := new(big.Int).Sub(t.pre[to].Balance, value)
+		t.pre[to].Balance = toBal
 	}
 
 	// The sender balance is after reducing: value and gasLimit.
@@ -176,6 +192,13 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 	case stackLen >= 5 && (op == vm.DELEGATECALL || op == vm.CALL || op == vm.STATICCALL || op == vm.CALLCODE):
 		addr := common.Address(stackData[stackLen-2].Bytes20())
 		t.lookupAccount(addr)
+		// Lookup the delegation target
+		if t.env.ChainConfig().AnzeonEnabled() {
+			code := t.env.StateDB.GetCode(addr)
+			if target, ok := types.ParseDelegation(code); ok {
+				t.lookupAccount(target)
+			}
+		}
 	case op == vm.CREATE:
 		nonce := t.env.StateDB.GetNonce(caller)
 		addr := crypto.CreateAddress(caller, nonce)
