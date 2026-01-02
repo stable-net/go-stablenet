@@ -50,9 +50,6 @@
             "londonBlock": 0,
             "arrowGlacierBlock": 0,
             "grayGlacierBlock": 0,
-            "shanghaiTime": 0,
-            "cancunTime": 0,
-            "pragueTime": 0,
             "terminalTotalDifficulty": 0,
             "anzeon": {
                 "wbft": {
@@ -143,16 +140,12 @@
         },
         "0x703c4b2bd70c169f5717101caee543299fc946c7": {
             "balance": "0xde0b6b3a7640000",
-            "code": "0xef0100000000000000000000000000000000000000bbbb",
-            "nonce": 1,
             "storage": {
                 "0x0000000000000000000000000000000000000000000000000000000000000042": "0x0000000000000000000000000000000000000000000000000000000000000000"
             }
         },
         "0x71562b71999873db5b286df957af199ec94617f7": {
-            "balance": "0xde0b6b3a7640000",
-            "code": "0xef0100000000000000000000000000000000000000aaaa",
-            "nonce": 1
+            "balance": "0xde0b6b3a7640000"
         }
     }
 }

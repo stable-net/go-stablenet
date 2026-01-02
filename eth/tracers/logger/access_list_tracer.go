@@ -126,7 +126,7 @@ func NewAccessListTracer(acl types.AccessList, addressesToExclude map[common.Add
 	}
 }
 
-func (a *AccessListTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
+func (a *AccessListTracer) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
 }
 
 // CaptureState captures all opcodes that touch storage or addresses and adds them to the accesslist.
@@ -162,7 +162,8 @@ func (*AccessListTracer) CaptureEnter(typ vm.OpCode, from common.Address, to com
 
 func (*AccessListTracer) CaptureExit(output []byte, gasUsed uint64, err error) {}
 
-func (*AccessListTracer) CaptureTxStart(gasLimit uint64, authList []types.SetCodeAuthorization) {}
+func (*AccessListTracer) CaptureTxStart(env *vm.EVM, gasLimit uint64, authList []types.SetCodeAuthorization) {
+}
 
 func (*AccessListTracer) CaptureTxEnd(restGas uint64) {}
 

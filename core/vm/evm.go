@@ -224,7 +224,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			// Calling a non existing account, don't do anything, but ping the tracer
 			if debug {
 				if evm.depth == 0 {
-					evm.Config.Tracer.CaptureStart(evm, caller.Address(), addr, false, input, gas, value.ToBig())
+					evm.Config.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value.ToBig())
 					evm.Config.Tracer.CaptureEnd(ret, 0, nil)
 				} else {
 					evm.Config.Tracer.CaptureEnter(CALL, caller.Address(), addr, input, gas, value.ToBig())
@@ -243,7 +243,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	// Capture the tracer start/end events in debug mode
 	if debug {
 		if evm.depth == 0 {
-			evm.Config.Tracer.CaptureStart(evm, caller.Address(), addr, false, input, gas, value.ToBig())
+			evm.Config.Tracer.CaptureStart(caller.Address(), addr, false, input, gas, value.ToBig())
 			defer func(startGas uint64) { // Lazy evaluation of the parameters
 				evm.Config.Tracer.CaptureEnd(ret, startGas-gas, err)
 			}(gas)
@@ -514,7 +514,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 
 	if evm.Config.Tracer != nil {
 		if evm.depth == 0 {
-			evm.Config.Tracer.CaptureStart(evm, caller.Address(), address, true, codeAndHash.code, gas, value.ToBig())
+			evm.Config.Tracer.CaptureStart(caller.Address(), address, true, codeAndHash.code, gas, value.ToBig())
 		} else {
 			evm.Config.Tracer.CaptureEnter(typ, caller.Address(), address, codeAndHash.code, gas, value.ToBig())
 		}

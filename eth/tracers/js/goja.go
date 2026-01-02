@@ -224,8 +224,13 @@ func newJsTracer(code string, ctx *tracers.Context, cfg json.RawMessage) (tracer
 
 // CaptureTxStart implements the Tracer interface and is invoked at the beginning of
 // transaction processing.
-func (t *jsTracer) CaptureTxStart(gasLimit uint64, authList []types.SetCodeAuthorization) {
+func (t *jsTracer) CaptureTxStart(env *vm.EVM, gasLimit uint64, authList []types.SetCodeAuthorization) {
+	t.env = env
 	t.gasLimit = gasLimit
+	// Update list of precompiles based on current block
+	rules := env.ChainConfig().Rules(env.Context.BlockNumber, (env.Context.Difficulty == nil || env.Context.Difficulty.Cmp(common.Big0) == 0) && env.Context.Random != nil, env.Context.Time)
+	t.activePrecompiles = vm.ActivePrecompiles(rules)
+	t.activeNativeManagers = vm.ActiveNativeManagers(rules)
 }
 
 // CaptureTxEnd implements the Tracer interface and is invoked at the end of
@@ -235,13 +240,12 @@ func (t *jsTracer) CaptureTxEnd(restGas uint64) {
 }
 
 // CaptureStart implements the Tracer interface to initialize the tracing operation.
-func (t *jsTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
+func (t *jsTracer) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
 	cancel := func(err error) {
 		t.err = err
 		t.env.Cancel()
 	}
-	t.env = env
-	db := &dbObj{db: env.StateDB, vm: t.vm, toBig: t.toBig, toBuf: t.toBuf, fromBuf: t.fromBuf}
+	db := &dbObj{db: t.env.StateDB, vm: t.vm, toBig: t.toBig, toBuf: t.toBuf, fromBuf: t.fromBuf}
 	t.dbValue = db.setupObject()
 	if create {
 		t.ctx["type"] = t.vm.ToValue("CREATE")
@@ -267,7 +271,7 @@ func (t *jsTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Addr
 	}
 	t.ctx["input"] = inputVal
 	t.ctx["gas"] = t.vm.ToValue(t.gasLimit)
-	gasPriceBig, err := t.toBig(t.vm, env.TxContext.GasPrice.String())
+	gasPriceBig, err := t.toBig(t.vm, t.env.TxContext.GasPrice.String())
 	if err != nil {
 		cancel(err)
 		return
@@ -279,11 +283,7 @@ func (t *jsTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Addr
 		return
 	}
 	t.ctx["value"] = valueBig
-	t.ctx["block"] = t.vm.ToValue(env.Context.BlockNumber.Uint64())
-	// Update list of precompiles based on current block
-	rules := env.ChainConfig().Rules(env.Context.BlockNumber, (env.Context.Difficulty == nil || env.Context.Difficulty.Cmp(common.Big0) == 0) && env.Context.Random != nil, env.Context.Time)
-	t.activePrecompiles = vm.ActivePrecompiles(rules)
-	t.activeNativeManagers = vm.ActiveNativeManagers(rules)
+	t.ctx["block"] = t.vm.ToValue(t.env.Context.BlockNumber.Uint64())
 }
 
 // CaptureState implements the Tracer interface to trace a single step of VM execution.

@@ -60,9 +60,9 @@ func newMuxTracer(ctx *tracers.Context, cfg json.RawMessage) (tracers.Tracer, er
 }
 
 // CaptureStart implements the EVMLogger interface to initialize the tracing operation.
-func (t *muxTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
+func (t *muxTracer) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
 	for _, t := range t.tracers {
-		t.CaptureStart(env, from, to, create, input, gas, value)
+		t.CaptureStart(from, to, create, input, gas, value)
 	}
 }
 
@@ -102,9 +102,9 @@ func (t *muxTracer) CaptureExit(output []byte, gasUsed uint64, err error) {
 	}
 }
 
-func (t *muxTracer) CaptureTxStart(gasLimit uint64, authList []types.SetCodeAuthorization) {
+func (t *muxTracer) CaptureTxStart(env *vm.EVM, gasLimit uint64, authList []types.SetCodeAuthorization) {
 	for _, t := range t.tracers {
-		t.CaptureTxStart(gasLimit, authList)
+		t.CaptureTxStart(env, gasLimit, authList)
 	}
 }
 

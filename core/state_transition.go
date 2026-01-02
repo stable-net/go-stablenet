@@ -461,7 +461,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	if tracer := st.evm.Config.Tracer; tracer != nil {
-		tracer.CaptureTxStart(st.initialGas, st.msg.SetCodeAuthorizations)
+		tracer.CaptureTxStart(st.evm, st.initialGas, st.msg.SetCodeAuthorizations)
 		defer func() {
 			tracer.CaptureTxEnd(st.gasRemaining)
 		}()
