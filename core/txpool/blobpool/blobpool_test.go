@@ -1146,7 +1146,7 @@ func TestAdd(t *testing.T) {
 				{ // New account, 16 pooled tx, 0 slots left: accept nonce 15 replacement
 					from: "alice",
 					tx:   makeUnsignedTx(15, 10, 10, 10),
-					err:  txpool.ErrAccountLimitExceeded, // go-stablenet does not support tx replacement
+					err:  nil,
 				},
 				{ // New account, 16 pooled tx, 0 slots left: reject nonce 16 with overcap
 					from: "alice",

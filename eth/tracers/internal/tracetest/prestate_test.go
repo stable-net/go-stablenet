@@ -118,8 +118,10 @@ func testPrestateDiffTracer(tracerName string, dirPath string, t *testing.T) {
 			}
 			evm := vm.NewEVM(context, core.NewEVMTxContext(msg), state.StateDB, test.Genesis.Config, vm.Config{Tracer: tracer})
 			st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
-			if _, err = st.TransitionDb(); err != nil {
+			if vmRet, err := st.TransitionDb(); err != nil {
 				t.Fatalf("failed to execute transaction: %v", err)
+			} else if vmRet.Failed() {
+				t.Logf("(warn) transaction failed: %v", vmRet.Err)
 			}
 			// Retrieve the trace result and compare against the expected
 			res, err := tracer.GetResult()
