@@ -32,6 +32,7 @@ type AnzeonTipEnv struct {
 	config       *params.ChainConfig
 	stateAt      func(common.Hash) (*state.StateDB, error)
 	currentBlock *types.Header
+	currentState *state.StateDB
 	baseFee      *big.Int
 	signer       types.Signer
 }
@@ -50,8 +51,11 @@ func (env *AnzeonTipEnv) SetCurrentBlock(header *types.Header) {
 	if header == nil {
 		return
 	}
-	env.currentBlock = header
-	env.signer = types.MakeSigner(env.config, header.Number, header.Time)
+	if env.currentBlock == nil || env.currentBlock.Root != header.Root {
+		env.currentBlock = header
+		env.currentState, _ = env.stateAt(header.Root)
+		env.signer = types.MakeSigner(env.config, header.Number, header.Time)
+	}
 }
 
 // SetBaseFee updates the base fee for gas price calculations.
@@ -87,13 +91,17 @@ func (env *AnzeonTipEnv) GetAnzeonTipCap(tx *types.Transaction) *big.Int {
 	}
 
 	// Check if sender is authorized by querying state
-	if env.stateAt != nil && env.currentBlock.Root != (common.Hash{}) {
-		stateDB, err := env.stateAt(env.currentBlock.Root)
-		if err == nil && stateDB != nil {
-			// For unauthorized accounts, use block header's gas tip
-			if !stateDB.IsAuthorized(from) && env.currentBlock.GasTip() != nil {
-				return env.currentBlock.GasTip()
-			}
+	// First try to use cached state, then fall back to stateAt
+	var stateDB *state.StateDB
+	if env.currentState != nil {
+		stateDB = env.currentState
+	} else if env.stateAt != nil && env.currentBlock.Root != (common.Hash{}) {
+		stateDB, _ = env.stateAt(env.currentBlock.Root)
+	}
+	if stateDB != nil {
+		// For unauthorized accounts, use block header's gas tip
+		if !stateDB.IsAuthorized(from) && env.currentBlock.GasTip() != nil {
+			return env.currentBlock.GasTip()
 		}
 	}
 
