@@ -138,12 +138,12 @@ var (
 	}
 	MainnetFlag = &cli.BoolFlag{
 		Name:     "mainnet",
-		Usage:    "Wemix mainnet",
+		Usage:    "Stablenet mainnet",
 		Category: flags.EthCategory,
 	}
-	WemixTestnetFlag = &cli.BoolFlag{
+	TestnetFlag = &cli.BoolFlag{
 		Name:     "testnet",
-		Usage:    "Wemix test network: pre-configured Wemix test network",
+		Usage:    "Stablenet test network: pre-configured Stablenet test network",
 		Category: flags.EthCategory,
 	}
 	GoerliFlag = &cli.BoolFlag{
@@ -931,7 +931,7 @@ Please note that --` + MetricsHTTPFlag.Name + ` must be set to start the server.
 var (
 	// TestnetFlags is the flag group of all built-in supported testnets.
 	TestnetFlags = []cli.Flag{
-		WemixTestnetFlag,
+		TestnetFlag,
 		GoerliFlag,
 		SepoliaFlag,
 		HoleskyFlag,
@@ -1020,7 +1020,7 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 			return // Already set by config file, don't apply defaults.
 		}
 		switch {
-		case ctx.Bool(WemixTestnetFlag.Name):
+		case ctx.Bool(TestnetFlag.Name):
 			urls = params.WemixTestnetBootnodes
 		case ctx.Bool(HoleskyFlag.Name):
 			urls = params.HoleskyBootnodes
@@ -1606,7 +1606,7 @@ func CheckExclusive(ctx *cli.Context, args ...interface{}) {
 // SetEthConfig applies eth-related command line flags to the config.
 func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	// Avoid conflicting network flags
-	CheckExclusive(ctx, MainnetFlag, WemixTestnetFlag, DeveloperFlag, GoerliFlag, SepoliaFlag, HoleskyFlag)
+	CheckExclusive(ctx, MainnetFlag, TestnetFlag, DeveloperFlag, GoerliFlag, SepoliaFlag, HoleskyFlag)
 	CheckExclusive(ctx, DeveloperFlag, ExternalSignerFlag) // Can't use both ephemeral unlocked and external signer
 
 	// Set configurations from CLI flags
@@ -1763,7 +1763,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		}
 		cfg.Genesis = core.DefaultStableNetMainnetGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.StableNetMainnetGenesisHash)
-	case ctx.Bool(WemixTestnetFlag.Name):
+	case ctx.Bool(TestnetFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 1112
 		}
@@ -2077,7 +2077,7 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 	switch {
 	case ctx.Bool(MainnetFlag.Name):
 		genesis = core.DefaultStableNetMainnetGenesisBlock()
-	case ctx.Bool(WemixTestnetFlag.Name):
+	case ctx.Bool(TestnetFlag.Name):
 		genesis = core.DefaultStableNetTestnetGenesisBlock()
 	case ctx.Bool(HoleskyFlag.Name):
 		genesis = core.DefaultHoleskyGenesisBlock()
