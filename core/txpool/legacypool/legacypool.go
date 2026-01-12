@@ -578,7 +578,6 @@ func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address]
 	if filter.MinTip != nil {
 		minTipBig = filter.MinTip.ToBig()
 	}
-	pool.anzeonTipEnv.SetCurrentBlock(filter.NewHeader) // filter.NewHeader can be nil, but it doesn't matter
 	if filter.BaseFee != nil {
 		pool.anzeonTipEnv.SetBaseFee(filter.BaseFee.ToBig())
 	}
