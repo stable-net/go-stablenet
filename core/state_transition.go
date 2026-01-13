@@ -557,8 +557,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	effectiveTip := msg.GasPrice
-	// Base fee burn is removed under Anzeon
-	if !rules.IsAnzeon && rules.IsLondon {
+	if rules.IsLondon {
 		effectiveTip = cmath.BigMin(msg.GasTipCap, new(big.Int).Sub(msg.GasFeeCap, st.evm.Context.BaseFee))
 	}
 	effectiveTipU256, _ := uint256.FromBig(effectiveTip)
@@ -580,7 +579,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 				return nil, &ErrBlacklistedAccount{Address: payer}
 			}
 		}
-		st.evm.AddTransferLog(payer, st.evm.Context.Coinbase, fee)
 	}
 
 	return &ExecutionResult{

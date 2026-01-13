@@ -46,6 +46,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -937,6 +938,13 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 		}
 	}
 
+	if chain.Config().IsLondon(header.Number) {
+		// Rewards are distributed based on the validator set of the previous epoch
+		if err := e.distributeBaseFee(chain, header, state); err != nil {
+			return err
+		}
+	}
+
 	if isEpoch, _, err := e.IsEpochBlockNumber(chain.Config(), header.Number); err != nil {
 		return err
 	} else if isEpoch && epochHandler != nil {
@@ -958,6 +966,66 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
+	return nil
+}
+
+func (e *Engine) distributeBaseFee(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
+	if header.BaseFee == nil {
+		return errors.New("WBFT: baseFee is nil")
+	}
+
+	_, epochInfo, err := e.GetEpochInfo(chain, header, nil)
+	if err != nil {
+		return err
+	}
+
+	totalBaseFee := new(big.Int).Mul(header.BaseFee, new(big.Int).SetUint64(header.GasUsed))
+
+	candidates := epochInfo.Candidates
+	validators := epochInfo.Validators
+
+	totalDiligence := uint64(0)
+	beneficiaries := make([]*types.Candidate, len(validators))
+
+	for i, candidateIdx := range validators {
+		if int(candidateIdx) >= len(candidates) {
+			return fmt.Errorf("WBFT: validator candidate index out of range: %d (candidates=%d)", candidateIdx, len(candidates))
+		}
+
+		candidate := candidates[candidateIdx]
+		if candidate == nil {
+			return fmt.Errorf("WBFT: nil candidate at index %d", candidateIdx)
+		}
+
+		beneficiaries[i] = candidate
+		totalDiligence += candidate.Diligence
+	}
+
+	dust := new(big.Int).Set(totalBaseFee)
+	if totalDiligence != 0 {
+		for _, candidate := range beneficiaries {
+			share := new(big.Int).Mul(totalBaseFee, new(big.Int).SetUint64(candidate.Diligence))
+			share.Div(share, new(big.Int).SetUint64(totalDiligence))
+
+			dust.Sub(dust, share)
+
+			shareU256, overflow := uint256.FromBig(share)
+			if overflow {
+				return fmt.Errorf("WBFT: %s share overflows uint256 (share=%s)", candidate.Addr.Hex(), share.String())
+			}
+			if shareU256.Sign() == 0 {
+				continue
+			}
+			state.AddBalance(candidate.Addr, shareU256)
+		}
+	}
+
+	dustU256, overflow := uint256.FromBig(dust)
+	if overflow {
+		return errors.New("WBFT: dust overflows uint256")
+	}
+	state.AddBalance(header.Coinbase, dustU256)
+
 	return nil
 }
 
