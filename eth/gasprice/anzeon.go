@@ -53,7 +53,11 @@ func (env *AnzeonTipEnv) SetCurrentBlock(header *types.Header) {
 	}
 	if env.currentBlock == nil || env.currentBlock.Root != header.Root {
 		env.currentBlock = header
-		env.currentState = nil
+		if header.Root != (common.Hash{}) {
+			env.currentState, _ = env.stateAt(header.Root)
+		} else {
+			env.currentState = nil
+		}
 		env.signer = types.MakeSigner(env.config, header.Number, header.Time)
 	}
 }

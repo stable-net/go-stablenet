@@ -1236,7 +1236,7 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 	filter := txpool.PendingFilter{
 		MinTip: tip,
 	}
-	filter.NewHeader = env.header
+	filter.Header = w.chain.CurrentBlock()
 	if env.header.BaseFee != nil {
 		filter.BaseFee = uint256.MustFromBig(env.header.BaseFee)
 	}
