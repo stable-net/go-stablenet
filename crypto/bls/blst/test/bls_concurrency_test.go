@@ -107,7 +107,6 @@ func TestBLS_Stress_Concurrency(t *testing.T) {
 				}
 
 				blst.SignatureFromBytes(trash)
-
 			}
 		}(i)
 	}
