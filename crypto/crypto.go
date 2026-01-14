@@ -51,6 +51,15 @@ var (
 
 var errInvalidPubkey = errors.New("invalid secp256k1 public key")
 
+// EllipticCurve contains curve operations.
+type EllipticCurve interface {
+	elliptic.Curve
+
+	// Point marshaling/unmarshaing.
+	Marshal(x, y *big.Int) []byte
+	Unmarshal(data []byte) (x, y *big.Int)
+}
+
 // KeccakState wraps sha3.state. In addition to the usual hash methods, it also supports
 // Read to get a variable amount of data from the hash state. Read is faster than Sum
 // because it doesn't copy the internal state, but also modifies the internal state.
@@ -165,6 +174,7 @@ func FromECDSA(priv *ecdsa.PrivateKey) []byte {
 
 // UnmarshalPubkey converts bytes to a secp256k1 public key.
 func UnmarshalPubkey(pub []byte) (*ecdsa.PublicKey, error) {
+	//lint:ignore SA1019 legacy support for secp256k1
 	x, y := elliptic.Unmarshal(S256(), pub)
 	if x == nil {
 		return nil, errInvalidPubkey
@@ -176,6 +186,7 @@ func FromECDSAPub(pub *ecdsa.PublicKey) []byte {
 	if pub == nil || pub.X == nil || pub.Y == nil {
 		return nil
 	}
+	//lint:ignore SA1019 legacy support for secp256k1
 	return elliptic.Marshal(S256(), pub.X, pub.Y)
 }
 

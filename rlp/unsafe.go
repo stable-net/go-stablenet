@@ -25,11 +25,9 @@ import (
 )
 
 // byteArrayBytes returns a slice of the byte array v.
+// It uses unsafe.Slice to create a slice pointing to the byte array's memory
+// without copying the data. The caller must ensure v.CanAddr() returns true.
 func byteArrayBytes(v reflect.Value, length int) []byte {
-	var s []byte
-	hdr := (*reflect.SliceHeader)(unsafe.Pointer(&s))
-	hdr.Data = v.UnsafeAddr()
-	hdr.Cap = length
-	hdr.Len = length
-	return s
+	ptr := (*byte)(unsafe.Pointer(v.UnsafeAddr()))
+	return unsafe.Slice(ptr, length)
 }
