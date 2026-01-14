@@ -1,0 +1,174 @@
+{
+    "context": {
+        "difficulty": "0",
+        "gasLimit": "8000000",
+        "miner": "0x0000000000000000000000000000000000000000",
+        "number": "1",
+        "timestamp": "1000"
+    },
+    "genesis": {
+        "baseFeePerGas": "7",
+        "alloc": {
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b": {
+                "balance": "0x10000000000000000",
+                "nonce": "0",
+                "code": "0x",
+                "storage": {}
+            },
+            "0x1111111111111111111111111111111111111111": {
+                "balance": "0x0",
+                "nonce": "0",
+                "code": "0x",
+                "storage": {}
+            },
+            "0x2222222222222222222222222222222222222222": {
+                "balance": "0xde0b6b3a7640000",
+                "nonce": "1",
+                "code": "0x6099600155731111111111111111111111111111111111111111ff",
+                "storage": {
+                    "0x0000000000000000000000000000000000000000000000000000000000000001": "0x000000000000000000000000000000000000000000000000000000000000abcd",
+                    "0x0000000000000000000000000000000000000000000000000000000000000002": "0x0000000000000000000000000000000000000000000000000000000000001234"
+                }
+            }
+        },
+        "config": {
+            "chainId": 1,
+            "homesteadBlock": 0,
+            "eip150Block": 0,
+            "eip155Block": 0,
+            "eip158Block": 0,
+            "byzantiumBlock": 0,
+            "constantinopleBlock": 0,
+            "petersburgBlock": 0,
+            "istanbulBlock": 0,
+            "berlinBlock": 0,
+            "londonBlock": 0,
+            "terminalTotalDifficulty": 0,
+            "anzeon": {
+                "wbft": {
+                    "requestTimeoutSeconds": 2,
+                    "blockPeriodSeconds": 1,
+                    "epochLength": 10,
+                    "proposerPolicy": 0,
+                    "maxRequestTimeoutSeconds": null
+                },
+                "init": {
+                    "validators": ["0x45dfd9f6da52abaee54ad49226c698e45b2f3777"],
+                    "blsPublicKeys": ["0x92272a6e9692aa2ffe724257fe911e17189c5081b73c55ba1aacbd81248b6261fbfc5578c46407b94ba8dcdf6f8c926b"]
+                },
+                "systemContracts": {
+                    "govValidator": {
+                        "address": "0x0000000000000000000000000000000000001001",
+                        "version": "v1",
+                        "params": {
+                            "blsPublicKeys": "0x92272a6e9692aa2ffe724257fe911e17189c5081b73c55ba1aacbd81248b6261fbfc5578c46407b94ba8dcdf6f8c926b",
+                            "expiry": "604800",
+                            "maxProposals": "3",
+                            "memberVersion": "1",
+                            "members": "0x45dFD9F6dA52AbaeE54AD49226c698e45b2f3777",
+                            "quorum": "1",
+                            "validators": "0x45dFD9F6dA52AbaeE54AD49226c698e45b2f3777"
+                        }
+                    },
+                    "nativeCoinAdapter": {
+                        "address": "0x0000000000000000000000000000000000001000",
+                        "version": "v1",
+                        "params": {
+                            "currency": "KRW",
+                            "decimals": "18",
+                            "masterMinter": "0x0000000000000000000000000000000000001002",
+                            "minterAllowed": "10000000000000000000000000000",
+                            "minters": "0x0000000000000000000000000000000000001003",
+                            "name": "KRC1",
+                            "symbol": "KRC1"
+                        }
+                    },
+                    "govMinter": {
+                        "address": "0x0000000000000000000000000000000000001003",
+                        "version": "v1",
+                        "params": {
+                            "expiry": "604800",
+                            "fiatToken": "0x0000000000000000000000000000000000001000",
+                            "maxProposals": "3",
+                            "memberVersion": "1",
+                            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+                            "quorum": "1"
+                        }
+                    },
+                    "govMasterMinter": {
+                        "address": "0x0000000000000000000000000000000000001002",
+                        "version": "v1",
+                        "params": {
+                            "expiry": "604800",
+                            "fiatToken": "0x0000000000000000000000000000000000001000",
+                            "maxMinterAllowance": "10000000000000000000000000000",
+                            "maxProposals": "3",
+                            "memberVersion": "1",
+                            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+                            "minters": "0x0000000000000000000000000000000000001003",
+                            "quorum": "1"
+                        }
+                    },
+                    "govCouncil": {
+                        "address": "0x0000000000000000000000000000000000001004",
+                        "version": "v1",
+                        "params": null
+                    }
+                }
+            }
+        },
+        "difficulty": "0",
+        "extraData": "0x",
+        "gasLimit": "8000000",
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "miner": "0x0000000000000000000000000000000000000000",
+        "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "nonce": "0x0000000000000000",
+        "number": "0",
+        "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "timestamp": "0"
+    },
+    "input": "0xf860800a830186a094222222222222222222222222222222222222222280801ba0c4829400221936e8016721406f84b4710ead5608f15c785a3cedc20a7aebaab2a033e8e6e12cc432098b5ce8a409691f977867249073a3fc7804e8676c4d159475",
+    "tracerConfig": {
+        "diffMode": true
+    },
+    "result": {
+        "pre": {
+            "0x0000000000000000000000000000000000000000": {
+                "balance": "0x0"
+            },
+            "0x1111111111111111111111111111111111111111": {
+                "balance": "0x0"
+            },
+            "0x2222222222222222222222222222222222222222": {
+                "balance": "0xde0b6b3a7640000",
+                "nonce": 1,
+                "code": "0x6099600155731111111111111111111111111111111111111111ff",
+                "storage": {
+                    "0x0000000000000000000000000000000000000000000000000000000000000001": "0x000000000000000000000000000000000000000000000000000000000000abcd"
+                }
+            },
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b": {
+                "balance": "0x10000000000000000"
+            }
+        },
+        "post": {
+            "0x0000000000000000000000000000000000000000": {
+                "balance": "0x8f16a"
+            },
+            "0x1111111111111111111111111111111111111111": {
+                "balance": "0xde0b6b3a7640000"
+            },
+            "0x2222222222222222222222222222222222222222": {
+                "balance": "0x0",
+                "storage": {
+                    "0x0000000000000000000000000000000000000000000000000000000000000001": "0x0000000000000000000000000000000000000000000000000000000000000099"
+                }
+            },
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b": {
+                "balance": "0xfffffffffff70e96",
+                "nonce": 1
+            }
+        }
+    }
+}
