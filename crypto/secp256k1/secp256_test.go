@@ -24,6 +24,7 @@ func generateKeyPair() (pubkey, privkey []byte) {
 	if err != nil {
 		panic(err)
 	}
+	//nolint:staticcheck // SA1019: legacy support for secp256k1
 	pubkey = elliptic.Marshal(S256(), key.X, key.Y)
 
 	privkey = make([]byte, 32)

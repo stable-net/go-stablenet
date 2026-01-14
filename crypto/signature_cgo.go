@@ -40,7 +40,7 @@ func SigToPub(hash, sig []byte) (*ecdsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	//lint:ignore SA1019 legacy support for secp256k1
+	//nolint:staticcheck // SA1019: legacy support for secp256k1
 	x, y := elliptic.Unmarshal(S256(), s)
 	return &ecdsa.PublicKey{Curve: S256(), X: x, Y: y}, nil
 }

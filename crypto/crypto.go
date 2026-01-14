@@ -174,7 +174,7 @@ func FromECDSA(priv *ecdsa.PrivateKey) []byte {
 
 // UnmarshalPubkey converts bytes to a secp256k1 public key.
 func UnmarshalPubkey(pub []byte) (*ecdsa.PublicKey, error) {
-	//lint:ignore SA1019 legacy support for secp256k1
+	//nolint:staticcheck // SA1019: legacy support for secp256k1
 	x, y := elliptic.Unmarshal(S256(), pub)
 	if x == nil {
 		return nil, errInvalidPubkey
@@ -186,7 +186,7 @@ func FromECDSAPub(pub *ecdsa.PublicKey) []byte {
 	if pub == nil || pub.X == nil || pub.Y == nil {
 		return nil
 	}
-	//lint:ignore SA1019 legacy support for secp256k1
+	//nolint:staticcheck // SA1019: legacy support for secp256k1
 	return elliptic.Marshal(S256(), pub.X, pub.Y)
 }
 
