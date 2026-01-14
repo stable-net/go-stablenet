@@ -42,6 +42,8 @@ func MakeSigner(config *params.ChainConfig, blockNumber *big.Int, blockTime uint
 	switch {
 	case config.IsCancun(blockNumber, blockTime):
 		signer = NewCancunSigner(config.ChainID)
+	case config.AnzeonEnabled():
+		signer = NewAnzeonSigner(config.ChainID)
 	case config.IsLondon(blockNumber):
 		signer = NewLondonSigner(config.ChainID)
 	case config.IsBerlin(blockNumber):
@@ -67,6 +69,9 @@ func LatestSigner(config *params.ChainConfig) Signer {
 	if config.ChainID != nil {
 		if config.CancunTime != nil {
 			return NewCancunSigner(config.ChainID)
+		}
+		if config.AnzeonEnabled() {
+			return NewAnzeonSigner(config.ChainID)
 		}
 		if config.LondonBlock != nil {
 			return NewLondonSigner(config.ChainID)
@@ -196,21 +201,22 @@ type Signer interface {
 	Equal(Signer) bool
 }
 
-type cancunSigner struct{ londonSigner }
+type cancunSigner struct{ anzeonSigner }
 
 // NewCancunSigner returns a signer that accepts
 // - EIP-4844 blob transactions
+// - EIP-7702 set code transactions
 // - EIP-1559 dynamic fee transactions
 // - EIP-2930 access list transactions,
 // - EIP-155 replay protected transactions, and
 // - legacy Homestead transactions.
 func NewCancunSigner(chainId *big.Int) Signer {
-	return cancunSigner{londonSigner{eip2930Signer{NewEIP155Signer(chainId)}}}
+	return cancunSigner{anzeonSigner{londonSigner{eip2930Signer{NewEIP155Signer(chainId)}}}}
 }
 
 func (s cancunSigner) Sender(tx *Transaction) (common.Address, error) {
 	if tx.Type() != BlobTxType {
-		return s.londonSigner.Sender(tx)
+		return s.anzeonSigner.Sender(tx)
 	}
 	V, R, S := tx.RawSignatureValues()
 	// Blob txs are defined to use 0 and 1 as their recovery
@@ -230,11 +236,11 @@ func (s cancunSigner) Equal(s2 Signer) bool {
 func (s cancunSigner) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big.Int, err error) {
 	txdata, ok := tx.inner.(*BlobTx)
 	if !ok {
-		return s.londonSigner.SignatureValues(tx, sig)
+		return s.anzeonSigner.SignatureValues(tx, sig)
 	}
 	// Check that chain ID of tx matches the signer. We also accept ID zero here,
 	// because it indicates that the chain ID was not specified in the tx.
-	if txdata.ChainID.Sign() != 0 && txdata.ChainID.ToBig().Cmp(s.chainId) != 0 {
+	if txdata.ChainID.Sign() != 0 && txdata.ChainID.CmpBig(s.chainId) != 0 {
 		return nil, nil, nil, fmt.Errorf("%w: have %d want %d", ErrInvalidChainId, txdata.ChainID, s.chainId)
 	}
 	R, S, _ = decodeSignature(sig)
@@ -246,23 +252,71 @@ func (s cancunSigner) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big
 // It does not uniquely identify the transaction.
 func (s cancunSigner) Hash(tx *Transaction) common.Hash {
 	if tx.Type() != BlobTxType {
+		return s.anzeonSigner.Hash(tx)
+	}
+	return tx.inner.sigHash(s.chainId)
+}
+
+// anzeonSigner implements transaction signing for the Anzeon hardfork, specifically adding support
+// for EIP-7702 SetCode transactions.
+//
+// In the standard Ethereum roadmap, this functionality is introduced in the Prague hardfork,
+// which builds upon Cancun (blob transactions). However, since go-stablenet has not yet
+// adopted the Cancun fork, separate signer logic is used here that extends londonSigner
+// to support EIP-7702 directly without requiring EIP-4844 support.
+type anzeonSigner struct{ londonSigner }
+
+// NewAnzeonSigner returns a signer that accepts
+// - EIP-7702 set code transactions
+// - EIP-1559 dynamic fee transactions
+// - EIP-2930 access list transactions,
+// - EIP-155 replay protected transactions, and
+// - legacy Homestead transactions.
+func NewAnzeonSigner(chainId *big.Int) Signer {
+	return anzeonSigner{londonSigner{eip2930Signer{NewEIP155Signer(chainId)}}}
+}
+
+func (s anzeonSigner) Sender(tx *Transaction) (common.Address, error) {
+	if tx.Type() != SetCodeTxType {
+		return s.londonSigner.Sender(tx)
+	}
+	V, R, S := tx.RawSignatureValues()
+	// DynamicFee txs are defined to use 0 and 1 as their recovery
+	// id, add 27 to become equivalent to unprotected Homestead signatures.
+	V = new(big.Int).Add(V, big.NewInt(27))
+	if tx.ChainId().Cmp(s.chainId) != 0 {
+		return common.Address{}, ErrInvalidChainId
+	}
+	return recoverPlain(s.Hash(tx), R, S, V, true)
+}
+
+func (s anzeonSigner) Equal(s2 Signer) bool {
+	x, ok := s2.(anzeonSigner)
+	return ok && x.chainId.Cmp(s.chainId) == 0
+}
+
+func (s anzeonSigner) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big.Int, err error) {
+	txdata, ok := tx.inner.(*SetCodeTx)
+	if !ok {
+		return s.londonSigner.SignatureValues(tx, sig)
+	}
+	// Check that chain ID of tx matches the signer. We also accept ID zero here,
+	// because it indicates that the chain ID was not specified in the tx.
+	if txdata.ChainID.Sign() != 0 && txdata.ChainID.CmpBig(s.chainId) != 0 {
+		return nil, nil, nil, ErrInvalidChainId
+	}
+	R, S, _ = decodeSignature(sig)
+	V = big.NewInt(int64(sig[64]))
+	return R, S, V, nil
+}
+
+// Hash returns the hash to be signed by the sender.
+// It does not uniquely identify the transaction.
+func (s anzeonSigner) Hash(tx *Transaction) common.Hash {
+	if tx.Type() != SetCodeTxType {
 		return s.londonSigner.Hash(tx)
 	}
-	return prefixedRlpHash(
-		tx.Type(),
-		[]interface{}{
-			s.chainId,
-			tx.Nonce(),
-			tx.GasTipCap(),
-			tx.GasFeeCap(),
-			tx.Gas(),
-			tx.To(),
-			tx.Value(),
-			tx.Data(),
-			tx.AccessList(),
-			tx.BlobGasFeeCap(),
-			tx.BlobHashes(),
-		})
+	return tx.inner.sigHash(s.chainId)
 }
 
 // fee delegation
@@ -313,26 +367,7 @@ func (s feeDelegateSigner) Hash(tx *Transaction) common.Hash {
 	if tx.Type() != FeeDelegateDynamicFeeTxType {
 		return s.londonSigner.Hash(tx)
 	}
-	senderV, senderR, senderS := tx.RawSignatureValues()
-	return prefixedRlpHash(
-		tx.Type(),
-		[]interface{}{
-			[]interface{}{
-				s.chainId,
-				tx.Nonce(),
-				tx.GasTipCap(),
-				tx.GasFeeCap(),
-				tx.Gas(),
-				tx.To(),
-				tx.Value(),
-				tx.Data(),
-				tx.AccessList(),
-				senderV,
-				senderR,
-				senderS,
-			},
-			tx.FeePayer(),
-		})
+	return tx.inner.sigHash(s.chainId)
 }
 
 type londonSigner struct{ eip2930Signer }
@@ -389,21 +424,9 @@ func (s londonSigner) Hash(tx *Transaction) common.Hash {
 	// WEMIX fee delegation
 	txType := tx.Type()
 	if txType == FeeDelegateDynamicFeeTxType {
-		txType = DynamicFeeTxType
+		return tx.inner.(*FeeDelegateDynamicFeeTx).SenderTx.sigHash(s.chainId)
 	}
-	return prefixedRlpHash(
-		txType,
-		[]interface{}{
-			s.chainId,
-			tx.Nonce(),
-			tx.GasTipCap(),
-			tx.GasFeeCap(),
-			tx.Gas(),
-			tx.To(),
-			tx.Value(),
-			tx.Data(),
-			tx.AccessList(),
-		})
+	return tx.inner.sigHash(s.chainId)
 }
 
 type eip2930Signer struct{ EIP155Signer }
@@ -466,18 +489,7 @@ func (s eip2930Signer) Hash(tx *Transaction) common.Hash {
 	case LegacyTxType:
 		return s.EIP155Signer.Hash(tx)
 	case AccessListTxType:
-		return prefixedRlpHash(
-			tx.Type(),
-			[]interface{}{
-				s.chainId,
-				tx.Nonce(),
-				tx.GasPrice(),
-				tx.Gas(),
-				tx.To(),
-				tx.Value(),
-				tx.Data(),
-				tx.AccessList(),
-			})
+		return tx.inner.sigHash(s.chainId)
 	default:
 		// This _should_ not happen, but in case someone sends in a bad
 		// json struct via RPC, it's probably more prudent to return an
@@ -547,15 +559,7 @@ func (s EIP155Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
-	return rlpHash([]interface{}{
-		tx.Nonce(),
-		tx.GasPrice(),
-		tx.Gas(),
-		tx.To(),
-		tx.Value(),
-		tx.Data(),
-		s.chainId, uint(0), uint(0),
-	})
+	return tx.inner.sigHash(s.chainId)
 }
 
 // HomesteadSigner implements Signer interface using the
@@ -619,7 +623,7 @@ func (fs FrontierSigner) SignatureValues(tx *Transaction, sig []byte) (r, s, v *
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (fs FrontierSigner) Hash(tx *Transaction) common.Hash {
-	return rlpHash([]interface{}{
+	return rlpHash([]any{
 		tx.Nonce(),
 		tx.GasPrice(),
 		tx.Gas(),

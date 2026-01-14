@@ -28,9 +28,9 @@ type FeeDelegateDynamicFeeTx struct {
 	SenderTx DynamicFeeTx
 	FeePayer *common.Address `rlp:"nil"`
 	// Signature values
-	FV *big.Int `json:"fv" gencodec:"required"` // feePayer V
-	FR *big.Int `json:"fr" gencodec:"required"` // feePayer R
-	FS *big.Int `json:"fs" gencodec:"required"` // feePayer S
+	FV *big.Int // feePayer V
+	FR *big.Int // feePayer R
+	FS *big.Int // feePayer S
 }
 
 func (tx *FeeDelegateDynamicFeeTx) SetSenderTx(senderTx DynamicFeeTx) {
@@ -153,4 +153,26 @@ func (tx *FeeDelegateDynamicFeeTx) encode(b *bytes.Buffer) error {
 }
 func (tx *FeeDelegateDynamicFeeTx) decode(input []byte) error {
 	return rlp.DecodeBytes(input, tx)
+}
+
+func (tx *FeeDelegateDynamicFeeTx) sigHash(chainID *big.Int) common.Hash {
+	return prefixedRlpHash(
+		FeeDelegateDynamicFeeTxType,
+		[]any{
+			[]any{
+				chainID,
+				tx.SenderTx.Nonce,
+				tx.SenderTx.GasTipCap,
+				tx.SenderTx.GasFeeCap,
+				tx.SenderTx.Gas,
+				tx.SenderTx.To,
+				tx.SenderTx.Value,
+				tx.SenderTx.Data,
+				tx.SenderTx.AccessList,
+				tx.SenderTx.V,
+				tx.SenderTx.R,
+				tx.SenderTx.S,
+			},
+			tx.FeePayer,
+		})
 }

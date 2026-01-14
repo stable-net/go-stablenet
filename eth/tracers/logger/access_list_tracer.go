@@ -110,19 +110,10 @@ type AccessListTracer struct {
 // NewAccessListTracer creates a new tracer that can generate AccessLists.
 // An optional AccessList can be specified to occupy slots and addresses in
 // the resulting accesslist.
-func NewAccessListTracer(acl types.AccessList, from, to common.Address, precompiles []common.Address, nativeManagers []common.Address) *AccessListTracer {
-	excl := map[common.Address]struct{}{
-		from: {}, to: {},
-	}
-	for _, addr := range precompiles {
-		excl[addr] = struct{}{}
-	}
-	for _, addr := range nativeManagers {
-		excl[addr] = struct{}{}
-	}
+func NewAccessListTracer(acl types.AccessList, addressesToExclude map[common.Address]struct{}) *AccessListTracer {
 	list := newAccessList()
 	for _, al := range acl {
-		if _, ok := excl[al.Address]; !ok {
+		if _, ok := addressesToExclude[al.Address]; !ok {
 			list.addAddress(al.Address)
 		}
 		for _, slot := range al.StorageKeys {
@@ -130,12 +121,12 @@ func NewAccessListTracer(acl types.AccessList, from, to common.Address, precompi
 		}
 	}
 	return &AccessListTracer{
-		excl: excl,
+		excl: addressesToExclude,
 		list: list,
 	}
 }
 
-func (a *AccessListTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
+func (a *AccessListTracer) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
 }
 
 // CaptureState captures all opcodes that touch storage or addresses and adds them to the accesslist.
@@ -171,7 +162,8 @@ func (*AccessListTracer) CaptureEnter(typ vm.OpCode, from common.Address, to com
 
 func (*AccessListTracer) CaptureExit(output []byte, gasUsed uint64, err error) {}
 
-func (*AccessListTracer) CaptureTxStart(gasLimit uint64) {}
+func (*AccessListTracer) CaptureTxStart(env *vm.EVM, gasLimit uint64, authList []types.SetCodeAuthorization) {
+}
 
 func (*AccessListTracer) CaptureTxEnd(restGas uint64) {}
 

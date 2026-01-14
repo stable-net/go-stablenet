@@ -23,6 +23,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 )
@@ -50,8 +51,8 @@ type fourByteTracer struct {
 	ids                  map[string]int   // ids aggregates the 4byte ids found
 	interrupt            atomic.Bool      // Atomic flag to signal execution interruption
 	reason               error            // Textual reason for the interruption
-	activePrecompiles    []common.Address // Updated on CaptureStart based on given rules
-	activeNativeManagers []common.Address // Updated on CaptureStart based on given rules
+	activePrecompiles    []common.Address // Updated on CaptureTxStart based on given rules
+	activeNativeManagers []common.Address // Updated on CaptureTxStart based on given rules
 }
 
 // newFourByteTracer returns a native go tracer which collects
@@ -85,16 +86,19 @@ func (t *fourByteTracer) store(id []byte, size int) {
 }
 
 // CaptureStart implements the EVMLogger interface to initialize the tracing operation.
-func (t *fourByteTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
-	// Update list of precompiles based on current block
-	rules := env.ChainConfig().Rules(env.Context.BlockNumber, (env.Context.Difficulty == nil || env.Context.Difficulty.Cmp(common.Big0) == 0) && env.Context.Random != nil, env.Context.Time)
-	t.activePrecompiles = vm.ActivePrecompiles(rules)
-	t.activeNativeManagers = vm.ActiveNativeManagers(rules)
-
+func (t *fourByteTracer) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
 	// Save the outer calldata also
 	if len(input) >= 4 {
 		t.store(input[0:4], len(input)-4)
 	}
+}
+
+// CaptureTxStart is called at the start of a transaction.
+func (t *fourByteTracer) CaptureTxStart(env *vm.EVM, gasLimit uint64, authList []types.SetCodeAuthorization) {
+	// Update list of precompiles based on current block
+	rules := env.ChainConfig().Rules(env.Context.BlockNumber, (env.Context.Difficulty == nil || env.Context.Difficulty.Cmp(common.Big0) == 0) && env.Context.Random != nil, env.Context.Time)
+	t.activePrecompiles = vm.ActivePrecompiles(rules)
+	t.activeNativeManagers = vm.ActiveNativeManagers(rules)
 }
 
 // CaptureEnter is called when EVM enters a new scope (via call, create or selfdestruct).

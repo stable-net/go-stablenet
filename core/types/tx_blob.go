@@ -47,9 +47,9 @@ type BlobTx struct {
 	Sidecar *BlobTxSidecar `rlp:"-"`
 
 	// Signature values
-	V *uint256.Int `json:"v" gencodec:"required"`
-	R *uint256.Int `json:"r" gencodec:"required"`
-	S *uint256.Int `json:"s" gencodec:"required"`
+	V *uint256.Int
+	R *uint256.Int
+	S *uint256.Int
 }
 
 // BlobTxSidecar contains the blobs of a blob transaction.
@@ -241,4 +241,22 @@ func (tx *BlobTx) decode(input []byte) error {
 		Proofs:      inner.Proofs,
 	}
 	return nil
+}
+
+func (tx *BlobTx) sigHash(chainID *big.Int) common.Hash {
+	return prefixedRlpHash(
+		BlobTxType,
+		[]any{
+			chainID,
+			tx.Nonce,
+			tx.GasTipCap,
+			tx.GasFeeCap,
+			tx.Gas,
+			tx.To,
+			tx.Value,
+			tx.Data,
+			tx.AccessList,
+			tx.BlobFeeCap,
+			tx.BlobHashes,
+		})
 }

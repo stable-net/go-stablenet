@@ -22,6 +22,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/log"
@@ -56,9 +57,11 @@ func (t *traceWriter) CaptureTxEnd(restGas uint64) {
 	}
 }
 
-func (t *traceWriter) CaptureTxStart(gasLimit uint64) { t.inner.CaptureTxStart(gasLimit) }
-func (t *traceWriter) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
-	t.inner.CaptureStart(env, from, to, create, input, gas, value)
+func (t *traceWriter) CaptureTxStart(env *vm.EVM, gasLimit uint64, authList []types.SetCodeAuthorization) {
+	t.inner.CaptureTxStart(env, gasLimit, authList)
+}
+func (t *traceWriter) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
+	t.inner.CaptureStart(from, to, create, input, gas, value)
 }
 
 func (t *traceWriter) CaptureEnd(output []byte, gasUsed uint64, err error) {

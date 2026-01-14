@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/tracers"
@@ -57,17 +58,18 @@ type accountMarshaling struct {
 
 type prestateTracer struct {
 	noopTracer
-	env       *vm.EVM
-	pre       state
-	post      state
-	create    bool
-	to        common.Address
-	gasLimit  uint64 // Amount of gas bought for the whole tx
-	config    prestateTracerConfig
-	interrupt atomic.Bool // Atomic flag to signal execution interruption
-	reason    error       // Textual reason for the interruption
-	created   map[common.Address]bool
-	deleted   map[common.Address]bool
+	env         *vm.EVM
+	pre         state
+	post        state
+	create      bool
+	to          common.Address
+	gasLimit    uint64 // Amount of gas bought for the whole tx
+	config      prestateTracerConfig
+	interrupt   atomic.Bool // Atomic flag to signal execution interruption
+	reason      error       // Textual reason for the interruption
+	created     map[common.Address]bool
+	deleted     map[common.Address]bool
+	authorities map[common.Address]bool // EIP-7702 authority accounts (code/storage captured before authorization)
 }
 
 type prestateTracerConfig struct {
@@ -82,36 +84,67 @@ func newPrestateTracer(ctx *tracers.Context, cfg json.RawMessage) (tracers.Trace
 		}
 	}
 	return &prestateTracer{
-		pre:     state{},
-		post:    state{},
-		config:  config,
-		created: make(map[common.Address]bool),
-		deleted: make(map[common.Address]bool),
+		pre:         state{},
+		post:        state{},
+		config:      config,
+		created:     make(map[common.Address]bool),
+		deleted:     make(map[common.Address]bool),
+		authorities: make(map[common.Address]bool),
 	}, nil
 }
 
 // CaptureStart implements the EVMLogger interface to initialize the tracing operation.
-func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
-	t.env = env
+func (t *prestateTracer) CaptureStart(from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
 	t.create = create
 	t.to = to
 
+	// Lookup the delegation target.
+	// For authority accounts, use pre-captured code (before EIP-7702 authorization)
+	// to correctly resolve the original delegation target.
+	if !create && t.env.ChainConfig().AnzeonEnabled() {
+		var code []byte
+		if t.authorities[to] {
+			// Authority's code was captured in CaptureTxStart before authorization was applied
+			code = t.pre[t.to].Code
+		} else {
+			code = t.env.StateDB.GetCode(t.to)
+		}
+		if target, ok := types.ParseDelegation(code); ok {
+			t.lookupAccount(target)
+		}
+	}
+
 	t.lookupAccount(from)
 	t.lookupAccount(to)
-	t.lookupAccount(env.Context.Coinbase)
+	t.lookupAccount(t.env.Context.Coinbase)
 
 	// The recipient balance includes the value transferred.
-	toBal := new(big.Int).Sub(t.pre[to].Balance, value)
-	t.pre[to].Balance = toBal
+	// Skip adjustment for authority accounts: their balance was captured in CaptureTxStart
+	// before value transfer, so no subtraction is needed.
+	if !t.authorities[to] {
+		toBal := new(big.Int).Sub(t.pre[to].Balance, value)
+		t.pre[to].Balance = toBal
+	}
 
 	// The sender balance is after reducing: value and gasLimit.
 	// We need to re-add them to get the pre-tx balance.
+	//
+	// At this point:
+	// - Gas has already been deducted in preCheck/buyGas (before CaptureTxStart)
+	// - Value transfer happens later in evm.Call
+	// - Nonce was incremented after CaptureTxStart but before CaptureStart
+	//
+	// For authority accounts (EIP-7702): their state was captured in CaptureTxStart
+	// before nonce increment and value transfer, so we only restore gas.
 	fromBal := new(big.Int).Set(t.pre[from].Balance)
-	gasPrice := env.TxContext.GasPrice
+	gasPrice := t.env.TxContext.GasPrice
 	consumedGas := new(big.Int).Mul(gasPrice, new(big.Int).SetUint64(t.gasLimit))
-	fromBal.Add(fromBal, new(big.Int).Add(value, consumedGas))
+	fromBal.Add(fromBal, consumedGas) // Restore gas for all accounts
+	if !t.authorities[from] {
+		fromBal.Add(fromBal, value) // Restore value for non-authority accounts
+		t.pre[from].Nonce--         // Restore nonce for non-authority accounts
+	}
 	t.pre[from].Balance = fromBal
-	t.pre[from].Nonce--
 
 	if create && t.config.DiffMode {
 		t.created[to] = true
@@ -159,6 +192,13 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 	case stackLen >= 5 && (op == vm.DELEGATECALL || op == vm.CALL || op == vm.STATICCALL || op == vm.CALLCODE):
 		addr := common.Address(stackData[stackLen-2].Bytes20())
 		t.lookupAccount(addr)
+		// Lookup the delegation target
+		if t.env.ChainConfig().AnzeonEnabled() {
+			code := t.env.StateDB.GetCode(addr)
+			if target, ok := types.ParseDelegation(code); ok {
+				t.lookupAccount(target)
+			}
+		}
 	case op == vm.CREATE:
 		nonce := t.env.StateDB.GetNonce(caller)
 		addr := crypto.CreateAddress(caller, nonce)
@@ -180,8 +220,29 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 	}
 }
 
-func (t *prestateTracer) CaptureTxStart(gasLimit uint64) {
+func (t *prestateTracer) CaptureTxStart(env *vm.EVM, gasLimit uint64, authList []types.SetCodeAuthorization) {
+	t.env = env
 	t.gasLimit = gasLimit
+
+	// EIP-7702: Capture authority accounts before SetCodeAuthorization is applied.
+	//
+	// Call order in state_transition.go:
+	//   1. preCheck/buyGas - gas deducted from sender
+	//   2. CaptureTxStart  - we capture authority state HERE (code/storage before delegation)
+	//   3. SetNonce        - sender nonce incremented
+	//   4. applyAuthorization - EIP-7702 delegation code applied to authorities
+	//   5. evm.Call/CaptureStart - value transferred, execution begins
+	//
+	// By capturing here, we get the original code/storage of authority accounts
+	// before they receive delegation code (0xef0100...).
+	for _, auth := range authList {
+		addr, err := auth.Authority()
+		if err != nil {
+			continue
+		}
+		t.lookupAccount(addr)
+		t.authorities[addr] = true // Exclude from transferred value and nonce adjustment in CaptureStart
+	}
 }
 
 func (t *prestateTracer) CaptureTxEnd(restGas uint64) {

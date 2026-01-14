@@ -130,7 +130,7 @@ func CreateDynamicTx(backend IBackend, opts *bind.TransactOpts, to *common.Addre
 	gasLimit := opts.GasLimit
 	if opts.GasLimit == 0 {
 		var err error
-		gasLimit, err = estimateGasLimit(backend, opts, to, input, nil, gasTipCap, gasFeeCap, value)
+		gasLimit, err = estimateGasLimit(backend, opts, to, input, nil, gasTipCap, gasFeeCap, value, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -170,12 +170,7 @@ func SendFeeDelegateTx(backend IBackend, feePayer *EOA, baseTx *types.Transactio
 	})
 
 	signer := types.NewFeeDelegateSigner(params.TestWBFTChainConfig.ChainID)
-	signature, err := crypto.Sign(signer.Hash(feeDelegateTx).Bytes(), feePayer.PrivateKey)
-	if err != nil {
-		return nil, err
-	}
-
-	tx, err := feeDelegateTx.WithSignature(signer, signature)
+	tx, err := types.SignTx(feeDelegateTx, signer, feePayer.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -204,15 +199,16 @@ func ensureContext(ctx context.Context) context.Context {
 
 func estimateGasLimit(backend interface {
 	EstimateGas(ctx context.Context, call ethereum.CallMsg) (uint64, error)
-}, opts *bind.TransactOpts, to *common.Address, input []byte, gasPrice, gasTipCap, gasFeeCap, value *big.Int) (uint64, error) {
+}, opts *bind.TransactOpts, to *common.Address, input []byte, gasPrice, gasTipCap, gasFeeCap, value *big.Int, authList []types.SetCodeAuthorization) (uint64, error) {
 	msg := ethereum.CallMsg{
-		From:      opts.From,
-		To:        to,
-		GasPrice:  gasPrice,
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
-		Value:     value,
-		Data:      input,
+		From:              opts.From,
+		To:                to,
+		GasPrice:          gasPrice,
+		GasTipCap:         gasTipCap,
+		GasFeeCap:         gasFeeCap,
+		Value:             value,
+		Data:              input,
+		AuthorizationList: authList,
 	}
 	return backend.EstimateGas(ensureContext(opts.Context), msg)
 }
