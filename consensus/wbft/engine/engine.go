@@ -970,6 +970,9 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 }
 
 func (e *Engine) distributeBaseFee(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
+	if header.Number.Cmp(common.Big0) == 0 {
+		return nil
+	}
 	if header.BaseFee == nil {
 		return errors.New("WBFT: baseFee is nil")
 	}
