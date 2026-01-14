@@ -664,6 +664,7 @@ func exportPubkey(pub *ecies.PublicKey) []byte {
 	if pub == nil {
 		panic("nil pubkey")
 	}
+	//nolint:staticcheck // SA1019: legacy support for secp256k1
 	return elliptic.Marshal(pub.Curve, pub.X, pub.Y)[1:]
 }
 
