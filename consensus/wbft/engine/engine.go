@@ -974,10 +974,10 @@ func (e *Engine) distributeBaseFee(chain consensus.ChainHeaderReader, header *ty
 		return nil
 	}
 	if header.BaseFee == nil {
-		return errors.New("WBFT: baseFee is nil")
+		return fmt.Errorf("WBFT: baseFee is nil (block=%s)", header.Number)
 	}
 
-	_, epochInfo, err := e.GetEpochInfo(chain, header, nil)
+	epochBlock, epochInfo, err := e.GetEpochInfo(chain, header, nil)
 	if err != nil {
 		return err
 	}
@@ -992,12 +992,12 @@ func (e *Engine) distributeBaseFee(chain consensus.ChainHeaderReader, header *ty
 
 	for i, candidateIdx := range validators {
 		if int(candidateIdx) >= len(candidates) {
-			return fmt.Errorf("WBFT: validator candidate index out of range: %d (candidates=%d)", candidateIdx, len(candidates))
+			return fmt.Errorf("WBFT: validator candidate index out of range: %d (epoch=%s candidates=%d)", candidateIdx, epochBlock, len(candidates))
 		}
 
 		candidate := candidates[candidateIdx]
 		if candidate == nil {
-			return fmt.Errorf("WBFT: nil candidate at index %d", candidateIdx)
+			return fmt.Errorf("WBFT: nil candidate at index %d (epoch=%s)", candidateIdx, epochBlock)
 		}
 
 		beneficiaries[i] = candidate
@@ -1014,7 +1014,7 @@ func (e *Engine) distributeBaseFee(chain consensus.ChainHeaderReader, header *ty
 
 			shareU256, overflow := uint256.FromBig(share)
 			if overflow {
-				return fmt.Errorf("WBFT: %s share overflows uint256 (share=%s)", candidate.Addr.Hex(), share.String())
+				return fmt.Errorf("WBFT: %s share overflows uint256 (block=%s epoch=%s share=%s)", candidate.Addr.Hex(), header.Number, epochBlock, share)
 			}
 			if shareU256.Sign() == 0 {
 				continue
@@ -1023,9 +1023,12 @@ func (e *Engine) distributeBaseFee(chain consensus.ChainHeaderReader, header *ty
 		}
 	}
 
+	if dust.Sign() < 0 {
+		return fmt.Errorf("WBFT: negative dust after base fee distribution (block=%s epoch=%s)", header.Number, epochBlock)
+	}
 	dustU256, overflow := uint256.FromBig(dust)
 	if overflow {
-		return errors.New("WBFT: dust overflows uint256")
+		return fmt.Errorf("WBFT: dust overflows uint256 (block=%s epoch=%s)", header.Number, epochBlock)
 	}
 	state.AddBalance(header.Coinbase, dustU256)
 
