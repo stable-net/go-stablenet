@@ -46,6 +46,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/systemcontracts"
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
@@ -956,4 +957,150 @@ func TestBlacklistedSigner(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBaseFeeDistribution(t *testing.T) {
+	t.Run("base fee distribution", func(t *testing.T) {
+		var testCases = []struct {
+			name             string
+			totValidators    int
+			baseFee          uint64
+			gasUsed          uint64
+			proposers        []int
+			diligences       [][]uint64 // Only creating epochInfo when block is epoch block
+			expectedBalances [][]string
+		}{
+			{
+				"distributes evenly with equal diligences",
+				3,
+				1000,
+				1000,
+				[]int{0, 1, 2, 0, 1, 2, 0},
+				[][]uint64{
+					{}, {1900000, 1900000, 1900000}, {1906666, 1906666, 1906666},
+				},
+				[][]string{
+					{"333334", "333333", "333333"}, {"666667", "666667", "666666"}, {"1000000", "1000000", "1000000"},
+					{"1333334", "1333333", "1333333"}, {"1666667", "1666667", "1666666"}, {"2000000", "2000000", "2000000"},
+					{"2333334", "2333333", "2333333"},
+				},
+			},
+			{
+				"distributes proportionally with unequal diligences",
+				3,
+				1000,
+				1000,
+				[]int{0, 1, 2, 0, 1, 2, 0},
+				[][]uint64{
+					{}, {1906666, 1884444, 1873333}, {1915999, 1895999, 1885999},
+				},
+				[][]string{
+					{"333334", "333333", "333333"}, {"666667", "666667", "666666"}, {"1000000", "1000000", "1000000"},
+					{"1336604", "1332679", "1330717"}, {"1673206", "1665360", "1661434"}, {"2009808", "1998039", "1992153"},
+					{"2346067", "2330787", "2323146"},
+				},
+			},
+			{
+				"does nothing when gasUsed is zero",
+				3,
+				1000,
+				0,
+				[]int{0, 1, 2, 0, 1, 2, 0},
+				[][]uint64{
+					{}, {1900000, 1900000, 1900000}, {1906666, 1906666, 1906666},
+				},
+				[][]string{
+					{"0", "0", "0"}, {"0", "0", "0"}, {"0", "0", "0"},
+					{"0", "0", "0"}, {"0", "0", "0"}, {"0", "0", "0"},
+					{"0", "0", "0"},
+				},
+			},
+			{
+				"handles irregular proposer order (round changes assumed)",
+				3,
+				params.MinBaseFee,
+				21000000,
+				[]int{2, 1, 0, 2, 1, 1, 0},
+				[][]uint64{
+					{}, {1862222, 1873333, 1840000}, {1742666, 1819332, 1722666},
+				},
+				[][]string{
+					{"35000000000000000000", "35000000000000000000", "35000000000000000000"},
+					{"70000000000000000000", "70000000000000000000", "70000000000000000000"},
+					{"105000000000000000000", "105000000000000000000", "105000000000000000000"},
+					{"140069748213406557732", "140278992853626230931", "139651258932967211337"},
+					{"175139496426813115464", "175557985707252461864", "174302517865934422672"},
+					{"210209244640219673196", "210836978560878692797", "208953776798901634007"},
+					{"244833949257201944917", "246984945583947709105", "243181105158850345978"},
+				},
+			},
+		}
+		for _, tc := range testCases {
+			var parent *types.Header
+
+			// Setup signers
+			signers := newAccounts(tc.totValidators)
+
+			// Setup test chain genesis
+			c := new(fakeChain)
+			c.chainConfig = params.TestWBFTChainConfig
+			updateChainConfig(c.chainConfig, signers)
+
+			wbftCfg := new(wbft.Config)
+			wbft.SetConfigFromChainConfig(wbftCfg, c.chainConfig)
+			wbftCfg.Epoch = 3
+
+			engine := NewEngine(wbftCfg, common.Address{}, nil, nil)
+			parent = makeGenesis(signers)
+			c.insertHeader(parent)
+
+			db := rawdb.NewMemoryDatabase()
+			tdb := state.NewDatabase(db)
+			statedb, _ := state.New(types.EmptyRootHash, tdb, nil)
+
+			for i, author := range tc.proposers {
+				h := makeHeader(parent)
+				h.Coinbase = signers[author].addr
+				h.BaseFee = new(big.Int).SetUint64(tc.baseFee)
+				h.GasUsed = tc.gasUsed
+
+				if err := engine.distributeBaseFee(c, h, statedb); err != nil {
+					t.Error(err)
+				}
+
+				if isEpoch, _, _ := engine.IsEpochBlockNumber(c.chainConfig, h.Number); isEpoch {
+					epoch := new(big.Int).Div(h.Number, new(big.Int).SetUint64(wbftCfg.Epoch))
+					if epoch.Cmp(common.Big0) == 0 {
+						continue
+					}
+					diligences := tc.diligences[epoch.Int64()]
+
+					candidates := make([]*types.Candidate, 0, tc.totValidators)
+					validators := make([]uint32, 0, tc.totValidators)
+					for i, diligence := range diligences {
+						candidates = append(candidates, &types.Candidate{
+							Addr:      signers[i].addr,
+							Diligence: diligence,
+						})
+						validators = append(validators, uint32(i))
+					}
+
+					epochInfo := &types.EpochInfo{
+						Candidates: candidates,
+						Validators: validators,
+					}
+
+					ApplyHeaderWBFTExtra(h, WriteEpochInfo(epochInfo))
+				}
+
+				for j, signer := range signers {
+					balance := statedb.GetBalance(signer.addr)
+					require.Equal(t, uint256.MustFromDecimal(tc.expectedBalances[i][j]), balance)
+				}
+
+				c.insertHeader(h)
+				parent = h
+			}
+		}
+	})
 }
