@@ -970,7 +970,7 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 }
 
 func (e *Engine) distributeBaseFee(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
-	if header.Number.Cmp(common.Big0) == 0 {
+	if header.GasUsed == 0 || header.Number.Sign() == 0 {
 		return nil
 	}
 	if header.BaseFee == nil {
@@ -982,33 +982,47 @@ func (e *Engine) distributeBaseFee(chain consensus.ChainHeaderReader, header *ty
 		return err
 	}
 
-	totalBaseFee := new(big.Int).Mul(header.BaseFee, new(big.Int).SetUint64(header.GasUsed))
+	gasUsed := new(big.Int).SetUint64(header.GasUsed)
+	totalBaseFee := new(big.Int).Mul(header.BaseFee, gasUsed)
 
 	candidates := epochInfo.Candidates
 	validators := epochInfo.Validators
 
-	totalDiligence := uint64(0)
-	beneficiaries := make([]*types.Candidate, len(validators))
+	diligenceSum := uint64(0)
 
-	for i, candidateIdx := range validators {
+	for _, candidateIdx := range validators {
 		if int(candidateIdx) >= len(candidates) {
-			return fmt.Errorf("WBFT: validator candidate index out of range: %d (epoch=%s candidates=%d)", candidateIdx, epochBlock, len(candidates))
+			return fmt.Errorf("WBFT: validator candidate index out of range: %d (block=%s epoch=%s candidates=%d)", candidateIdx, header.Number, epochBlock, len(candidates))
 		}
 
 		candidate := candidates[candidateIdx]
 		if candidate == nil {
-			return fmt.Errorf("WBFT: nil candidate at index %d (epoch=%s)", candidateIdx, epochBlock)
+			return fmt.Errorf("WBFT: nil candidate at index %d (block=%s epoch=%s)", candidateIdx, header.Number, epochBlock)
 		}
 
-		beneficiaries[i] = candidate
-		totalDiligence += candidate.Diligence
+		diligenceSum += candidate.Diligence
 	}
 
 	dust := new(big.Int).Set(totalBaseFee)
-	if totalDiligence != 0 {
-		for _, candidate := range beneficiaries {
-			share := new(big.Int).Mul(totalBaseFee, new(big.Int).SetUint64(candidate.Diligence))
-			share.Div(share, new(big.Int).SetUint64(totalDiligence))
+
+	if diligenceSum != 0 {
+		totalDiligence := new(big.Int).SetUint64(diligenceSum)
+
+		share := new(big.Int)
+		diligence := new(big.Int)
+
+		for _, candidateIdx := range validators {
+			// candidateIdx range and nil candidate checked in the first pass
+			candidate := candidates[candidateIdx]
+
+			diligence.SetUint64(candidate.Diligence)
+
+			share.Mul(totalBaseFee, diligence)
+			share.Div(share, totalDiligence)
+
+			if share.Sign() == 0 {
+				continue
+			}
 
 			dust.Sub(dust, share)
 
@@ -1016,21 +1030,20 @@ func (e *Engine) distributeBaseFee(chain consensus.ChainHeaderReader, header *ty
 			if overflow {
 				return fmt.Errorf("WBFT: %s share overflows uint256 (block=%s epoch=%s share=%s)", candidate.Addr.Hex(), header.Number, epochBlock, share)
 			}
-			if shareU256.Sign() == 0 {
-				continue
-			}
 			state.AddBalance(candidate.Addr, shareU256)
 		}
 	}
 
 	if dust.Sign() < 0 {
-		return fmt.Errorf("WBFT: negative dust after base fee distribution (block=%s epoch=%s)", header.Number, epochBlock)
+		return fmt.Errorf("WBFT: negative dust after base fee distribution (block=%s epoch=%s dust=%s)", header.Number, epochBlock, dust)
 	}
-	dustU256, overflow := uint256.FromBig(dust)
-	if overflow {
-		return fmt.Errorf("WBFT: dust overflows uint256 (block=%s epoch=%s)", header.Number, epochBlock)
+	if dust.Sign() != 0 {
+		dustU256, overflow := uint256.FromBig(dust)
+		if overflow {
+			return fmt.Errorf("WBFT: dust overflows uint256 (block=%s epoch=%s dust=%s)", header.Number, epochBlock, dust)
+		}
+		state.AddBalance(header.Coinbase, dustU256)
 	}
-	state.AddBalance(header.Coinbase, dustU256)
 
 	return nil
 }
