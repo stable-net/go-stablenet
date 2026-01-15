@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"time"
 
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 const errorKey = "LOG_ERROR"
