@@ -19,8 +19,6 @@ import (
 
 func TestTransferLog(t *testing.T) {
 	var (
-		ctx = context.TODO()
-
 		masterMinter = NewEOA()
 		minter       = NewEOA()
 		sender       = NewEOA()
@@ -38,82 +36,49 @@ func TestTransferLog(t *testing.T) {
 	}, nil, nil, nil, nil)
 	require.NoError(t, err)
 
-	checkGasFeeTransferEvent := func(event map[string]interface{}, sender common.Address, receipt *types.Receipt) {
-		blockNumber := receipt.BlockNumber
-		block, err := g.backend.Client().BlockByNumber(ctx, blockNumber)
-		require.NoError(t, err)
-
-		coinBase := block.Coinbase()
-		diff := new(big.Int).Sub(
-			g.BalanceAt(t, ctx, coinBase, blockNumber),
-			g.BalanceAt(t, ctx, coinBase, new(big.Int).Sub(blockNumber, common.Big1)),
-		)
-		actualGas := event["value"].(*big.Int)
-		require.Equal(t, sender, event["from"].(common.Address))
-		require.Equal(t, coinBase, event["to"].(common.Address))
-		require.True(t, diff.Cmp(actualGas) == 0)
-		require.True(t, new(big.Int).Mul(new(big.Int).SetUint64(receipt.GasUsed), receipt.EffectiveGasPrice).Cmp(actualGas) == 0)
-	}
-
 	t.Run("mint", func(t *testing.T) {
 		mintAmount := new(big.Int).Mul(amount, common.Big3)
 		receipt, err := g.ExpectedOk(g.Mint(t, minter, sender.Address, mintAmount))
 		require.NoError(t, err)
 
-		transferEvents := findEvents("Transfer", receipt.Logs)
-		require.Equal(t, 2, len(transferEvents))
+		transferEvent := findEvent("Transfer", receipt.Logs)
 
-		eventTransfer := transferEvents[0]
-		require.Equal(t, common.Address{}, eventTransfer["from"].(common.Address))
-		require.Equal(t, sender.Address, eventTransfer["to"].(common.Address))
-		require.True(t, mintAmount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
-
-		checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
+		require.Equal(t, common.Address{}, transferEvent["from"].(common.Address))
+		require.Equal(t, sender.Address, transferEvent["to"].(common.Address))
+		require.True(t, mintAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
 	})
 
 	t.Run("tx.value", func(t *testing.T) {
 		receipt, err := g.ExpectedOk(TransferCoin(g.backend.Client(), NewTxOpts(t, sender), amount, &recipient.Address))
 		require.NoError(t, err)
 
-		transferEvents := findEvents("Transfer", receipt.Logs)
-		require.Equal(t, 2, len(transferEvents))
+		transferEvent := findEvent("Transfer", receipt.Logs)
 
-		eventTransfer := transferEvents[0]
-		require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
-		require.Equal(t, recipient.Address, eventTransfer["to"].(common.Address))
-		require.True(t, amount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
-
-		checkGasFeeTransferEvent(transferEvents[1], sender.Address, receipt)
+		require.Equal(t, sender.Address, transferEvent["from"].(common.Address))
+		require.Equal(t, recipient.Address, transferEvent["to"].(common.Address))
+		require.True(t, amount.Cmp(transferEvent["value"].(*big.Int)) == 0)
 	})
 
 	t.Run("transfer", func(t *testing.T) {
 		receipt, err := g.ExpectedOk(g.Transfer(t, sender, recipient.Address, amount))
 		require.NoError(t, err)
 
-		transferEvents := findEvents("Transfer", receipt.Logs)
-		require.Equal(t, 2, len(transferEvents))
+		transferEvent := findEvent("Transfer", receipt.Logs)
 
-		eventTransfer := transferEvents[0]
-		require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
-		require.Equal(t, recipient.Address, eventTransfer["to"].(common.Address))
-		require.True(t, amount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
-
-		checkGasFeeTransferEvent(transferEvents[1], sender.Address, receipt)
+		require.Equal(t, sender.Address, transferEvent["from"].(common.Address))
+		require.Equal(t, recipient.Address, transferEvent["to"].(common.Address))
+		require.True(t, amount.Cmp(transferEvent["value"].(*big.Int)) == 0)
 	})
 
 	t.Run("transfer 0-value", func(t *testing.T) {
 		receipt, err := g.ExpectedOk(g.Transfer(t, sender, recipient.Address, common.Big0))
 		require.NoError(t, err)
 
-		transferEvents := findEvents("Transfer", receipt.Logs)
-		require.Equal(t, 2, len(transferEvents))
+		transferEvent := findEvent("Transfer", receipt.Logs)
 
-		eventTransfer := transferEvents[0]
-		require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
-		require.Equal(t, recipient.Address, eventTransfer["to"].(common.Address))
-		require.True(t, eventTransfer["value"].(*big.Int).Sign() == 0)
-
-		checkGasFeeTransferEvent(transferEvents[1], sender.Address, receipt)
+		require.Equal(t, sender.Address, transferEvent["from"].(common.Address))
+		require.Equal(t, recipient.Address, transferEvent["to"].(common.Address))
+		require.True(t, transferEvent["value"].(*big.Int).Sign() == 0)
 	})
 
 	t.Run("tx.value + transfer", func(t *testing.T) {
@@ -143,7 +108,7 @@ func TestTransferLog(t *testing.T) {
 			require.NoError(t, err)
 
 			transferEvents := findEvents("Transfer", receipt.Logs)
-			require.Equal(t, 3, len(transferEvents))
+			require.Equal(t, 2, len(transferEvents))
 
 			eventTxValue := transferEvents[0]
 			require.Equal(t, recipient.Address, eventTxValue["from"].(common.Address))
@@ -154,8 +119,6 @@ func TestTransferLog(t *testing.T) {
 			require.Equal(t, tcAddr, eventTransfer["from"].(common.Address))
 			require.Equal(t, sender.Address, eventTransfer["to"].(common.Address))
 			require.True(t, amount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
-
-			checkGasFeeTransferEvent(transferEvents[2], recipient.Address, receipt)
 		}
 	})
 
@@ -164,15 +127,11 @@ func TestTransferLog(t *testing.T) {
 		receipt, err := g.ExpectedOk(g.Burn(t, minter, burnAmount))
 		require.NoError(t, err)
 
-		transferEvents := findEvents("Transfer", receipt.Logs)
-		require.Equal(t, 2, len(transferEvents))
+		transferEvent := findEvent("Transfer", receipt.Logs)
 
-		eventTransfer := transferEvents[0]
-		require.Equal(t, minter.Address, eventTransfer["from"].(common.Address))
-		require.Equal(t, common.Address{}, eventTransfer["to"].(common.Address))
-		require.True(t, burnAmount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
-
-		checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
+		require.Equal(t, minter.Address, transferEvent["from"].(common.Address))
+		require.Equal(t, common.Address{}, transferEvent["to"].(common.Address))
+		require.True(t, burnAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
 	})
 
 	t.Run("fee delegation", func(t *testing.T) {
@@ -185,15 +144,11 @@ func TestTransferLog(t *testing.T) {
 			receipt, err := g.ExpectedOk(SendFeeDelegateTx(g.backend.Client(), minter, baseTx))
 			require.NoError(t, err)
 
-			transferEvents := findEvents("Transfer", receipt.Logs)
-			require.Equal(t, 2, len(transferEvents))
+			transferEvent := findEvent("Transfer", receipt.Logs)
 
-			eventTransfer := transferEvents[0]
-			require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
-			require.Equal(t, recipient.Address, eventTransfer["to"].(common.Address))
-			require.True(t, transferAmount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
-
-			checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
+			require.Equal(t, sender.Address, transferEvent["from"].(common.Address))
+			require.Equal(t, recipient.Address, transferEvent["to"].(common.Address))
+			require.True(t, transferAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
 		}
 
 		// transfer by NativeCoinAdapter
@@ -206,15 +161,11 @@ func TestTransferLog(t *testing.T) {
 			receipt, err := g.ExpectedOk(SendFeeDelegateTx(g.backend.Client(), minter, baseTx))
 			require.NoError(t, err)
 
-			transferEvents := findEvents("Transfer", receipt.Logs)
-			require.Equal(t, 2, len(transferEvents))
+			transferEvent := findEvent("Transfer", receipt.Logs)
 
-			eventTransfer := transferEvents[0]
-			require.Equal(t, sender.Address, eventTransfer["from"].(common.Address))
-			require.Equal(t, recipient.Address, eventTransfer["to"].(common.Address))
-			require.True(t, transferAmount.Cmp(eventTransfer["value"].(*big.Int)) == 0)
-
-			checkGasFeeTransferEvent(transferEvents[1], minter.Address, receipt)
+			require.Equal(t, sender.Address, transferEvent["from"].(common.Address))
+			require.Equal(t, recipient.Address, transferEvent["to"].(common.Address))
+			require.True(t, transferAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
 		}
 	})
 }

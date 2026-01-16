@@ -46,6 +46,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -937,6 +938,13 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 		}
 	}
 
+	if chain.Config().IsLondon(header.Number) {
+		// Rewards are distributed based on the validator set of the previous epoch
+		if err := e.distributeBaseFee(chain, header, state); err != nil {
+			return err
+		}
+	}
+
 	if isEpoch, _, err := e.IsEpochBlockNumber(chain.Config(), header.Number); err != nil {
 		return err
 	} else if isEpoch && epochHandler != nil {
@@ -958,6 +966,85 @@ func (e *Engine) processFinalize(chain consensus.ChainHeaderReader, header *type
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = nilUncleHash
+	return nil
+}
+
+func (e *Engine) distributeBaseFee(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB) error {
+	if header.GasUsed == 0 || header.Number.Sign() == 0 {
+		return nil
+	}
+	if header.BaseFee == nil {
+		return fmt.Errorf("WBFT: baseFee is nil (block=%s)", header.Number)
+	}
+
+	epochBlock, epochInfo, err := e.GetEpochInfo(chain, header, nil)
+	if err != nil {
+		return err
+	}
+
+	gasUsed := new(big.Int).SetUint64(header.GasUsed)
+	totalBaseFee := new(big.Int).Mul(header.BaseFee, gasUsed)
+
+	candidates := epochInfo.Candidates
+	validators := epochInfo.Validators
+
+	diligenceSum := uint64(0)
+
+	for _, candidateIdx := range validators {
+		if int(candidateIdx) >= len(candidates) {
+			return fmt.Errorf("WBFT: validator candidate index out of range: %d (block=%s epoch=%s candidates=%d)", candidateIdx, header.Number, epochBlock, len(candidates))
+		}
+
+		candidate := candidates[candidateIdx]
+		if candidate == nil {
+			return fmt.Errorf("WBFT: nil candidate at index %d (block=%s epoch=%s)", candidateIdx, header.Number, epochBlock)
+		}
+
+		diligenceSum += candidate.Diligence
+	}
+
+	dust := new(big.Int).Set(totalBaseFee)
+
+	if diligenceSum != 0 {
+		totalDiligence := new(big.Int).SetUint64(diligenceSum)
+
+		share := new(big.Int)
+		diligence := new(big.Int)
+
+		for _, candidateIdx := range validators {
+			// candidateIdx range and nil candidate checked in the first pass
+			candidate := candidates[candidateIdx]
+
+			diligence.SetUint64(candidate.Diligence)
+
+			share.Mul(totalBaseFee, diligence)
+			share.Div(share, totalDiligence)
+
+			if share.Sign() == 0 {
+				continue
+			}
+
+			dust.Sub(dust, share)
+
+			shareU256, overflow := uint256.FromBig(share)
+			if overflow {
+				return fmt.Errorf("WBFT: %s share overflows uint256 (block=%s epoch=%s share=%s)", candidate.Addr.Hex(), header.Number, epochBlock, share)
+			}
+			state.AddBalance(candidate.Addr, shareU256)
+		}
+	}
+
+	if dust.Sign() < 0 {
+		return fmt.Errorf("WBFT: negative dust after base fee distribution (block=%s epoch=%s dust=%s)", header.Number, epochBlock, dust)
+	}
+	if dust.Sign() != 0 {
+		dustU256, overflow := uint256.FromBig(dust)
+		if overflow {
+			return fmt.Errorf("WBFT: dust overflows uint256 (block=%s epoch=%s dust=%s)", header.Number, epochBlock, dust)
+		}
+		state.AddBalance(header.Coinbase, dustU256)
+	}
+
 	return nil
 }
 
