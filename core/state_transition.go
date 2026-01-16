@@ -571,10 +571,9 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		fee.Mul(fee, effectiveTipU256)
 		st.state.AddBalance(st.evm.Context.Coinbase, fee)
 
-		payer := sender.Address()
 		// fee delegation
 		if st.msg.FeePayer != nil {
-			payer = *st.msg.FeePayer
+			payer := *st.msg.FeePayer
 			if rules.IsAnzeon && st.state.IsBlacklisted(payer) {
 				return nil, &ErrBlacklistedAccount{Address: payer}
 			}
