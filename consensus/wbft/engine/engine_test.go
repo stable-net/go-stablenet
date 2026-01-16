@@ -967,7 +967,7 @@ func TestBaseFeeDistribution(t *testing.T) {
 			baseFee          uint64
 			gasUsed          uint64
 			proposers        []int
-			diligences       [][]uint64 // Only creating epochInfo when block is epoch block
+			diligences       [][]uint64 // EpochInfo is only applied on epoch blocks
 			expectedBalances [][]string
 		}{
 			{
@@ -1035,72 +1035,86 @@ func TestBaseFeeDistribution(t *testing.T) {
 				},
 			},
 		}
+
 		for _, tc := range testCases {
-			var parent *types.Header
+			tc := tc // capture loop variable
+			t.Run(tc.name, func(t *testing.T) {
+				var parent *types.Header
 
-			// Setup signers
-			signers := newAccounts(tc.totValidators)
+				// Setup signers
+				signers := newAccounts(tc.totValidators)
 
-			// Setup test chain genesis
-			c := new(fakeChain)
-			c.chainConfig = params.TestWBFTChainConfig
-			updateChainConfig(c.chainConfig, signers)
+				// Setup test chain genesis
+				c := new(fakeChain)
+				c.chainConfig = params.TestWBFTChainConfig
+				updateChainConfig(c.chainConfig, signers)
 
-			wbftCfg := new(wbft.Config)
-			wbft.SetConfigFromChainConfig(wbftCfg, c.chainConfig)
-			wbftCfg.Epoch = 3
+				wbftCfg := new(wbft.Config)
+				wbft.SetConfigFromChainConfig(wbftCfg, c.chainConfig)
+				wbftCfg.Epoch = 3
 
-			engine := NewEngine(wbftCfg, common.Address{}, nil, nil)
-			parent = makeGenesis(signers)
-			c.insertHeader(parent)
+				engine := NewEngine(wbftCfg, common.Address{}, nil, nil)
+				parent = makeGenesis(signers)
+				c.insertHeader(parent)
 
-			db := rawdb.NewMemoryDatabase()
-			tdb := state.NewDatabase(db)
-			statedb, _ := state.New(types.EmptyRootHash, tdb, nil)
+				db := rawdb.NewMemoryDatabase()
+				tdb := state.NewDatabase(db)
+				statedb, _ := state.New(types.EmptyRootHash, tdb, nil)
 
-			for i, author := range tc.proposers {
-				h := makeHeader(parent)
-				h.Coinbase = signers[author].addr
-				h.BaseFee = new(big.Int).SetUint64(tc.baseFee)
-				h.GasUsed = tc.gasUsed
+				for blkIdx, author := range tc.proposers {
+					h := makeHeader(parent)
+					h.Coinbase = signers[author].addr
+					h.BaseFee = new(big.Int).SetUint64(tc.baseFee)
+					h.GasUsed = tc.gasUsed
 
-				if err := engine.distributeBaseFee(c, h, statedb); err != nil {
-					t.Error(err)
-				}
+					require.NoError(t, engine.distributeBaseFee(c, h, statedb), "block=%d", blkIdx)
 
-				if isEpoch, _, _ := engine.IsEpochBlockNumber(c.chainConfig, h.Number); isEpoch {
-					epoch := new(big.Int).Div(h.Number, new(big.Int).SetUint64(wbftCfg.Epoch))
-					if epoch.Cmp(common.Big0) == 0 {
-						continue
+					isEpoch, _, err := engine.IsEpochBlockNumber(c.chainConfig, h.Number)
+					require.NoError(t, err, "block=%d", blkIdx)
+
+					if isEpoch {
+						epoch := new(big.Int).Div(h.Number, new(big.Int).SetUint64(wbftCfg.Epoch))
+						if epoch.Sign() != 0 {
+							epochIdx := int(epoch.Int64())
+							diligences := tc.diligences[epochIdx]
+
+							candidates := make([]*types.Candidate, 0, tc.totValidators)
+							validators := make([]uint32, 0, tc.totValidators)
+							for valIdx, diligence := range diligences {
+								candidates = append(candidates, &types.Candidate{
+									Addr:      signers[valIdx].addr,
+									Diligence: diligence,
+								})
+								validators = append(validators, uint32(valIdx))
+							}
+
+							epochInfo := &types.EpochInfo{
+								Candidates: candidates,
+								Validators: validators,
+							}
+
+							ApplyHeaderWBFTExtra(h, WriteEpochInfo(epochInfo))
+						}
 					}
-					diligences := tc.diligences[epoch.Int64()]
 
-					candidates := make([]*types.Candidate, 0, tc.totValidators)
-					validators := make([]uint32, 0, tc.totValidators)
-					for i, diligence := range diligences {
-						candidates = append(candidates, &types.Candidate{
-							Addr:      signers[i].addr,
-							Diligence: diligence,
-						})
-						validators = append(validators, uint32(i))
+					for valIdx, signer := range signers {
+						balance := statedb.GetBalance(signer.addr)
+						want := uint256.MustFromDecimal(tc.expectedBalances[blkIdx][valIdx])
+						require.Equal(
+							t,
+							want,
+							balance,
+							"case=%s block=%d validator=%d",
+							tc.name,
+							blkIdx,
+							valIdx,
+						)
 					}
 
-					epochInfo := &types.EpochInfo{
-						Candidates: candidates,
-						Validators: validators,
-					}
-
-					ApplyHeaderWBFTExtra(h, WriteEpochInfo(epochInfo))
+					c.insertHeader(h)
+					parent = h
 				}
-
-				for j, signer := range signers {
-					balance := statedb.GetBalance(signer.addr)
-					require.Equal(t, uint256.MustFromDecimal(tc.expectedBalances[i][j]), balance)
-				}
-
-				c.insertHeader(h)
-				parent = h
-			}
+			})
 		}
 	})
 }
