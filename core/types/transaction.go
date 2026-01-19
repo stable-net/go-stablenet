@@ -71,6 +71,9 @@ type Transaction struct {
 
 	// WEMIX fee delegation
 	feePayer atomic.Value
+
+	// Anzeon gas tip cap cache (set during pool validation, used during reheap)
+	anzeonTipCap atomic.Value
 }
 
 // NewTx creates a new transaction.
@@ -390,7 +393,12 @@ func (tx *Transaction) EffectiveGasTip(anzeonTipEnv AnzeonGasTipEnv) (*big.Int, 
 	if gasFeeCap.Cmp(anzeonTipEnv.GetBaseFee()) == -1 {
 		err = ErrGasFeeCapTooLow
 	}
-	return math.BigMin(anzeonTipEnv.GetAnzeonTipCap(tx), gasFeeCap.Sub(gasFeeCap, anzeonTipEnv.GetBaseFee())), err
+	// Use cached tipCap if available, otherwise fetch from anzeonTipEnv
+	tipCap := tx.GetAnzeonTipCap()
+	if tipCap == nil {
+		tipCap = anzeonTipEnv.GetAnzeonTipCap(tx)
+	}
+	return math.BigMin(tipCap, new(big.Int).Sub(gasFeeCap, anzeonTipEnv.GetBaseFee())), err
 }
 
 // EffectiveGasTipValue is identical to EffectiveGasTip, but does not return an
@@ -398,6 +406,22 @@ func (tx *Transaction) EffectiveGasTip(anzeonTipEnv AnzeonGasTipEnv) (*big.Int, 
 func (tx *Transaction) EffectiveGasTipValue(anzeonTipEnv AnzeonGasTipEnv) *big.Int {
 	effectiveTip, _ := tx.EffectiveGasTip(anzeonTipEnv)
 	return effectiveTip
+}
+
+// SetAnzeonTipCap caches the Anzeon tip cap for this transaction.
+// This is set during pool validation to avoid repeated state queries during reheap.
+func (tx *Transaction) SetAnzeonTipCap(tipCap *big.Int) {
+	if tipCap != nil {
+		tx.anzeonTipCap.Store(new(big.Int).Set(tipCap))
+	}
+}
+
+// GetAnzeonTipCap returns the cached Anzeon tip cap, or nil if not cached.
+func (tx *Transaction) GetAnzeonTipCap() *big.Int {
+	if cached := tx.anzeonTipCap.Load(); cached != nil {
+		return cached.(*big.Int)
+	}
+	return nil
 }
 
 // EffectiveGasTipCmp compares the effective gasTipCap of two transactions assuming the given base fee.

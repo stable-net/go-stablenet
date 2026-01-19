@@ -217,6 +217,10 @@ type ValidationOptionsWithState struct {
 	// ExistingCost is a mandatory callback to retrieve an already pooled
 	// transaction's cost with the given nonce to check for overdrafts.
 	ExistingCost func(addr common.Address, nonce uint64) *big.Int
+
+	// AnzeonTipEnv is an optional environment for computing and caching
+	// the Anzeon gas tip cap during validation to avoid repeated state queries during reheap.
+	AnzeonTipEnv types.AnzeonGasTipEnv
 }
 
 // ValidateTransactionWithState is a helper method to check whether a transaction
@@ -317,5 +321,13 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 			}
 		}
 	*/
+
+	// Cache the Anzeon tip cap to avoid repeated state queries during reheap
+	// Only cache if not already set (to preserve original value during reinject)
+	if opts.AnzeonTipEnv != nil && tx.GetAnzeonTipCap() == nil {
+		tipCap := opts.AnzeonTipEnv.GetAnzeonTipCap(tx)
+		tx.SetAnzeonTipCap(tipCap)
+	}
+
 	return nil
 }

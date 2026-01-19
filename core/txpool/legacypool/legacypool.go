@@ -688,6 +688,7 @@ func (pool *LegacyPool) validateTx(tx *types.Transaction, local bool) error {
 			}
 			return nil
 		},
+		AnzeonTipEnv: pool.anzeonTipEnv, // Enable caching of Anzeon tip cap during validation
 	}
 	if err := txpool.ValidateTransactionWithState(tx, pool.signer, opts); err != nil {
 		return err
