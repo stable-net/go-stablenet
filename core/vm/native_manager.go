@@ -157,6 +157,39 @@ func (evm *EVM) runNativeManager(m NativeManagerContract, op OpCode, caller Cont
 }
 
 // ============================================================================
+// Coin Manager helper functions
+// ============================================================================
+
+// nativeTransfer performs a direct balance transfer without invoking receive()/fallback().
+// It handles account creation if needed and emits a Transfer log.
+// Returns remaining gas and any error.
+func nativeTransfer(evm *EVM, from, to common.Address, amount *uint256.Int, suppliedGas uint64) (uint64, error) {
+	if !amount.IsZero() {
+		gasCost := params.UpdateBalanceGas
+		transfer := from != zeroAddress
+		if transfer {
+			gasCost += params.UpdateBalanceGas // subBalance for transfer
+		}
+		if !evm.StateDB.Exist(to) {
+			gasCost += params.CallNewAccountGas
+		}
+
+		if suppliedGas < gasCost {
+			return 0, ErrOutOfGas
+		}
+		suppliedGas -= gasCost
+
+		if transfer {
+			evm.StateDB.SubBalance(from, amount)
+		}
+		evm.StateDB.AddBalance(to, amount)
+	}
+	evm.AddTransferLog(from, to, amount)
+
+	return suppliedGas, nil
+}
+
+// ============================================================================
 // Coin Manager methods
 // ============================================================================
 
@@ -171,27 +204,8 @@ func (c *coinManagerMint) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte
 	to := common.BytesToAddress(data[0:32])
 	amount := uint256.MustFromBig(new(big.Int).SetBytes(data[32:64]))
 
-	gasCost := params.UpdateBalanceGas
-	if !evm.StateDB.Exist(to) {
-		gasCost += params.CallNewAccountGas
-	}
-
-	if suppliedGas < gasCost {
-		return nil, 0, ErrOutOfGas
-	}
-	suppliedGas -= gasCost
-
-	// Temporarily increase 0x0 balance to enable mint transfer to receiver
-	evm.StateDB.AddBalance(zeroAddress, amount)
-
-	// Note: evm.depth is not incremented for coin_manager calls because
-	// it is already increased when the coin_manager itself is invoked.
-	// No further increment is needed here.
-	//
-	// evm.Call is used so that when transferring to a contract address,
-	// its receive() or fallback() function is properly invoked instead of
-	// just updating balances directly.
-	return evm.Call(AccountRef(zeroAddress), to, nil, suppliedGas, amount)
+	leftOverGas, err := nativeTransfer(evm, zeroAddress, to, amount, suppliedGas)
+	return nil, leftOverGas, err
 }
 
 // coinManagerBurn implemented as a native contract method.
@@ -233,30 +247,13 @@ func (c *coinManagerTransfer) Run(evm *EVM, data []byte, suppliedGas uint64) ([]
 	to := common.BytesToAddress(data[32:64])
 	amount := uint256.MustFromBig(new(big.Int).SetBytes(data[64:96]))
 
-	gasCost := 2 * params.UpdateBalanceGas // addBalance, subBalance
-	if !evm.StateDB.Exist(to) {
-		gasCost += params.CallNewAccountGas
+	// Validate balance before transfer
+	if !evm.Context.CanTransfer(evm.StateDB, from, amount) {
+		return nil, suppliedGas, ErrInsufficientBalance
 	}
 
-	if suppliedGas < gasCost {
-		return nil, 0, ErrOutOfGas
-	}
-	suppliedGas -= gasCost
-
-	// Note: evm.depth is not incremented for coin_manager calls because
-	// it is already increased when the coin_manager itself is invoked.
-	// No further increment is needed here.
-	//
-	// evm.Call is used so that when transferring to a contract address,
-	// its receive() or fallback() function is properly invoked instead of
-	// just updating balances directly.
-	ret, leftOverGas, err := evm.Call(AccountRef(from), to, nil, suppliedGas, amount)
-
-	// Transfer event emission for 0-value transfer (ERC20)
-	if err == nil && amount.IsZero() {
-		evm.AddTransferLog(from, to, amount)
-	}
-	return ret, leftOverGas, err
+	leftOverGas, err := nativeTransfer(evm, from, to, amount, suppliedGas)
+	return nil, leftOverGas, err
 }
 
 // ============================================================================
