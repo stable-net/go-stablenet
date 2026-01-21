@@ -1,0 +1,152 @@
+{
+    "context": {
+        "difficulty": "0",
+        "gasLimit": "8000000",
+        "miner": "0x0000000000000000000000000000000000000000",
+        "number": "1",
+        "timestamp": "1000"
+    },
+    "genesis": {
+        "baseFeePerGas": "7",
+        "alloc": {
+            "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720": {
+                "balance": "0x10000000000000000",
+                "nonce": "0",
+                "code": "0x",
+                "storage": {}
+            },
+            "0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC": {
+                "balance": "0x0",
+                "nonce": "0",
+                "code": "0x6080604052348015600f57600080fd5b506004361060285760003560e01c8063522bb70414602d575b600080fd5b603c603836600460ab565b603e565b005b604051630d32127360e01b81526001600160a01b038216600482015261100490630d321273906024016020604051808303816000875af11580156085573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019060a7919060d9565b5050565b60006020828403121560bc57600080fd5b81356001600160a01b038116811460d257600080fd5b9392505050565b60006020828403121560ea57600080fd5b505191905056fea26469706673582212206e2aaa48a46167df1d072a7c28587e9ef3bd5521ea7170d06fea1a1d4f6ce28764736f6c634300080e0033",
+                "storage": {}
+            },
+            "0x0000000000000000000000000000000000001004": {
+                "balance": "0x0",
+                "nonce": "0",
+                "code": "0x",
+                "storage": {}
+            }
+        },
+        "config": {
+            "chainId": 1,
+            "homesteadBlock": 0,
+            "eip150Block": 0,
+            "eip155Block": 0,
+            "eip158Block": 0,
+            "byzantiumBlock": 0,
+            "constantinopleBlock": 0,
+            "petersburgBlock": 0,
+            "istanbulBlock": 0,
+            "berlinBlock": 0,
+            "londonBlock": 0,
+            "terminalTotalDifficulty": 0,
+            "anzeon": {
+                "wbft": {
+                    "requestTimeoutSeconds": 2,
+                    "blockPeriodSeconds": 1,
+                    "epochLength": 10,
+                    "proposerPolicy": 0,
+                    "maxRequestTimeoutSeconds": null
+                },
+                "init": {
+                    "validators": ["0x45dfd9f6da52abaee54ad49226c698e45b2f3777"],
+                    "blsPublicKeys": ["0x92272a6e9692aa2ffe724257fe911e17189c5081b73c55ba1aacbd81248b6261fbfc5578c46407b94ba8dcdf6f8c926b"]
+                },
+                "systemContracts": {
+                    "govValidator": {
+                        "address": "0x0000000000000000000000000000000000001001",
+                        "version": "v1",
+                        "params": {
+                            "blsPublicKeys": "0x92272a6e9692aa2ffe724257fe911e17189c5081b73c55ba1aacbd81248b6261fbfc5578c46407b94ba8dcdf6f8c926b",
+                            "expiry": "604800",
+                            "maxProposals": "3",
+                            "memberVersion": "1",
+                            "members": "0x45dFD9F6dA52AbaeE54AD49226c698e45b2f3777",
+                            "quorum": "1",
+                            "validators": "0x45dFD9F6dA52AbaeE54AD49226c698e45b2f3777"
+                        }
+                    },
+                    "nativeCoinAdapter": {
+                        "address": "0x0000000000000000000000000000000000001000",
+                        "version": "v1",
+                        "params": {
+                            "currency": "KRW",
+                            "decimals": "18",
+                            "masterMinter": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+                            "minterAllowed": "10000000000000000000000000000",
+                            "minters": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+                            "name": "KRC1",
+                            "symbol": "KRC1"
+                        }
+                    },
+                    "govCouncil": {
+                        "address": "0x0000000000000000000000000000000000001004",
+                        "version": "v1",
+                        "params": {
+                            "members": "0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+                            "quorum": "1",
+                            "expiry": "604800",
+                            "memberVersion": "1",
+                            "maxProposals": "3"
+                        }
+                    }
+                }
+            }
+        },
+        "difficulty": "0",
+        "extraData": "0x",
+        "gasLimit": "8000000",
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "miner": "0x0000000000000000000000000000000000000000",
+        "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "nonce": "0x0000000000000000",
+        "number": "0",
+        "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "timestamp": "0"
+    },
+    "input": "0xf88880843b9aca00831e848094cccccccccccccccccccccccccccccccccccccccc80a4522bb704000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb26a008a77e6c9b0351bff3af64f9518473e661c71577d53256112f3609727fd974e0a03d04a8cc58e2e454b905333b5958c88ce28d6eb646aad06b751f9ef7057b094f",
+    "tracerConfig": {},
+    "result": {
+        "from": "0xa0ee7a142d267c1f36714e4a8f75612f20a79720",
+        "gas": "0x1e8480",
+        "gasUsed": "0x63a12",
+        "to": "0xcccccccccccccccccccccccccccccccccccccccc",
+        "input": "0x522bb704000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "calls": [
+            {
+                "from": "0xcccccccccccccccccccccccccccccccccccccccc",
+                "gas": "0x1dacb1",
+                "gasUsed": "0x675a2",
+                "to": "0x0000000000000000000000000000000000001004",
+                "input": "0x0d321273000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "output": "0x0000000000000000000000000000000000000000000000000000000000000001",
+                "calls": [
+                    {
+                        "from": "0x0000000000000000000000000000000000001004",
+                        "gas": "0x18a5cf",
+                        "gasUsed": "0x733c",
+                        "to": "0x0000000000000000000000000000000000b00003",
+                        "input": "0xf9f92be4000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                        "calls": [
+                            {
+                                "from": "0x0000000000000000000000000000000000b00003",
+                                "gas": "0x18a5cf",
+                                "gasUsed": "0x733c",
+                                "to": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                                "input": "0xf9f92be4000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                                "type": "CALL"
+                            }
+                        ],
+                        "value": "0x0",
+                        "type": "CALL"
+                    }
+                ],
+                "value": "0x0",
+                "type": "CALL"
+            }
+        ],
+        "value": "0x0",
+        "type": "CALL"
+    }
+}

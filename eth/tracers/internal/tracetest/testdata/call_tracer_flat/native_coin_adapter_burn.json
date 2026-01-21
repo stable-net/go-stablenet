@@ -1,0 +1,140 @@
+{
+    "context": {
+        "difficulty": "0",
+        "gasLimit": "8000000",
+        "miner": "0x0000000000000000000000000000000000000000",
+        "number": "1",
+        "timestamp": "1000"
+    },
+    "genesis": {
+        "baseFeePerGas": "7",
+        "alloc": {
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b": {
+                "balance": "0x10000000000000000",
+                "nonce": "0",
+                "code": "0x",
+                "storage": {}
+            }
+        },
+        "config": {
+            "chainId": 1,
+            "homesteadBlock": 0,
+            "eip150Block": 0,
+            "eip155Block": 0,
+            "eip158Block": 0,
+            "byzantiumBlock": 0,
+            "constantinopleBlock": 0,
+            "petersburgBlock": 0,
+            "istanbulBlock": 0,
+            "berlinBlock": 0,
+            "londonBlock": 0,
+            "terminalTotalDifficulty": 0,
+            "anzeon": {
+                "wbft": {
+                    "requestTimeoutSeconds": 2,
+                    "blockPeriodSeconds": 1,
+                    "epochLength": 10,
+                    "proposerPolicy": 0,
+                    "maxRequestTimeoutSeconds": null
+                },
+                "init": {
+                    "validators": ["0x45dfd9f6da52abaee54ad49226c698e45b2f3777"],
+                    "blsPublicKeys": ["0x92272a6e9692aa2ffe724257fe911e17189c5081b73c55ba1aacbd81248b6261fbfc5578c46407b94ba8dcdf6f8c926b"]
+                },
+                "systemContracts": {
+                    "govValidator": {
+                        "address": "0x0000000000000000000000000000000000001001",
+                        "version": "v1",
+                        "params": {
+                            "blsPublicKeys": "0x92272a6e9692aa2ffe724257fe911e17189c5081b73c55ba1aacbd81248b6261fbfc5578c46407b94ba8dcdf6f8c926b",
+                            "expiry": "604800",
+                            "maxProposals": "3",
+                            "memberVersion": "1",
+                            "members": "0x45dFD9F6dA52AbaeE54AD49226c698e45b2f3777",
+                            "quorum": "1",
+                            "validators": "0x45dFD9F6dA52AbaeE54AD49226c698e45b2f3777"
+                        }
+                    },
+                    "nativeCoinAdapter": {
+                        "address": "0x0000000000000000000000000000000000001000",
+                        "version": "v1",
+                        "params": {
+                            "currency": "KRW",
+                            "decimals": "18",
+                            "masterMinter": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+                            "minterAllowed": "10000000000000000000000000000",
+                            "minters": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+                            "name": "KRC1",
+                            "symbol": "KRC1"
+                        }
+                    },
+                    "govMinter": {
+                        "address": "0x0000000000000000000000000000000000001003",
+                        "version": "v1",
+                        "params": {
+                            "expiry": "604800",
+                            "fiatToken": "0x0000000000000000000000000000000000001000",
+                            "maxProposals": "3",
+                            "memberVersion": "1",
+                            "members": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+                            "quorum": "1"
+                        }
+                    },
+                    "govMasterMinter": {
+                        "address": "0x0000000000000000000000000000000000001002",
+                        "version": "v1",
+                        "params": {
+                            "expiry": "604800",
+                            "fiatToken": "0x0000000000000000000000000000000000001000",
+                            "maxMinterAllowance": "10000000000000000000000000000",
+                            "maxProposals": "3",
+                            "memberVersion": "1",
+                            "members": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+                            "minters": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+                            "quorum": "1"
+                        }
+                    },
+                    "govCouncil": {
+                        "address": "0x0000000000000000000000000000000000001004",
+                        "version": "v1",
+                        "params": null
+                    }
+                }
+            }
+        },
+        "difficulty": "0",
+        "extraData": "0x",
+        "gasLimit": "8000000",
+        "hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "miner": "0x0000000000000000000000000000000000000000",
+        "mixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "nonce": "0x0000000000000000",
+        "number": "0",
+        "stateRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+        "timestamp": "0"
+    },
+    "input": "0xf884800a830186a094000000000000000000000000000000000000100080a442966c68000000000000000000000000000000000000000000000000016345785d8a000026a005e2d16a0ce60688393f315950418a116ee8bbdf9680090551f219aa9c4433eba0685289aee98dce77a05ab956d69b267832ac571cc59fcef17f768a495ccb13df",
+    "result": [
+        {
+            "action": {
+                "author": "0x0000000000000000000000000000000000000000",
+                "address": "0x0000000000000000000000000000000000000000",
+                "balance": "0x0",
+                "callType": "call",
+                "from": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+                "gas": "0x186a0",
+                "input": "0x42966c68000000000000000000000000000000000000000000000000016345785d8a0000",
+                "refundAddress": "0x0000000000000000000000000000000000000000",
+                "to": "0x0000000000000000000000000000000000001000",
+                "value": "0x0"
+            },
+            "result": {
+                "address": "0x0000000000000000000000000000000000000000",
+                "gasUsed": "0x9fbf"
+            },
+            "subtraces": 0,
+            "traceAddress": [],
+            "type": "call"
+        }
+    ]
+}
