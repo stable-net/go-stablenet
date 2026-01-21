@@ -362,6 +362,21 @@ func (t *prestateTracer) lookupAccount(addr common.Address) {
 	}
 }
 
+// CaptureEnter is called when EVM enters a new scope (via call, create or selfdestruct).
+func (t *prestateTracer) CaptureEnter(typ vm.OpCode, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
+	// Only capture prestate for state-modifying calls, specifically targeting NativeManager interactions
+	if !t.env.ChainConfig().AnzeonEnabled() || typ != vm.CALL {
+		return
+	}
+
+	if from != (common.Address{}) {
+		t.lookupAccount(from)
+	}
+	if to != (common.Address{}) {
+		t.lookupAccount(to)
+	}
+}
+
 // lookupStorage fetches the requested storage slot and adds
 // it to the prestate of the given contract. It assumes `lookupAccount`
 // has been performed on the contract before.
