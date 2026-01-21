@@ -23,6 +23,7 @@ import (
 	"io"
 	"math/big"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -50,7 +51,6 @@ import (
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/hashdb"
 	"github.com/ethereum/go-ethereum/triedb/pathdb"
-	"golang.org/x/exp/slices"
 )
 
 var (

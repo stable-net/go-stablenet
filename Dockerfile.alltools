@@ -3,21 +3,10 @@ ARG COMMIT=""
 ARG VERSION=""
 ARG BUILDNUM=""
 
-# Build Gstable in a stock Go builder container
-FROM golang:1.21-alpine AS builder
+# Build Geth in a stock Go builder container
+FROM golang:1.22-alpine as builder
 
-RUN apk add --no-cache gcc musl-dev linux-headers git ca-certificates openssl
-
-# Define the location for custom certificates
-ARG cert_location=/usr/local/share/ca-certificates
-
-# Fetch and install certificates for github.com and proxy.golang.org
-RUN openssl s_client -showcerts -connect github.com:443 </dev/null 2>/dev/null | \
-    openssl x509 -outform PEM > ${cert_location}/github.crt && \
-    update-ca-certificates
-RUN openssl s_client -showcerts -connect proxy.golang.org:443 </dev/null 2>/dev/null | \
-    openssl x509 -outform PEM > ${cert_location}/proxy.golang.crt && \
-    update-ca-certificates
+RUN apk add --no-cache gcc musl-dev linux-headers git
 
 # Get dependencies - will also be cached if we won't change go.mod/go.sum
 COPY go.mod /go-ethereum/

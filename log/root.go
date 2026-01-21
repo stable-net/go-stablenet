@@ -4,7 +4,7 @@ import (
 	"os"
 	"sync/atomic"
 
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 var root atomic.Value

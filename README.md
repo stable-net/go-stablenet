@@ -234,7 +234,7 @@ Here's a sample code snippet for the Anzeon config:
 
 For prerequisites and detailed build instructions please read the [Installation Instructions](https://geth.ethereum.org/docs/getting-started/installing-geth).
 
-Building `gstable` requires both a Go (version 1.19 or later) and a C compiler. You can install
+Building `gstable` requires both a Go (version 1.22 or later) and a C compiler. You can install
 them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell
