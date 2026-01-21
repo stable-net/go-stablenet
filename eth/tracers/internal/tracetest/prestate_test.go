@@ -37,35 +37,42 @@ import (
 type prestateTrace = map[common.Address]*account
 
 type account struct {
-	Balance string                      `json:"balance"`
-	Code    string                      `json:"code"`
-	Nonce   uint64                      `json:"nonce"`
-	Storage map[common.Hash]common.Hash `json:"storage"`
+	Balance string                      `json:"balance,omitempty"`
+	Code    string                      `json:"code,omitempty"`
+	Nonce   uint64                      `json:"nonce,omitempty"`
+	Storage map[common.Hash]common.Hash `json:"storage,omitempty"`
 	Extra   uint64                      `json:"extra,omitempty"`
 }
 
+// prestateTraceDiffResult is the result when diffMode is enabled.
+type prestateTraceDiffResult struct {
+	Post prestateTrace `json:"post"`
+	Pre  prestateTrace `json:"pre"`
+}
+
 // testcase defines a single test to check the stateDiff tracer against.
-type testcase struct {
+// T is the result type (prestateTrace or prestateTraceDiffResult).
+type testcase[T any] struct {
 	Genesis      *core.Genesis   `json:"genesis"`
 	Context      *callContext    `json:"context"`
 	Input        string          `json:"input"`
 	TracerConfig json.RawMessage `json:"tracerConfig"`
-	Result       interface{}     `json:"result"`
+	Result       T               `json:"result"`
 }
 
 func TestPrestateTracerLegacy(t *testing.T) {
-	testPrestateDiffTracer("prestateTracerLegacy", "prestate_tracer_legacy", t)
+	testPrestateTracer[prestateTrace]("prestateTracerLegacy", "prestate_tracer_legacy", t)
 }
 
 func TestPrestateTracer(t *testing.T) {
-	testPrestateDiffTracer("prestateTracer", "prestate_tracer", t)
+	testPrestateTracer[prestateTrace]("prestateTracer", "prestate_tracer", t)
 }
 
 func TestPrestateWithDiffModeTracer(t *testing.T) {
-	testPrestateDiffTracer("prestateTracer", "prestate_tracer_with_diff_mode", t)
+	testPrestateTracer[prestateTraceDiffResult]("prestateTracer", "prestate_tracer_with_diff_mode", t)
 }
 
-func testPrestateDiffTracer(tracerName string, dirPath string, t *testing.T) {
+func testPrestateTracer[T any](tracerName string, dirPath string, t *testing.T) {
 	files, err := os.ReadDir(filepath.Join("testdata", dirPath))
 	if err != nil {
 		t.Fatalf("failed to retrieve tracer test suite: %v", err)
@@ -79,7 +86,7 @@ func testPrestateDiffTracer(tracerName string, dirPath string, t *testing.T) {
 			t.Parallel()
 
 			var (
-				test = new(testcase)
+				test = new(testcase[T])
 				tx   = new(types.Transaction)
 			)
 			// Call tracer test found, read if from disk
@@ -92,6 +99,12 @@ func testPrestateDiffTracer(tracerName string, dirPath string, t *testing.T) {
 				t.Fatalf("failed to parse testcase input: %v", err)
 			}
 			// Configure a blockchain with the given prestate
+			// Inject Anzeon system contracts if applicable
+			if test.Genesis.Config.AnzeonEnabled() {
+				if err := core.InjectContracts(test.Genesis, test.Genesis.Config); err != nil {
+					t.Fatalf("failed to inject contracts: %v", err)
+				}
+			}
 			var (
 				signer  = types.MakeSigner(test.Genesis.Config, new(big.Int).SetUint64(uint64(test.Context.Number)), uint64(test.Context.Time))
 				context = vm.BlockContext{
@@ -128,14 +141,15 @@ func testPrestateDiffTracer(tracerName string, dirPath string, t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to retrieve trace result: %v", err)
 			}
-			// The legacy javascript calltracer marshals json in js, which
-			// is not deterministic (as opposed to the golang json encoder).
-			if strings.HasSuffix(dirPath, "_legacy") {
-				// This is a tweak to make it deterministic. Can be removed when
-				// we remove the legacy tracer.
-				var x prestateTrace
-				json.Unmarshal(res, &x)
-				res, _ = json.Marshal(x)
+			// Normalize tracer result by unmarshaling into type T and re-marshaling.
+			// This ensures the output uses the same struct definition as the expected result.
+			var resObj T
+			if err := json.Unmarshal(res, &resObj); err != nil {
+				t.Fatalf("failed to unmarshal tracer result: %v", err)
+			}
+			res, err = json.Marshal(resObj)
+			if err != nil {
+				t.Fatalf("failed to marshal normalized result: %v", err)
 			}
 			want, err := json.Marshal(test.Result)
 			if err != nil {
