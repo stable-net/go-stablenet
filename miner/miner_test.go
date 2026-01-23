@@ -69,6 +69,7 @@ type testBlockChain struct {
 	config        *params.ChainConfig
 	statedb       *state.StateDB
 	gasLimit      uint64
+	baseFee       *big.Int
 	chainHeadFeed *event.Feed
 }
 
@@ -80,6 +81,7 @@ func (bc *testBlockChain) CurrentBlock() *types.Header {
 	return &types.Header{
 		Number:   new(big.Int),
 		GasLimit: bc.gasLimit,
+		BaseFee:  bc.baseFee,
 	}
 }
 
@@ -315,7 +317,8 @@ func createMiner(t *testing.T) (*Miner, *event.TypeMux, func(skipMiner bool)) {
 		t.Fatalf("can't create new chain %v", err)
 	}
 	statedb, _ := state.New(bc.Genesis().Root(), bc.StateCache(), nil)
-	blockchain := &testBlockChain{bc.Genesis().Root(), chainConfig, statedb, 10000000, new(event.Feed)}
+	genesisBaseFee := bc.Genesis().Header().BaseFee
+	blockchain := &testBlockChain{bc.Genesis().Root(), chainConfig, statedb, 10000000, genesisBaseFee, new(event.Feed)}
 
 	pool := legacypool.New(testTxPoolConfig, blockchain)
 	txpool, _ := txpool.New(testTxPoolConfig.PriceLimit, blockchain, []txpool.SubPool{pool})
