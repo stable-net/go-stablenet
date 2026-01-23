@@ -85,6 +85,12 @@ func flatCallTracerTestRunner(tracerName string, filename string, dirPath string
 	if err := rlp.DecodeBytes(common.FromHex(test.Input), tx); err != nil {
 		return fmt.Errorf("failed to parse testcase input: %v", err)
 	}
+	// Inject Anzeon system contracts if applicable
+	if test.Genesis.Config.AnzeonEnabled() {
+		if err := core.InjectContracts(&test.Genesis, test.Genesis.Config); err != nil {
+			return fmt.Errorf("failed to inject contracts: %v", err)
+		}
+	}
 	signer := types.MakeSigner(test.Genesis.Config, new(big.Int).SetUint64(uint64(test.Context.Number)), uint64(test.Context.Time))
 	context := vm.BlockContext{
 		CanTransfer: core.CanTransfer,
@@ -94,6 +100,7 @@ func flatCallTracerTestRunner(tracerName string, filename string, dirPath string
 		Time:        uint64(test.Context.Time),
 		Difficulty:  (*big.Int)(test.Context.Difficulty),
 		GasLimit:    uint64(test.Context.GasLimit),
+		BaseFee:     test.Genesis.BaseFee,
 	}
 	state := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false, rawdb.HashScheme)
 	defer state.Close()

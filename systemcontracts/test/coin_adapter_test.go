@@ -168,6 +168,44 @@ func TestTransferLog(t *testing.T) {
 			require.True(t, transferAmount.Cmp(transferEvent["value"].(*big.Int)) == 0)
 		}
 	})
+
+	t.Run("transfer to contract", func(t *testing.T) {
+		dir := t.TempDir()
+		filename := "Test.sol"
+		testSource := `pragma solidity ^0.8.0;
+		interface CoinAdapter { function transfer(address to, uint256 amount) external; } 
+		contract TestContract{
+			receive() external payable {
+				revert("Test Revert");
+			}
+		}`
+
+		require.NoError(t, os.WriteFile(filepath.Join(dir, filename), []byte(testSource), 0700))
+		compiled, err := compile.Compile(dir, filepath.Join(dir, filename))
+		require.NoError(t, err)
+
+		testContract, err := newBindContract(compiled["TestContract"])
+		require.NoError(t, err)
+
+		tcAddr, deployTx, _, err := testContract.Deploy(g.backend.Client(), g.owner)
+		_, err = g.ExpectedOk(deployTx, err)
+		require.NoError(t, err)
+
+		// tx.value
+		ExpectedRevert(t, g.ExpectedFail(TransferCoin(g.backend.Client(), NewTxOpts(t, sender), big.NewInt(1), &tcAddr)), "Test Revert")
+
+		// transfer
+		{
+			receipt, err := g.ExpectedOk(g.Transfer(t, sender, tcAddr, big.NewInt(1)))
+			require.NoError(t, err)
+
+			transferEvent := findEvent("Transfer", receipt.Logs)
+
+			require.Equal(t, sender.Address, transferEvent["from"].(common.Address))
+			require.Equal(t, tcAddr, transferEvent["to"].(common.Address))
+			require.True(t, big.NewInt(1).Cmp(transferEvent["value"].(*big.Int)) == 0)
+		}
+	})
 }
 
 func TestNativeCoinAdapter(t *testing.T) {

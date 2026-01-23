@@ -66,9 +66,9 @@ type NativeManagerMethodSelector [SELECTOR_LENGTH]byte
 
 // NativeManagerMethod defines the interface for native manager contract methods.
 type NativeManagerMethod interface {
-	ParamCount() int                                                       // returns the number of expected parameters for the method.
-	CanRun(evm *EVM, op OpCode, caller ContractRef) error                  // checks whether the method can be executed in the current context.
-	Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) // executes the native manager method
+	ParamCount() int                                                        // returns the number of expected parameters for the method.
+	CanRun(evm *EVM, op OpCode, caller ContractRef) error                   // checks whether the method can be executed in the current context.
+	Run(evm *EVM, input []byte, suppliedGas uint64) ([]byte, uint64, error) // executes the native manager method
 }
 
 // bytesToManagerMethodSelector converts a byte slice to ManagerMethodSelector
@@ -95,12 +95,12 @@ var (
 
 // Add, Remove, Modify, etc. Managers per hardfork as follows:
 var NativeManagerContractsAnzeon = map[common.Address]NativeManagerContract{
-	params.NativeCoinManagerAddress: NativeManagerContract{
+	params.NativeCoinManagerAddress: {
 		CoinManagerMintSelector:     &coinManagerMint{},
 		CoinManagerBurnSelector:     &coinManagerBurn{},
 		CoinManagerTransferSelector: &coinManagerTransfer{},
 	},
-	params.AccountManagerAddress: NativeManagerContract{
+	params.AccountManagerAddress: {
 		AccountManagerBlacklistSelector:     &accountManagerBlacklist{},
 		AccountManagerUnBlacklistSelector:   &accountManagerUnBlacklist{},
 		AccountManagerIsBlacklistedSelector: &accountManagerIsBlacklisted{},
@@ -148,12 +148,44 @@ func (evm *EVM) runNativeManager(m NativeManagerContract, op OpCode, caller Cont
 		return nil, suppliedGas, err
 	}
 
-	data := input[SELECTOR_LENGTH:]
-	if len(data) != method.ParamCount()*LENGTH_PER_PARAM {
+	if len(input)-SELECTOR_LENGTH != method.ParamCount()*LENGTH_PER_PARAM {
 		return nil, suppliedGas, ErrInvalidInputLength
 	}
 
-	return method.Run(evm, data, suppliedGas)
+	return method.Run(evm, input, suppliedGas)
+}
+
+// ============================================================================
+// Coin Manager helper functions
+// ============================================================================
+
+// nativeTransfer performs a direct balance transfer without invoking receive()/fallback().
+// It handles account creation if needed and emits a Transfer log.
+// Returns remaining gas and any error.
+func nativeTransfer(evm *EVM, from, to common.Address, amount *uint256.Int, suppliedGas uint64) (uint64, error) {
+	if !amount.IsZero() {
+		gasCost := params.UpdateBalanceGas
+		transfer := from != zeroAddress
+		if transfer {
+			gasCost += params.UpdateBalanceGas // subBalance for transfer
+		}
+		if !evm.StateDB.Exist(to) {
+			gasCost += params.CallNewAccountGas
+		}
+
+		if suppliedGas < gasCost {
+			return 0, ErrOutOfGas
+		}
+		suppliedGas -= gasCost
+
+		if transfer {
+			evm.StateDB.SubBalance(from, amount)
+		}
+		evm.StateDB.AddBalance(to, amount)
+	}
+	evm.AddTransferLog(from, to, amount)
+
+	return suppliedGas, nil
 }
 
 // ============================================================================
@@ -167,31 +199,20 @@ func (c *coinManagerMint) ParamCount() int { return 2 }
 func (c *coinManagerMint) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return canRunCoinManger(evm, op, caller)
 }
-func (c *coinManagerMint) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *coinManagerMint) Run(evm *EVM, input []byte, suppliedGas uint64) (ret []byte, retGas uint64, err error) {
+	data := input[SELECTOR_LENGTH:]
 	to := common.BytesToAddress(data[0:32])
 	amount := uint256.MustFromBig(new(big.Int).SetBytes(data[32:64]))
 
-	gasCost := params.UpdateBalanceGas
-	if !evm.StateDB.Exist(to) {
-		gasCost += params.CallNewAccountGas
+	if evm.Config.Tracer != nil {
+		evm.Config.Tracer.CaptureEnter(CALL, zeroAddress, to, input, suppliedGas, amount.ToBig())
+		defer func(startGas uint64) {
+			evm.Config.Tracer.CaptureExit(nil, startGas-retGas, err)
+		}(suppliedGas)
 	}
 
-	if suppliedGas < gasCost {
-		return nil, 0, ErrOutOfGas
-	}
-	suppliedGas -= gasCost
-
-	// Temporarily increase 0x0 balance to enable mint transfer to receiver
-	evm.StateDB.AddBalance(zeroAddress, amount)
-
-	// Note: evm.depth is not incremented for coin_manager calls because
-	// it is already increased when the coin_manager itself is invoked.
-	// No further increment is needed here.
-	//
-	// evm.Call is used so that when transferring to a contract address,
-	// its receive() or fallback() function is properly invoked instead of
-	// just updating balances directly.
-	return evm.Call(AccountRef(zeroAddress), to, nil, suppliedGas, amount)
+	retGas, err = nativeTransfer(evm, zeroAddress, to, amount, suppliedGas)
+	return nil, retGas, err
 }
 
 // coinManagerBurn implemented as a native contract method.
@@ -201,9 +222,17 @@ func (c *coinManagerBurn) ParamCount() int { return 2 }
 func (c *coinManagerBurn) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return canRunCoinManger(evm, op, caller)
 }
-func (c *coinManagerBurn) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *coinManagerBurn) Run(evm *EVM, input []byte, suppliedGas uint64) (ret []byte, retGas uint64, err error) {
+	data := input[SELECTOR_LENGTH:]
 	from := common.BytesToAddress(data[0:32])
 	amount := uint256.MustFromBig(new(big.Int).SetBytes(data[32:64]))
+
+	if evm.Config.Tracer != nil {
+		evm.Config.Tracer.CaptureEnter(CALL, from, zeroAddress, input, suppliedGas, amount.ToBig())
+		defer func(startGas uint64) {
+			evm.Config.Tracer.CaptureExit(nil, startGas-retGas, err)
+		}(suppliedGas)
+	}
 
 	if !evm.Context.CanTransfer(evm.StateDB, from, amount) {
 		return nil, suppliedGas, ErrInsufficientBalance
@@ -213,12 +242,11 @@ func (c *coinManagerBurn) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte
 	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= gasCost
 
 	evm.StateDB.SubBalance(from, amount)
 	evm.AddTransferLog(from, zeroAddress, amount)
 
-	return nil, suppliedGas, nil
+	return nil, suppliedGas - gasCost, nil
 }
 
 // coinManagerTransfer implemented as a native contract method.
@@ -228,35 +256,26 @@ func (c *coinManagerTransfer) ParamCount() int { return 3 }
 func (c *coinManagerTransfer) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return canRunCoinManger(evm, op, caller)
 }
-func (c *coinManagerTransfer) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *coinManagerTransfer) Run(evm *EVM, input []byte, suppliedGas uint64) (ret []byte, retGas uint64, err error) {
+	data := input[SELECTOR_LENGTH:]
 	from := common.BytesToAddress(data[0:32])
 	to := common.BytesToAddress(data[32:64])
 	amount := uint256.MustFromBig(new(big.Int).SetBytes(data[64:96]))
 
-	gasCost := 2 * params.UpdateBalanceGas // addBalance, subBalance
-	if !evm.StateDB.Exist(to) {
-		gasCost += params.CallNewAccountGas
+	if evm.Config.Tracer != nil {
+		evm.Config.Tracer.CaptureEnter(CALL, from, to, input, suppliedGas, amount.ToBig())
+		defer func(startGas uint64) {
+			evm.Config.Tracer.CaptureExit(nil, startGas-retGas, err)
+		}(suppliedGas)
 	}
 
-	if suppliedGas < gasCost {
-		return nil, 0, ErrOutOfGas
+	// Validate balance before transfer
+	if !evm.Context.CanTransfer(evm.StateDB, from, amount) {
+		return nil, suppliedGas, ErrInsufficientBalance
 	}
-	suppliedGas -= gasCost
 
-	// Note: evm.depth is not incremented for coin_manager calls because
-	// it is already increased when the coin_manager itself is invoked.
-	// No further increment is needed here.
-	//
-	// evm.Call is used so that when transferring to a contract address,
-	// its receive() or fallback() function is properly invoked instead of
-	// just updating balances directly.
-	ret, leftOverGas, err := evm.Call(AccountRef(from), to, nil, suppliedGas, amount)
-
-	// Transfer event emission for 0-value transfer (ERC20)
-	if err == nil && amount.IsZero() {
-		evm.AddTransferLog(from, to, amount)
-	}
-	return ret, leftOverGas, err
+	retGas, err = nativeTransfer(evm, from, to, amount, suppliedGas)
+	return nil, retGas, err
 }
 
 // ============================================================================
@@ -270,8 +289,16 @@ func (c *accountManagerBlacklist) ParamCount() int { return 1 }
 func (c *accountManagerBlacklist) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return canRunAccountManager(evm, op, caller)
 }
-func (c *accountManagerBlacklist) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *accountManagerBlacklist) Run(evm *EVM, input []byte, suppliedGas uint64) (ret []byte, retGas uint64, err error) {
+	data := input[SELECTOR_LENGTH:]
 	address := common.BytesToAddress(data[0:32])
+
+	if evm.Config.Tracer != nil {
+		evm.Config.Tracer.CaptureEnter(CALL, params.AccountManagerAddress, address, input, suppliedGas, nil)
+		defer func(startGas uint64) {
+			evm.Config.Tracer.CaptureExit(ret, startGas-retGas, err)
+		}(suppliedGas)
+	}
 
 	gasCost := params.UpdateAccountExtraGas
 	if !evm.StateDB.Exist(address) {
@@ -281,11 +308,10 @@ func (c *accountManagerBlacklist) Run(evm *EVM, data []byte, suppliedGas uint64)
 	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= gasCost
 
 	evm.StateDB.SetBlacklisted(address)
 
-	return nil, suppliedGas, nil
+	return nil, suppliedGas - gasCost, nil
 }
 
 // accountManagerUnBlacklist implemented as a native contract method.
@@ -295,18 +321,25 @@ func (c *accountManagerUnBlacklist) ParamCount() int { return 1 }
 func (c *accountManagerUnBlacklist) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return canRunAccountManager(evm, op, caller)
 }
-func (c *accountManagerUnBlacklist) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *accountManagerUnBlacklist) Run(evm *EVM, input []byte, suppliedGas uint64) (ret []byte, retGas uint64, err error) {
+	data := input[SELECTOR_LENGTH:]
 	address := common.BytesToAddress(data[0:32])
+
+	if evm.Config.Tracer != nil {
+		evm.Config.Tracer.CaptureEnter(CALL, params.AccountManagerAddress, address, input, suppliedGas, nil)
+		defer func(startGas uint64) {
+			evm.Config.Tracer.CaptureExit(ret, startGas-retGas, err)
+		}(suppliedGas)
+	}
 
 	gasCost := params.UpdateAccountExtraGas
 	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= gasCost
 
 	evm.StateDB.ClearBlacklisted(address)
 
-	return nil, suppliedGas, nil
+	return nil, suppliedGas - gasCost, nil
 }
 
 // accountManagerIsBlacklisted implemented as a native contract method.
@@ -316,10 +349,18 @@ func (c *accountManagerIsBlacklisted) ParamCount() int { return 1 }
 func (c *accountManagerIsBlacklisted) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return nil
 }
-func (c *accountManagerIsBlacklisted) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *accountManagerIsBlacklisted) Run(evm *EVM, input []byte, suppliedGas uint64) (ret []byte, retGas uint64, err error) {
+	data := input[SELECTOR_LENGTH:]
 	address := common.BytesToAddress(data[0:32])
 
-	ret := make([]byte, 32)
+	if evm.Config.Tracer != nil {
+		evm.Config.Tracer.CaptureEnter(STATICCALL, params.AccountManagerAddress, address, input, suppliedGas, nil)
+		defer func(startGas uint64) {
+			evm.Config.Tracer.CaptureExit(ret, startGas-retGas, err)
+		}(suppliedGas)
+	}
+
+	ret = make([]byte, 32)
 	if evm.StateDB.IsBlacklisted(address) {
 		ret[31] = 1
 	}
@@ -337,8 +378,16 @@ func (c *accountManagerAuthorize) ParamCount() int { return 1 }
 func (c *accountManagerAuthorize) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return canRunAccountManager(evm, op, caller)
 }
-func (c *accountManagerAuthorize) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *accountManagerAuthorize) Run(evm *EVM, input []byte, suppliedGas uint64) (ret []byte, retGas uint64, err error) {
+	data := input[SELECTOR_LENGTH:]
 	address := common.BytesToAddress(data[0:32])
+
+	if evm.Config.Tracer != nil {
+		evm.Config.Tracer.CaptureEnter(CALL, params.AccountManagerAddress, address, input, suppliedGas, nil)
+		defer func(startGas uint64) {
+			evm.Config.Tracer.CaptureExit(ret, startGas-retGas, err)
+		}(suppliedGas)
+	}
 
 	gasCost := params.UpdateAccountExtraGas
 	if !evm.StateDB.Exist(address) {
@@ -348,11 +397,10 @@ func (c *accountManagerAuthorize) Run(evm *EVM, data []byte, suppliedGas uint64)
 	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= gasCost
 
 	evm.StateDB.SetAuthorized(address)
 
-	return nil, suppliedGas, nil
+	return nil, suppliedGas - gasCost, nil
 }
 
 // accountManagerUnAuthorize implemented as a native contract method.
@@ -362,18 +410,25 @@ func (c *accountManagerUnAuthorize) ParamCount() int { return 1 }
 func (c *accountManagerUnAuthorize) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return canRunAccountManager(evm, op, caller)
 }
-func (c *accountManagerUnAuthorize) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *accountManagerUnAuthorize) Run(evm *EVM, input []byte, suppliedGas uint64) (ret []byte, retGas uint64, err error) {
+	data := input[SELECTOR_LENGTH:]
 	address := common.BytesToAddress(data[0:32])
+
+	if evm.Config.Tracer != nil {
+		evm.Config.Tracer.CaptureEnter(CALL, params.AccountManagerAddress, address, input, suppliedGas, nil)
+		defer func(startGas uint64) {
+			evm.Config.Tracer.CaptureExit(ret, startGas-retGas, err)
+		}(suppliedGas)
+	}
 
 	gasCost := params.UpdateAccountExtraGas
 	if suppliedGas < gasCost {
 		return nil, 0, ErrOutOfGas
 	}
-	suppliedGas -= gasCost
 
 	evm.StateDB.ClearAuthorized(address)
 
-	return nil, suppliedGas, nil
+	return nil, suppliedGas - gasCost, nil
 }
 
 // accountManagerIsAuthorized implemented as a native contract method.
@@ -383,10 +438,18 @@ func (c *accountManagerIsAuthorized) ParamCount() int { return 1 }
 func (c *accountManagerIsAuthorized) CanRun(evm *EVM, op OpCode, caller ContractRef) error {
 	return nil
 }
-func (c *accountManagerIsAuthorized) Run(evm *EVM, data []byte, suppliedGas uint64) ([]byte, uint64, error) {
+func (c *accountManagerIsAuthorized) Run(evm *EVM, input []byte, suppliedGas uint64) (ret []byte, retGas uint64, err error) {
+	data := input[SELECTOR_LENGTH:]
 	address := common.BytesToAddress(data[0:32])
 
-	ret := make([]byte, 32)
+	if evm.Config.Tracer != nil {
+		evm.Config.Tracer.CaptureEnter(STATICCALL, params.AccountManagerAddress, address, input, suppliedGas, nil)
+		defer func(startGas uint64) {
+			evm.Config.Tracer.CaptureExit(ret, startGas-retGas, err)
+		}(suppliedGas)
+	}
+
+	ret = make([]byte, 32)
 	if evm.StateDB.IsAuthorized(address) {
 		ret[31] = 1
 	}

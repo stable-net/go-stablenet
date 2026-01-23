@@ -121,6 +121,12 @@ func testCallTracer(tracerName string, dirPath string, t *testing.T) {
 				t.Fatalf("failed to parse testcase input: %v", err)
 			}
 			// Configure a blockchain with the given prestate
+			// Inject Anzeon system contracts if applicable
+			if test.Genesis.Config.AnzeonEnabled() {
+				if err := core.InjectContracts(test.Genesis, test.Genesis.Config); err != nil {
+					t.Fatalf("failed to inject contracts: %v", err)
+				}
+			}
 			var (
 				signer  = types.MakeSigner(test.Genesis.Config, new(big.Int).SetUint64(uint64(test.Context.Number)), uint64(test.Context.Time))
 				context = vm.BlockContext{
