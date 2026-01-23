@@ -68,11 +68,14 @@ type testBlockChain struct {
 	gasLimit      atomic.Uint64
 	statedb       *state.StateDB
 	chainHeadFeed *event.Feed
+	baseFee       *big.Int
 }
 
 func newTestBlockChain(config *params.ChainConfig, gasLimit uint64, statedb *state.StateDB, chainHeadFeed *event.Feed) *testBlockChain {
 	bc := testBlockChain{config: config, statedb: statedb, chainHeadFeed: new(event.Feed)}
 	bc.gasLimit.Store(gasLimit)
+	bc.baseFee = new(big.Int).SetUint64(params.InitialBaseFee)
+
 	return &bc
 }
 
@@ -84,6 +87,7 @@ func (bc *testBlockChain) CurrentBlock() *types.Header {
 	return &types.Header{
 		Number:   new(big.Int),
 		GasLimit: bc.gasLimit.Load(),
+		BaseFee:  bc.baseFee,
 	}
 }
 
