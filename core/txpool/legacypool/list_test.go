@@ -129,6 +129,10 @@ func (atEnv *testAnzeonTipEnv) GetBaseFee() *big.Int {
 }
 
 func (atEnv *testAnzeonTipEnv) GetAnzeonTipCap(tx *types.Transaction) *big.Int {
+	if !atEnv.IsAnzeon() {
+		return tx.GasTipCap()
+	}
+
 	if ok, is := atEnv.isAuthorized[tx.Hash()]; !ok || !is {
 		if atEnv.headerTip == nil {
 			return tx.GasTipCap()
@@ -144,6 +148,10 @@ func (atEnv *testAnzeonTipEnv) SetCurrentBlock(header *types.Header) {
 
 func (atEnv *testAnzeonTipEnv) SetBaseFee(baseFee *big.Int) {
 	atEnv.baseFee = baseFee
+}
+
+func (atEnv *testAnzeonTipEnv) IsAnzeon() bool {
+	return true
 }
 
 func (atEnv *testAnzeonTipEnv) SetHeaderGasTip(headerGasTip *big.Int) {

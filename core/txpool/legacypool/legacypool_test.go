@@ -135,6 +135,11 @@ func dynamicFeeTx(nonce uint64, gaslimit uint64, gasFee *big.Int, tip *big.Int, 
 	return tx
 }
 
+// gwei converts a gwei value to wei (big.Int)
+func gwei(n int64) *big.Int {
+	return new(big.Int).Mul(big.NewInt(n), big.NewInt(params.GWei))
+}
+
 type unsignedAuth struct {
 	nonce uint64
 	key   *ecdsa.PrivateKey
@@ -2007,6 +2012,7 @@ func TestStableUnderpricing(t *testing.T) {
 //
 // Note, local transactions are never allowed to be dropped.
 func TestUnderpricingDynamicFee(t *testing.T) {
+	// Enable verbose logging for this test
 	t.Parallel()
 
 	pool, _ := setupPoolWithConfig(eip1559Config)
@@ -2024,17 +2030,17 @@ func TestUnderpricingDynamicFee(t *testing.T) {
 	keys := make([]*ecdsa.PrivateKey, 4)
 	for i := 0; i < len(keys); i++ {
 		keys[i], _ = crypto.GenerateKey()
-		testAddBalance(pool, crypto.PubkeyToAddress(keys[i].PublicKey), big.NewInt(1000000))
+		testAddBalance(pool, crypto.PubkeyToAddress(keys[i].PublicKey), new(big.Int).Mul(big.NewInt(1), big.NewInt(params.Ether)))
 	}
 
 	// Generate and queue a batch of transactions, both pending and queued
 	txs := types.Transactions{}
 
-	txs = append(txs, dynamicFeeTx(0, 100000, big.NewInt(3), big.NewInt(2), keys[0]))
-	txs = append(txs, pricedTransaction(1, 100000, big.NewInt(2), keys[0]))
-	txs = append(txs, dynamicFeeTx(1, 100000, big.NewInt(2), big.NewInt(1), keys[1]))
+	txs = append(txs, dynamicFeeTx(0, 100000, gwei(3), gwei(2), keys[0]))
+	txs = append(txs, pricedTransaction(1, 100000, gwei(2), keys[0]))
+	txs = append(txs, dynamicFeeTx(1, 100000, gwei(2), gwei(1), keys[1]))
 
-	ltx := dynamicFeeTx(0, 100000, big.NewInt(2), big.NewInt(1), keys[2])
+	ltx := dynamicFeeTx(0, 100000, gwei(2), gwei(1), keys[2])
 
 	// Import the batch and that both pending and queued transactions match up
 	pool.addRemotes(txs) // Pend K0:0, K0:1; Que K1:1
@@ -2055,22 +2061,22 @@ func TestUnderpricingDynamicFee(t *testing.T) {
 	}
 
 	// Ensure that adding an underpriced transaction fails
-	tx := dynamicFeeTx(0, 100000, big.NewInt(2), big.NewInt(1), keys[1])
+	tx := dynamicFeeTx(0, 100000, gwei(2), gwei(1), keys[1])
 	if err := pool.addRemote(tx); !errors.Is(err, txpool.ErrUnderpriced) { // Pend K0:0, K0:1, K2:0; Que K1:1
 		t.Fatalf("adding underpriced pending transaction error mismatch: have %v, want %v", err, txpool.ErrUnderpriced)
 	}
 
 	// Ensure that adding high priced transactions drops cheap ones, but not own
-	tx = pricedTransaction(0, 100000, big.NewInt(2), keys[1])
+	tx = pricedTransaction(0, 100000, gwei(2), keys[1])
 	if err := pool.addRemote(tx); err != nil { // +K1:0, -K1:1 => Pend K0:0, K0:1, K1:0, K2:0; Que -
 		t.Fatalf("failed to add well priced transaction: %v", err)
 	}
 
-	tx = pricedTransaction(1, 100000, big.NewInt(3), keys[1])
+	tx = pricedTransaction(1, 100000, gwei(3), keys[1])
 	if err := pool.addRemoteSync(tx); err != nil { // +K1:2, -K0:1 => Pend K0:0 K1:0, K2:0; Que K1:2
 		t.Fatalf("failed to add well priced transaction: %v", err)
 	}
-	tx = dynamicFeeTx(2, 100000, big.NewInt(4), big.NewInt(1), keys[1])
+	tx = dynamicFeeTx(2, 100000, gwei(4), gwei(3), keys[1])
 	if err := pool.addRemoteSync(tx); err != nil { // +K1:3, -K1:0 => Pend K0:0 K2:0; Que K1:2 K1:3
 		t.Fatalf("failed to add well priced transaction: %v", err)
 	}

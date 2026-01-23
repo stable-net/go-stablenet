@@ -356,6 +356,10 @@ func (atEnv *anzeonTipEnv) GetBaseFee() *big.Int {
 }
 
 func (atEnv *anzeonTipEnv) GetAnzeonTipCap(tx *Transaction) *big.Int {
+	if !atEnv.IsAnzeon() {
+		return tx.GasTipCap()
+	}
+
 	from, err := Sender(atEnv.signer, tx)
 	if err == nil && atEnv.stateReader != nil && !atEnv.stateReader.IsAuthorized(from) && atEnv.headerTip != nil {
 		// In Anzeon, normal account gas tip cap is determined by the block header gas tip
@@ -368,6 +372,11 @@ func (atEnv *anzeonTipEnv) SetCurrentBlock(header *Header) {
 }
 
 func (atEnv *anzeonTipEnv) SetBaseFee(baseFee *big.Int) {
+}
+
+// IsValid returns true as this environment is always valid when instantiated.
+func (atEnv *anzeonTipEnv) IsAnzeon() bool {
+	return true
 }
 
 // DeriveFields fills the receipts with their computed fields based on consensus

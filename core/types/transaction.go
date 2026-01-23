@@ -54,6 +54,7 @@ const (
 )
 
 type AnzeonGasTipEnv interface {
+	IsAnzeon() bool
 	GetBaseFee() *big.Int
 	GetAnzeonTipCap(tx *Transaction) *big.Int
 	SetCurrentBlock(header *Header)
