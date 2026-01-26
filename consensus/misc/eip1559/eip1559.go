@@ -22,7 +22,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -60,66 +59,80 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header) *big.Int {
 		return new(big.Int).SetUint64(params.InitialBaseFee)
 	}
 
-	var parentGasTarget uint64
 	if config.AnzeonEnabled() {
-		parentGasTarget = parent.GasLimit * config.GasTargetPercentage() / 100
-	} else {
-		parentGasTarget = parent.GasLimit / config.ElasticityMultiplier()
-	}
-	// If the parent gasUsed is the same as the target, the baseFee remains unchanged.
-	if parent.GasUsed == parentGasTarget {
-		return new(big.Int).Set(parent.BaseFee)
-	}
+		increasingTarget := parent.GasLimit * config.IncreasingThreshold() / 100
+		decreasingTarget := parent.GasLimit * config.DecreasingThreshold() / 100
 
-	var (
-		num   = new(big.Int)
-		denom = new(big.Int)
-	)
+		baseFee := new(big.Int).Set(parent.BaseFee)
+		switch {
+		case parent.GasUsed > increasingTarget:
+			baseFeeDelta := calcBaseFeeDelta(parent.BaseFee, config.BaseFeeChangeRate())
+			baseFee.Add(baseFee, baseFeeDelta)
 
-	if parent.GasUsed > parentGasTarget {
-		// If the parent block used more gas than its target, the baseFee should increase.
-		// Anzeon: min(maxBaseFee, parentBaseFee + max(1, parentBaseFee * gasUsedDelta / parentGasTarget * baseFeeChangeRate / 100))
-		// London: parentBaseFee + max(1, parentBaseFee * gasUsedDelta / parentGasTarget / baseFeeChangeDenominator)
-		num.SetUint64(parent.GasUsed - parentGasTarget)
-		num.Mul(num, parent.BaseFee)
-		num.Div(num, denom.SetUint64(parentGasTarget))
-		if config.AnzeonEnabled() {
-			num.Mul(num, denom.SetUint64(config.BaseFeeChangeRate()))
-			num.Div(num, denom.SetUint64(100))
-			baseFeeDelta := math.BigMax(num, common.Big1)
-			baseFee := num.Add(parent.BaseFee, baseFeeDelta)
-
-			// Cap the base fee at MaxBaseFee if the limit is enabled (i.e., non-zero)
 			maxBaseFee := config.MaxBaseFee()
 			if maxBaseFee.Cmp(common.Big0) != 0 && baseFee.Cmp(maxBaseFee) > 0 {
 				baseFee.Set(maxBaseFee)
 			}
 			return baseFee
-		} else {
-			num.Div(num, denom.SetUint64(config.BaseFeeChangeDenominator()))
-			baseFeeDelta := math.BigMax(num, common.Big1)
-			baseFee := num.Add(parent.BaseFee, baseFeeDelta)
+		case parent.GasUsed < decreasingTarget:
+			baseFeeDelta := calcBaseFeeDelta(parent.BaseFee, config.BaseFeeChangeRate())
+			baseFee.Sub(baseFee, baseFeeDelta)
 
+			minBaseFee := config.MinBaseFee()
+			if baseFee.Cmp(minBaseFee) < 0 {
+				baseFee.Set(minBaseFee)
+			}
+			return baseFee
+		default:
 			return baseFee
 		}
 	} else {
-		// Otherwise if the parent block used less gas than its target, the baseFee should decrease.
-		// Anzeon: max(minBaseFee, parentBaseFee - parentBaseFee * gasUsedDelta / parentGasTarget * baseFeeChangeRate / 100)
-		// London: max(0, parentBaseFee - parentBaseFee * gasUsedDelta / parentGasTarget / baseFeeChangeDenominator)
-		num.SetUint64(parentGasTarget - parent.GasUsed)
-		num.Mul(num, parent.BaseFee)
-		num.Div(num, denom.SetUint64(parentGasTarget))
-		if config.AnzeonEnabled() {
-			num.Mul(num, denom.SetUint64(config.BaseFeeChangeRate()))
-			num.Div(num, denom.SetUint64(100))
-			baseFee := num.Sub(parent.BaseFee, num)
+		parentGasTarget := parent.GasLimit / config.ElasticityMultiplier()
+		// If the parent gasUsed is the same as the target, the baseFee remains unchanged.
+		if parent.GasUsed == parentGasTarget {
+			return new(big.Int).Set(parent.BaseFee)
+		}
 
-			return math.BigMax(baseFee, config.MinBaseFee())
-		} else {
+		var (
+			num   = new(big.Int)
+			denom = new(big.Int)
+		)
+
+		if parent.GasUsed > parentGasTarget {
+			// If the parent block used more gas than its target, the baseFee should increase.
+			// max(1, parentBaseFee * gasUsedDelta / parentGasTarget / baseFeeChangeDenominator)
+			num.SetUint64(parent.GasUsed - parentGasTarget)
+			num.Mul(num, parent.BaseFee)
+			num.Div(num, denom.SetUint64(parentGasTarget))
 			num.Div(num, denom.SetUint64(config.BaseFeeChangeDenominator()))
-			baseFee := num.Sub(parent.BaseFee, num)
+			if num.Cmp(common.Big1) < 0 {
+				return num.Add(parent.BaseFee, common.Big1)
+			}
+			return num.Add(parent.BaseFee, num)
+		} else {
+			// Otherwise if the parent block used less gas than its target, the baseFee should decrease.
+			// max(0, parentBaseFee * gasUsedDelta / parentGasTarget / baseFeeChangeDenominator)
+			num.SetUint64(parentGasTarget - parent.GasUsed)
+			num.Mul(num, parent.BaseFee)
+			num.Div(num, denom.SetUint64(parentGasTarget))
+			num.Div(num, denom.SetUint64(config.BaseFeeChangeDenominator()))
 
-			return math.BigMax(baseFee, common.Big0)
+			baseFee := num.Sub(parent.BaseFee, num)
+			if baseFee.Cmp(common.Big0) < 0 {
+				baseFee = common.Big0
+			}
+			return baseFee
 		}
 	}
+}
+
+func calcBaseFeeDelta(parentBaseFee *big.Int, rate uint64) *big.Int {
+	delta := new(big.Int).Set(parentBaseFee)
+	delta.Mul(delta, new(big.Int).SetUint64(rate))
+	delta.Div(delta, common.Big100)
+
+	if delta.Sign() == 0 {
+		delta.Set(common.Big1)
+	}
+	return delta
 }

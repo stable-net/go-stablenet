@@ -1210,14 +1210,19 @@ func (c *ChainConfig) ElasticityMultiplier() uint64 {
 	return DefaultElasticityMultiplier
 }
 
+// IncreasingThreshold returns the upper utilization threshold (%) that triggers base fee increase.
+func (c *ChainConfig) IncreasingThreshold() uint64 {
+	return IncreasingThreshold
+}
+
+// DecreasingThreshold returns the lower utilization threshold (%) that triggers base fee decrease.
+func (c *ChainConfig) DecreasingThreshold() uint64 {
+	return DecreasingThreshold
+}
+
 // BaseFeeChangeRate bounds the rate at which the base fee can increase or decrease per block.
 func (c *ChainConfig) BaseFeeChangeRate() uint64 {
 	return BaseFeeChangeRate
-}
-
-// GasTargetPercentage specifies the target gas usage as a percentage of the maximum block gas limit.
-func (c *ChainConfig) GasTargetPercentage() uint64 {
-	return GasTargetPercentage
 }
 
 // MinBaseFee returns the minimum allowed base fee.
