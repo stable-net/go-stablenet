@@ -32,6 +32,7 @@ type AnzeonTipEnv struct {
 	config       *params.ChainConfig
 	stateAt      func(common.Hash) (*state.StateDB, error)
 	currentBlock *types.Header
+	currentState *state.StateDB
 	baseFee      *big.Int
 	signer       types.Signer
 }
@@ -50,13 +51,25 @@ func (env *AnzeonTipEnv) SetCurrentBlock(header *types.Header) {
 	if header == nil {
 		return
 	}
-	env.currentBlock = header
-	env.signer = types.MakeSigner(env.config, header.Number, header.Time)
+	if env.currentBlock == nil || env.currentBlock.Root != header.Root {
+		env.currentBlock = header
+		if header.Root != (common.Hash{}) {
+			env.currentState, _ = env.stateAt(header.Root)
+		} else {
+			env.currentState = nil
+		}
+		env.signer = types.MakeSigner(env.config, header.Number, header.Time)
+	}
 }
 
 // SetBaseFee updates the base fee for gas price calculations.
 func (env *AnzeonTipEnv) SetBaseFee(baseFee *big.Int) {
 	env.baseFee = baseFee
+}
+
+// IsValid returns true if Anzeon is enabled and the environment is properly initialized.
+func (env *AnzeonTipEnv) IsAnzeon() bool {
+	return env.config != nil && env.config.AnzeonEnabled()
 }
 
 // GetBaseFee returns the current base fee.
@@ -76,7 +89,7 @@ func (env *AnzeonTipEnv) GetBaseFee() *big.Int {
 // For authorized accounts (validators/minters), it returns the transaction's original gas tip cap.
 func (env *AnzeonTipEnv) GetAnzeonTipCap(tx *types.Transaction) *big.Int {
 	// If environment is not fully initialized, return transaction's gas tip cap
-	if env.signer == nil || env.currentBlock == nil {
+	if !env.IsAnzeon() || env.signer == nil || env.currentBlock == nil {
 		return tx.GasTipCap()
 	}
 
@@ -87,14 +100,19 @@ func (env *AnzeonTipEnv) GetAnzeonTipCap(tx *types.Transaction) *big.Int {
 	}
 
 	// Check if sender is authorized by querying state
-	if env.stateAt != nil && env.currentBlock.Root != (common.Hash{}) {
-		stateDB, err := env.stateAt(env.currentBlock.Root)
-		if err == nil && stateDB != nil {
-			// For unauthorized accounts, use block header's gas tip
-			if !stateDB.IsAuthorized(from) && env.currentBlock.GasTip() != nil {
-				return env.currentBlock.GasTip()
-			}
-		}
+	// First try to use cached state, then fall back to stateAt
+	// Lazy load state if not cached
+	if env.currentState == nil &&
+		env.stateAt != nil &&
+		env.currentBlock.Root != (common.Hash{}) {
+		env.currentState, _ = env.stateAt(env.currentBlock.Root)
+	}
+
+	// For unauthorized accounts, use block header's gas tip
+	if env.currentState != nil &&
+		!env.currentState.IsAuthorized(from) &&
+		env.currentBlock.GasTip() != nil {
+		return env.currentBlock.GasTip()
 	}
 
 	// For authorized accounts or if state is unavailable, use transaction's gas tip cap

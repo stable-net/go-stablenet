@@ -104,6 +104,10 @@ func (natEnv *noAnzeonTIpEnv) GetAnzeonTipCap(tx *types.Transaction) *big.Int {
 func (natEnv *noAnzeonTIpEnv) SetCurrentBlock(header *types.Header) {
 }
 
+func (natEnv *noAnzeonTIpEnv) IsAnzeon() bool {
+	return false
+}
+
 func (natEnv *noAnzeonTIpEnv) SetBaseFee(baseFee *big.Int) {
 	natEnv.baseFee = baseFee
 }

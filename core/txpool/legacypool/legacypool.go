@@ -343,6 +343,9 @@ func (pool *LegacyPool) Init(gasTip uint64, head *types.Header, reserver txpool.
 	pool.currentState = statedb
 	pool.pendingNonces = newNoncer(statedb)
 	pool.anzeonTipEnv.SetCurrentBlock(head)
+	if pool.chainconfig.IsLondon(new(big.Int).Add(head.Number, big.NewInt(1))) {
+		pool.anzeonTipEnv.SetBaseFee(eip1559.CalcBaseFee(pool.chainconfig, head))
+	}
 
 	// Start the reorg loop early, so it can handle requests generated during
 	// journal loading.
@@ -578,7 +581,7 @@ func (pool *LegacyPool) Pending(filter txpool.PendingFilter) map[common.Address]
 	if filter.MinTip != nil {
 		minTipBig = filter.MinTip.ToBig()
 	}
-	pool.anzeonTipEnv.SetCurrentBlock(filter.NewHeader) // filter.NewHeader can be nil, but it doesn't matter
+	pool.anzeonTipEnv.SetCurrentBlock(filter.Header) // filter.NewHeader can be nil, but it doesn't matter
 	if filter.BaseFee != nil {
 		pool.anzeonTipEnv.SetBaseFee(filter.BaseFee.ToBig())
 	}
@@ -688,6 +691,7 @@ func (pool *LegacyPool) validateTx(tx *types.Transaction, local bool) error {
 			}
 			return nil
 		},
+		AnzeonTipEnv: pool.anzeonTipEnv, // Enable caching of Anzeon tip cap during validation
 	}
 	if err := txpool.ValidateTransactionWithState(tx, pool.signer, opts); err != nil {
 		return err
