@@ -129,13 +129,13 @@ const (
 	DefaultElasticityMultiplier     = 2          // Bounds the maximum gas limit an EIP-1559 block may have.
 	InitialBaseFee                  = 1000000000 // Initial base fee for EIP-1559 blocks.
 
-	IncreasingThreshold uint64 = 20               // Raise base fee when network utilization exceeds this threshold (in %)
-	DecreasingThreshold uint64 = 6                // Lower base fee when network utilization falls below this threshold (in %)
-	BaseFeeChangeRate   uint64 = 2                // Percentage rate by which the base fee can change
-	MinBaseFee          uint64 = 5000000000000    // Minimum base fee
-	MaxBaseFee          uint64 = 5000000000000000 // Maximum base fee. If set to 0, this limit is disabled.
+	IncreasingThreshold uint64 = 20                // Raise base fee when network utilization exceeds this threshold (in %)
+	DecreasingThreshold uint64 = 6                 // Lower base fee when network utilization falls below this threshold (in %)
+	BaseFeeChangeRate   uint64 = 2                 // Percentage rate by which the base fee can change
+	MinBaseFee          uint64 = 20000000000000    // Minimum base fee
+	MaxBaseFee          uint64 = 20000000000000000 // Maximum base fee. If set to 0, this limit is disabled.
 
-	InitialGasTip uint64 = 5000000000000 // Initial gas tip
+	InitialGasTip uint64 = 27600000000000 // Initial gas tip
 
 	MaxCodeSize     = 253952          // WEMIX Maximum bytecode to permit for a contract
 	MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
