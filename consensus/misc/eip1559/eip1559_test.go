@@ -133,27 +133,43 @@ func TestCalcBaseFee(t *testing.T) {
 // TestCalcBaseFeeForAnzeon tests base fee computation according to Anzeon fork policy adjustments.
 func TestCalcBaseFeeForAnzeon(t *testing.T) {
 	config := params.TestWBFTChainConfig
+
+	parentGasLimit := uint64(20000000)
+	decreasingTarget := parentGasLimit * config.DecreasingThreshold() / 100
+	increasingTarget := parentGasLimit * config.IncreasingThreshold() / 100
+
+	parentBaseFee := new(big.Int).SetUint64(2 * params.MinBaseFee)
+	baseFeeDelta := calcBaseFeeDelta(parentBaseFee, config.BaseFeeChangeRate())
+	decreasedBaseFee := new(big.Int).Sub(parentBaseFee, baseFeeDelta)
+	increasedBaseFee := new(big.Int).Add(parentBaseFee, baseFeeDelta)
+
 	tests := []struct {
+		name            string
 		parentBaseFee   *big.Int
-		parentGasLimit  uint64
 		parentGasUsed   uint64
 		expectedBaseFee *big.Int
 	}{
-		{new(big.Int).SetUint64(2 * params.MinBaseFee), 20000000, 18000000, new(big.Int).SetUint64(2 * params.MinBaseFee)}, // usage == target
-		{new(big.Int).SetUint64(2 * params.MinBaseFee), 20000000, 0, big.NewInt(8500000000000)},                            // usage below target
-		{new(big.Int).SetUint64(2 * params.MinBaseFee), 20000000, 20000000, big.NewInt(10166666666666)},                    // usage above target
-		{new(big.Int).SetUint64(params.MinBaseFee), 20000000, 0, new(big.Int).SetUint64(params.MinBaseFee)},                // usage below target, but base fee hits MinBaseFee
-		{new(big.Int).SetUint64(params.MaxBaseFee), 20000000, 20000000, new(big.Int).SetUint64(params.MaxBaseFee)},         // usage above target, but base fee hits MaxBaseFee
+		{"Decrease: Usage 0", parentBaseFee, 0, decreasedBaseFee},
+		{"Decrease: Boundary Check", parentBaseFee, decreasingTarget - 1, decreasedBaseFee},
+		{"DeadZone: Lower Boundary", parentBaseFee, decreasingTarget, parentBaseFee},
+		{"DeadZone: Middle", parentBaseFee, (decreasingTarget + increasingTarget) / 2, parentBaseFee},
+		{"DeadZone: Upper Boundary", parentBaseFee, increasingTarget, parentBaseFee},
+		{"Increase: Boundary Check", parentBaseFee, increasingTarget + 1, increasedBaseFee},
+		{"Increase: Max Usage", parentBaseFee, parentGasLimit, increasedBaseFee},
+		{"Cap: Min BaseFee Floor", new(big.Int).SetUint64(params.MinBaseFee), 0, new(big.Int).SetUint64(params.MinBaseFee)},
+		{"Cap: Max BaseFee Ceiling", new(big.Int).SetUint64(params.MaxBaseFee), parentGasLimit, new(big.Int).SetUint64(params.MaxBaseFee)},
 	}
-	for i, test := range tests {
-		parent := &types.Header{
-			Number:   common.Big32,
-			GasLimit: test.parentGasLimit,
-			GasUsed:  test.parentGasUsed,
-			BaseFee:  test.parentBaseFee,
-		}
-		if have, want := CalcBaseFee(config, parent), test.expectedBaseFee; have.Cmp(want) != 0 {
-			t.Errorf("test %d: have %d  want %d, ", i, have, want)
-		}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			parent := &types.Header{
+				Number:   common.Big32,
+				GasLimit: parentGasLimit,
+				GasUsed:  test.parentGasUsed,
+				BaseFee:  test.parentBaseFee,
+			}
+			if have, want := CalcBaseFee(config, parent), test.expectedBaseFee; have.Cmp(want) != 0 {
+				t.Errorf("have %d, want %d", have, want)
+			}
+		})
 	}
 }
