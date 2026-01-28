@@ -1107,10 +1107,15 @@ func TestSignTransaction(t *testing.T) {
 	)
 	b := newTestBackend(t, 1, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {})
 	api := NewTransactionAPI(b, nil)
+
+	gasTip := new(big.Int).SetUint64(params.InitialGasTip)
+	maxFeePerGas := (new(big.Int).Add(new(big.Int).SetUint64(params.MinBaseFee), gasTip))
+
 	res, err := api.FillTransaction(context.Background(), TransactionArgs{
-		From:  &b.acc.Address,
-		To:    &to,
-		Value: (*hexutil.Big)(big.NewInt(1)),
+		From:         &b.acc.Address,
+		To:           &to,
+		Value:        (*hexutil.Big)(big.NewInt(1)),
+		MaxFeePerGas: (*hexutil.Big)(maxFeePerGas),
 	})
 	if err != nil {
 		t.Fatalf("failed to fill tx defaults: %v\n", err)
