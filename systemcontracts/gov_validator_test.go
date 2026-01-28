@@ -55,10 +55,10 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // gasTip (default: params.InitialGasTip = 5000 Gwei)
+				{ // gasTip (default: params.InitialGasTip = 27600 Gwei)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000048c27395000"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000191a20322000"),
 				},
 			},
 		},
@@ -105,10 +105,10 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // gasTip (default: params.InitialGasTip = 5000 Gwei)
+				{ // gasTip (default: params.InitialGasTip = 27600 Gwei)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000048c27395000"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000191a20322000"),
 				},
 			},
 		},
@@ -231,10 +231,10 @@ func TestInitializeValidator(t *testing.T) {
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000032"),
 					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000b00001"),
 				},
-				{ // gasTip (default: params.InitialGasTip = 5000 Gwei)
+				{ // gasTip (default: params.InitialGasTip = 27600 Gwei)
 					Address: common.Address{},
 					Key:     common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000039"),
-					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000048c27395000"),
+					Value:   common.HexToHash("0x0000000000000000000000000000000000000000000000000000191a20322000"),
 				},
 				{ // __validators.index
 					Address: common.Address{},

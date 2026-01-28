@@ -206,7 +206,7 @@ func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPubli
 		"memberVersion": "1",
 		"validators":    vals,
 		"blsPublicKeys": blsKeys,
-		"gasTip":        "5000000000000",
+		"gasTip":        "27600000000000",
 	}
 	g.Genesis.Config.Anzeon.SystemContracts.NativeCoinAdapter.Params = map[string]string{
 		"masterMinter":  "0x0000000000000000000000000000000000001002",
