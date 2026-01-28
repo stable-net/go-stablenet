@@ -212,8 +212,8 @@ func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPubli
 		"masterMinter":  "0x0000000000000000000000000000000000001002",
 		"minters":       "0x0000000000000000000000000000000000001003",
 		"minterAllowed": "10000000000000000000000000000",
-		"name":          "KRC1",
-		"symbol":        "KRC1",
+		"name":          "WKRC",
+		"symbol":        "WKRC",
 		"decimals":      "18",
 		"currency":      "KRW",
 	}
