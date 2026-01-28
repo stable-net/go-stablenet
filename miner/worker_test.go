@@ -66,7 +66,7 @@ var (
 	testBankKey, _  = crypto.GenerateKey()
 	testBankAddress = crypto.PubkeyToAddress(testBankKey.PublicKey)
 	testBlsKey, _   = bls.DeriveFromECDSA(testBankKey)
-	testBankFunds   = big.NewInt(1000000000000000000)
+	testBankFunds   = new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Ether))
 
 	testUserKey, _  = crypto.GenerateKey()
 	testUserAddress = crypto.PubkeyToAddress(testUserKey.PublicKey)
@@ -115,7 +115,7 @@ func init() {
 		To:       &testUserAddress,
 		Value:    big.NewInt(1000),
 		Gas:      params.TxGas,
-		GasPrice: new(big.Int).SetUint64(params.MinBaseFee),
+		GasPrice: new(big.Int).Add(new(big.Int).SetUint64(params.MinBaseFee), new(big.Int).SetUint64(params.InitialGasTip)),
 	})
 	pendingTxs = append(pendingTxs, tx1)
 

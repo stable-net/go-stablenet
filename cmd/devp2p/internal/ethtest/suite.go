@@ -499,11 +499,14 @@ transaction gets propagated.`)
 		t.Fatalf("failed to send next block: %v", err)
 	}
 	from, nonce := s.chain.GetSender(0)
+	gasTip := new(big.Int).SetUint64(params.InitialGasTip)
+	gasFee := new(big.Int).Add(s.chain.Head().BaseFee(), gasTip)
+
 	inner := &types.DynamicFeeTx{
 		ChainID:   s.chain.config.ChainID,
 		Nonce:     nonce,
-		GasTipCap: big.NewInt(int64(params.InitialGasTip)),
-		GasFeeCap: s.chain.Head().BaseFee(),
+		GasTipCap: gasTip,
+		GasFeeCap: gasFee,
 		Gas:       30000,
 		To:        &common.Address{0xaa},
 		Value:     common.Big1,
@@ -528,11 +531,14 @@ does not propagate them.`)
 	}
 
 	from, nonce := s.chain.GetSender(0)
+	gasTip := new(big.Int).SetUint64(params.InitialGasTip)
+	gasFee := new(big.Int).Add(s.chain.Head().BaseFee(), gasTip)
+
 	inner := &types.DynamicFeeTx{
 		ChainID:   s.chain.config.ChainID,
 		Nonce:     nonce,
-		GasTipCap: big.NewInt(int64(params.InitialGasTip)),
-		GasFeeCap: s.chain.Head().BaseFee(),
+		GasTipCap: gasTip,
+		GasFeeCap: gasFee,
 		Gas:       30000,
 		To:        &common.Address{0xaa},
 	}
@@ -550,38 +556,38 @@ does not propagate them.`)
 		{
 			ChainID:   s.chain.config.ChainID,
 			Nonce:     nonce - 1,
-			GasTipCap: common.Big1,
-			GasFeeCap: s.chain.Head().BaseFee(),
+			GasTipCap: gasTip,
+			GasFeeCap: gasFee,
 			Gas:       100000,
 		},
 		// Value exceeds balance
 		{
 			Nonce:     nonce,
-			GasTipCap: common.Big1,
-			GasFeeCap: s.chain.Head().BaseFee(),
+			GasTipCap: gasTip,
+			GasFeeCap: gasFee,
 			Gas:       100000,
 			Value:     s.chain.Balance(from),
 		},
 		// Gas limit too low
 		{
 			Nonce:     nonce,
-			GasTipCap: common.Big1,
-			GasFeeCap: s.chain.Head().BaseFee(),
+			GasTipCap: gasTip,
+			GasFeeCap: gasFee,
 			Gas:       1337,
 		},
 		// Code size too large
 		{
 			Nonce:     nonce,
-			GasTipCap: common.Big1,
-			GasFeeCap: s.chain.Head().BaseFee(),
+			GasTipCap: gasTip,
+			GasFeeCap: gasFee,
 			Data:      randBuf(50),
 			Gas:       1_000_000,
 		},
 		// Data too large
 		{
 			Nonce:     nonce,
-			GasTipCap: common.Big1,
-			GasFeeCap: s.chain.Head().BaseFee(),
+			GasTipCap: gasTip,
+			GasFeeCap: gasFee,
 			To:        &common.Address{0xaa},
 			Data:      randBuf(128),
 			Gas:       5_000_000,
@@ -617,13 +623,15 @@ on another peer connection using GetPooledTransactions.`)
 		txs         []*types.Transaction
 		hashes      []common.Hash
 		set         = make(map[common.Hash]struct{})
+		gasTip      = new(big.Int).SetUint64(params.InitialGasTip)
+		gasFee      = new(big.Int).Add(s.chain.Head().BaseFee(), gasTip)
 	)
 	for i := 0; i < count; i++ {
 		inner := &types.DynamicFeeTx{
 			ChainID:   s.chain.config.ChainID,
 			Nonce:     nonce + uint64(i),
-			GasTipCap: big.NewInt(int64(params.InitialGasTip)),
-			GasFeeCap: s.chain.Head().BaseFee(),
+			GasTipCap: gasTip,
+			GasFeeCap: gasFee,
 			Gas:       75000,
 		}
 		tx, err := s.chain.SignTx(from, types.NewTx(inner))

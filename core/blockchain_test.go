@@ -4378,13 +4378,17 @@ func TestEIP7702(t *testing.T) {
 
 	_, blocks, _ := GenerateChainWithGenesis(gspec, engine, 1, func(i int, b *BlockGen) {
 		b.SetCoinbase(aa)
+
+		gasTip := new(big.Int).SetUint64(params.InitialGasTip)
+		gasFee := new(big.Int).Add(b.header.BaseFee, gasTip)
+
 		txdata := &types.SetCodeTx{
 			ChainID:   uint256.MustFromBig(gspec.Config.ChainID),
 			Nonce:     0,
 			To:        addr1,
 			Gas:       500000,
-			GasFeeCap: uint256.MustFromBig(newGwei(5000)),
-			GasTipCap: uint256.NewInt(2),
+			GasFeeCap: uint256.MustFromBig(gasFee),
+			GasTipCap: uint256.MustFromBig(gasTip),
 			AuthList:  []types.SetCodeAuthorization{auth1, auth2},
 		}
 		tx := types.MustSignNewTx(key1, signer, txdata)
