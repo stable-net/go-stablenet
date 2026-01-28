@@ -117,11 +117,13 @@ The concept of the priority fee is fundamentally misaligned with the nature of s
 Stablenet fundamentally pegs its gas fees to the KRW currency. Protocol constants related to gas fees are defined in the protocol_params.go file with the following constants. If a different currency, such as USD, were to be used as the base coin, these constants would need to be adjusted to calculate appropriate gas fees.
 
 ```
-GasTargetPercentage uint64 = 90               // Target gas usage as a percentage of the maximum gas limit
-BaseFeeChangeRate   uint64 = 15               // Percentage rate by which the base fee can change
-MinBaseFee          uint64 = 5000000000000    // Minimum base fee
-MaxBaseFee          uint64 = 5000000000000000 // Maximum base fee. If set to 0, this limit is disabled.
-InitialGasTip uint64 = 5000000000000 // Initial gas tip
+IncreasingThreshold uint64 = 20                // Raise base fee when network utilization exceeds this threshold (in %)
+DecreasingThreshold uint64 = 6                 // Lower base fee when network utilization falls below this threshold (in %)
+BaseFeeChangeRate   uint64 = 2                 // Percentage rate by which the base fee can change
+MinBaseFee          uint64 = 20000000000000    // Minimum base fee
+MaxBaseFee          uint64 = 20000000000000000 // Maximum base fee. If set to 0, this limit is disabled.
+
+InitialGasTip uint64 = 27600000000000 // Initial gas tip
 ```
 
 ### Anzeon WBFT Engine: A Tailored Evolution of WBFT for StableNet

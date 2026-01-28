@@ -28,8 +28,8 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableNetMainnetGenesisHash = common.HexToHash("0x013d7ceca65fafae65a58a751908b833dcad6ece82f8986c9c9c76de9d8a9f07")
-	StableNetTestnetGenesisHash = common.HexToHash("0x013d7ceca65fafae65a58a751908b833dcad6ece82f8986c9c9c76de9d8a9f07")
+	StableNetMainnetGenesisHash = common.HexToHash("0xfb73258e7e90dbb9ae345bcd3138745b1d2bd713e0e9f9fe548c40dfb8778322")
+	StableNetTestnetGenesisHash = common.HexToHash("0xfb73258e7e90dbb9ae345bcd3138745b1d2bd713e0e9f9fe548c40dfb8778322")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash          = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
@@ -85,7 +85,7 @@ var (
 						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
-						"gasTip":        "5000000000000",
+						"gasTip":        "27600000000000",
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -180,7 +180,7 @@ var (
 						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
 						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
-						"gasTip":        "5000000000000",
+						"gasTip":        "27600000000000",
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -409,7 +409,7 @@ var (
 						"validators":    "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
 						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
-						"gasTip":        "5000000000000",
+						"gasTip":        "27600000000000",
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -615,7 +615,7 @@ var (
 						"validators":    "0x7014F43c5BC7f7F3b4FBdf1599E5e1394548607a",
 						"blsPublicKeys": "0xb1ae18fdcbcc6a80d7a0c4cfec1a04bc1bee78e519eaadd689108077d946e0849a2c30ac96462be32023f34ca67ebcf6",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
-						"gasTip":        "5000000000000",
+						"gasTip":        "27600000000000",
 					},
 				},
 				NativeCoinAdapter: &SystemContract{
@@ -1210,14 +1210,19 @@ func (c *ChainConfig) ElasticityMultiplier() uint64 {
 	return DefaultElasticityMultiplier
 }
 
+// IncreasingThreshold returns the upper utilization threshold (%) that triggers base fee increase.
+func (c *ChainConfig) IncreasingThreshold() uint64 {
+	return IncreasingThreshold
+}
+
+// DecreasingThreshold returns the lower utilization threshold (%) that triggers base fee decrease.
+func (c *ChainConfig) DecreasingThreshold() uint64 {
+	return DecreasingThreshold
+}
+
 // BaseFeeChangeRate bounds the rate at which the base fee can increase or decrease per block.
 func (c *ChainConfig) BaseFeeChangeRate() uint64 {
 	return BaseFeeChangeRate
-}
-
-// GasTargetPercentage specifies the target gas usage as a percentage of the maximum block gas limit.
-func (c *ChainConfig) GasTargetPercentage() uint64 {
-	return GasTargetPercentage
 }
 
 // MinBaseFee returns the minimum allowed base fee.

@@ -57,7 +57,7 @@ func TestWaitDeployed(t *testing.T) {
 	for name, test := range waitDeployedTests {
 		backend := simulated.NewWBFTBackend(
 			types.GenesisAlloc{
-				crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(1000000000000000000)},
+				crypto.PubkeyToAddress(testKey.PublicKey): {Balance: new(big.Int).Mul(new(big.Int).SetUint64(100), big.NewInt(params.Ether))},
 			},
 		)
 		defer backend.Close()
@@ -72,7 +72,7 @@ func TestWaitDeployed(t *testing.T) {
 
 		// Create the transaction
 		head, _ := backend.Client().HeaderByNumber(context.Background(), nil) // Should be child's, good enough
-		gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+		gasPrice := new(big.Int).Add(head.BaseFee, new(big.Int).SetUint64(params.InitialGasTip))
 
 		tx := types.NewContractCreation(0, big.NewInt(0), test.gas, gasPrice, common.FromHex(test.code))
 		tx, _ = types.SignTx(tx, types.LatestSignerForChainID(chainID), testKey)

@@ -238,6 +238,11 @@ func (args *TransactionArgs) setFeeDefaults(ctx context.Context, b Backend) erro
 		if err := args.setLondonFeeDefaults(ctx, head, b); err != nil {
 			return err
 		}
+
+		if b.ChainConfig().AnzeonEnabled() {
+			gasTip := new(big.Int).SetUint64(params.InitialGasTip)
+			args.MaxFeePerGas = (*hexutil.Big)(new(big.Int).Add(head.BaseFee, gasTip))
+		}
 	} else {
 		if args.MaxFeePerGas != nil || args.MaxPriorityFeePerGas != nil {
 			return errors.New("maxFeePerGas and maxPriorityFeePerGas are not valid before London is active")

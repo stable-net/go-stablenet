@@ -144,7 +144,7 @@ func TestChangeMaxProposals_BoundaryValues(t *testing.T) {
 			"quorum":        "2",
 			"expiry":        "86400",
 			"memberVersion": "1",
-			"gasTip":        "5000000000000",
+			"gasTip":        "27600000000000",
 		}
 	}, nil, nil, nil, nil, nil)
 	require.NoError(t, err)

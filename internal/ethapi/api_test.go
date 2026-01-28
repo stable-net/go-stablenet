@@ -638,8 +638,8 @@ func TestEstimateGas(t *testing.T) {
 		genesis    = &core.Genesis{
 			Config: params.AllDevChainProtocolChanges,
 			Alloc: types.GenesisAlloc{
-				accounts[0].addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
-				accounts[1].addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
+				accounts[0].addr: {Balance: new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Ether))},
+				accounts[1].addr: {Balance: new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Ether))},
 				accounts[2].addr: {Balance: big.NewInt(params.Ether), Code: append(types.DelegationPrefix, accounts[3].addr.Bytes()...)},
 			},
 			Difficulty: big.NewInt(1),
@@ -656,8 +656,10 @@ func TestEstimateGas(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		fee := new(big.Int).Add(b.BaseFee(), big.NewInt(int64(params.InitialGasTip)))
-		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &accounts[1].addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: fee, Data: nil}), signer, accounts[0].key)
+		gasTip := new(big.Int).SetUint64(params.InitialGasTip)
+		gasPrice := new(big.Int).Add(b.BaseFee(), gasTip)
+
+		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &accounts[1].addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: gasPrice, Data: nil}), signer, accounts[0].key)
 		b.SetCoinbase(nodeAddr) // WBFT matters who is coinbase
 		b.AddTx(tx)
 	}))
@@ -739,7 +741,7 @@ func TestEstimateGas(t *testing.T) {
 			call: TransactionArgs{
 				From:     &accounts[0].addr,
 				Input:    hex2Bytes("6080604052348015600f57600080fd5b50483a1015601c57600080fd5b60003a111560315760004811603057600080fd5b5b603f80603e6000396000f3fe6080604052600080fdfea264697066735822122060729c2cee02b10748fae5200f1c9da4661963354973d9154c13a8e9ce9dee1564736f6c63430008130033"),
-				GasPrice: (*hexutil.Big)(big.NewInt(5_000_000_000_000)), // Legacy as pricing
+				GasPrice: (*hexutil.Big)(big.NewInt(47_600_000_000_000)), // Legacy as pricing
 			},
 			expectErr: nil,
 			want:      67617,
@@ -749,7 +751,7 @@ func TestEstimateGas(t *testing.T) {
 			call: TransactionArgs{
 				From:         &accounts[0].addr,
 				Input:        hex2Bytes("6080604052348015600f57600080fd5b50483a1015601c57600080fd5b60003a111560315760004811603057600080fd5b5b603f80603e6000396000f3fe6080604052600080fdfea264697066735822122060729c2cee02b10748fae5200f1c9da4661963354973d9154c13a8e9ce9dee1564736f6c63430008130033"),
-				MaxFeePerGas: (*hexutil.Big)(big.NewInt(5_000_000_000_000)), // 1559 gas pricing
+				MaxFeePerGas: (*hexutil.Big)(big.NewInt(47_600_000_000_000)), // 1559 gas pricing
 			},
 			expectErr: nil,
 			want:      67617,
@@ -891,7 +893,10 @@ func TestCall(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &accounts[1].addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: b.BaseFee(), Data: nil}), signer, accounts[0].key)
+		gasTip := new(big.Int).SetUint64(params.InitialGasTip)
+		gasPrice := new(big.Int).Add(b.BaseFee(), gasTip)
+
+		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &accounts[1].addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: gasPrice, Data: nil}), signer, accounts[0].key)
 		b.SetCoinbase(nodeAddr) // WBFT matters who is coinbase
 		b.AddTx(tx)
 	}))
@@ -1119,7 +1124,7 @@ func TestSignTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expect := `{"type":"0x2","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x9184e72a000","value":"0x1","input":"0x","accessList":[],"v":"0x1","r":"0x1f61649e5c3f08684b9dbf78622079f3b2e03c68ad0d15a296a1783c6372c9c","s":"0x6108f5358cad936b6e1a13421611703c4d687f3fb9cadbd08e42eb1e601b894a","yParity":"0x1","hash":"0xdd64a6fceb34f502ac9ca01f0886c3b93cd765d1736d6a9070589786de5c4dad"}`
+	expect := `{"type":"0x2","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x2b4abd176000","value":"0x1","input":"0x","accessList":[],"v":"0x1","r":"0x2251620c1ccc8b484d746d0c6b79c7e1be303e9f071461d3a2ff1d3b6be29f24","s":"0x437fe7ecd3bccf92ca29e1e4ded5162c427a04a3ccdd9d28323314d68a6a36b9","yParity":"0x1","hash":"0xb27ecfc2613b783aaf73ba8ea668306306ea68ba528ea66b7c6b2d6e38016e6e"}`
 	if !bytes.Equal(tx, []byte(expect)) {
 		t.Errorf("result mismatch. Have:\n%s\nWant:\n%s\n", tx, expect)
 	}
@@ -1657,8 +1662,8 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 		genesis    = &core.Genesis{
 			Config: params.AllDevChainProtocolChanges,
 			Alloc: types.GenesisAlloc{
-				acc1Addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
-				acc2Addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
+				acc1Addr: {Balance: new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Ether))},
+				acc2Addr: {Balance: new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Ether))},
 			},
 			Difficulty: big.NewInt(1),
 			ExtraData:  genExtraData(nodeKey),
@@ -1688,7 +1693,10 @@ func TestRPCGetBlockOrHeader(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &acc2Addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: b.BaseFee(), Data: nil}), signer, acc1Key)
+		gasTip := new(big.Int).SetUint64(params.InitialGasTip)
+		gasPrice := new(big.Int).Add(b.BaseFee(), gasTip)
+
+		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &acc2Addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: gasPrice, Data: nil}), signer, acc1Key)
 		b.SetCoinbase(nodeAddr) // WBFT matters who is coinbase
 		b.AddTx(tx)
 	})
@@ -1919,6 +1927,7 @@ func genExtraData(validatorPrvKey *ecdsa.PrivateKey) []byte {
 		PreparedSeal:  &types.WBFTAggregatedSeal{},
 		CommittedSeal: &types.WBFTAggregatedSeal{},
 		Round:         0,
+		GasTip:        new(big.Int).SetUint64(params.InitialGasTip),
 	}
 	b, _ := rlp.EncodeToBytes(sampleExtra)
 	return b
@@ -1938,8 +1947,8 @@ func setupReceiptBackend(t *testing.T, genBlocks int) (*testBackend, []common.Ha
 			ExcessBlobGas: new(uint64),
 			BlobGasUsed:   new(uint64),
 			Alloc: types.GenesisAlloc{
-				acc1Addr: {Balance: big.NewInt(params.Ether)},
-				acc2Addr: {Balance: big.NewInt(params.Ether)},
+				acc1Addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
+				acc2Addr: {Balance: new(big.Int).Mul(big.NewInt(10), big.NewInt(params.Ether))},
 				// // SPDX-License-Identifier: GPL-3.0
 				// pragma solidity >=0.7.0 <0.9.0;
 				//
@@ -1966,32 +1975,33 @@ func setupReceiptBackend(t *testing.T, genBlocks int) (*testBackend, []common.Ha
 			tx  *types.Transaction
 			err error
 		)
+		gasTip := new(big.Int).SetUint64(params.InitialGasTip)
+		gasPrice := new(big.Int).Add(b.BaseFee(), gasTip)
+
 		switch i {
 		case 0:
 			// transfer 1000wei
-			tx, err = types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &acc2Addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: b.BaseFee(), Data: nil}), types.HomesteadSigner{}, acc1Key)
+			tx, err = types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &acc2Addr, Value: big.NewInt(1000), Gas: params.TxGas, GasPrice: gasPrice, Data: nil}), types.HomesteadSigner{}, acc1Key)
 		case 1:
 			// create contract
-			tx, err = types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: nil, Gas: 53100, GasPrice: b.BaseFee(), Data: common.FromHex("0x60806040")}), signer, acc1Key)
+			tx, err = types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: nil, Gas: 53100, GasPrice: gasPrice, Data: common.FromHex("0x60806040")}), signer, acc1Key)
 		case 2:
 			// with logs
 			// transfer(address to, uint256 value)
 			data := fmt.Sprintf("0xa9059cbb%s%s", common.HexToHash(common.BigToAddress(big.NewInt(int64(i + 1))).Hex()).String()[2:], common.BytesToHash([]byte{byte(i + 11)}).String()[2:])
-			tx, err = types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &contract, Gas: 60000, GasPrice: b.BaseFee(), Data: common.FromHex(data)}), signer, acc1Key)
+			tx, err = types.SignTx(types.NewTx(&types.LegacyTx{Nonce: uint64(i), To: &contract, Gas: 60000, GasPrice: gasPrice, Data: common.FromHex(data)}), signer, acc1Key)
 		case 3:
 			// dynamic fee with logs
 			// transfer(address to, uint256 value)
 			data := fmt.Sprintf("0xa9059cbb%s%s", common.HexToHash(common.BigToAddress(big.NewInt(int64(i + 1))).Hex()).String()[2:], common.BytesToHash([]byte{byte(i + 11)}).String()[2:])
-			fee := big.NewInt(500)
-			fee.Add(fee, b.BaseFee())
-			tx, err = types.SignTx(types.NewTx(&types.DynamicFeeTx{Nonce: uint64(i), To: &contract, Gas: 60000, Value: big.NewInt(1), GasTipCap: big.NewInt(500), GasFeeCap: fee, Data: common.FromHex(data)}), signer, acc1Key)
+			tx, err = types.SignTx(types.NewTx(&types.DynamicFeeTx{Nonce: uint64(i), To: &contract, Gas: 60000, Value: big.NewInt(1), GasTipCap: gasTip, GasFeeCap: gasPrice, Data: common.FromHex(data)}), signer, acc1Key)
 		case 4:
 			// access list with contract create
 			accessList := types.AccessList{{
 				Address:     contract,
 				StorageKeys: []common.Hash{{0}},
 			}}
-			tx, err = types.SignTx(types.NewTx(&types.AccessListTx{Nonce: uint64(i), To: nil, Gas: 58100, GasPrice: b.BaseFee(), Data: common.FromHex("0x60806040"), AccessList: accessList}), signer, acc1Key)
+			tx, err = types.SignTx(types.NewTx(&types.AccessListTx{Nonce: uint64(i), To: nil, Gas: 58100, GasPrice: gasPrice, Data: common.FromHex("0x60806040"), AccessList: accessList}), signer, acc1Key)
 			// case 5: // ( skipping cancun fork )
 			// // blob tx
 			// fee := big.NewInt(500)
