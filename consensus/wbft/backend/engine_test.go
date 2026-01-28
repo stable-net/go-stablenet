@@ -52,10 +52,11 @@ import (
 	"github.com/ethereum/go-ethereum/triedb"
 )
 
-var blockEnqueueChannel chan *types.Block
+//var blockEnqueueChannel chan *types.Block
 
 type fakeBroadcaster struct {
-	blockFetcher *fetcher.BlockFetcher
+	blockFetcher        *fetcher.BlockFetcher
+	blockEnqueueChannel chan *types.Block
 }
 
 type otherNode struct {
@@ -65,7 +66,7 @@ type otherNode struct {
 }
 
 func makeFakeBroadcaster(chain *core.BlockChain) *fakeBroadcaster {
-	blockEnqueueChannel = make(chan *types.Block)
+	//blockEnqueueChannel = make(chan *types.Block)
 	validator := func(header *types.Header) error {
 		return chain.Engine().VerifyHeader(chain, header)
 	}
@@ -88,14 +89,15 @@ func makeFakeBroadcaster(chain *core.BlockChain) *fakeBroadcaster {
 	//}
 
 	fb := fakeBroadcaster{
-		blockFetcher: fetcher.NewBlockFetcher(false, nil, chain.GetBlockByHash, validator, broadcastBlock, heighter, nil, nil, nil),
+		blockFetcher:        fetcher.NewBlockFetcher(false, nil, chain.GetBlockByHash, validator, broadcastBlock, heighter, nil, nil, nil),
+		blockEnqueueChannel: make(chan *types.Block),
 	}
 	fb.blockFetcher.Start()
 	return &fb
 }
 
 func (fb *fakeBroadcaster) Enqueue(id string, block *types.Block) {
-	go func() { blockEnqueueChannel <- block }()
+	go func() { fb.blockEnqueueChannel <- block }()
 }
 
 func (fb *fakeBroadcaster) FindPeers(targets map[common.Address]bool) map[common.Address]consensus.Peer {

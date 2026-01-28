@@ -109,6 +109,7 @@ type Core struct {
 	roundChangeSet          *roundChangeSet
 	roundChangeTimer        *time.Timer
 	lastSentTimeoutCanceled *bool
+	timerMu                 sync.Mutex // protects roundChangeTimer, lastSentTimeoutCanceled, and timer stop/start
 
 	retrySendingRoundChangeTimer *time.Timer
 
@@ -313,6 +314,8 @@ func (c *Core) stopFuturePreprepareTimer() {
 }
 
 func (c *Core) stopTimer() {
+	c.timerMu.Lock()
+	defer c.timerMu.Unlock()
 	c.stopFuturePreprepareTimer()
 
 	// Stop retry sending ROUND-CHANGE retry timer
@@ -375,11 +378,13 @@ func (c *Core) newRoundChangeTimer() {
 	}
 
 	c.currentLogger(true, nil).Trace("WBFT: start new ROUND-CHANGE timer", "timeout", timeout.Seconds())
+	c.timerMu.Lock()
 	c.lastSentTimeoutCanceled = new(bool)
 	*c.lastSentTimeoutCanceled = false
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
 		c.sendEvent(timeoutEvent{c.lastSentTimeoutCanceled})
 	})
+	c.timerMu.Unlock()
 }
 
 // stopRetrySendingRoundChangeTimer stops the round-change retry timer if running.
