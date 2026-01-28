@@ -355,6 +355,7 @@ func TestGenerateStableNetGenesisJson(t *testing.T) {
 		Config:     params.StableNetMainnetChainConfig,
 		Timestamp:  0,
 		Difficulty: big.NewInt(0),
+		Alloc:      decodePrealloc(stablenetMainnetAllocData),
 	}
 
 	db := rawdb.NewMemoryDatabase()
@@ -367,6 +368,7 @@ func TestGenerateStableNetGenesisJson(t *testing.T) {
 		Config:     params.StableNetTestnetChainConfig,
 		Timestamp:  0,
 		Difficulty: big.NewInt(0),
+		Alloc:      decodePrealloc(stablenetTestnetAllocData),
 	}
 	db = rawdb.NewMemoryDatabase()
 	SetupGenesisBlock(db, triedb.NewDatabase(db, triedb.HashDefaults), genesis)

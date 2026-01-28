@@ -1012,7 +1012,7 @@ func setNodeUserIdent(ctx *cli.Context, cfg *node.Config) {
 // 3. Network preset flags (e.g. --goerli)
 // 4. default to mainnet nodes
 func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
-	urls := params.WemixMainnetBootnodes
+	urls := params.StableNetMainnetBootnodes
 	if ctx.IsSet(BootnodesFlag.Name) {
 		urls = SplitAndTrim(ctx.String(BootnodesFlag.Name))
 	} else {
@@ -1021,7 +1021,7 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 		}
 		switch {
 		case ctx.Bool(TestnetFlag.Name):
-			urls = params.WemixTestnetBootnodes
+			urls = params.StableNetTestnetBootnodes
 		case ctx.Bool(HoleskyFlag.Name):
 			urls = params.HoleskyBootnodes
 		case ctx.Bool(SepoliaFlag.Name):
@@ -1759,13 +1759,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	switch {
 	case ctx.Bool(MainnetFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 1111
+			cfg.NetworkId = 8282
 		}
 		cfg.Genesis = core.DefaultStableNetMainnetGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.StableNetMainnetGenesisHash)
 	case ctx.Bool(TestnetFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 1112
+			cfg.NetworkId = 8283
 		}
 		cfg.Genesis = core.DefaultStableNetTestnetGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.StableNetTestnetGenesisHash)
