@@ -187,8 +187,8 @@ Here's a sample code snippet for the Anzeon config:
         "masterMinter": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
         "minterAllowed": "10000000000000000000000000000",
         "minters": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
-        "name": "KRC1",
-        "symbol": "KRC1"
+        "name": "WKRC",
+        "symbol": "WKRC"
       }
     },
     "govMinter": {
@@ -471,8 +471,8 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
             "masterMinter": "0x0000000000000000000000000000000000001002",
             "minterAllowed": "10000000000000000000000000000",
             "minters": "0x0000000000000000000000000000000000001003",
-            "name": "KRC",
-            "symbol": "KRC"
+            "name": "WKRC",
+            "symbol": "WKRC"
           }
         },
         "govMinter": {

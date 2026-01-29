@@ -1,0 +1,55 @@
+name: "Release a tag as draft"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22.0"
+
+      - name: Setup packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libjemalloc-dev liblz4-dev libsnappy-dev libzstd-dev libudev-dev
+          # Consider removing this unless strictly necessary:
+          # sudo apt remove -y bzip2 libbz2-dev zlib1g-dev
+
+      - name: Build binary
+        run: make all
+
+      - name: Set version
+        run: |
+          test -x build/bin/gstable
+          GETH_VERSION=$(build/bin/gstable version | awk '/^Version/{ print $2 }')
+          COMMIT_HASH="${GITHUB_SHA::8}"
+          TAG_NAME="${{ github.ref_name }}"
+          echo "RELEASE_VERSION=${GETH_VERSION}-${COMMIT_HASH}" >> "$GITHUB_ENV"
+          echo "TAG_NAME=${TAG_NAME}" >> "$GITHUB_ENV"
+          echo "Creating release for version: ${GETH_VERSION}-${COMMIT_HASH} with tag: ${TAG_NAME}"
+
+      - name: Create tarball
+        run: |
+          mkdir -p release
+          cp -a build/bin/. release/
+          tar -C release -czf "gstable-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz" .
+          ls -la "gstable-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2.0.5
+        with:
+          name: StableNet Build (${{ env.RELEASE_VERSION }})
+          tag_name: ${{ env.TAG_NAME }}
+          draft: true
+          files: gstable-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz

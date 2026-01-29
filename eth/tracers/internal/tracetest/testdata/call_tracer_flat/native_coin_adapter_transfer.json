@@ -44,12 +44,8 @@
                     "maxRequestTimeoutSeconds": null
                 },
                 "init": {
-                    "validators": [
-                        "0x45dfd9f6da52abaee54ad49226c698e45b2f3777"
-                    ],
-                    "blsPublicKeys": [
-                        "0x92272a6e9692aa2ffe724257fe911e17189c5081b73c55ba1aacbd81248b6261fbfc5578c46407b94ba8dcdf6f8c926b"
-                    ]
+                    "validators": ["0x45dfd9f6da52abaee54ad49226c698e45b2f3777"],
+                    "blsPublicKeys": ["0x92272a6e9692aa2ffe724257fe911e17189c5081b73c55ba1aacbd81248b6261fbfc5578c46407b94ba8dcdf6f8c926b"]
                 },
                 "systemContracts": {
                     "govValidator": {
@@ -74,8 +70,8 @@
                             "masterMinter": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
                             "minterAllowed": "10000000000000000000000000000",
                             "minters": "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b",
-                            "name": "KRC1",
-                            "symbol": "KRC1"
+                            "name": "WKRC",
+                            "symbol": "WKRC"
                         }
                     },
                     "govMinter": {

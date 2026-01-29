@@ -1107,6 +1107,7 @@ func TestSignTransaction(t *testing.T) {
 	)
 	b := newTestBackend(t, 1, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {})
 	api := NewTransactionAPI(b, nil)
+
 	res, err := api.FillTransaction(context.Background(), TransactionArgs{
 		From:  &b.acc.Address,
 		To:    &to,
@@ -1124,7 +1125,7 @@ func TestSignTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expect := `{"type":"0x2","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x2b4abd176000","value":"0x1","input":"0x","accessList":[],"v":"0x1","r":"0x2251620c1ccc8b484d746d0c6b79c7e1be303e9f071461d3a2ff1d3b6be29f24","s":"0x437fe7ecd3bccf92ca29e1e4ded5162c427a04a3ccdd9d28323314d68a6a36b9","yParity":"0x1","hash":"0xb27ecfc2613b783aaf73ba8ea668306306ea68ba528ea66b7c6b2d6e38016e6e"}`
+	expect := `{"type":"0x2","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x246139ca8000","value":"0x1","input":"0x","accessList":[],"v":"0x1","r":"0xf6e60d9afcb3290e058787dd6c51c562b60e618b492bab36405dd4c7d024c67","s":"0x6fdc4fb02f379f479a169a7e02dc7852fe971dd2e4001a0cdee2d28ea376db18","yParity":"0x1","hash":"0xdac7688851dd29610f6edd65e6b656409e9a3b9011be1abfeeb246a17676e27d"}`
 	if !bytes.Equal(tx, []byte(expect)) {
 		t.Errorf("result mismatch. Have:\n%s\nWant:\n%s\n", tx, expect)
 	}

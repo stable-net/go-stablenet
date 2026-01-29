@@ -28,8 +28,8 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableNetMainnetGenesisHash = common.HexToHash("0xfb73258e7e90dbb9ae345bcd3138745b1d2bd713e0e9f9fe548c40dfb8778322")
-	StableNetTestnetGenesisHash = common.HexToHash("0xfb73258e7e90dbb9ae345bcd3138745b1d2bd713e0e9f9fe548c40dfb8778322")
+	StableNetMainnetGenesisHash = common.HexToHash("0x04701ca3d2cacf24bc6b1c1dde464eb61a522d04c9f71c410797f06e272437aa")
+	StableNetTestnetGenesisHash = common.HexToHash("0x2bdf79b3d3cc49f9e6638ff81f3bb85065c79945a8fe4556cd0ff47bbfc02490")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
 	SepoliaGenesisHash          = common.HexToHash("0x25a5cc106eea7138acab33231d7160d69cb777ee0c2c553fcddf5138993e6dd9")
@@ -94,9 +94,9 @@ var (
 					Params: map[string]string{
 						"masterMinter":  "0x0000000000000000000000000000000000001002",
 						"minters":       "0x0000000000000000000000000000000000001003",
-						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
-						"name":          "KRC1",
-						"symbol":        "KRC1",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 WKRC
+						"name":          "WKRC",
+						"symbol":        "WKRC",
 						"decimals":      "18",
 						"currency":      "KRW",
 					},
@@ -111,7 +111,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"minters":            "0x0000000000000000000000000000000000001003",
-						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 WKRC
 						"maxProposals":       "3",                             // Default: 3, Range: 1-50
 					},
 				},
@@ -142,7 +142,7 @@ var (
 		},
 	}
 
-	// StableNetTestnetChainConfig contains the chain parameters to run a node on the Wemix test network.
+	// StableNetTestnetChainConfig contains the chain parameters to run a node on the StableNet test network.
 	StableNetTestnetChainConfig = &ChainConfig{
 		ChainID:             big.NewInt(8283),
 		HomesteadBlock:      big.NewInt(0),
@@ -158,27 +158,43 @@ var (
 		LondonBlock:         big.NewInt(0),
 		ApplepieBlock:       big.NewInt(0),
 		Anzeon: &AnzeonConfig{
-			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
-				EpochLength:           10,
+			WBFT: &WBFTConfig{
+				EpochLength:           140,
 				BlockPeriodSeconds:    1,
 				RequestTimeoutSeconds: 2,
 				ProposerPolicy:        newUint64(0),
 			},
 			Init: &WBFTInit{
-				Validators:    []common.Address{common.HexToAddress("0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697")}, // TODO: define initial validators
-				BLSPublicKeys: []string{"0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"},
+				Validators: []common.Address{
+					common.HexToAddress("0x9f06600b2c17108662e3840e76bb27c9468eb73d"),
+					common.HexToAddress("0x1aa18ec0b3131171b1b1ddba2dffd81410b30a5a"),
+					common.HexToAddress("0xe63b413353e1ba4ac99f2bd1892328e2365ec574"),
+					common.HexToAddress("0x20f681210071932dbe6387378adf6f26af029f7d"),
+					common.HexToAddress("0x5803c14973690550d6ffc2014b7bffd8005f6021"),
+					common.HexToAddress("0x59f6e6add1fbeab316a7b17c9f1966b3655efedb"),
+					common.HexToAddress("0x0a8dd92ce7ce53bbf6aed40228f9029bb3f92702"),
+				},
+				BLSPublicKeys: []string{
+					"0x96683524c3b7e224f2146a0dbb87593e3dee21b7d97c1b24ef6ed799c977be40d3dff8e45b7fcdb48f7713095d84dd9c",
+					"0x80bd166ebfdb29553801dc22f5b83534945cc2a6dacf39d422383cb3041c8afab8cd430ffc29e9297ba2e114efae487f",
+					"0xa418ff21040af17cb3f5109fa075c92d771e508e715230413d6548d54114666011b715d2e60dfd4e20661d5327b67d6d",
+					"0xa529026635cf95fd84a9633c62bedaf2a5999f2d5542164086176e24b0c2256a3daa7b76344b631c0bd344895b3f44b9",
+					"0xb2aa67ceb23d96e4de5dca871dfbda6ba122a3b5a55b3a00547fdda906ab8e4892e98de4b36b541088ac8ff6de7d6a35",
+					"0x88717d8edbabaf65015b656b5a14bc27705bead8a75f81b9bc064b69b7a5e8f5a010d54cdb85b5b3cab16ce5d816062f",
+					"0x86949700dc2722f48cd649af74cff788bf17553d19278592ca7be54929d1646d60efd1ea12f9dabd7d0143d9813bfea8",
+				},
 			},
 			SystemContracts: &SystemContracts{
 				GovValidator: &SystemContract{
 					Address: DefaultGovValidatorAddress,
 					Version: DefaultGovVersion,
 					Params: map[string]string{
-						"quorum":        "1",
+						"quorum":        "2",
 						"expiry":        "604800", // 7 days
-						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"members":       "0x58f13FE4294652526C4B893b4e4f343B3F184D43,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453,0x4053E68d9b96831625572397C97067982C0415dE,0x56D97Be0616aD783aA93584765cAf33628814bD1,0x79495F15e9D20cDB5DA49adD45b32A3381479002,0x9B690222b5c06Cc67a04Bc31085913f0A9E46746,0xF7AeCcD8fB55ab1684DFd8db493ee6a02A9ac833",
 						"memberVersion": "1",
-						"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
-						"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
+						"validators":    "0x9f06600b2c17108662e3840e76bb27c9468eb73d,0x1aa18ec0b3131171b1b1ddba2dffd81410b30a5a,0xe63b413353e1ba4ac99f2bd1892328e2365ec574,0x20f681210071932dbe6387378adf6f26af029f7d,0x5803c14973690550d6ffc2014b7bffd8005f6021,0x59f6e6add1fbeab316a7b17c9f1966b3655efedb,0x0a8dd92ce7ce53bbf6aed40228f9029bb3f92702",
+						"blsPublicKeys": "0x96683524c3b7e224f2146a0dbb87593e3dee21b7d97c1b24ef6ed799c977be40d3dff8e45b7fcdb48f7713095d84dd9c,0x80bd166ebfdb29553801dc22f5b83534945cc2a6dacf39d422383cb3041c8afab8cd430ffc29e9297ba2e114efae487f,0xa418ff21040af17cb3f5109fa075c92d771e508e715230413d6548d54114666011b715d2e60dfd4e20661d5327b67d6d,0xa529026635cf95fd84a9633c62bedaf2a5999f2d5542164086176e24b0c2256a3daa7b76344b631c0bd344895b3f44b9,0xb2aa67ceb23d96e4de5dca871dfbda6ba122a3b5a55b3a00547fdda906ab8e4892e98de4b36b541088ac8ff6de7d6a35,0x88717d8edbabaf65015b656b5a14bc27705bead8a75f81b9bc064b69b7a5e8f5a010d54cdb85b5b3cab16ce5d816062f,0x86949700dc2722f48cd649af74cff788bf17553d19278592ca7be54929d1646d60efd1ea12f9dabd7d0143d9813bfea8",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
 						"gasTip":        "27600000000000",
 					},
@@ -189,9 +205,9 @@ var (
 					Params: map[string]string{
 						"masterMinter":  "0x0000000000000000000000000000000000001002",
 						"minters":       "0x0000000000000000000000000000000000001003",
-						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
-						"name":          "KRC1",
-						"symbol":        "KRC1",
+						"minterAllowed": "100000000000000000000000000000", // 1e29, 100_000_000_000 WKRC
+						"name":          "WKRC",
+						"symbol":        "WKRC",
 						"decimals":      "18",
 						"currency":      "KRW",
 					},
@@ -200,23 +216,23 @@ var (
 					Address: DefaultGovMasterMinterAddress,
 					Version: DefaultGovMasterMinterVersion,
 					Params: map[string]string{
-						"quorum":             "1",
+						"quorum":             "2",
 						"expiry":             "604800", // 7 days
-						"members":            "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"members":            "0x58f13FE4294652526C4B893b4e4f343B3F184D43,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453,0x4053E68d9b96831625572397C97067982C0415dE,0x56D97Be0616aD783aA93584765cAf33628814bD1,0x79495F15e9D20cDB5DA49adD45b32A3381479002,0x9B690222b5c06Cc67a04Bc31085913f0A9E46746,0xF7AeCcD8fB55ab1684DFd8db493ee6a02A9ac833",
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"minters":            "0x0000000000000000000000000000000000001003",
-						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
-						"maxProposals":       "3",                             // Default: 3, Range: 1-50
+						"maxMinterAllowance": "100000000000000000000000000000", // 1e29, 100_000_000_000 WKRC
+						"maxProposals":       "3",                              // Default: 3, Range: 1-50
 					},
 				},
 				GovMinter: &SystemContract{
 					Address: DefaultGovMinterAddress,
 					Version: DefaultGovMinterVersion,
 					Params: map[string]string{
-						"quorum":        "1",
+						"quorum":        "2",
 						"expiry":        "604800", // 7 days
-						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"members":       "0x58f13FE4294652526C4B893b4e4f343B3F184D43,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453,0x4053E68d9b96831625572397C97067982C0415dE,0x56D97Be0616aD783aA93584765cAf33628814bD1,0x79495F15e9D20cDB5DA49adD45b32A3381479002,0x9B690222b5c06Cc67a04Bc31085913f0A9E46746,0xF7AeCcD8fB55ab1684DFd8db493ee6a02A9ac833",
 						"memberVersion": "1",
 						"fiatToken":     "0x0000000000000000000000000000000000001000",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
@@ -226,9 +242,9 @@ var (
 					Address: DefaultGovCouncilAddress,
 					Version: DefaultGovCouncilVersion,
 					Params: map[string]string{
-						"quorum":        "1",
+						"quorum":        "2",
 						"expiry":        "604800", // 7 days
-						"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+						"members":       "0x58f13FE4294652526C4B893b4e4f343B3F184D43,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453,0x4053E68d9b96831625572397C97067982C0415dE,0x56D97Be0616aD783aA93584765cAf33628814bD1,0x79495F15e9D20cDB5DA49adD45b32A3381479002,0x9B690222b5c06Cc67a04Bc31085913f0A9E46746,0xF7AeCcD8fB55ab1684DFd8db493ee6a02A9ac833",
 						"memberVersion": "1",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
@@ -369,7 +385,7 @@ var (
 
 	mrts = uint64(4)
 
-	// customized for WEMIX chain
+	// customized for StableNet chain
 	AllDevChainProtocolChanges = &ChainConfig{
 		ChainID:             big.NewInt(1337),
 		HomesteadBlock:      big.NewInt(0),
@@ -418,9 +434,9 @@ var (
 					Params: map[string]string{
 						"masterMinter":  "0x0000000000000000000000000000000000001002",
 						"minters":       "0x0000000000000000000000000000000000001003",
-						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
-						"name":          "KRC1",
-						"symbol":        "KRC1",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 WKRC
+						"name":          "WKRC",
+						"symbol":        "WKRC",
 						"decimals":      "18",
 						"currency":      "KRW",
 					},
@@ -435,7 +451,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"minters":            "0x0000000000000000000000000000000000001003",
-						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 WKRC
 						"maxProposals":       "3",                             // Default: 3, Range: 1-50
 					},
 				},
@@ -624,9 +640,9 @@ var (
 					Params: map[string]string{
 						"masterMinter":  "0x0000000000000000000000000000000000001002",
 						"minters":       "0x0000000000000000000000000000000000001003",
-						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
-						"name":          "KRC1",
-						"symbol":        "KRC1",
+						"minterAllowed": "10000000000000000000000000000", // 1e28, 10_000_000_000 WKRC
+						"name":          "WKRC",
+						"symbol":        "WKRC",
 						"decimals":      "18",
 						"currency":      "KRW",
 					},
@@ -641,7 +657,7 @@ var (
 						"memberVersion":      "1",
 						"fiatToken":          "0x0000000000000000000000000000000000001000",
 						"minters":            "0x0000000000000000000000000000000000001003",
-						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 KRC1
+						"maxMinterAllowance": "10000000000000000000000000000", // 1e28, 10_000_000_000 WKRC
 						"maxProposals":       "3",                             // Default: 3, Range: 1-50
 					},
 				},

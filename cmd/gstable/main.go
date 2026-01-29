@@ -281,7 +281,7 @@ func prepare(ctx *cli.Context) {
 	// If we're running a known preset, log it for convenience.
 	switch {
 	case ctx.IsSet(utils.TestnetFlag.Name):
-		log.Info("Starting Gstable on Wemix testnet...")
+		log.Info("Starting Gstable on StableNet testnet...")
 
 	case ctx.IsSet(utils.GoerliFlag.Name):
 		log.Info("Starting Gstable on Görli testnet...")
@@ -311,7 +311,7 @@ func prepare(ctx *cli.Context) {
 `)
 
 	case !ctx.IsSet(utils.NetworkIdFlag.Name):
-		log.Info("Starting Gstable on Ethereum mainnet...")
+		log.Info("Starting Gstable on StableNet mainnet...")
 	}
 	// If we're a full node on mainnet without --cache specified, bump default cache allowance
 	if !ctx.IsSet(utils.CacheFlag.Name) && !ctx.IsSet(utils.NetworkIdFlag.Name) {

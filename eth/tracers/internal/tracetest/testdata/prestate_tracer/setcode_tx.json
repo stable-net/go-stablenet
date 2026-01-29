@@ -86,8 +86,8 @@
                             "masterMinter": "0x0000000000000000000000000000000000001002",
                             "minterAllowed": "10000000000000000000000000000",
                             "minters": "0x0000000000000000000000000000000000001003",
-                            "name": "KRC1",
-                            "symbol": "KRC1"
+                            "name": "WKRC",
+                            "symbol": "WKRC"
                         }
                     },
                     "govMinter": {
