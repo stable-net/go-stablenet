@@ -213,17 +213,21 @@ func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *ty
 
 // makeBlock create block executing no txs without seal
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
-	engine.NewChainHead() // progress to next sequence
-	if engine.core.GetState() != wbftcore.StateAcceptRequest {
-		ticker := time.NewTicker(100 * time.Millisecond)
-		for {
-			<-ticker.C
-			if engine.core.GetState() == wbftcore.StateAcceptRequest {
-				ticker.Stop()
-				break
-			}
-		}
+
+	sub := engine.EventMux().Subscribe(wbft.FinalCommittedEvent{})
+	defer sub.Unsubscribe()
+
+	if err := engine.NewChainHead(); err != nil {
+		panic("NewChainHead failed: " + err.Error())
 	}
+
+	select {
+	case <-sub.Chan():
+		break
+	case <-time.After(10 * time.Second):
+		panic("timeout waiting for FinalCommittedEvent")
+	}
+
 	header := makeHeader(chain.Config(), engine.config, parent)
 	engine.Prepare(chain, header)
 	block := types.NewBlock(header, nil, nil, nil, trie.NewStackTrie(nil))
