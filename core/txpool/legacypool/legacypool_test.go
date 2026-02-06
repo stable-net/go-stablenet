@@ -145,10 +145,6 @@ type unsignedAuth struct {
 	key   *ecdsa.PrivateKey
 }
 
-func setCodeTx(nonce uint64, key *ecdsa.PrivateKey, unsigned []unsignedAuth) *types.Transaction {
-	return pricedSetCodeTx(nonce, 250000, uint256.NewInt(1000), uint256.NewInt(1), key, unsigned)
-}
-
 func pricedSetCodeTx(nonce uint64, gaslimit uint64, gasFee, tip *uint256.Int, key *ecdsa.PrivateKey, unsigned []unsignedAuth) *types.Transaction {
 	var authList []types.SetCodeAuthorization
 	for _, u := range unsigned {
