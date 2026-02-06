@@ -3010,6 +3010,60 @@ func TestSetCodeTransactionsReorg(t *testing.T) {
 	}
 }
 
+func TestMinimumGasFeeValidation(t *testing.T) {
+	t.Parallel()
+
+	// Create the pool to test the status retrievals with
+	statedb, _ := state.New(types.EmptyRootHash, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	blockchain := newTestBlockChain(params.TestWBFTChainConfig, 1000000, statedb, new(event.Feed))
+
+	head := blockchain.CurrentBlock()
+	if !blockchain.Config().IsLondon(head.Number) {
+		t.Fatalf("London must be enabled for this test: head=%v", head.Number)
+	}
+	if !blockchain.Config().AnzeonEnabled() {
+		t.Fatalf("Anzeon must be enabled for this test")
+	}
+
+	pool := New(testTxPoolConfig, blockchain)
+	pool.Init(params.InitialGasTip, head, newReserver())
+	defer pool.Close()
+
+	// Create the test accounts
+	var (
+		keyA, _ = crypto.GenerateKey()
+		addrA   = crypto.PubkeyToAddress(keyA.PublicKey)
+	)
+	testBalance := new(big.Int).Mul(common.Big100, big.NewInt(params.Ether))
+	testAddBalance(pool, addrA, testBalance)
+
+	minBaseFee := blockchain.Config().MinBaseFee()
+	gasTip := pool.gasTip.Load()
+	minGasFee := new(big.Int).Add(minBaseFee, gasTip.ToBig())
+	belowMinGasFee := new(big.Int).Sub(minGasFee, common.Big1)
+
+	t.Run("reject legacy tx under minimum gas price", func(t *testing.T) {
+		if err := pool.addRemoteSync(pricedTransaction(0, 21000, belowMinGasFee, keyA)); !errors.Is(err, txpool.ErrUnderpriced) {
+			t.Fatalf("unexpected error %v, expecting %v", err, txpool.ErrUnderpriced)
+		}
+	})
+	t.Run("accept legacy tx at minimum gas price", func(t *testing.T) {
+		if err := pool.addRemoteSync(pricedTransaction(1, 21000, minGasFee, keyA)); err != nil {
+			t.Fatalf("failed to add transaction: %v", err)
+		}
+	})
+	t.Run("reject dynamic fee tx under minimum gas fee", func(t *testing.T) {
+		if err := pool.addRemoteSync(dynamicFeeTx(2, 21000, belowMinGasFee, gasTip.ToBig(), keyA)); !errors.Is(err, txpool.ErrUnderpriced) {
+			t.Fatalf("unexpected error %v, expecting %v", err, txpool.ErrUnderpriced)
+		}
+	})
+	t.Run("accept dynamic fee tx at minimum gas fee", func(t *testing.T) {
+		if err := pool.addRemoteSync(dynamicFeeTx(3, 21000, minGasFee, gasTip.ToBig(), keyA)); err != nil {
+			t.Fatalf("failed to add transaction: %v", err)
+		}
+	})
+}
+
 // Benchmarks the speed of validating the contents of the pending queue of the
 // transaction pool.
 func BenchmarkPendingDemotion100(b *testing.B)   { benchmarkPendingDemotion(b, 100) }
