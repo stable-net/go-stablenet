@@ -119,6 +119,16 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	if tx.GasTipCapIntCmp(opts.MinTip) < 0 {
 		return fmt.Errorf("%w: gas tip cap %v, minimum needed %v", ErrUnderpriced, tx.GasTipCap(), opts.MinTip)
 	}
+	if opts.Config.IsLondon(head.Number) && opts.Config.AnzeonEnabled() {
+		minBaseFee := opts.Config.MinBaseFee()
+		minFee := new(big.Int).Add(minBaseFee, opts.MinTip)
+
+		// NOTE: For LegacyTx and AccessListTx, GasFeeCap() returns GasPrice.
+		// So this rule also enforces gasPrice >= MinBaseFee + MinTip for legacy-style txs.
+		if tx.GasFeeCapIntCmp(minFee) < 0 {
+			return fmt.Errorf("%w: gas fee cap %v, minimum needed %v", ErrUnderpriced, tx.GasFeeCap(), minFee)
+		}
+	}
 
 	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
 		// Make sure the transaction is signed properly.
