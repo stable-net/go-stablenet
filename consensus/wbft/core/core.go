@@ -104,7 +104,7 @@ type Core struct {
 	priorState        priorState
 
 	current      *roundState
-	currentMutex sync.Mutex
+	currentMutex sync.RWMutex
 	handlerWg    *sync.WaitGroup
 
 	roundChangeSet          *roundChangeSet
@@ -153,6 +153,8 @@ func (c *Core) GetProposer() common.Address {
 }
 
 func (c *Core) IsCurrentProposal(blockHash common.Hash) bool {
+	c.currentMutex.RLock()
+	defer c.currentMutex.RUnlock()
 	return c.current != nil && c.current.pendingRequest != nil && c.current.pendingRequest.Proposal.Hash() == blockHash
 }
 
@@ -286,11 +288,14 @@ func (c *Core) updateRoundState(nextValSet wbft.ValidatorSet, view *wbft.View, r
 }
 
 func (c *Core) setState(state State) {
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
 	if c.state != state {
 		oldState := c.state
 		c.state = state
 		c.currentLogger(false, nil).Debug("WBFT: changed state", "old.state", oldState.String(), "new.state", state.String())
 	}
+
 	if state == StateAcceptRequest {
 		c.processPendingRequests()
 	}
@@ -301,6 +306,8 @@ func (c *Core) setState(state State) {
 }
 
 func (c *Core) GetState() State {
+	c.stateMu.RLock()
+	defer c.stateMu.RUnlock()
 	return c.state
 }
 
@@ -313,7 +320,16 @@ func (c *Core) stopFuturePreprepareTimer() {
 		c.futurePreprepareTimer.Stop()
 	}
 }
-
+func (c *Core) stopRoundChangeTimer() {
+	if c.roundChangeTimer != nil {
+		c.roundChangeTimer.Stop()
+	}
+}
+func (c *Core) cancelLastSentTimeout() {
+	if c.lastSentTimeoutCanceled != nil {
+		*c.lastSentTimeoutCanceled = true
+	}
+}
 func (c *Core) stopTimer() {
 	c.timerMu.Lock()
 	defer c.timerMu.Unlock()
@@ -322,12 +338,9 @@ func (c *Core) stopTimer() {
 	// Stop retry sending ROUND-CHANGE retry timer
 	c.stopRetrySendingRoundChangeTimer()
 
-	if c.roundChangeTimer != nil {
-		c.roundChangeTimer.Stop()
-	}
-	if c.lastSentTimeoutCanceled != nil {
-		*c.lastSentTimeoutCanceled = true
-	}
+	c.stopRoundChangeTimer()
+
+	c.cancelLastSentTimeout()
 }
 
 func (c *Core) newRoundChangeTimer() {
@@ -395,18 +408,32 @@ func (c *Core) stopRetrySendingRoundChangeTimer() {
 	}
 }
 
-// newRetrySendingRoundChangeTimer sets a retry timer to reattempt round-change after a timeout
+// newRetrySendingRoundChangeTimer sets a retry timer to reattempt round-change after a timeout.
+// It copies round (and seq for config) under currentMutex; the callback uses only that copied round and never reads c.current.
 func (c *Core) newRetrySendingRoundChangeTimer() {
-	c.stopRetrySendingRoundChangeTimer()
+	// Snapshot current view under lock to avoid races with startNewRound/updateRoundState.
+	var seq, round *big.Int
+	c.currentMutex.RLock()
+	if c.current != nil {
+		seq = new(big.Int).Set(c.current.Sequence())
+		round = new(big.Int).Set(c.current.Round())
+	}
+	c.currentMutex.RUnlock()
+	if seq == nil || round == nil {
+		return
+	}
 
-	// set timeout based on the round number
-	cfg := c.config.GetConfig(c.current.Sequence())
+	cfg := c.config.GetConfig(seq)
 	timeout := time.Duration(cfg.RequestTimeout) * time.Millisecond
 
-	c.currentLogger(true, nil).Trace("WBFT: set ROUND-CHANGE retry timer", "round", c.current.Round(), "timeout", timeout.Seconds())
+	c.logger.Trace("WBFT: set ROUND-CHANGE retry timer", "round", round.Uint64(), "timeout", timeout.Seconds())
+
+	c.timerMu.Lock()
+	c.stopRetrySendingRoundChangeTimer()
 	c.retrySendingRoundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(retryTimeoutEvent{c.current.Round()})
+		c.sendEvent(retryTimeoutEvent{round})
 	})
+	c.timerMu.Unlock()
 }
 
 func (c *Core) checkValidatorSignature(data []byte, sig []byte, view wbft.View) (common.Address, error) {

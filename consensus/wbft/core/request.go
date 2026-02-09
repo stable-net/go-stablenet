@@ -64,6 +64,7 @@ func (c *Core) checkRequestMsg(request *Request) error {
 	if request == nil || request.Proposal == nil {
 		return errInvalidMessage
 	}
+
 	if c.current == nil {
 		return errCurrentIsNil
 	}

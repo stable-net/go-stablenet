@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
@@ -55,9 +56,9 @@ type testEnv struct {
 	// properties for test scenario
 	down        map[common.Address]bool
 	msgDisabled map[common.Address]map[uint64]bool
+	mu          sync.RWMutex
 }
 
-// make n engines with given genesis and cfg
 func MakeMultiEngineTestEnv(n int) (env *testEnv) {
 	env = &testEnv{}
 
@@ -68,20 +69,23 @@ func MakeMultiEngineTestEnv(n int) (env *testEnv) {
 	env.msgDisabled = make(map[common.Address]map[uint64]bool)
 	env.results = make(map[common.Address]chan *types.Block)
 
-	config := new(wbft.Config)
-	wbft.SetConfigFromChainConfig(config, genesis.Config)
-	config.BlockPeriod = 1
-	config.Epoch = 100
-	config.RequestTimeout = 2000
-	config.MaxRequestTimeoutSeconds = 2
-	config.AllowedFutureBlockTime = 100000000 // to skip future block check; this makes block creation time to be very short
-
 	env.addrs = make([]common.Address, n)
 	env.index = make(map[common.Address]int)
 	env.chains = make(map[common.Address]*core.BlockChain)
 	env.engines = make(map[common.Address]*Backend)
 	env.subResult = make(chan *types.Block)
 	for i, nodeKey := range nodeKeys {
+		// Each engine must have its own Config (and thus its own ProposerPolicy);
+		// otherwise Start() -> startWBFT() -> ProposerPolicy.Use() causes a data race
+		// when multiple engines are started concurrently (go engine.Start(...)).
+		config := new(wbft.Config)
+		wbft.SetConfigFromChainConfig(config, genesis.Config)
+		config.BlockPeriod = 1
+		config.Epoch = 100
+		config.RequestTimeout = 2000
+		config.MaxRequestTimeoutSeconds = 2
+		config.AllowedFutureBlockTime = 100000000 // to skip future block check; this makes block creation time to be very short
+
 		addr := crypto.PubkeyToAddress(nodeKey.PublicKey)
 		memDB := rawdb.NewMemoryDatabase()
 		env.addrs[i] = addr
@@ -248,9 +252,12 @@ func (env *testEnv) MustSucceed(t *testing.T, allowRoundChange bool, expectedPro
 }
 
 func (env *testEnv) makeScenarioEngineDown(index ...int) *scenario {
+
 	return &scenario{
 		target: append([]int{}, index...),
 		set: func(i int) string {
+			env.mu.Lock()
+			defer env.mu.Unlock()
 			env.down[env.addrs[i]] = true
 			return fmt.Sprintf("[%d:down]", i)
 		},
@@ -261,6 +268,8 @@ func (env *testEnv) makeScenarioEngineUp(index ...int) *scenario {
 	return &scenario{
 		target: append([]int{}, index...),
 		set: func(i int) string {
+			env.mu.Lock()
+			defer env.mu.Unlock()
 			env.down[env.addrs[i]] = false
 			return fmt.Sprintf("[%d:up]", i)
 		},
@@ -271,6 +280,8 @@ func (env *testEnv) makeScenarioDisableCommitMsg(index ...int) *scenario {
 	return &scenario{
 		target: append([]int{}, index...),
 		set: func(i int) string {
+			env.mu.Lock()
+			defer env.mu.Unlock()
 			if env.msgDisabled[env.addrs[i]] == nil {
 				env.msgDisabled[env.addrs[i]] = make(map[uint64]bool)
 			}
@@ -284,6 +295,8 @@ func (env *testEnv) makeScenarioEnableCommitMsg(index ...int) *scenario {
 	return &scenario{
 		target: append([]int{}, index...),
 		set: func(i int) string {
+			env.mu.Lock()
+			defer env.mu.Unlock()
 			if env.msgDisabled[env.addrs[i]] == nil {
 				env.msgDisabled[env.addrs[i]] = make(map[uint64]bool)
 			}
@@ -297,6 +310,8 @@ func (env *testEnv) makeScenarioOnlyOneDown(index int) *scenario {
 	return &scenario{
 		target: append([]int{}, index),
 		set: func(i int) string {
+			env.mu.Lock()
+			defer env.mu.Unlock()
 			for j := 0; j < len(env.addrs); j++ {
 				if j == i {
 					env.down[env.addrs[j]] = true
@@ -314,6 +329,8 @@ func (env *testEnv) makeScenarioRandomDown(index ...int) *scenario {
 	return &scenario{
 		target: append([]int{}, index...),
 		set: func(i int) string {
+			env.mu.Lock()
+			defer env.mu.Unlock()
 			if i == x {
 				env.down[env.addrs[i]] = true
 				return fmt.Sprintf("[%d:down]", i)
@@ -392,11 +409,20 @@ type simPeer struct {
 }
 
 func (sp *simPeer) SendWBFTConsensus(msgcode uint64, payload []byte) error {
-	if (sp.br.env.msgDisabled[sp.br.myAddr] != nil && sp.br.env.msgDisabled[sp.br.myAddr][msgcode]) ||
-		(sp.br.env.msgDisabled[sp.peerAddr] != nil && sp.br.env.msgDisabled[sp.peerAddr][msgcode]) ||
-		sp.br.env.down[sp.br.myAddr] || sp.br.env.down[sp.peerAddr] {
+
+	env := sp.br.env
+
+	env.mu.RLock()
+	disabledMy := env.msgDisabled[sp.br.myAddr] != nil && env.msgDisabled[sp.br.myAddr][msgcode]
+	disabledPeer := env.msgDisabled[sp.peerAddr] != nil && env.msgDisabled[sp.peerAddr][msgcode]
+	downMy := env.down[sp.br.myAddr]
+	downPeer := env.down[sp.peerAddr]
+	env.mu.RUnlock()
+
+	if disabledMy || disabledPeer || downMy || downPeer {
 		return nil
 	}
+
 	if err := sp.peerEngine.istanbulEventMux.Post(wbft.MessageEvent{
 		Code:    msgcode,
 		Payload: payload,

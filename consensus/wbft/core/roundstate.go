@@ -113,8 +113,11 @@ func (s *roundState) SetRound(r *big.Int) {
 func (s *roundState) Round() *big.Int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	return s.round
+	if s.round == nil {
+		return nil
+	}
+	// Return a copy to avoid exposing internal mutable state after the lock is released.
+	return new(big.Int).Set(s.round)
 }
 
 func (s *roundState) SetSequence(seq *big.Int) {
@@ -127,6 +130,9 @@ func (s *roundState) SetSequence(seq *big.Int) {
 func (s *roundState) Sequence() *big.Int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	return s.sequence
+	if s.sequence == nil {
+		return nil
+	}
+	// Return a copy to avoid exposing internal mutable state after the lock is released.
+	return new(big.Int).Set(s.sequence)
 }
