@@ -288,8 +288,7 @@ func (c *Core) updateRoundState(nextValSet wbft.ValidatorSet, view *wbft.View, r
 }
 
 func (c *Core) setState(state State) {
-	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
+
 	if c.state != state {
 		oldState := c.state
 		c.state = state
@@ -306,8 +305,6 @@ func (c *Core) setState(state State) {
 }
 
 func (c *Core) GetState() State {
-	c.stateMu.RLock()
-	defer c.stateMu.RUnlock()
 	return c.state
 }
 

@@ -136,9 +136,7 @@ func (c *Core) ProcessExtraSeal(lastProposal wbft.Proposal, priorRound *big.Int,
 
 	preparedSeal := make([]wbft.SealData, 0)
 	committedSeal := make([]wbft.SealData, 0)
-	if lastProposal == nil || priorRound == nil || valSet == nil {
-		return preparedSeal, committedSeal
-	}
+
 	// latestView is view to process extra seal
 	latestView := wbft.View{
 		Round:    priorRound,
