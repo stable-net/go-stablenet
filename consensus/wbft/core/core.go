@@ -287,13 +287,11 @@ func (c *Core) updateRoundState(nextValSet wbft.ValidatorSet, view *wbft.View, r
 }
 
 func (c *Core) setState(state State) {
-
 	if c.state != state {
 		oldState := c.state
 		c.state = state
 		c.currentLogger(false, nil).Debug("WBFT: changed state", "old.state", oldState.String(), "new.state", state.String())
 	}
-
 	if state == StateAcceptRequest {
 		c.processPendingRequests()
 	}

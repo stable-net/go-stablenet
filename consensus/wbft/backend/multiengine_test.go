@@ -408,9 +408,7 @@ type simPeer struct {
 }
 
 func (sp *simPeer) SendWBFTConsensus(msgcode uint64, payload []byte) error {
-
 	env := sp.br.env
-
 	env.mu.RLock()
 	disabledMy := env.msgDisabled[sp.br.myAddr] != nil && env.msgDisabled[sp.br.myAddr][msgcode]
 	disabledPeer := env.msgDisabled[sp.peerAddr] != nil && env.msgDisabled[sp.peerAddr][msgcode]
