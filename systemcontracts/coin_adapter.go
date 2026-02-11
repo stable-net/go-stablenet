@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -48,10 +47,10 @@ func initializeCoinAdapter(coinAdapterAddress common.Address, param map[string]s
 
 	// SLOT_COIN_ADAPTER_MINTERS, SLOT_COIN_ADAPTER_MINTER_ALLOWED
 	if mintersStr, ok := param[COIN_ADAPTER_PARAM_MINTERS]; ok && len(mintersStr) > 0 {
-		minters := strings.Split(mintersStr, ",")
+		minters := splitAndTrim(mintersStr, ",")
 		minterAllowedAmounts := make([]*big.Int, len(minters))
 		if minterAllowedStr, ok := param[COIN_ADAPTER_PARAM_MINTER_ALLOWED]; ok && len(minterAllowedStr) > 0 {
-			minterAllowed := strings.Split(minterAllowedStr, ",")
+			minterAllowed := splitAndTrim(minterAllowedStr, ",")
 			if len(minters) != len(minterAllowed) {
 				return nil, fmt.Errorf("`systemContracts.nativeCoinAdapter.params`: the number of minters and minterAllowedAmounts must be the same")
 			}

@@ -68,7 +68,7 @@ func initializeGovCouncil(govCouncilAddress common.Address, param map[string]str
 
 	// Initialize blacklist if provided
 	if blacklistStr, ok := param[GOV_COUNCIL_PARAM_BLACKLIST]; ok && blacklistStr != "" {
-		blacklistAddresses := strings.Split(blacklistStr, ",")
+		blacklistAddresses := splitAndTrim(blacklistStr, ",")
 		blacklistParams, err := initializeAddressSet(
 			govCouncilAddress,
 			common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values),
@@ -84,7 +84,7 @@ func initializeGovCouncil(govCouncilAddress common.Address, param map[string]str
 
 	// Initialize authorized accounts if provided
 	if authorizedAccountsStr, ok := param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS]; ok && authorizedAccountsStr != "" {
-		authorizedAccountAddresses := strings.Split(authorizedAccountsStr, ",")
+		authorizedAccountAddresses := splitAndTrim(authorizedAccountsStr, ",")
 		authorizedAccountParams, err := initializeAddressSet(
 			govCouncilAddress,
 			common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_values),

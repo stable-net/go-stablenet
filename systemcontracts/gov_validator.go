@@ -20,7 +20,6 @@ package systemcontracts
 import (
 	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
@@ -89,9 +88,9 @@ func initializeValidator(govValidatorAddress common.Address, param map[string]st
 			return nil, fmt.Errorf("`systemContracts.govValidator.params`: missing parameter: %s", GOV_VALIDATOR_PARAM_BLS_KEYS)
 		}
 
-		memberAddresses := strings.Split(param[GOV_BASE_PARAM_MEMBERS], ",")
-		valAddresses := strings.Split(valStr, ",")
-		blsKeyStrings := strings.Split(param[GOV_VALIDATOR_PARAM_BLS_KEYS], ",")
+		memberAddresses := splitAndTrim(param[GOV_BASE_PARAM_MEMBERS], ",")
+		valAddresses := splitAndTrim(valStr, ",")
+		blsKeyStrings := splitAndTrim(param[GOV_VALIDATOR_PARAM_BLS_KEYS], ",")
 		if len(memberAddresses) != len(valAddresses) {
 			return nil, fmt.Errorf("`systemContracts.govValidator.params`: the number of members and validators must be the same")
 		}
