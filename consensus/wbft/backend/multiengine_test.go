@@ -252,7 +252,6 @@ func (env *testEnv) MustSucceed(t *testing.T, allowRoundChange bool, expectedPro
 }
 
 func (env *testEnv) makeScenarioEngineDown(index ...int) *scenario {
-
 	return &scenario{
 		target: append([]int{}, index...),
 		set: func(i int) string {

@@ -213,7 +213,6 @@ func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *ty
 
 // makeBlock create block executing no txs without seal
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
-
 	sub := engine.EventMux().Subscribe(wbft.FinalCommittedEvent{})
 	defer sub.Unsubscribe()
 
