@@ -80,7 +80,7 @@ func initializeMasterMinter(govMasterMinterAddress common.Address, param map[str
 
 	// Initialize minters (comma-separated addresses)
 	if mintersStr, ok := param[GOV_MASTER_MINTER_PARAM_MINTERS]; ok {
-		minterAddressStrs := strings.Split(mintersStr, ",")
+		minterAddressStrs := splitAndTrim(mintersStr, ",")
 		if len(minterAddressStrs) == 0 {
 			return nil, fmt.Errorf("`systemContracts.govMasterMinter.params.minters`: no addresses provided")
 		}
