@@ -82,7 +82,6 @@ type Core struct {
 	config  *wbft.Config
 	address common.Address
 	state   State
-	stateMu sync.RWMutex
 	logger  log.Logger
 
 	backend               Backend
