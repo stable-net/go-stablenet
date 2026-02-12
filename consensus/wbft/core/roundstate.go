@@ -110,29 +110,25 @@ func (s *roundState) SetRound(r *big.Int) {
 	s.round = new(big.Int).Set(r)
 }
 
+// Returned *big.Int must be treated read-only; never mutate it
 func (s *roundState) Round() *big.Int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.round == nil {
-		return nil
-	}
-	// Return a copy to avoid exposing internal mutable state after the lock is released.
-	return new(big.Int).Set(s.round)
+
+	return s.round
 }
 
 func (s *roundState) SetSequence(seq *big.Int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.sequence = seq
+	s.sequence = new(big.Int).Set(seq)
 }
 
+// Returned *big.Int must be treated read-only; never mutate it
 func (s *roundState) Sequence() *big.Int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.sequence == nil {
-		return nil
-	}
-	// Return a copy to avoid exposing internal mutable state after the lock is released.
-	return new(big.Int).Set(s.sequence)
+
+	return s.sequence
 }
