@@ -15,8 +15,8 @@ jobs:
       if: type = push
       os: linux
       arch: amd64
-      dist: bionic
-      go: 1.22.x
+      dist: noble
+      go: 1.23.x
       env:
         - docker
       services:
@@ -32,8 +32,8 @@ jobs:
       if: type = push
       os: linux
       arch: arm64
-      dist: bionic
-      go: 1.22.x
+      dist: noble
+      go: 1.23.x
       env:
         - docker
       services:
@@ -51,7 +51,7 @@ jobs:
       os: linux
       dist: bionic
       sudo: required
-      go: 1.22.x
+      go: 1.23.x
       env:
         - azure-linux
       git:
@@ -85,7 +85,7 @@ jobs:
       if: type = push
       os: osx
       osx_image: xcode14.2
-      go: 1.22.x
+      go: 1.23.x
       env:
         - azure-osx
       git:
@@ -100,23 +100,14 @@ jobs:
     - stage: build
       os: linux
       arch: amd64
-      dist: bionic
-      go: 1.22.x
-      script:
-        - travis_wait 30 go run build/ci.go test $TEST_PACKAGES
-
-    - stage: build
-      if: type = pull_request
-      os: linux
-      arch: arm64
-      dist: bionic
-      go: 1.22.x
+      dist: noble
+      go: 1.23.x
       script:
         - travis_wait 30 go run build/ci.go test $TEST_PACKAGES
 
     - stage: build
       os: linux
-      dist: bionic
+      dist: noble
       go: 1.22.x
       script:
         - travis_wait 30 go run build/ci.go test $TEST_PACKAGES
@@ -125,8 +116,8 @@ jobs:
     - stage: build
       if: type = cron || (type = push && tag ~= /^v[0-9]/)
       os: linux
-      dist: bionic
-      go: 1.22.x
+      dist: noble
+      go: 1.23.x
       env:
         - ubuntu-ppa
       git:
@@ -148,8 +139,8 @@ jobs:
     - stage: build
       if: type = cron
       os: linux
-      dist: bionic
-      go: 1.22.x
+      dist: noble
+      go: 1.23.x
       env:
         - azure-purge
       git:
@@ -161,8 +152,10 @@ jobs:
     - stage: build
       if: type = cron
       os: linux
-      dist: bionic
-      go: 1.22.x
+      dist: noble
+      go: 1.23.x
+      env:
+        - racetests
       script:
         - travis_wait 30 go run build/ci.go test  -race $TEST_PACKAGES
 
