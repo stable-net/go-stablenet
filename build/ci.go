@@ -134,6 +134,7 @@ var (
 		"focal":  "golang-go",   // 20.04, EOL: 04/2030
 		"jammy":  "golang-go",   // 22.04, EOL: 04/2032
 		"mantic": "golang-go",   // 23.10, EOL: 07/2024
+		"noble":  "golang-go",   // 24.04, EOL: 04/2034
 	}
 
 	debGoBootPaths = map[string]string{
