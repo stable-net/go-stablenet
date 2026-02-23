@@ -52,8 +52,6 @@ import (
 	"github.com/ethereum/go-ethereum/triedb"
 )
 
-//var blockEnqueueChannel chan *types.Block
-
 type fakeBroadcaster struct {
 	blockFetcher        *fetcher.BlockFetcher
 	blockEnqueueChannel chan *types.Block
@@ -66,7 +64,7 @@ type otherNode struct {
 }
 
 func makeFakeBroadcaster(chain *core.BlockChain) *fakeBroadcaster {
-	//blockEnqueueChannel = make(chan *types.Block)
+
 	validator := func(header *types.Header) error {
 		return chain.Engine().VerifyHeader(chain, header)
 	}
@@ -76,17 +74,6 @@ func makeFakeBroadcaster(chain *core.BlockChain) *fakeBroadcaster {
 	heighter := func() uint64 {
 		return chain.CurrentBlock().Number.Uint64()
 	}
-
-	//inserter := func(blocks types.Blocks) (int, error) {
-	//	idx, err := chain.InsertChain(blocks)
-	//	if err == nil {
-	//		header := blocks[len(blocks)-1].Header()
-	//		chain.SetFinalized(header)
-	//		chain.SetSafe(header)
-	//	}
-	//	// ## Wemix END
-	//	return idx, err
-	//}
 
 	fb := fakeBroadcaster{
 		blockFetcher:        fetcher.NewBlockFetcher(false, nil, chain.GetBlockByHash, validator, broadcastBlock, heighter, nil, nil, nil),
