@@ -64,7 +64,6 @@ type otherNode struct {
 }
 
 func makeFakeBroadcaster(chain *core.BlockChain) *fakeBroadcaster {
-
 	validator := func(header *types.Header) error {
 		return chain.Engine().VerifyHeader(chain, header)
 	}
