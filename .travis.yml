@@ -16,7 +16,7 @@ jobs:
       os: linux
       arch: amd64
       dist: noble
-      go: 1.23.x
+      go: 1.23.12
       env:
         - docker
       services:
@@ -33,7 +33,7 @@ jobs:
       os: linux
       arch: arm64
       dist: noble
-      go: 1.23.x
+      go: 1.23.12
       env:
         - docker
       services:
@@ -51,7 +51,7 @@ jobs:
       os: linux
       dist: noble
       sudo: required
-      go: 1.23.x
+      go: 1.23.12
       env:
         - azure-linux
       git:
@@ -83,7 +83,7 @@ jobs:
       if: type = push
       os: osx
       osx_image: xcode14.2
-      go: 1.23.x
+      go: 1.23.12
       env:
         - azure-osx
       git:
@@ -100,15 +100,7 @@ jobs:
       os: linux
       arch: amd64
       dist: noble
-      go: 1.23.x
-      script:
-        - travis_wait 45 go run build/ci.go test $TEST_PACKAGES
-
-    - stage: build
-      if: type = push
-      os: linux
-      dist: noble
-      go: 1.22.x
+      go: 1.23.12
       script:
         - travis_wait 45 go run build/ci.go test $TEST_PACKAGES
 
@@ -117,7 +109,7 @@ jobs:
       if: type = cron || (type = push && tag ~= /^v[0-9]/)
       os: linux
       dist: noble
-      go: 1.23.x
+      go: 1.23.12
       env:
         - ubuntu-ppa
       git:
@@ -133,7 +125,7 @@ jobs:
       if: type = cron
       os: linux
       dist: noble
-      go: 1.23.x
+      go: 1.23.12
       env:
         - azure-purge
       git:
@@ -146,7 +138,7 @@ jobs:
       if: type = cron
       os: linux
       dist: noble
-      go: 1.23.x
+      go: 1.23.12
       env:
         - racetests
       script:
