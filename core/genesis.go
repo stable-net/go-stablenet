@@ -381,6 +381,10 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 // LoadChainConfigWithOverride loads the chain configuration from the database if present,
 // otherwise returns the config from the provided genesis specification, with overrides applied.
 func LoadChainConfigWithOverride(db ethdb.Database, genesis *Genesis, overrides *ChainOverrides) (*params.ChainConfig, error) {
+	if genesis != nil && genesis.Config == nil {
+		return params.AllEthashProtocolChanges, errGenesisNoConfig
+	}
+
 	applyOverrides := func(config *params.ChainConfig) {
 		if config != nil {
 			if overrides != nil && overrides.OverrideCancun != nil {
@@ -403,6 +407,29 @@ func LoadChainConfigWithOverride(db ethdb.Database, genesis *Genesis, overrides 
 		}
 		applyOverrides(genesis.Config)
 		return genesis.Config, nil
+	}
+
+	// If a canonical genesis already exists and a genesis is provided, ensure
+	// the provided genesis does not point to a different chain.
+	if genesis != nil {
+		applyOverrides(genesis.Config)
+		if genesis.Config.AnzeonEnabled() {
+			if err := genesis.Config.Anzeon.CheckValidity(); err != nil {
+				return nil, fmt.Errorf("Invalid genesis config: %v", err)
+			}
+			var err error
+			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Anzeon)
+			if err != nil {
+				return genesis.Config, err
+			}
+			if err := InjectContracts(genesis, genesis.Config); err != nil {
+				return genesis.Config, err
+			}
+		}
+		hash := genesis.ToBlock().Hash()
+		if hash != stored {
+			return genesis.Config, &GenesisMismatchError{Stored: stored, New: hash}
+		}
 	}
 
 	// Genesis exists, get the config
