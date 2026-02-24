@@ -156,7 +156,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 
 	// Transfer mining-related config to the ethash config.
-	chainConfig, _, err := core.LoadChainConfigWithOverride(chainDb, config.Genesis, &overrides)
+	chainConfig, err := core.LoadChainConfigWithOverride(chainDb, config.Genesis, &overrides)
 	if err != nil {
 		return nil, err
 	}

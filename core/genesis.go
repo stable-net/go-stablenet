@@ -380,7 +380,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 
 // LoadChainConfigWithOverride loads the chain configuration from the database if present,
 // otherwise returns the config from the provided genesis specification, with overrides applied.
-func LoadChainConfigWithOverride(db ethdb.Database, genesis *Genesis, overrides *ChainOverrides) (*params.ChainConfig, common.Hash, error) {
+func LoadChainConfigWithOverride(db ethdb.Database, genesis *Genesis, overrides *ChainOverrides) (*params.ChainConfig, error) {
 	applyOverrides := func(config *params.ChainConfig) {
 		if config != nil {
 			if overrides != nil && overrides.OverrideCancun != nil {
@@ -399,10 +399,10 @@ func LoadChainConfigWithOverride(db ethdb.Database, genesis *Genesis, overrides 
 			genesis = DefaultStableNetMainnetGenesisBlock()
 		}
 		if genesis.Config == nil {
-			return params.AllEthashProtocolChanges, common.Hash{}, errGenesisNoConfig
+			return params.AllEthashProtocolChanges, errGenesisNoConfig
 		}
 		applyOverrides(genesis.Config)
-		return genesis.Config, common.Hash{}, nil
+		return genesis.Config, nil
 	}
 
 	// Genesis exists, get the config
@@ -411,7 +411,7 @@ func LoadChainConfigWithOverride(db ethdb.Database, genesis *Genesis, overrides 
 
 	// Validate fork order
 	if err := newcfg.CheckConfigForkOrder(); err != nil {
-		return newcfg, common.Hash{}, err
+		return newcfg, err
 	}
 
 	// Check if there's a stored config in the database
@@ -424,7 +424,7 @@ func LoadChainConfigWithOverride(db ethdb.Database, genesis *Genesis, overrides 
 		}
 	}
 
-	return newcfg, stored, nil
+	return newcfg, nil
 }
 
 // LoadChainConfig loads the stored chain config if it is already present in
