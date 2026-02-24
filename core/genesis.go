@@ -378,6 +378,55 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	return newcfg, stored, nil
 }
 
+// LoadChainConfigWithOverride loads the chain configuration from the database if present,
+// otherwise returns the config from the provided genesis specification, with overrides applied.
+func LoadChainConfigWithOverride(db ethdb.Database, genesis *Genesis, overrides *ChainOverrides) (*params.ChainConfig, common.Hash, error) {
+	applyOverrides := func(config *params.ChainConfig) {
+		if config != nil {
+			if overrides != nil && overrides.OverrideCancun != nil {
+				config.CancunTime = overrides.OverrideCancun
+			}
+			if overrides != nil && overrides.OverrideVerkle != nil {
+				config.VerkleTime = overrides.OverrideVerkle
+			}
+		}
+	}
+
+	stored := rawdb.ReadCanonicalHash(db, 0)
+	// If no genesis block is stored, use the provided genesis or default
+	if (stored == common.Hash{}) {
+		if genesis == nil {
+			genesis = DefaultStableNetMainnetGenesisBlock()
+		}
+		if genesis.Config == nil {
+			return params.AllEthashProtocolChanges, common.Hash{}, errGenesisNoConfig
+		}
+		applyOverrides(genesis.Config)
+		return genesis.Config, common.Hash{}, nil
+	}
+
+	// Genesis exists, get the config
+	newcfg := genesis.configOrDefault(stored)
+	applyOverrides(newcfg)
+
+	// Validate fork order
+	if err := newcfg.CheckConfigForkOrder(); err != nil {
+		return newcfg, common.Hash{}, err
+	}
+
+	// Check if there's a stored config in the database
+	storedcfg := rawdb.ReadChainConfig(db, stored)
+	if storedcfg != nil {
+		// Special case: private network - use stored config with overrides
+		if genesis == nil && stored != params.MainnetGenesisHash && stored != params.StableNetMainnetGenesisHash {
+			newcfg = storedcfg
+			applyOverrides(newcfg)
+		}
+	}
+
+	return newcfg, stored, nil
+}
+
 // LoadChainConfig loads the stored chain config if it is already present in
 // database, otherwise, return the config in the provided genesis specification.
 func LoadChainConfig(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, error) {
