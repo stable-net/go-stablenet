@@ -49,6 +49,117 @@ func TestSetupGenesis(t *testing.T) {
 	testSetupGenesis(t, rawdb.PathScheme)
 }
 
+func TestLoadChainConfigWithOverride(t *testing.T) {
+	t.Run("no block in DB, genesis with overrides", func(t *testing.T) {
+		db := rawdb.NewMemoryDatabase()
+		cancunTime := uint64(1234)
+
+		config := *params.TestChainConfig
+		genesis := &Genesis{
+			Config:     &config,
+			GasLimit:   4712388,
+			Difficulty: big.NewInt(1),
+			Alloc: types.GenesisAlloc{
+				{1}: {Balance: big.NewInt(1)},
+			},
+		}
+		got, err := LoadChainConfigWithOverride(db, genesis, &ChainOverrides{OverrideCancun: &cancunTime})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.CancunTime == nil || *got.CancunTime != cancunTime {
+			t.Fatalf("override not applied, got=%v want=%d", got.CancunTime, cancunTime)
+		}
+	})
+
+	t.Run("private network in DB, genesis nil uses stored config with overrides", func(t *testing.T) {
+		db := rawdb.NewMemoryDatabase()
+		verkleTime := uint64(5678)
+
+		config := *params.TestChainConfig
+		config.ChainID = big.NewInt(1337)
+		genesis := &Genesis{
+			Config:     &config,
+			GasLimit:   4712388,
+			Difficulty: big.NewInt(1),
+			Alloc: types.GenesisAlloc{
+				{1}: {Balance: big.NewInt(1)},
+			},
+		}
+		block := genesis.MustCommit(db, triedb.NewDatabase(db, triedb.HashDefaults))
+
+		got, err := LoadChainConfigWithOverride(db, nil, &ChainOverrides{OverrideVerkle: &verkleTime})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.ChainID.Cmp(config.ChainID) != 0 {
+			t.Fatalf("unexpected chain id, got=%v want=%v", got.ChainID, config.ChainID)
+		}
+		if got.VerkleTime == nil || *got.VerkleTime != verkleTime {
+			t.Fatalf("override not applied, got=%v want=%d", got.VerkleTime, verkleTime)
+		}
+		storedcfg := rawdb.ReadChainConfig(db, block.Hash())
+		if storedcfg == nil {
+			t.Fatalf("stored chain config missing")
+		}
+		if storedcfg.ChainID.Cmp(got.ChainID) != 0 {
+			t.Fatalf("unexpected stored chain id, got=%v want=%v", storedcfg.ChainID, got.ChainID)
+		}
+	})
+
+	t.Run("stored genesis with mismatching provided genesis returns mismatch error", func(t *testing.T) {
+		db := rawdb.NewMemoryDatabase()
+
+		config := *params.TestChainConfig
+		config.ChainID = big.NewInt(9999)
+		storedGenesis := &Genesis{
+			Config:     &config,
+			GasLimit:   4712388,
+			Difficulty: big.NewInt(1),
+			Alloc: types.GenesisAlloc{
+				{1}: {Balance: big.NewInt(1)},
+			},
+		}
+		block := storedGenesis.MustCommit(db, triedb.NewDatabase(db, triedb.HashDefaults))
+
+		mismatchGenesis := &Genesis{
+			Config:     &config,
+			GasLimit:   4712388,
+			Difficulty: big.NewInt(1),
+			Nonce:      1, // force different genesis hash
+			Alloc: types.GenesisAlloc{
+				{1}: {Balance: big.NewInt(1)},
+			},
+		}
+
+		_, err := LoadChainConfigWithOverride(db, mismatchGenesis, nil)
+		if err == nil {
+			t.Fatalf("expected mismatch error")
+		}
+		mismatchErr, ok := err.(*GenesisMismatchError)
+		if !ok {
+			t.Fatalf("unexpected error type: %T", err)
+		}
+		if mismatchErr.Stored != block.Hash() {
+			t.Fatalf("unexpected stored hash, got=%s want=%s", mismatchErr.Stored, block.Hash())
+		}
+		if mismatchErr.New != mismatchGenesis.ToBlock().Hash() {
+			t.Fatalf("unexpected new hash, got=%s want=%s", mismatchErr.New, mismatchGenesis.ToBlock().Hash())
+		}
+	})
+
+	t.Run("genesis without config returns errGenesisNoConfig", func(t *testing.T) {
+		db := rawdb.NewMemoryDatabase()
+		got, err := LoadChainConfigWithOverride(db, new(Genesis), nil)
+		if err != errGenesisNoConfig {
+			t.Fatalf("unexpected error, got=%v want=%v", err, errGenesisNoConfig)
+		}
+		if got != params.AllEthashProtocolChanges {
+			t.Fatalf("unexpected config return for error path")
+		}
+	})
+}
+
 func testSetupGenesis(t *testing.T, scheme string) {
 	var (
 		customghash = common.HexToHash("0x89c99d90b79719238d2645c7642f2c9295246e80775b38cfd162b696817fbd50")
