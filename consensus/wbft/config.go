@@ -124,7 +124,7 @@ var DefaultConfig = &Config{
 func (c *Config) GetSystemContracts(blockNumber *big.Int, chainConfig *params.ChainConfig) params.SystemContracts {
 	gc := params.SystemContracts{}
 
-	if c.SystemContractUpgrades != nil && len(c.SystemContractUpgrades) > 0 {
+	if len(c.SystemContractUpgrades) > 0 {
 		c.getSystemContractsValue(blockNumber, func(upgrade params.Upgrade) {
 			if upgrade.GovValidator != nil {
 				gc.GovValidator = upgrade.GovValidator

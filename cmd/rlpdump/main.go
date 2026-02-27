@@ -142,9 +142,9 @@ func dump(in *inStream, s *rlp.Stream, depth int, out io.Writer) error {
 		s.List()
 		defer s.ListEnd()
 		if size == 0 {
-			fmt.Fprintf(out, ws(depth)+"[]")
+			fmt.Fprintf(out, "%s[]", ws(depth))
 		} else {
-			fmt.Fprintln(out, ws(depth)+"[")
+			fmt.Fprintf(out, "%s[\n", ws(depth))
 			for i := 0; ; i++ {
 				if i > 0 {
 					fmt.Fprint(out, ",\n")
@@ -155,7 +155,7 @@ func dump(in *inStream, s *rlp.Stream, depth int, out io.Writer) error {
 					return err
 				}
 			}
-			fmt.Fprint(out, ws(depth)+"]")
+			fmt.Fprintf(out, "%s]", ws(depth))
 		}
 	}
 	return nil

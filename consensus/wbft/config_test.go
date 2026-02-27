@@ -116,7 +116,7 @@ func setConfigFromChainConfig(wbftCfg *Config, chainCfg *chainConfigWrapper) err
 		hfTransitionBlocks[hf.blockNum] = true
 	}
 
-	if chainCfg.Transitions != nil && len(chainCfg.Transitions) > 0 {
+	if len(chainCfg.Transitions) > 0 {
 		for _, t := range chainCfg.Transitions {
 			if hfTransitionBlocks[t.Block] {
 				return errors.New("hardfork transition block already exists")
