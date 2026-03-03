@@ -65,6 +65,17 @@ const (
 	SLOT_GOV_BASE_maxActiveProposalsPerMember = "0xc"
 )
 
+func splitAndTrim(s, sep string) (ret []string) {
+	l := strings.Split(s, sep)
+	for _, r := range l {
+		r = strings.TrimSpace(r)
+		if len(r) > 0 {
+			ret = append(ret, r)
+		}
+	}
+	return ret
+}
+
 type Member struct {
 	IsActive bool
 	JoinedAt uint32
@@ -161,7 +172,7 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 	}
 
 	if membersStr, ok := param[GOV_BASE_PARAM_MEMBERS]; ok {
-		memberAddresses := strings.Split(membersStr, ",")
+		memberAddresses := splitAndTrim(membersStr, ",")
 
 		// Pre-validate and deduplicate members
 		uniqueMembers := make([]common.Address, 0)

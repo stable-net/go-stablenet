@@ -1609,11 +1609,20 @@ func (api *BlockChainAPI) CreateAccessList(ctx context.Context, args Transaction
 // AccessList creates an access list for the given transaction.
 // If the accesslist creation fails an error is returned.
 // If the transaction itself fails, an vmErr is returned.
-func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrHash, args TransactionArgs) (acl types.AccessList, gasUsed uint64, vmErr error, err error) {
+func AccessList(ctx context.Context, b Backend, blockNrOrHash rpc.BlockNumberOrHash, args TransactionArgs, stateOverrides *StateOverride) (acl types.AccessList, gasUsed uint64, vmErr error, err error) {
 	// Retrieve the execution context
 	db, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if db == nil || err != nil {
 		return nil, 0, nil, err
+	}
+
+	// Apply state overrides immediately after StateAndHeaderByNumberOrHash.
+	// If not applied here, there could be cases where user-specified overrides (e.g., nonce)
+	// may conflict with default values from the database, leading to inconsistencies.
+	if stateOverrides != nil {
+		if err := stateOverrides.Apply(db); err != nil {
+			return nil, 0, nil, err
+		}
 	}
 
 	// Ensure any missing fields are filled, extract the recipient and input data
