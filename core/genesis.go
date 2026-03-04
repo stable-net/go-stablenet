@@ -216,6 +216,39 @@ type ChainOverrides struct {
 	OverrideVerkle *uint64
 }
 
+func applyOverrides(config *params.ChainConfig, overrides *ChainOverrides) {
+	if config == nil {
+		return
+	}
+	if overrides != nil && overrides.OverrideCancun != nil {
+		config.CancunTime = overrides.OverrideCancun
+	}
+	if overrides != nil && overrides.OverrideVerkle != nil {
+		config.VerkleTime = overrides.OverrideVerkle
+	}
+}
+
+func validateAnzeonGenesisConfig(config *params.ChainConfig) error {
+	if config != nil && config.AnzeonEnabled() {
+		if err := config.Anzeon.CheckValidity(); err != nil {
+			return fmt.Errorf("Invalid genesis config: %v", err)
+		}
+	}
+	return nil
+}
+
+func initializeAnzeonGenesis(genesis *Genesis) error {
+	if genesis == nil || genesis.Config == nil || !genesis.Config.AnzeonEnabled() {
+		return nil
+	}
+	extraData, err := wbft.CreateInitialExtraData(genesis.Config.Anzeon)
+	if err != nil {
+		return err
+	}
+	genesis.ExtraData = extraData
+	return InjectContracts(genesis, genesis.Config)
+}
+
 // SetupGenesisBlock writes or updates the genesis block in db.
 // The block that will be used is:
 //
@@ -237,16 +270,6 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	if genesis != nil && genesis.Config == nil {
 		return params.AllEthashProtocolChanges, common.Hash{}, errGenesisNoConfig
 	}
-	applyOverrides := func(config *params.ChainConfig) {
-		if config != nil {
-			if overrides != nil && overrides.OverrideCancun != nil {
-				config.CancunTime = overrides.OverrideCancun
-			}
-			if overrides != nil && overrides.OverrideVerkle != nil {
-				config.VerkleTime = overrides.OverrideVerkle
-			}
-		}
-	}
 	// Just commit the new block if there is no stored genesis block.
 	stored := rawdb.ReadCanonicalHash(db, 0)
 	if (stored == common.Hash{}) {
@@ -256,22 +279,13 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 		} else {
 			log.Info("Writing custom genesis block")
 		}
-		applyOverrides(genesis.Config)
+		applyOverrides(genesis.Config, overrides)
 
-		if genesis.Config.AnzeonEnabled() {
-			if err := genesis.Config.Anzeon.CheckValidity(); err != nil {
-				return nil, common.Hash{}, fmt.Errorf("Invalid genesis config: %v", err)
-			}
-
-			var err error
-			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Anzeon)
-			if err != nil {
-				return genesis.Config, common.Hash{}, err
-			}
-			err = InjectContracts(genesis, genesis.Config)
-			if err != nil {
-				return genesis.Config, common.Hash{}, err
-			}
+		if err := validateAnzeonGenesisConfig(genesis.Config); err != nil {
+			return nil, common.Hash{}, err
+		}
+		if err := initializeAnzeonGenesis(genesis); err != nil {
+			return genesis.Config, common.Hash{}, err
 		}
 		block, err := genesis.Commit(db, triedb)
 		if err != nil {
@@ -288,21 +302,13 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 		if genesis == nil {
 			genesis = DefaultStableNetMainnetGenesisBlock()
 		}
-		applyOverrides(genesis.Config)
+		applyOverrides(genesis.Config, overrides)
 
-		if genesis.Config.AnzeonEnabled() {
-			if err := genesis.Config.Anzeon.CheckValidity(); err != nil {
-				return nil, common.Hash{}, fmt.Errorf("Invalid genesis config: %v", err)
-			}
-			var err error
-			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Anzeon)
-			if err != nil {
-				return genesis.Config, stored, err
-			}
-			err = InjectContracts(genesis, genesis.Config)
-			if err != nil {
-				return genesis.Config, stored, err
-			}
+		if err := validateAnzeonGenesisConfig(genesis.Config); err != nil {
+			return nil, common.Hash{}, err
+		}
+		if err := initializeAnzeonGenesis(genesis); err != nil {
+			return genesis.Config, stored, err
 		}
 
 		// Ensure the stored genesis matches with the given one.
@@ -318,21 +324,12 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	}
 	// Check whether the genesis block is already written.
 	if genesis != nil {
-		applyOverrides(genesis.Config)
-		if genesis.Config.AnzeonEnabled() {
-			if err := genesis.Config.Anzeon.CheckValidity(); err != nil {
-				return nil, common.Hash{}, fmt.Errorf("Invalid genesis config: %v", err)
-			}
-
-			var err error
-			genesis.ExtraData, err = wbft.CreateInitialExtraData(genesis.Config.Anzeon)
-			if err != nil {
-				return genesis.Config, common.Hash{}, err
-			}
-			err = InjectContracts(genesis, genesis.Config)
-			if err != nil {
-				return genesis.Config, common.Hash{}, err
-			}
+		applyOverrides(genesis.Config, overrides)
+		if err := validateAnzeonGenesisConfig(genesis.Config); err != nil {
+			return nil, common.Hash{}, err
+		}
+		if err := initializeAnzeonGenesis(genesis); err != nil {
+			return genesis.Config, common.Hash{}, err
 		}
 		hash := genesis.ToBlock().Hash()
 		if hash != stored {
@@ -341,7 +338,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	}
 	// Get the existing chain configuration.
 	newcfg := genesis.configOrDefault(stored)
-	applyOverrides(newcfg)
+	applyOverrides(newcfg, overrides)
 	if err := newcfg.CheckConfigForkOrder(); err != nil {
 		return newcfg, common.Hash{}, err
 	}
@@ -359,7 +356,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 	// apply the overrides.
 	if genesis == nil && stored != params.MainnetGenesisHash && stored != params.StableNetMainnetGenesisHash {
 		newcfg = storedcfg
-		applyOverrides(newcfg)
+		applyOverrides(newcfg, overrides)
 	}
 	// Check config compatibility and write the config. Compatibility errors
 	// are returned to the caller unless we're already at block zero.
@@ -376,6 +373,64 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *triedb.Database, g
 		rawdb.WriteChainConfig(db, stored, newcfg)
 	}
 	return newcfg, stored, nil
+}
+
+// LoadChainConfigWithOverride loads the chain configuration from the database if present,
+// otherwise returns the config from the provided genesis specification, with overrides applied.
+func LoadChainConfigWithOverride(db ethdb.Database, genesis *Genesis, overrides *ChainOverrides) (*params.ChainConfig, error) {
+	if genesis != nil && genesis.Config == nil {
+		return params.AllEthashProtocolChanges, errGenesisNoConfig
+	}
+
+	stored := rawdb.ReadCanonicalHash(db, 0)
+	// If no genesis block is stored, use the provided genesis or default
+	if (stored == common.Hash{}) {
+		if genesis == nil {
+			genesis = DefaultStableNetMainnetGenesisBlock()
+		}
+		if genesis.Config == nil {
+			return params.AllEthashProtocolChanges, errGenesisNoConfig
+		}
+		applyOverrides(genesis.Config, overrides)
+		return genesis.Config, nil
+	}
+
+	// If a canonical genesis already exists and a genesis is provided, ensure
+	// the provided genesis does not point to a different chain.
+	if genesis != nil {
+		applyOverrides(genesis.Config, overrides)
+		if err := validateAnzeonGenesisConfig(genesis.Config); err != nil {
+			return nil, err
+		}
+		if err := initializeAnzeonGenesis(genesis); err != nil {
+			return genesis.Config, err
+		}
+		hash := genesis.ToBlock().Hash()
+		if hash != stored {
+			return genesis.Config, &GenesisMismatchError{Stored: stored, New: hash}
+		}
+	}
+
+	// Genesis exists, get the config
+	newcfg := genesis.configOrDefault(stored)
+	applyOverrides(newcfg, overrides)
+
+	// Validate fork order
+	if err := newcfg.CheckConfigForkOrder(); err != nil {
+		return newcfg, err
+	}
+
+	// Check if there's a stored config in the database
+	storedcfg := rawdb.ReadChainConfig(db, stored)
+	if storedcfg != nil {
+		// Special case: private network - use stored config with overrides
+		if genesis == nil && stored != params.MainnetGenesisHash && stored != params.StableNetMainnetGenesisHash {
+			newcfg = storedcfg
+			applyOverrides(newcfg, overrides)
+		}
+	}
+
+	return newcfg, nil
 }
 
 // LoadChainConfig loads the stored chain config if it is already present in

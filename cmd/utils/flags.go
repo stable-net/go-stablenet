@@ -2097,7 +2097,18 @@ func MakeChain(ctx *cli.Context, stack *node.Node, readonly bool) (*core.BlockCh
 		gspec   = MakeGenesis(ctx)
 		chainDb = MakeChainDatabase(ctx, stack, readonly)
 	)
-	config, err := core.LoadChainConfig(chainDb, gspec)
+
+	var overrides core.ChainOverrides
+	if ctx.IsSet(OverrideCancun.Name) {
+		v := ctx.Uint64(OverrideCancun.Name)
+		overrides.OverrideCancun = &v
+	}
+	if ctx.IsSet(OverrideVerkle.Name) {
+		v := ctx.Uint64(OverrideVerkle.Name)
+		overrides.OverrideVerkle = &v
+	}
+
+	config, err := core.LoadChainConfigWithOverride(chainDb, gspec, &overrides)
 	if err != nil {
 		Fatalf("%v", err)
 	}
@@ -2144,7 +2155,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node, readonly bool) (*core.BlockCh
 	vmcfg := vm.Config{EnablePreimageRecording: ctx.Bool(VMEnableDebugFlag.Name)}
 
 	// Disable transaction indexing/unindexing by default.
-	chain, err := core.NewBlockChain(chainDb, cache, gspec, nil, engine, vmcfg, nil, nil)
+	chain, err := core.NewBlockChain(chainDb, cache, gspec, &overrides, engine, vmcfg, nil, nil)
 	if err != nil {
 		Fatalf("Can't create BlockChain: %v", err)
 	}
