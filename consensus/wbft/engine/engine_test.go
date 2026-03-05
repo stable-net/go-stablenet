@@ -910,7 +910,6 @@ func TestBlacklistedSigner(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			parent := &types.Header{
 				Number: big.NewInt(1),
@@ -1037,7 +1036,6 @@ func TestBaseFeeDistribution(t *testing.T) {
 		}
 
 		for _, tc := range testCases {
-			tc := tc // capture loop variable
 			t.Run(tc.name, func(t *testing.T) {
 				var parent *types.Header
 

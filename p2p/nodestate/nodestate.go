@@ -295,14 +295,14 @@ func MergeFlags(list ...Flags) Flags {
 }
 
 // String returns a list of the names of the flags specified in the bit mask
-func (f Flags) String() string {
-	if f.mask == 0 {
+func (a Flags) String() string {
+	if a.mask == 0 {
 		return "[]"
 	}
 	s := "["
 	comma := false
-	for index, flag := range f.setup.flags {
-		if f.mask&(bitMask(1)<<uint(index)) != 0 {
+	for index, flag := range a.setup.flags {
+		if a.mask&(bitMask(1)<<uint(index)) != 0 {
 			if comma {
 				s = s + ", "
 			}
@@ -749,7 +749,6 @@ func (ns *NodeStateMachine) Operation(fn func()) error {
 // offlineCallbacks calls state update callbacks at startup or shutdown
 func (ns *NodeStateMachine) offlineCallbacks(start bool) {
 	for _, cb := range ns.offlineCallbackList {
-		cb := cb
 		callback := func() {
 			for _, sub := range ns.stateSubs {
 				offState := offlineState & sub.mask

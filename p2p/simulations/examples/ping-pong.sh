@@ -3,6 +3,7 @@
 # Boot a ping-pong network simulation using the HTTP API started by ping-pong.go
 
 set -e
+#PATH=$PATH:$(dirname "$0")/../../../build/bin
 
 main() {
   if ! which p2psim &>/dev/null; then
