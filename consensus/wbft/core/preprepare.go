@@ -144,6 +144,7 @@ func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 			logger.Info("WBFT: PRE-PREPARE block proposal is in the future (will be treated again later)", "duration", duration)
 
 			// start a timer to re-input PRE-PREPARE message as a backlog event
+			c.timerMu.Lock()
 			c.stopFuturePreprepareTimer()
 			c.futurePreprepareTimer = time.AfterFunc(duration, func() {
 				_, validator := c.valSet.GetByAddress(preprepare.Source())
@@ -152,6 +153,7 @@ func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 					msg: preprepare,
 				})
 			})
+			c.timerMu.Unlock()
 		} else {
 			logger.Warn("WBFT: invalid PRE-PREPARE block proposal", "err", err)
 		}

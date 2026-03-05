@@ -52,10 +52,9 @@ import (
 	"github.com/ethereum/go-ethereum/triedb"
 )
 
-var blockEnqueueChannel chan *types.Block
-
 type fakeBroadcaster struct {
-	blockFetcher *fetcher.BlockFetcher
+	blockFetcher        *fetcher.BlockFetcher
+	blockEnqueueChannel chan *types.Block
 }
 
 type otherNode struct {
@@ -65,7 +64,6 @@ type otherNode struct {
 }
 
 func makeFakeBroadcaster(chain *core.BlockChain) *fakeBroadcaster {
-	blockEnqueueChannel = make(chan *types.Block)
 	validator := func(header *types.Header) error {
 		return chain.Engine().VerifyHeader(chain, header)
 	}
@@ -76,26 +74,16 @@ func makeFakeBroadcaster(chain *core.BlockChain) *fakeBroadcaster {
 		return chain.CurrentBlock().Number.Uint64()
 	}
 
-	//inserter := func(blocks types.Blocks) (int, error) {
-	//	idx, err := chain.InsertChain(blocks)
-	//	if err == nil {
-	//		header := blocks[len(blocks)-1].Header()
-	//		chain.SetFinalized(header)
-	//		chain.SetSafe(header)
-	//	}
-	//	// ## Wemix END
-	//	return idx, err
-	//}
-
 	fb := fakeBroadcaster{
-		blockFetcher: fetcher.NewBlockFetcher(false, nil, chain.GetBlockByHash, validator, broadcastBlock, heighter, nil, nil, nil),
+		blockFetcher:        fetcher.NewBlockFetcher(false, nil, chain.GetBlockByHash, validator, broadcastBlock, heighter, nil, nil, nil),
+		blockEnqueueChannel: make(chan *types.Block),
 	}
 	fb.blockFetcher.Start()
 	return &fb
 }
 
 func (fb *fakeBroadcaster) Enqueue(id string, block *types.Block) {
-	go func() { blockEnqueueChannel <- block }()
+	go func() { fb.blockEnqueueChannel <- block }()
 }
 
 func (fb *fakeBroadcaster) FindPeers(targets map[common.Address]bool) map[common.Address]consensus.Peer {
@@ -211,17 +199,20 @@ func makeBlock(chain *core.BlockChain, engine *Backend, parent *types.Block) *ty
 
 // makeBlock create block executing no txs without seal
 func makeBlockWithoutSeal(chain *core.BlockChain, engine *Backend, parent *types.Block) *types.Block {
-	engine.NewChainHead() // progress to next sequence
-	if engine.core.GetState() != wbftcore.StateAcceptRequest {
-		ticker := time.NewTicker(100 * time.Millisecond)
-		for {
-			<-ticker.C
-			if engine.core.GetState() == wbftcore.StateAcceptRequest {
-				ticker.Stop()
-				break
-			}
-		}
+	sub := engine.EventMux().Subscribe(wbft.FinalCommittedEvent{})
+	defer sub.Unsubscribe()
+
+	if err := engine.NewChainHead(); err != nil {
+		panic("NewChainHead failed: " + err.Error())
 	}
+
+	select {
+	case <-sub.Chan():
+		break
+	case <-time.After(10 * time.Second):
+		panic("timeout waiting for FinalCommittedEvent")
+	}
+
 	header := makeHeader(chain.Config(), engine.config, parent)
 	engine.Prepare(chain, header)
 	block := types.NewBlock(header, nil, nil, nil, trie.NewStackTrie(nil))
