@@ -35,7 +35,6 @@ var (
     "berlinBlock": 0,
     "londonBlock": 0,
     "applepieBlock": 0,
-    "bForkBlock": 0,
     "anzeon": {
       "wbft": {
         "requestTimeoutSeconds": 2,
@@ -116,17 +115,6 @@ var (
             "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
             "quorum": "1"
           }
-        }
-      }
-    },
-    "bFork": {
-      "systemContracts": {
-        "govValidator": null,
-        "nativeCoinAdapter": null,
-        "govMinter": {
-          "address": "0x0000000000000000000000000000000000001003",
-          "version": "v2",
-          "params": null
         }
       }
     }
@@ -259,7 +247,6 @@ var (
     "berlinBlock": 0,
     "londonBlock": 0,
     "applepieBlock": 0,
-    "bForkBlock": 100,
     "anzeon": {
       "wbft": {
         "requestTimeoutSeconds": 2,
@@ -352,17 +339,6 @@ var (
             "members": "0x58f13FE4294652526C4B893b4e4f343B3F184D43,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453,0x4053E68d9b96831625572397C97067982C0415dE,0x56D97Be0616aD783aA93584765cAf33628814bD1,0x79495F15e9D20cDB5DA49adD45b32A3381479002,0x9B690222b5c06Cc67a04Bc31085913f0A9E46746,0xF7AeCcD8fB55ab1684DFd8db493ee6a02A9ac833",
             "quorum": "2"
           }
-        }
-      }
-    },
-    "bFork": {
-      "systemContracts": {
-        "govValidator": null,
-        "nativeCoinAdapter": null,
-        "govMinter": {
-          "address": "0x0000000000000000000000000000000000001003",
-          "version": "v2",
-          "params": null
         }
       }
     }
@@ -590,30 +566,14 @@ var (
       },
       "balance": "0x0"
     },
-    "4053e68d9b96831625572397c97067982c0415de": {
-      "balance": "0x33b2e3c9fd0803ce8000000"
-    },
-    "56d97be0616ad783aa93584765caf33628814bd1": {
-      "balance": "0x33b2e3c9fd0803ce8000000"
-    },
-    "58f13fe4294652526c4b893b4e4f343b3f184d43": {
-      "balance": "0x33b2e3c9fd0803ce8000000"
-    },
-    "79495f15e9d20cdb5da49add45b32a3381479002": {
-      "balance": "0x33b2e3c9fd0803ce8000000"
-    },
-    "9b690222b5c06cc67a04bc31085913f0a9e46746": {
-      "balance": "0x33b2e3c9fd0803ce8000000"
-    },
-    "d13657a2f08a266ca816c96c1a97e888990f485b": {
-      "balance": "0x204fce5e3e25026110000000"
-    },
-    "e0e5bdd44f679a9a5047a00a51bec82c2288f453": {
-      "balance": "0x33b2e3c9fd0803ce8000000"
-    },
-    "f7aeccd8fb55ab1684dfd8db493ee6a02a9ac833": {
-      "balance": "0x33b2e3c9fd0803ce8000000"
-    }
+    "4053e68d9b96831625572397c97067982c0415de": { "balance": "0x33b2e3c9fd0803ce8000000" },
+    "56d97be0616ad783aa93584765caf33628814bd1": { "balance": "0x33b2e3c9fd0803ce8000000" },
+    "58f13fe4294652526c4b893b4e4f343b3f184d43": { "balance": "0x33b2e3c9fd0803ce8000000" },
+    "79495f15e9d20cdb5da49add45b32a3381479002": { "balance": "0x33b2e3c9fd0803ce8000000" },
+    "9b690222b5c06cc67a04bc31085913f0a9e46746": { "balance": "0x33b2e3c9fd0803ce8000000" },
+    "d13657a2f08a266ca816c96c1a97e888990f485b": { "balance": "0x204fce5e3e25026110000000" },
+    "e0e5bdd44f679a9a5047a00a51bec82c2288f453": { "balance": "0x33b2e3c9fd0803ce8000000" },
+    "f7aeccd8fb55ab1684dfd8db493ee6a02a9ac833": { "balance": "0x33b2e3c9fd0803ce8000000" }
   },
   "number": "0x0",
   "gasUsed": "0x0",
