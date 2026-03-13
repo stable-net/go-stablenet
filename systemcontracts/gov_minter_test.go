@@ -204,6 +204,30 @@ func TestGetBurnBalance(t *testing.T) {
 	})
 }
 
+func TestGetRefundableBalance(t *testing.T) {
+	govMinterAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	addr := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	balance := big.NewInt(3000000)
+
+	t.Run("get existing refundable balance", func(t *testing.T) {
+		mockState := newMockStateReader()
+
+		// Set refundable balance
+		key := CalculateMappingSlot(common.HexToHash(SLOT_GOV_MINTER_refundableBalance), addr)
+		mockState.SetState(govMinterAddr, key, common.BigToHash(balance))
+
+		result := GetRefundableBalance(govMinterAddr, mockState, addr)
+		require.Equal(t, balance, result)
+	})
+
+	t.Run("get zero refundable balance", func(t *testing.T) {
+		mockState := newMockStateReader()
+
+		result := GetRefundableBalance(govMinterAddr, mockState, addr)
+		require.Equal(t, 0, result.Cmp(big.NewInt(0)))
+	})
+}
+
 func TestMintProofStruct(t *testing.T) {
 	t.Run("create MintProof", func(t *testing.T) {
 		proof := MintProof{

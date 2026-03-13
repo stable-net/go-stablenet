@@ -78,7 +78,12 @@ func SetConfigFromChainConfig(wbftCfg *Config, chainCfg *params.ChainConfig) err
 	})
 
 	wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: new(big.Int), SystemContracts: chainCfg.Anzeon.SystemContracts})
-	// add hardforks that includes systemContracts after anzeon here like :
+	// add hardforks that includes systemContracts after anzeon here
 	// wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, SystemContracts: chainCfg.Dalgona.SystemContracts})
+	// NOTE: "BFork" is a temporary hardfork name. Once the official hardfork name is decided,
+	// all references to BFork/BForkBlock must be renamed accordingly.
+	if chainCfg.BForkBlock != nil && chainCfg.BFork != nil {
+		wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: chainCfg.BForkBlock, SystemContracts: chainCfg.BFork.SystemContracts})
+	}
 	return nil
 }

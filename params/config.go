@@ -62,6 +62,7 @@ var (
 		PragueTime:          nil,
 		VerkleTime:          nil,
 		ApplepieBlock:       big.NewInt(0),
+		BForkBlock:          big.NewInt(0),
 		Anzeon: &AnzeonConfig{
 			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
 				EpochLength:           10,
@@ -140,6 +141,14 @@ var (
 				},
 			},
 		},
+		BFork: &BForkConfig{
+			SystemContracts: &SystemContracts{
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: "v2",
+				},
+			},
+		},
 	}
 
 	// StableNetTestnetChainConfig contains the chain parameters to run a node on the StableNet test network.
@@ -157,6 +166,7 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		ApplepieBlock:       big.NewInt(0),
+		BForkBlock:          big.NewInt(100),
 		Anzeon: &AnzeonConfig{
 			WBFT: &WBFTConfig{
 				EpochLength:           140,
@@ -248,6 +258,14 @@ var (
 						"memberVersion": "1",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
+				},
+			},
+		},
+		BFork: &BForkConfig{
+			SystemContracts: &SystemContracts{
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: "v2",
 				},
 			},
 		},
@@ -788,6 +806,7 @@ type ChainConfig struct {
 	GrayGlacierBlock    *big.Int `json:"grayGlacierBlock,omitempty"`    // Eip-5133 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	MergeNetsplitBlock  *big.Int `json:"mergeNetsplitBlock,omitempty"`  // Virtual fork after The Merge to use as a network splitter
 	ApplepieBlock       *big.Int `json:"applepieBlock,omitempty"`       // Applepie switch block (nil = no fork, 0 = already on Applepie)
+	BForkBlock          *big.Int `json:"bForkBlock,omitempty"`          // BFork switch block (nil = no fork, 0 = already on BFork)
 
 	// Fork scheduling was switched from blocks to timestamps here
 
@@ -810,6 +829,7 @@ type ChainConfig struct {
 	Clique *CliqueConfig `json:"clique,omitempty"`
 
 	Anzeon      *AnzeonConfig `json:"anzeon,omitempty"`
+	BFork       *BForkConfig  `json:"bFork,omitempty"`
 	Transitions []Transition  `json:"transitions,omitempty"`
 }
 
@@ -893,6 +913,9 @@ func (c *ChainConfig) Description() string {
 		banner += fmt.Sprintf(" - Gray Glacier:                #%-8v (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/gray-glacier.md)\n", c.GrayGlacierBlock)
 	}
 	banner += fmt.Sprintf(" - Applepie:                    #%-8v\n", c.ApplepieBlock)
+	if c.BForkBlock != nil {
+		banner += fmt.Sprintf(" - BFork:                       #%-8v\n", c.BForkBlock)
+	}
 	if c.Anzeon != nil {
 		if c.Anzeon.WBFT != nil {
 			banner += "   - WBFT\n"
@@ -1006,6 +1029,11 @@ func (c *ChainConfig) IsApplepie(num *big.Int) bool {
 	return isBlockForked(c.ApplepieBlock, num)
 }
 
+// IsBFork returns whether num is either equal to the BFork block or greater.
+func (c *ChainConfig) IsBFork(num *big.Int) bool {
+	return isBlockForked(c.BForkBlock, num)
+}
+
 // IsArrowGlacier returns whether num is either equal to the Arrow Glacier (EIP-4345) fork block or greater.
 func (c *ChainConfig) IsArrowGlacier(num *big.Int) bool {
 	return isBlockForked(c.ArrowGlacierBlock, num)
@@ -1099,6 +1127,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "arrowGlacierBlock", block: c.ArrowGlacierBlock, optional: true},
 		{name: "grayGlacierBlock", block: c.GrayGlacierBlock, optional: true},
 		{name: "applepieBlock", block: c.ApplepieBlock, optional: true},
+		{name: "bForkBlock", block: c.BForkBlock, optional: true},
 		{name: "mergeNetsplitBlock", block: c.MergeNetsplitBlock, optional: true},
 		{name: "shanghaiTime", timestamp: c.ShanghaiTime, optional: true},
 		{name: "cancunTime", timestamp: c.CancunTime, optional: true},
@@ -1197,6 +1226,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkBlockIncompatible(c.ApplepieBlock, newcfg.ApplepieBlock, headNumber) {
 		return newBlockCompatError("Applepie fork block", c.ApplepieBlock, newcfg.ApplepieBlock)
+	}
+	if isForkBlockIncompatible(c.BForkBlock, newcfg.BForkBlock, headNumber) {
+		return newBlockCompatError("BFork fork block", c.BForkBlock, newcfg.BForkBlock)
 	}
 	if isForkBlockIncompatible(c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock, headNumber) {
 		return newBlockCompatError("Merge netsplit fork block", c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock)
@@ -1399,7 +1431,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
-	IsApplepie, IsAnzeon                                    bool
+	IsApplepie, IsBFork, IsAnzeon                           bool
 	IsMerge, IsShanghai, IsCancun, IsPrague                 bool
 	IsVerkle                                                bool
 }
@@ -1426,6 +1458,7 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsLondon:         c.IsLondon(num),
 		IsApplepie:       c.IsApplepie(num),
 		IsAnzeon:         c.AnzeonEnabled(),
+		IsBFork:          c.IsBFork(num),
 		IsMerge:          isMerge,
 		IsShanghai:       isMerge && c.IsShanghai(num, timestamp),
 		IsCancun:         isMerge && c.IsCancun(num, timestamp),

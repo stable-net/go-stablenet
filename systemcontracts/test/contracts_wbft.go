@@ -61,11 +61,23 @@ var (
 )
 
 var (
-	compiledWBFT compiledContractWBFT
+	compiledWBFT        compiledContractWBFT
+	compiledGovMinterV2 *bindContract
 )
 
 func init() {
 	compiledWBFT.Compile("../solidity/v1", "../solidity/openzeppelin")
+
+	// Compile v2 GovMinter separately for v2-specific tests (burn refund, etc.)
+	if contracts, err := compile.Compile("../solidity/openzeppelin",
+		filepath.Join("../solidity/v2", "GovMinter.sol"),
+	); err != nil {
+		panic(fmt.Sprintf("failed to compile v2 GovMinter: %v", err))
+	} else {
+		if compiledGovMinterV2, err = newBindContract(contracts["GovMinter"]); err != nil {
+			panic(fmt.Sprintf("failed to bind v2 GovMinter: %v", err))
+		}
+	}
 }
 
 type compiledContractWBFT struct {
@@ -183,6 +195,9 @@ func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapter
 		}
 	}
 
+	// Track minter version set by minterOption callback
+	minterVersion := "v1"
+
 	g := &GovWBFT{
 		owner: owner,
 		backend: simulated.NewWBFTBackend(alloc, func(nodeConf *node.Config, ethConf *ethconfig.Config) {
@@ -206,6 +221,7 @@ func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapter
 					Version: "v1",
 				}
 				minterOption(anzeonConfig.SystemContracts.GovMinter)
+				minterVersion = anzeonConfig.SystemContracts.GovMinter.Version
 			}
 
 			if masterMinterOption != nil {
@@ -230,7 +246,12 @@ func NewGovWBFT(t *testing.T, alloc types.GenesisAlloc, validatorOption, adapter
 	g.coinAdapter = compiledWBFT.CoinAdapter.New(g.backend.Client(), TestCoinAdapterAddress)
 
 	if minterOption != nil {
-		g.govMinter = compiledWBFT.GovMinter.New(g.backend.Client(), TestGovMinterAddress)
+		// Use v2 ABI binding when minter version is v2 (for v2-specific methods like claimBurnRefund)
+		if minterVersion == sc.SYSTEM_CONTRACT_VERSION_2 {
+			g.govMinter = compiledGovMinterV2.New(g.backend.Client(), TestGovMinterAddress)
+		} else {
+			g.govMinter = compiledWBFT.GovMinter.New(g.backend.Client(), TestGovMinterAddress)
+		}
 	}
 	if masterMinterOption != nil {
 		g.govMasterMinter = compiledWBFT.GovMasterMinter.New(g.backend.Client(), TestGovMasterMinterAddress)
@@ -569,6 +590,19 @@ func (g *GovWBFT) GetBurnBalance(sender *EOA, member common.Address) (*big.Int, 
 		return nil, err
 	}
 	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) GetRefundableBalance(sender *EOA, member common.Address) (*big.Int, error) {
+	var result []interface{}
+	err := g.minterCall("refundableBalance", sender, &result, member)
+	if err != nil {
+		return nil, err
+	}
+	return result[0].(*big.Int), nil
+}
+
+func (g *GovWBFT) TxClaimBurnRefund(t *testing.T, sender *EOA) (*types.Transaction, error) {
+	return g.minterContractTx(t, "claimBurnRefund", sender)
 }
 
 func (g *GovWBFT) TxProposeMint(t *testing.T, sender *EOA, recipient common.Address, amount *big.Int) (*types.Transaction, error) {

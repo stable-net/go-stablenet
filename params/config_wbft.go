@@ -287,3 +287,13 @@ func (st *StateTransition) String() string {
 }
 
 // ## Anzeon CHAIN CONFIG END
+
+// BForkConfig contains the chain parameters for the BFork hard fork.
+// BFork upgrades system contracts (e.g., GovMinter v1 → v2) without changing consensus parameters.
+type BForkConfig struct {
+	SystemContracts *SystemContracts `json:"systemContracts"`
+}
+
+func (c *BForkConfig) String() string {
+	return fmt.Sprintf("{SystemContracts: %v}", c.SystemContracts)
+}
