@@ -287,4 +287,3 @@ func (st *StateTransition) String() string {
 }
 
 // ## Anzeon CHAIN CONFIG END
-
