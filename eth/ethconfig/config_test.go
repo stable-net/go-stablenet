@@ -102,7 +102,7 @@ func TestSetConfigFromChainConfig_BFork(t *testing.T) {
 				},
 			},
 		},
-		BFork: &params.BForkConfig{
+		BFork: &params.AnzeonConfig{
 			SystemContracts: &params.SystemContracts{
 				GovMinter: &params.SystemContract{
 					Address: common.HexToAddress("0x1003"),

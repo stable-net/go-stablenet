@@ -141,7 +141,7 @@ var (
 				},
 			},
 		},
-		BFork: &BForkConfig{
+		BFork: &AnzeonConfig{
 			SystemContracts: &SystemContracts{
 				GovMinter: &SystemContract{
 					Address: DefaultGovMinterAddress,
@@ -261,7 +261,7 @@ var (
 				},
 			},
 		},
-		BFork: &BForkConfig{
+		BFork: &AnzeonConfig{
 			SystemContracts: &SystemContracts{
 				GovMinter: &SystemContract{
 					Address: DefaultGovMinterAddress,
@@ -829,7 +829,7 @@ type ChainConfig struct {
 	Clique *CliqueConfig `json:"clique,omitempty"`
 
 	Anzeon      *AnzeonConfig `json:"anzeon,omitempty"`
-	BFork       *BForkConfig  `json:"bFork,omitempty"`
+	BFork       *AnzeonConfig `json:"bFork,omitempty"`
 	Transitions []Transition  `json:"transitions,omitempty"`
 }
 
