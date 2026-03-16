@@ -223,6 +223,7 @@ contract GovMinter is GovBase {
         // Validate against minter allowance
         // Check if there's enough unreserved allowance for this mint
         uint256 totalAllowance = fiatToken.minterAllowance(address(this));
+        if (totalAllowance <= reservedMintAmount) revert InsufficientMinterAllowance();
         uint256 availableAllowance = totalAllowance - reservedMintAmount;
         if (proof.amount > availableAllowance) revert InsufficientMinterAllowance();
 
@@ -293,16 +294,17 @@ contract GovMinter is GovBase {
         // This ensures atomic deposit-and-propose in single transaction
         if (msg.value != proof.amount) revert BurnAmountMismatch();
 
-        // Credit burn balance with received native coins
-        burnBalance[msg.sender] += msg.value;
-        emit BurnPrepaid(msg.sender, msg.value);
-
         // Replay attack prevention - State-based withdrawalId validation
+        // Checks before Effects: avoid unnecessary SSTORE + rollback on validation failure
         _validateWithdrawalIdAvailability(proof.withdrawalId);
         // Use standard keccak256 for clarity over inline assembly optimization
         // forge-lint-disable-next-line asm-keccak256
         bytes32 proofHash = keccak256(proofData);
         _checkProofHashUnique(proofHash);
+
+        // Credit burn balance with received native coins (Effect after Checks)
+        burnBalance[msg.sender] += msg.value;
+        emit BurnPrepaid(msg.sender, msg.value);
 
         _markProofHashUsed(proofHash);
 
@@ -491,10 +493,9 @@ contract GovMinter is GovBase {
     ///
     ///         Execution flow:
     ///         1. Check emergency pause status
-    ///         2. Deduct amount from burnBalance[from] (effect)
-    ///         3. Call fiatToken.burn(amount) - burns GovMinter's fiat tokens
-    ///         4. On success: Mark withdrawalId as executed (permanent)
-    ///         5. On failure: Automatic revert rolls back all state changes
+    ///         2. Call fiatToken.burn(amount) via try-catch
+    ///         3. On success: Deduct burnBalance[from], mark withdrawalId as executed
+    ///         4. On failure: Return false without modifying state
     ///
     /// @param from Address whose burnBalance will be deducted (proposal requester)
     /// @param amount Amount of fiat tokens to burn
@@ -505,21 +506,14 @@ contract GovMinter is GovBase {
     ///      - Reverts if contract is paused (emergencyPaused = true)
     ///      - Prevents burning during emergency situations
     ///
-    /// @custom:security CEI Pattern (Checks-Effects-Interactions)
-    ///      - **Checks**: emergencyPaused check
-    ///      - **Effects**: burnBalance[from] -= amount (before external calls)
-    ///      - **Interactions**: fiatToken.burn()
-    ///      - Prevents reentrancy by updating state before external calls
-    ///
     /// @custom:security Reentrancy Protection
-    ///      - State updated before external calls (CEI pattern)
-    ///      - burnBalance already decremented before fiatToken.burn()
-    ///      - GovBase has nonReentrant modifier on executeProposal
+    ///      - GovBase._executeProposal has nonReentrant modifier
+    ///      - Any reentrant call during fiatToken.burn() will revert
     ///
-    /// @custom:security Automatic Rollback
-    ///      - If fiatToken.burn() fails: Solidity reverts all state changes
-    ///      - burnBalance automatically restored on revert
-    ///      - Clean state on failure (proposal can be retried)
+    /// @custom:security Try-Catch State Update
+    ///      - burnBalance is updated only on successful burn (inside try block)
+    ///      - This avoids extra SSTORE cost of pre-decrement + catch-restore pattern
+    ///      - On failure: no state changes, proposal can be retried
     ///
     /// @custom:security WithdrawalId Consumption
     ///      - withdrawalId marked as executed ONLY on full success
@@ -539,7 +533,7 @@ contract GovMinter is GovBase {
         // This ensures cleanup happens for ALL terminal states (Executed, Failed, Expired, Cancelled, Rejected)
 
         try fiatToken.burn(amount) {
-            // 1. Effects: Update state after successful burn
+            // 1. Update burnBalance only on success (gas-efficient: avoids pre-decrement + catch-restore)
             burnBalance[from] -= amount;
             // 2. Mark withdrawalId as permanently executed (consumed)
             _markWithdrawalIdExecuted(withdrawalId);
