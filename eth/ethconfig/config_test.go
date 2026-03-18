@@ -38,7 +38,7 @@ func TestSetConfigFromChainConfig_Boho(t *testing.T) {
 	chainCfg := &params.ChainConfig{
 		ChainID:       big.NewInt(8283),
 		ApplepieBlock: big.NewInt(0),
-		BohoBlock:    bohoBlock,
+		BohoBlock:     bohoBlock,
 		Anzeon: &params.AnzeonConfig{
 			WBFT: &params.WBFTConfig{
 				EpochLength:           10,
