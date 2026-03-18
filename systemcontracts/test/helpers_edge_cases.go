@@ -153,14 +153,14 @@ func initGovMinterV2(t *testing.T) {
 }
 
 // createGovMinterTestEnvV2 creates a test environment that simulates a real v1 → v2 hardfork.
-// It deploys v1 GovMinter at genesis, then applies the BFork upgrade via CommitWithState
+// It deploys v1 GovMinter at genesis, then applies the Boho upgrade via CommitWithState
 // to swap bytecode to v2 while preserving all v1 state (balances, membership, configuration).
 // This matches production behavior where v2 is never deployed from genesis.
 func createGovMinterTestEnvV2(t *testing.T) *GovMinterTestEnv {
 	// Step 1: Create v1 environment (identical to createGovMinterTestEnv)
 	env := createGovMinterTestEnv(t)
 
-	// Step 2: Apply BFork upgrade — swap GovMinter bytecode from v1 to v2
+	// Step 2: Apply Boho upgrade — swap GovMinter bytecode from v1 to v2
 	// This preserves all v1 storage (members, quorum, fiatToken, burnBalance, etc.)
 	env.GMinter.backend.CommitWithState(&params.SystemContracts{
 		GovMinter: &params.SystemContract{

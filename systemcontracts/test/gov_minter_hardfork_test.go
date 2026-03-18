@@ -41,8 +41,8 @@ func createGovMinterHardforkEnv(t *testing.T) *GovMinterTestEnv {
 	return env
 }
 
-// applyBForkUpgrade simulates the BFork hardfork by upgrading GovMinter to v2 bytecode.
-func applyBForkUpgrade(g *GovWBFT) {
+// applyBohoUpgrade simulates the Boho hardfork by upgrading GovMinter to v2 bytecode.
+func applyBohoUpgrade(g *GovWBFT) {
 	g.backend.CommitWithState(&params.SystemContracts{
 		GovMinter: &params.SystemContract{
 			Address: TestGovMinterAddress,
@@ -93,7 +93,7 @@ func TestHardfork_V1BurnCancelNoRefund(t *testing.T) {
 
 // TestHardfork_V1ToV2Transition verifies the complete v1 → v2 hardfork transition:
 // 1. Pre-fork: v1 behavior (no refund on cancel)
-// 2. Apply BFork upgrade
+// 2. Apply Boho upgrade
 // 3. Post-fork: v2 behavior (refund on cancel, claimBurnRefund works)
 func TestHardfork_V1ToV2Transition(t *testing.T) {
 	env := createGovMinterHardforkEnv(t)
@@ -128,10 +128,10 @@ func TestHardfork_V1ToV2Transition(t *testing.T) {
 		"[Pre-fork] burnBalance should remain locked in v1")
 	t.Logf("Pre-fork burnBalance (locked): %s", burnBalPreFork.String())
 
-	// ========== Phase 2: Apply BFork upgrade ==========
-	t.Log("=== Phase 2: Applying BFork (v1 → v2 upgrade) ===")
-	applyBForkUpgrade(g)
-	t.Log("BFork upgrade applied - GovMinter bytecode swapped to v2")
+	// ========== Phase 2: Apply Boho upgrade ==========
+	t.Log("=== Phase 2: Applying Boho (v1 → v2 upgrade) ===")
+	applyBohoUpgrade(g)
+	t.Log("Boho upgrade applied - GovMinter bytecode swapped to v2")
 
 	// ========== Phase 3: Post-fork (v2 behavior) ==========
 	t.Log("=== Phase 3: Post-fork (v2 GovMinter) ===")
@@ -224,8 +224,8 @@ func TestHardfork_StoragePreservation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, burnBal.Cmp(burnAmount), "burnBalance should match")
 
-	// Apply BFork
-	applyBForkUpgrade(g)
+	// Apply Boho
+	applyBohoUpgrade(g)
 
 	// After fork: verify ALL storage is preserved
 	proposalAfter, err := g.BaseGetProposal(g.govMinter, member0, proposalId)
@@ -278,8 +278,8 @@ func TestHardfork_PostForkBurnRejectRefund(t *testing.T) {
 	member2 := env.MinterMembers[2].Operator
 	amount := big.NewInt(3_000_000)
 
-	// Apply BFork first
-	applyBForkUpgrade(g)
+	// Apply Boho first
+	applyBohoUpgrade(g)
 
 	// Create burn proposal on v2
 	tx, err := g.TxProposeBurn(t, member0, member0.Address, amount)

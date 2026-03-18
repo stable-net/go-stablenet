@@ -29,16 +29,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSetConfigFromChainConfig_BFork verifies that the production SetConfigFromChainConfig
-// properly registers BFork SystemContractUpgrades and that GetSystemContractsStateTransition
+// TestSetConfigFromChainConfig_Boho verifies that the production SetConfigFromChainConfig
+// properly registers Boho SystemContractUpgrades and that GetSystemContractsStateTransition
 // returns the correct v2 GovMinter bytecode transition at the fork block.
-func TestSetConfigFromChainConfig_BFork(t *testing.T) {
-	bForkBlock := big.NewInt(100)
+func TestSetConfigFromChainConfig_Boho(t *testing.T) {
+	bohoBlock := big.NewInt(100)
 
 	chainCfg := &params.ChainConfig{
 		ChainID:       big.NewInt(8283),
 		ApplepieBlock: big.NewInt(0),
-		BForkBlock:    bForkBlock,
+		BohoBlock:    bohoBlock,
 		Anzeon: &params.AnzeonConfig{
 			WBFT: &params.WBFTConfig{
 				EpochLength:           10,
@@ -102,7 +102,7 @@ func TestSetConfigFromChainConfig_BFork(t *testing.T) {
 				},
 			},
 		},
-		BFork: &params.AnzeonConfig{
+		Boho: &params.AnzeonConfig{
 			SystemContracts: &params.SystemContracts{
 				GovMinter: &params.SystemContract{
 					Address: common.HexToAddress("0x1003"),
@@ -118,7 +118,7 @@ func TestSetConfigFromChainConfig_BFork(t *testing.T) {
 
 	// Verify SystemContractUpgrades registration
 	assert.Equal(t, 2, len(wbftCfg.SystemContractUpgrades),
-		"Expected 2 SystemContractUpgrades (Anzeon at block 0 + BFork at block 100)")
+		"Expected 2 SystemContractUpgrades (Anzeon at block 0 + Boho at block 100)")
 
 	assert.Equal(t, int64(0), wbftCfg.SystemContractUpgrades[0].Block.Int64())
 	assert.Equal(t, "v1", wbftCfg.SystemContractUpgrades[0].SystemContracts.GovMinter.Version)
@@ -132,16 +132,16 @@ func TestSetConfigFromChainConfig_BFork(t *testing.T) {
 	require.NotNil(t, st, "Block 0 should have state transition (Anzeon genesis)")
 	assert.Equal(t, 5, len(st.Codes), "Block 0 should deploy all 5 system contracts")
 
-	// Before BFork (block 50): no state transition
+	// Before Boho (block 50): no state transition
 	st, err = wbft.GetSystemContractsStateTransition(wbftCfg, big.NewInt(50))
 	require.NoError(t, err)
 	assert.Nil(t, st, "Block 50 should have no state transition")
 
-	// At BFork (block 100): state transition should deploy v2 GovMinter only
-	st, err = wbft.GetSystemContractsStateTransition(wbftCfg, bForkBlock)
+	// At Boho (block 100): state transition should deploy v2 GovMinter only
+	st, err = wbft.GetSystemContractsStateTransition(wbftCfg, bohoBlock)
 	require.NoError(t, err)
-	require.NotNil(t, st, "Block 100 should have state transition (BFork)")
-	assert.Equal(t, 1, len(st.Codes), "BFork should upgrade only GovMinter")
+	require.NotNil(t, st, "Block 100 should have state transition (Boho)")
+	assert.Equal(t, 1, len(st.Codes), "Boho should upgrade only GovMinter")
 	assert.Equal(t, common.HexToAddress("0x1003"), st.Codes[0].Address)
 	assert.NotEmpty(t, st.Codes[0].Code, "GovMinter v2 bytecode should not be empty")
 
@@ -157,19 +157,19 @@ func TestSetConfigFromChainConfig_BFork(t *testing.T) {
 	assert.NotEqual(t, v1Code, st.Codes[0].Code,
 		"v2 GovMinter bytecode should differ from v1")
 
-	// After BFork (block 101): no state transition
+	// After Boho (block 101): no state transition
 	st, err = wbft.GetSystemContractsStateTransition(wbftCfg, big.NewInt(101))
 	require.NoError(t, err)
 	assert.Nil(t, st, "Block 101 should have no state transition")
 }
 
-// TestSetConfigFromChainConfig_NoBFork verifies that when BFork is not configured,
-// no BFork upgrades are registered.
-func TestSetConfigFromChainConfig_NoBFork(t *testing.T) {
+// TestSetConfigFromChainConfig_NoBoho verifies that when Boho is not configured,
+// no Boho upgrades are registered.
+func TestSetConfigFromChainConfig_NoBoho(t *testing.T) {
 	chainCfg := &params.ChainConfig{
 		ChainID:       big.NewInt(8283),
 		ApplepieBlock: big.NewInt(0),
-		// BForkBlock: nil — no BFork
+		// BohoBlock: nil — no Boho
 		Anzeon: &params.AnzeonConfig{
 			WBFT: &params.WBFTConfig{
 				EpochLength:           10,
@@ -190,5 +190,5 @@ func TestSetConfigFromChainConfig_NoBFork(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, len(wbftCfg.SystemContractUpgrades),
-		"Without BFork, only Anzeon upgrade should be registered")
+		"Without Boho, only Anzeon upgrade should be registered")
 }
