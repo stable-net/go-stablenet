@@ -35,6 +35,7 @@ var (
     "berlinBlock": 0,
     "londonBlock": 0,
     "applepieBlock": 0,
+    "bohoBlock": 0,
     "anzeon": {
       "wbft": {
         "requestTimeoutSeconds": 2,
@@ -116,6 +117,12 @@ var (
             "quorum": "1"
           }
         }
+      }
+    },
+    "boho": {
+      "systemContracts": {
+        "address": "0x0000000000000000000000000000000000001003",
+        "version": "v2"
       }
     }
   },

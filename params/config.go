@@ -913,10 +913,8 @@ func (c *ChainConfig) Description() string {
 		banner += fmt.Sprintf(" - Gray Glacier:                #%-8v (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/gray-glacier.md)\n", c.GrayGlacierBlock)
 	}
 	banner += fmt.Sprintf(" - Applepie:                    #%-8v\n", c.ApplepieBlock)
-	if c.BohoBlock != nil {
-		banner += fmt.Sprintf(" - Boho:                       #%-8v\n", c.BohoBlock)
-	}
 	if c.Anzeon != nil {
+		banner += " - Anzeon: enable\n"
 		if c.Anzeon.WBFT != nil {
 			banner += "   - WBFT\n"
 			banner += fmt.Sprintf("     - EpochLength:               %-8v\n", c.Anzeon.WBFT.EpochLength)
@@ -938,8 +936,20 @@ func (c *ChainConfig) Description() string {
 		}
 		if c.Anzeon.SystemContracts != nil {
 			banner += "   - SystemContracts:\n"
-			banner += fmt.Sprintf("     - GovValidator      %-8v\n", c.Anzeon.SystemContracts.GovValidator)
+			banner += fmt.Sprintf("     - GovValidator           %-8v\n", c.Anzeon.SystemContracts.GovValidator)
+			banner += fmt.Sprintf("     - GovMinter              %-8v\n", c.Anzeon.SystemContracts.GovMinter)
+			banner += fmt.Sprintf("     - GovMasterMinter        %-8v\n", c.Anzeon.SystemContracts.GovMasterMinter)
+			banner += fmt.Sprintf("     - GovCouncil             %-8v\n", c.Anzeon.SystemContracts.GovCouncil)
 			banner += fmt.Sprintf("     - NativeCoinAdapter      %-8v\n", c.Anzeon.SystemContracts.NativeCoinAdapter)
+		}
+	}
+	if c.BohoBlock != nil {
+		banner += fmt.Sprintf(" - Boho:                       #%-8v\n", c.BohoBlock)
+		if c.Boho != nil {
+			if c.Boho.SystemContracts != nil {
+				banner += "   - SystemContracts:\n"
+				banner += fmt.Sprintf("     - GovMinter              %-8v\n", c.Boho.SystemContracts.GovMinter)
+			}
 		}
 	}
 	banner += "\n"
