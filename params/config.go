@@ -62,6 +62,7 @@ var (
 		PragueTime:          nil,
 		VerkleTime:          nil,
 		ApplepieBlock:       big.NewInt(0),
+		BohoBlock:           big.NewInt(0),
 		Anzeon: &AnzeonConfig{
 			WBFT: &WBFTConfig{ // TODO: this is just for test on mainnet
 				EpochLength:           10,
@@ -140,6 +141,14 @@ var (
 				},
 			},
 		},
+		Boho: &AnzeonConfig{
+			SystemContracts: &SystemContracts{
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: "v2",
+				},
+			},
+		},
 	}
 
 	// StableNetTestnetChainConfig contains the chain parameters to run a node on the StableNet test network.
@@ -157,6 +166,7 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		ApplepieBlock:       big.NewInt(0),
+		BohoBlock:           big.NewInt(100),
 		Anzeon: &AnzeonConfig{
 			WBFT: &WBFTConfig{
 				EpochLength:           140,
@@ -248,6 +258,14 @@ var (
 						"memberVersion": "1",
 						"maxProposals":  "3", // Default: 3, Range: 1-50
 					},
+				},
+			},
+		},
+		Boho: &AnzeonConfig{
+			SystemContracts: &SystemContracts{
+				GovMinter: &SystemContract{
+					Address: DefaultGovMinterAddress,
+					Version: "v2",
 				},
 			},
 		},
@@ -788,6 +806,7 @@ type ChainConfig struct {
 	GrayGlacierBlock    *big.Int `json:"grayGlacierBlock,omitempty"`    // Eip-5133 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	MergeNetsplitBlock  *big.Int `json:"mergeNetsplitBlock,omitempty"`  // Virtual fork after The Merge to use as a network splitter
 	ApplepieBlock       *big.Int `json:"applepieBlock,omitempty"`       // Applepie switch block (nil = no fork, 0 = already on Applepie)
+	BohoBlock           *big.Int `json:"bohoBlock,omitempty"`           // Boho switch block (nil = no fork, 0 = already on Boho)
 
 	// Fork scheduling was switched from blocks to timestamps here
 
@@ -810,6 +829,7 @@ type ChainConfig struct {
 	Clique *CliqueConfig `json:"clique,omitempty"`
 
 	Anzeon      *AnzeonConfig `json:"anzeon,omitempty"`
+	Boho        *AnzeonConfig `json:"boho,omitempty"`
 	Transitions []Transition  `json:"transitions,omitempty"`
 }
 
@@ -894,6 +914,7 @@ func (c *ChainConfig) Description() string {
 	}
 	banner += fmt.Sprintf(" - Applepie:                    #%-8v\n", c.ApplepieBlock)
 	if c.Anzeon != nil {
+		banner += " - Anzeon: enable\n"
 		if c.Anzeon.WBFT != nil {
 			banner += "   - WBFT\n"
 			banner += fmt.Sprintf("     - EpochLength:               %-8v\n", c.Anzeon.WBFT.EpochLength)
@@ -915,8 +936,20 @@ func (c *ChainConfig) Description() string {
 		}
 		if c.Anzeon.SystemContracts != nil {
 			banner += "   - SystemContracts:\n"
-			banner += fmt.Sprintf("     - GovValidator      %-8v\n", c.Anzeon.SystemContracts.GovValidator)
+			banner += fmt.Sprintf("     - GovValidator           %-8v\n", c.Anzeon.SystemContracts.GovValidator)
+			banner += fmt.Sprintf("     - GovMinter              %-8v\n", c.Anzeon.SystemContracts.GovMinter)
+			banner += fmt.Sprintf("     - GovMasterMinter        %-8v\n", c.Anzeon.SystemContracts.GovMasterMinter)
+			banner += fmt.Sprintf("     - GovCouncil             %-8v\n", c.Anzeon.SystemContracts.GovCouncil)
 			banner += fmt.Sprintf("     - NativeCoinAdapter      %-8v\n", c.Anzeon.SystemContracts.NativeCoinAdapter)
+		}
+	}
+	if c.BohoBlock != nil {
+		banner += fmt.Sprintf(" - Boho:                       #%-8v\n", c.BohoBlock)
+		if c.Boho != nil {
+			if c.Boho.SystemContracts != nil {
+				banner += "   - SystemContracts:\n"
+				banner += fmt.Sprintf("     - GovMinter              %-8v\n", c.Boho.SystemContracts.GovMinter)
+			}
 		}
 	}
 	banner += "\n"
@@ -1004,6 +1037,11 @@ func (c *ChainConfig) IsLondon(num *big.Int) bool {
 // IsApplepie returns whether num is either equal to the Applepie fork block or greater.
 func (c *ChainConfig) IsApplepie(num *big.Int) bool {
 	return isBlockForked(c.ApplepieBlock, num)
+}
+
+// IsBoho returns whether num is either equal to the Boho block or greater.
+func (c *ChainConfig) IsBoho(num *big.Int) bool {
+	return isBlockForked(c.BohoBlock, num)
 }
 
 // IsArrowGlacier returns whether num is either equal to the Arrow Glacier (EIP-4345) fork block or greater.
@@ -1099,6 +1137,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "arrowGlacierBlock", block: c.ArrowGlacierBlock, optional: true},
 		{name: "grayGlacierBlock", block: c.GrayGlacierBlock, optional: true},
 		{name: "applepieBlock", block: c.ApplepieBlock, optional: true},
+		{name: "bohoBlock", block: c.BohoBlock, optional: true},
 		{name: "mergeNetsplitBlock", block: c.MergeNetsplitBlock, optional: true},
 		{name: "shanghaiTime", timestamp: c.ShanghaiTime, optional: true},
 		{name: "cancunTime", timestamp: c.CancunTime, optional: true},
@@ -1197,6 +1236,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	}
 	if isForkBlockIncompatible(c.ApplepieBlock, newcfg.ApplepieBlock, headNumber) {
 		return newBlockCompatError("Applepie fork block", c.ApplepieBlock, newcfg.ApplepieBlock)
+	}
+	if isForkBlockIncompatible(c.BohoBlock, newcfg.BohoBlock, headNumber) {
+		return newBlockCompatError("Boho fork block", c.BohoBlock, newcfg.BohoBlock)
 	}
 	if isForkBlockIncompatible(c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock, headNumber) {
 		return newBlockCompatError("Merge netsplit fork block", c.MergeNetsplitBlock, newcfg.MergeNetsplitBlock)
@@ -1399,7 +1441,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
-	IsApplepie, IsAnzeon                                    bool
+	IsApplepie, IsBoho, IsAnzeon                            bool
 	IsMerge, IsShanghai, IsCancun, IsPrague                 bool
 	IsVerkle                                                bool
 }
@@ -1412,6 +1454,7 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 	}
 	// disallow setting Merge out of order
 	isMerge = isMerge && c.IsLondon(num)
+	isAnzeon := c.AnzeonEnabled()
 	return Rules{
 		ChainID:          new(big.Int).Set(chainID),
 		IsHomestead:      c.IsHomestead(num),
@@ -1425,7 +1468,8 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsBerlin:         c.IsBerlin(num),
 		IsLondon:         c.IsLondon(num),
 		IsApplepie:       c.IsApplepie(num),
-		IsAnzeon:         c.AnzeonEnabled(),
+		IsAnzeon:         isAnzeon,
+		IsBoho:           isAnzeon && c.IsBoho(num),
 		IsMerge:          isMerge,
 		IsShanghai:       isMerge && c.IsShanghai(num, timestamp),
 		IsCancun:         isMerge && c.IsCancun(num, timestamp),

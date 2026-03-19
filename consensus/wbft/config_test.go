@@ -375,3 +375,88 @@ func TestGetSystemContracts(t *testing.T) {
 		})
 	}
 }
+
+// TestBohoSystemContractUpgrade verifies the Boho hardfork production path:
+// - SetConfigFromChainConfig registers Boho SystemContractUpgrades
+// - GetSystemContractsStateTransition returns v2 GovMinter at the fork block
+// - Before the fork block, only Anzeon (v1) contracts are returned
+func TestBohoSystemContractUpgrade(t *testing.T) {
+	bohoBlock := big.NewInt(100)
+
+	chainCfg := &params.ChainConfig{
+		ChainID:       big.NewInt(8283),
+		ApplepieBlock: big.NewInt(0),
+		BohoBlock:     bohoBlock,
+		Anzeon: &params.AnzeonConfig{
+			WBFT: &params.WBFTConfig{
+				EpochLength:           10,
+				BlockPeriodSeconds:    1,
+				RequestTimeoutSeconds: 2,
+			},
+			SystemContracts: &params.SystemContracts{
+				GovValidator: &params.SystemContract{
+					Address: common.HexToAddress("0x1001"),
+					Version: "v1",
+				},
+				GovMinter: &params.SystemContract{
+					Address: common.HexToAddress("0x1003"),
+					Version: "v1",
+				},
+			},
+		},
+		Boho: &params.AnzeonConfig{
+			SystemContracts: &params.SystemContracts{
+				GovMinter: &params.SystemContract{
+					Address: common.HexToAddress("0x1003"),
+					Version: "v2",
+				},
+			},
+		},
+	}
+
+	wbftCfg := new(Config)
+	err := SetConfigFromChainConfig(wbftCfg, chainCfg)
+	assert.NoError(t, err)
+
+	// Verify SystemContractUpgrades has 2 entries: Anzeon (block 0) and Boho (block 100)
+	assert.Equal(t, 2, len(wbftCfg.SystemContractUpgrades),
+		"Expected 2 SystemContractUpgrades (Anzeon + Boho)")
+	assert.Equal(t, int64(0), wbftCfg.SystemContractUpgrades[0].Block.Int64(),
+		"First upgrade should be at block 0 (Anzeon)")
+	assert.Equal(t, bohoBlock.Int64(), wbftCfg.SystemContractUpgrades[1].Block.Int64(),
+		"Second upgrade should be at block 100 (Boho)")
+
+	// Before Boho: GetSystemContractsStateTransition should return nil (no transition at block 50)
+	st, err := GetSystemContractsStateTransition(wbftCfg, big.NewInt(50))
+	assert.NoError(t, err)
+	assert.Nil(t, st, "No state transition should occur at block 50")
+
+	// At Boho block: GetSystemContractsStateTransition should return v2 GovMinter transition
+	st, err = GetSystemContractsStateTransition(wbftCfg, bohoBlock)
+	assert.NoError(t, err)
+	assert.NotNil(t, st, "State transition should occur at block 100 (Boho)")
+	assert.Equal(t, 1, len(st.Codes), "Boho should upgrade 1 contract (GovMinter)")
+	assert.Equal(t, common.HexToAddress("0x1003"), st.Codes[0].Address,
+		"Upgraded contract should be GovMinter at 0x1003")
+
+	// After Boho: no transition at block 101
+	st, err = GetSystemContractsStateTransition(wbftCfg, big.NewInt(101))
+	assert.NoError(t, err)
+	assert.Nil(t, st, "No state transition should occur at block 101")
+
+	// Verify getSystemContracts merges correctly
+	// At block 50: GovMinter should be v1
+	contracts50 := getSystemContracts(big.NewInt(50), wbftCfg)
+	assert.Equal(t, "v1", contracts50.GovMinter.Version,
+		"GovMinter should be v1 before Boho")
+
+	// At block 100: GovMinter should be v2 (Boho applied)
+	contracts100 := getSystemContracts(big.NewInt(100), wbftCfg)
+	assert.Equal(t, "v2", contracts100.GovMinter.Version,
+		"GovMinter should be v2 at Boho block")
+
+	// At block 200: GovMinter should still be v2
+	contracts200 := getSystemContracts(big.NewInt(200), wbftCfg)
+	assert.Equal(t, "v2", contracts200.GovMinter.Version,
+		"GovMinter should remain v2 after Boho")
+}

@@ -48,6 +48,9 @@ var (
 	//go:embed artifacts/v1/GovCouncil
 	GovCouncilContractV1 string
 
+	//go:embed artifacts/v2/GovMinter
+	GovMinterContractV2 string
+
 	SystemContractCodes map[string]map[string]string
 )
 
@@ -62,6 +65,7 @@ func init() {
 
 	SystemContractCodes[CONTRACT_GOV_MINTER] = make(map[string]string)
 	SystemContractCodes[CONTRACT_GOV_MINTER][SYSTEM_CONTRACT_VERSION_1] = GovMinterContractV1
+	SystemContractCodes[CONTRACT_GOV_MINTER][SYSTEM_CONTRACT_VERSION_2] = GovMinterContractV2
 
 	SystemContractCodes[CONTRACT_GOV_MASTER_MINTER] = make(map[string]string)
 	SystemContractCodes[CONTRACT_GOV_MASTER_MINTER][SYSTEM_CONTRACT_VERSION_1] = GovMasterMinterContractV1

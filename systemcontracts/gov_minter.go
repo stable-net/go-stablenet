@@ -42,6 +42,7 @@ const (
 	// Slot 0x3a: mintProposalAmounts (mapping(uint256 => uint256))
 	// Slot 0x3b: burnBalance (mapping(address => uint256))
 	// Slot 0x3c: emergencyPaused (bool, 1 byte)
+	// Slot 0x3d: refundableBalance (mapping(address => uint256))
 	SLOT_GOV_MINTER_fiatToken                = "0x32"
 	SLOT_GOV_MINTER_usedProofHashes          = "0x33"
 	SLOT_GOV_MINTER_depositIdToProposalId    = "0x34"
@@ -53,6 +54,7 @@ const (
 	SLOT_GOV_MINTER_mintProposalAmounts      = "0x3a"
 	SLOT_GOV_MINTER_burnBalance              = "0x3b"
 	SLOT_GOV_MINTER_emergencyPaused          = "0x3c"
+	SLOT_GOV_MINTER_refundableBalance        = "0x3d"
 )
 
 // MintProof represents the proof data for minting operations
@@ -128,6 +130,14 @@ func GetMintProposalAmount(govMinterAddress common.Address, state StateReader, p
 func GetBurnBalance(govMinterAddress common.Address, state StateReader, addr common.Address) *big.Int {
 	burnBalanceSlot := common.HexToHash(SLOT_GOV_MINTER_burnBalance)
 	key := CalculateMappingSlot(burnBalanceSlot, addr)
+	value := state.GetState(govMinterAddress, key)
+	return value.Big()
+}
+
+// GetRefundableBalance returns the refundable burn deposit balance for a given address
+func GetRefundableBalance(govMinterAddress common.Address, state StateReader, addr common.Address) *big.Int {
+	refundableBalanceSlot := common.HexToHash(SLOT_GOV_MINTER_refundableBalance)
+	key := CalculateMappingSlot(refundableBalanceSlot, addr)
 	value := state.GetState(govMinterAddress, key)
 	return value.Big()
 }

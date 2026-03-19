@@ -78,7 +78,11 @@ func SetConfigFromChainConfig(wbftCfg *Config, chainCfg *params.ChainConfig) err
 	})
 
 	wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: new(big.Int), SystemContracts: chainCfg.Anzeon.SystemContracts})
-	// add hardforks that includes systemContracts after anzeon here like :
+	// add hardforks that includes systemContracts after anzeon here
 	// wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, SystemContracts: chainCfg.Dalgona.SystemContracts})
+	// Boho hardfork
+	if chainCfg.BohoBlock != nil && chainCfg.Boho != nil && chainCfg.Boho.SystemContracts != nil {
+		wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: chainCfg.BohoBlock, SystemContracts: chainCfg.Boho.SystemContracts})
+	}
 	return nil
 }

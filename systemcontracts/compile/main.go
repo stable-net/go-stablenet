@@ -44,7 +44,7 @@ func main() {
 			filepath.Join(filepath.Join(root, versions[0]), "GovCouncil.sol"),
 		},
 		{ // v2
-			filepath.Join(filepath.Join(root, versions[0]), "GovValidator.sol"),
+			filepath.Join(filepath.Join(root, versions[1]), "GovMinter.sol"),
 		},
 	}
 	contractBins := [][]string{
@@ -56,7 +56,7 @@ func main() {
 			sc.CONTRACT_GOV_COUNCIL,
 		},
 		{ // v2
-			sc.CONTRACT_GOV_VALIDATOR,
+			sc.CONTRACT_GOV_MINTER,
 		},
 	}
 	openZeppelin := *openZeppelinFlag
