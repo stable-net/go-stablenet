@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -114,7 +115,7 @@ func TestSetAnzeonConfigBase_GovMinterV1(t *testing.T) {
 	validators := []common.Address{
 		common.HexToAddress("0x1111111111111111111111111111111111111111"),
 	}
-	blsKeys := []string{"0xaa" + stringRepeat("bb", 47)}
+	blsKeys := []string{"0xaa" + strings.Repeat("bb", 47)}
 
 	g.setAnzeonConfigBase(validators, blsKeys, 1)
 
@@ -128,12 +129,4 @@ func TestSetAnzeonConfigBase_GovMinterV1(t *testing.T) {
 	if g.Genesis.Config.Boho != nil {
 		t.Error("Boho AnzeonConfig should not be set by setAnzeonConfigBase")
 	}
-}
-
-func stringRepeat(s string, n int) string {
-	result := ""
-	for i := 0; i < n; i++ {
-		result += s
-	}
-	return result
 }

@@ -69,6 +69,7 @@ func makeGenerator(network string) *genesisGenerator {
 				LondonBlock:         big.NewInt(0),
 				ArrowGlacierBlock:   big.NewInt(0),
 				GrayGlacierBlock:    big.NewInt(0),
+				ApplepieBlock:       big.NewInt(0),
 				BohoBlock:           big.NewInt(0),
 			},
 		},
