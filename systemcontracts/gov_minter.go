@@ -111,6 +111,29 @@ func initializeMinter(govMinterAddress common.Address, param map[string]string) 
 	return sp, nil
 }
 
+// upgradeMinter performs a migration-style upgrade for GovMinter.
+// Only parameters present in param are written. Missing keys are skipped.
+func upgradeMinter(govMinterAddress common.Address, param map[string]string) ([]params.StateParam, error) {
+	sp, err := upgradeBase(govMinterAddress, param)
+	if err != nil {
+		return nil, err
+	}
+
+	if fiatTokenStr, ok := param[GOV_MINTER_PARAM_FIAT_TOKEN]; ok {
+		fiatToken := common.HexToAddress(fiatTokenStr)
+		if fiatToken == (common.Address{}) {
+			return nil, fmt.Errorf("`systemContracts.govMinter.params.fiatToken`: invalid address")
+		}
+		sp = append(sp, params.StateParam{
+			Address: govMinterAddress,
+			Key:     common.HexToHash(SLOT_GOV_MINTER_fiatToken),
+			Value:   common.BytesToHash(fiatToken.Bytes()),
+		})
+	}
+
+	return sp, nil
+}
+
 // GetReservedMintAmount returns the total reserved mint amount
 func GetReservedMintAmount(govMinterAddress common.Address, state StateReader) *big.Int {
 	slot := common.HexToHash(SLOT_GOV_MINTER_reservedMintAmount)

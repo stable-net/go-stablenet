@@ -22,6 +22,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInitializeValidator(t *testing.T) {
@@ -403,4 +405,19 @@ func TestInitializeValidator(t *testing.T) {
 			}
 		})
 	}
+}
+
+// --- upgradeValidator tests ---
+
+func TestUpgradeValidator_EmptyParams(t *testing.T) {
+	sp, err := upgradeValidator(common.HexToAddress("0x1001"), map[string]string{})
+	require.NoError(t, err)
+	assert.Equal(t, 0, len(sp), "Empty params should produce no StateParams")
+}
+
+func TestUpgradeValidator_InvalidGasTip(t *testing.T) {
+	_, err := upgradeValidator(common.HexToAddress("0x1001"), map[string]string{
+		"gasTip": "not_a_number",
+	})
+	assert.Error(t, err, "Invalid gasTip should be rejected")
 }

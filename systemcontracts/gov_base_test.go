@@ -25,6 +25,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // CompareParam compares two StateParam objects for testing
@@ -571,4 +573,61 @@ func TestValidConfiguration(t *testing.T) {
 	if len(result) == 0 {
 		t.Error("expected non-empty state params")
 	}
+}
+
+// --- upgradeBase tests ---
+
+func TestUpgradeBase_EmptyParams(t *testing.T) {
+	sp, err := upgradeBase(common.HexToAddress("0x1003"), map[string]string{})
+	require.NoError(t, err)
+	assert.Equal(t, 0, len(sp), "Empty params should produce no StateParams")
+}
+
+func TestUpgradeBase_AllParams(t *testing.T) {
+	addr := common.HexToAddress("0x1003")
+	sp, err := upgradeBase(addr, map[string]string{
+		"quorum":       "4",
+		"expiry":       "86400",
+		"maxProposals": "10",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 3, len(sp), "Should have exactly 3 StateParams")
+
+	quorumParam := findStateParam(sp, common.HexToHash(SLOT_GOV_BASE_quorum))
+	require.NotNil(t, quorumParam)
+	assert.Equal(t, common.BigToHash(big.NewInt(4)), quorumParam.Value)
+
+	expiryParam := findStateParam(sp, common.HexToHash(SLOT_GOV_BASE_proposalExpiry))
+	require.NotNil(t, expiryParam)
+	assert.Equal(t, common.BigToHash(big.NewInt(86400)), expiryParam.Value)
+
+	maxProposalsParam := findStateParam(sp, common.HexToHash(SLOT_GOV_BASE_maxActiveProposalsPerMember))
+	require.NotNil(t, maxProposalsParam)
+	assert.Equal(t, common.BigToHash(big.NewInt(10)), maxProposalsParam.Value)
+}
+
+func TestUpgradeBase_InvalidQuorum(t *testing.T) {
+	_, err := upgradeBase(common.HexToAddress("0x1003"), map[string]string{"quorum": "0"})
+	assert.Error(t, err, "quorum=0 should be rejected")
+}
+
+func TestUpgradeBase_InvalidMaxProposals(t *testing.T) {
+	_, err := upgradeBase(common.HexToAddress("0x1003"), map[string]string{"maxProposals": "51"})
+	assert.Error(t, err, "maxProposals=51 should be rejected (max 50)")
+}
+
+func TestUpgradeBase_MembersWithVersion(t *testing.T) {
+	sp, err := upgradeBase(common.HexToAddress("0x1003"), map[string]string{
+		"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+		"memberVersion": "2",
+	})
+	require.NoError(t, err)
+	assert.True(t, len(sp) > 0, "Should produce member-related StateParams")
+}
+
+func TestUpgradeBase_MembersWithoutVersion(t *testing.T) {
+	_, err := upgradeBase(common.HexToAddress("0x1003"), map[string]string{
+		"members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+	})
+	assert.Error(t, err, "members without memberVersion should fail")
 }

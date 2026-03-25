@@ -721,6 +721,7 @@ func TestGenesisBlock() *Genesis {
 
 // InjectContracts sets WBFT SystemContracts to genesis
 func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
+	// Anzeon baseline contracts (v1)
 	transition, err := systemcontracts.GetSystemContractsTransition(config.Anzeon.SystemContracts, &genesis.Alloc)
 	if err != nil {
 		return err
@@ -735,6 +736,46 @@ func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
 		genesis.Alloc[c.Address] = types.Account{Code: hexutil.MustDecode(c.Code), Balance: common.Big0, Storage: make(map[common.Hash]common.Hash)}
 	}
 	for _, s := range transition.States {
+		genesis.Alloc[s.Address].Storage[s.Key] = s.Value
+	}
+
+	// Apply hardfork overlays that activate at genesis (block 0).
+	// Upgrades with Block > 0 are skipped here — they are applied at runtime
+	// via GetSystemContractsStateTransition() during block finalization.
+	for _, upgrade := range config.CollectUpgrades() {
+		if upgrade.Block.Sign() != 0 {
+			continue
+		}
+		if err := applyUpgradeOverlay(genesis, upgrade.SystemContracts); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// applyUpgradeOverlay applies a hardfork's system contract changes onto the existing genesis alloc.
+// Code is replaced; existing Balance and Storage are preserved.
+func applyUpgradeOverlay(genesis *Genesis, sc *params.SystemContracts) error {
+	upgradeTransition, err := systemcontracts.GetSystemContractsTransition(sc, nil)
+	if err != nil {
+		return err
+	}
+	if upgradeTransition == nil {
+		return errors.New("upgrade transition is nil: system contracts configuration may be invalid")
+	}
+	for _, c := range upgradeTransition.Codes {
+		existing, ok := genesis.Alloc[c.Address]
+		if !ok {
+			// Address not in alloc (shouldn't happen after Anzeon baseline), initialize fresh
+			genesis.Alloc[c.Address] = types.Account{Code: hexutil.MustDecode(c.Code), Balance: common.Big0, Storage: make(map[common.Hash]common.Hash)}
+		} else {
+			// Address exists from Anzeon baseline — replace Code only, preserve the rest
+			existing.Code = hexutil.MustDecode(c.Code)
+			genesis.Alloc[c.Address] = existing
+		}
+	}
+	for _, s := range upgradeTransition.States {
 		genesis.Alloc[s.Address].Storage[s.Key] = s.Value
 	}
 	return nil

@@ -261,13 +261,16 @@ func SetConfigFromChainConfig(wbftCfg *wbft.Config, chainCfg *params.ChainConfig
 		return wbftCfg.Transitions[i].Block.Cmp(wbftCfg.Transitions[j].Block) < 0
 	})
 
+	// Anzeon baseline (block 0)
 	wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: new(big.Int), SystemContracts: chainCfg.Anzeon.SystemContracts})
-	// add hardforks that includes systemContracts after anzeon here like :
-	// wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: chainCfg.DalgonaBlock, SystemContracts: chainCfg.Dalgona.SystemContracts})
 
-	// Boho hardfork
-	if chainCfg.BohoBlock != nil && chainCfg.Boho != nil && chainCfg.Boho.SystemContracts != nil {
-		wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, params.Upgrade{Block: chainCfg.BohoBlock, SystemContracts: chainCfg.Boho.SystemContracts})
+	// All post-Anzeon hardfork upgrades (Boho, etc.) are collected via
+	// CollectUpgrades(), which is the single source of truth for hardfork
+	// registration. To add a new hardfork, append an entry in
+	// ChainConfig.CollectUpgrades() — no manual registration needed here.
+	for _, upgrade := range chainCfg.CollectUpgrades() {
+		wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, upgrade)
 	}
+
 	return nil
 }

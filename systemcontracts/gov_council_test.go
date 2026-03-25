@@ -453,3 +453,117 @@ func TestInitializeCouncil_AllSlots(t *testing.T) {
 	storedAddress := common.BytesToAddress(accountManagerValue.Bytes())
 	require.Equal(t, params.AccountManagerAddress, storedAddress)
 }
+
+// =============================================================================
+// upgradeGovCouncil tests
+// =============================================================================
+
+func TestUpgradeGovCouncil_EmptyParams(t *testing.T) {
+	sp, err := upgradeGovCouncil(common.HexToAddress("0x1004"), map[string]string{})
+	require.NoError(t, err)
+	require.Equal(t, 0, len(sp), "Empty params should produce no StateParams")
+}
+
+func TestUpgradeGovCouncil_QuorumOnly(t *testing.T) {
+	addr := common.HexToAddress("0x1004")
+	sp, err := upgradeGovCouncil(addr, map[string]string{"quorum": "3"})
+	require.NoError(t, err)
+
+	// quorum: included
+	quorumParam := findUpgradeStateParam(sp, common.HexToHash(SLOT_GOV_BASE_quorum))
+	require.NotNil(t, quorumParam)
+	require.Equal(t, common.BigToHash(big.NewInt(3)), quorumParam.Value)
+
+	// maxProposals, expiry: not included (on-chain preserved)
+	require.Nil(t, findUpgradeStateParam(sp, common.HexToHash(SLOT_GOV_BASE_maxActiveProposalsPerMember)),
+		"maxProposals should NOT be present")
+	require.Nil(t, findUpgradeStateParam(sp, common.HexToHash(SLOT_GOV_BASE_proposalExpiry)),
+		"expiry should NOT be present")
+
+	// accountManager: not included in upgrade (already set at v1 init)
+	require.Nil(t, findUpgradeStateParam(sp, common.HexToHash(SLOT_GOV_COUNCIL_accountManager)),
+		"accountManager should NOT be present in upgrade")
+}
+
+func TestUpgradeGovCouncil_WithBlacklist(t *testing.T) {
+	addr := common.HexToAddress("0x1004")
+	sp, err := upgradeGovCouncil(addr, map[string]string{
+		"blacklist": "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+	})
+	require.NoError(t, err)
+
+	// Apply to mock state and verify
+	mockState := NewMockStateReader()
+	for _, param := range sp {
+		mockState.SetState(param.Address, param.Key, param.Value)
+	}
+
+	blacklistCount := GetBlacklistCount(addr, mockState)
+	require.Equal(t, int64(2), blacklistCount.Int64())
+	require.True(t, IsBlacklisted(addr, mockState, common.HexToAddress("0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")))
+	require.True(t, IsBlacklisted(addr, mockState, common.HexToAddress("0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")))
+}
+
+func TestUpgradeGovCouncil_WithAuthorizedAccounts(t *testing.T) {
+	addr := common.HexToAddress("0x1004")
+	sp, err := upgradeGovCouncil(addr, map[string]string{
+		"authorizedAccounts": "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+	})
+	require.NoError(t, err)
+
+	mockState := NewMockStateReader()
+	for _, param := range sp {
+		mockState.SetState(param.Address, param.Key, param.Value)
+	}
+
+	authorizedCount := GetAuthorizedAccountCount(addr, mockState)
+	require.Equal(t, int64(1), authorizedCount.Int64())
+	require.True(t, IsAuthorizedAccount(addr, mockState, common.HexToAddress("0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD")))
+}
+
+func TestUpgradeGovCouncil_QuorumAndBlacklist(t *testing.T) {
+	addr := common.HexToAddress("0x1004")
+	sp, err := upgradeGovCouncil(addr, map[string]string{
+		"quorum":    "4",
+		"blacklist": "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+	})
+	require.NoError(t, err)
+
+	// quorum included
+	quorumParam := findUpgradeStateParam(sp, common.HexToHash(SLOT_GOV_BASE_quorum))
+	require.NotNil(t, quorumParam)
+	require.Equal(t, common.BigToHash(big.NewInt(4)), quorumParam.Value)
+
+	// blacklist included
+	mockState := NewMockStateReader()
+	for _, param := range sp {
+		mockState.SetState(param.Address, param.Key, param.Value)
+	}
+	require.Equal(t, int64(1), GetBlacklistCount(addr, mockState).Int64())
+
+	// maxProposals, expiry, accountManager: not included
+	require.Nil(t, findUpgradeStateParam(sp, common.HexToHash(SLOT_GOV_BASE_maxActiveProposalsPerMember)))
+	require.Nil(t, findUpgradeStateParam(sp, common.HexToHash(SLOT_GOV_COUNCIL_accountManager)))
+}
+
+func TestUpgradeGovCouncil_InvalidQuorum(t *testing.T) {
+	_, err := upgradeGovCouncil(common.HexToAddress("0x1004"), map[string]string{"quorum": "0"})
+	require.Error(t, err, "quorum=0 should be rejected")
+}
+
+func TestUpgradeGovCouncil_InvalidBlacklistZeroAddress(t *testing.T) {
+	_, err := upgradeGovCouncil(common.HexToAddress("0x1004"), map[string]string{
+		"blacklist": "0x0000000000000000000000000000000000000000",
+	})
+	require.Error(t, err, "zero address in blacklist should be rejected")
+}
+
+// findUpgradeStateParam is a helper to find a StateParam by Key (avoids conflict with systemcontracts_test.go)
+func findUpgradeStateParam(sp []params.StateParam, key common.Hash) *params.StateParam {
+	for i := range sp {
+		if sp[i].Key == key {
+			return &sp[i]
+		}
+	}
+	return nil
+}

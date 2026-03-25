@@ -28,7 +28,7 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableNetMainnetGenesisHash = common.HexToHash("0x04701ca3d2cacf24bc6b1c1dde464eb61a522d04c9f71c410797f06e272437aa")
+	StableNetMainnetGenesisHash = common.HexToHash("0x3fd05ec4f6efc4228301befdf85b4e8570725d7930ac9ef2e8a380a54d630a3a")
 	StableNetTestnetGenesisHash = common.HexToHash("0x2bdf79b3d3cc49f9e6638ff81f3bb85065c79945a8fe4556cd0ff47bbfc02490")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
@@ -1084,6 +1084,45 @@ func (c *ChainConfig) IsVerkle(num *big.Int, time uint64) bool {
 
 func (c *ChainConfig) AnzeonEnabled() bool {
 	return c.Anzeon != nil
+}
+
+// CollectUpgrades returns all system contract hardfork upgrades defined in the chain config.
+// This is the single source of truth for hardfork registration — all consumers
+// (genesis initialization, WBFT engine config, runtime block finalization) rely
+// on this function to discover which upgrades exist.
+//
+// IMPORTANT — ordering contract:
+//   - Entries MUST be appended in strictly ascending block number order.
+//   - checkConfigForkOrder() enforces this at node startup; violation panics.
+//   - Block 0 hardforks are applied during genesis (via InjectContracts).
+//   - Block > 0 hardforks are applied at runtime during block finalization.
+//   - System contract versions MUST increase monotonically with block height.
+//     e.g., GovMinter v2 at block 100, v3 at block 200 is valid.
+//     GovMinter v3 at block 100, v2 at block 200 is INVALID — a higher
+//     version at a lower block implies a downgrade, which is not supported.
+//
+// To add a new hardfork (e.g., "CFork"):
+//  1. Add CForkBlock + CFork fields to ChainConfig.
+//  2. Append one entry below, AFTER the last existing hardfork (Boho).
+//     The append order here must match checkConfigForkOrder().
+func (c *ChainConfig) CollectUpgrades() []Upgrade {
+	var upgrades []Upgrade
+
+	// ── Hardfork Registry (ascending block order) ─────────
+
+	// Boho hardfork — GovMinter v2 (burn/refund mechanism)
+	if c.BohoBlock != nil && c.Boho != nil && c.Boho.SystemContracts != nil {
+		upgrades = append(upgrades, Upgrade{
+			Block:           c.BohoBlock,
+			SystemContracts: c.Boho.SystemContracts,
+		})
+	}
+
+	// NEW HARDFORKS GO HERE — always append after the last entry above.
+
+	// ──────────────────────────────────────────────────────
+
+	return upgrades
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported

@@ -18,10 +18,10 @@
 package systemcontracts
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
-
-	"fmt"
 )
 
 func init() {
@@ -59,52 +59,122 @@ func checkSystemContractVersions(systemContracts *params.SystemContracts) error 
 	return nil
 }
 
+// GetSystemContractsTransition builds a StateTransition for the given SystemContracts.
+//
+// Params semantics per contract:
+//   - non-nil: Code deployment + State change (initialize or upgrade depending on Version)
+//   - nil:     Code deployment only, existing on-chain state is preserved
+//
+// Version-based routing:
+//   - "v1": initialize*() — Genesis initial deploy with hardcoded defaults
+//   - other: upgrade*()   — Runtime migration, only Params keys are written
+//
+// IMPORTANT: Each contract's initial version MUST be "v1". The initialize*() functions
+// (e.g., initializeValidator, initializeCoinAdapter) are only invoked when Version == "v1",
+// and they set up the required storage layout (owner, quorum, members, etc.).
+// Starting with any other version will skip initialization, leaving the contract in an
+// uninitialized state with empty storage — which will cause runtime failures.
 func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc *types.GenesisAlloc) (*params.StateTransition, error) {
 	st := &params.StateTransition{}
 
 	if systemContracts.GovValidator != nil {
-		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovValidator.Address, Code: SystemContractCodes[CONTRACT_GOV_VALIDATOR][systemContracts.GovValidator.Version]})
-		sp, err := initializeValidator(systemContracts.GovValidator.Address, systemContracts.GovValidator.Params)
+		code, err := getContractCode(CONTRACT_GOV_VALIDATOR, systemContracts.GovValidator.Version)
 		if err != nil {
 			return nil, err
 		}
-		st.States = append(st.States, sp...)
+		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovValidator.Address, Code: code})
+		if systemContracts.GovValidator.Params != nil {
+			var sp []params.StateParam
+			if systemContracts.GovValidator.Version == SYSTEM_CONTRACT_VERSION_1 {
+				sp, err = initializeValidator(systemContracts.GovValidator.Address, systemContracts.GovValidator.Params)
+			} else {
+				sp, err = upgradeValidator(systemContracts.GovValidator.Address, systemContracts.GovValidator.Params)
+			}
+			if err != nil {
+				return nil, err
+			}
+			st.States = append(st.States, sp...)
+		}
 	}
 
 	if systemContracts.NativeCoinAdapter != nil {
-		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.NativeCoinAdapter.Address, Code: SystemContractCodes[CONTRACT_COIN_ADAPTER][systemContracts.NativeCoinAdapter.Version]})
-		sp, err := initializeCoinAdapter(systemContracts.NativeCoinAdapter.Address, systemContracts.NativeCoinAdapter.Params, alloc)
+		code, err := getContractCode(CONTRACT_COIN_ADAPTER, systemContracts.NativeCoinAdapter.Version)
 		if err != nil {
 			return nil, err
 		}
-		st.States = append(st.States, sp...)
+		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.NativeCoinAdapter.Address, Code: code})
+		if systemContracts.NativeCoinAdapter.Params != nil {
+			var sp []params.StateParam
+			if systemContracts.NativeCoinAdapter.Version == SYSTEM_CONTRACT_VERSION_1 {
+				sp, err = initializeCoinAdapter(systemContracts.NativeCoinAdapter.Address, systemContracts.NativeCoinAdapter.Params, alloc)
+			} else {
+				sp, err = upgradeCoinAdapter(systemContracts.NativeCoinAdapter.Address, systemContracts.NativeCoinAdapter.Params)
+			}
+			if err != nil {
+				return nil, err
+			}
+			st.States = append(st.States, sp...)
+		}
 	}
 
 	if systemContracts.GovMinter != nil {
-		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovMinter.Address, Code: SystemContractCodes[CONTRACT_GOV_MINTER][systemContracts.GovMinter.Version]})
-		sp, err := initializeMinter(systemContracts.GovMinter.Address, systemContracts.GovMinter.Params)
+		code, err := getContractCode(CONTRACT_GOV_MINTER, systemContracts.GovMinter.Version)
 		if err != nil {
 			return nil, err
 		}
-		st.States = append(st.States, sp...)
+		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovMinter.Address, Code: code})
+		if systemContracts.GovMinter.Params != nil {
+			var sp []params.StateParam
+			if systemContracts.GovMinter.Version == SYSTEM_CONTRACT_VERSION_1 {
+				sp, err = initializeMinter(systemContracts.GovMinter.Address, systemContracts.GovMinter.Params)
+			} else {
+				sp, err = upgradeMinter(systemContracts.GovMinter.Address, systemContracts.GovMinter.Params)
+			}
+			if err != nil {
+				return nil, err
+			}
+			st.States = append(st.States, sp...)
+		}
 	}
 
 	if systemContracts.GovMasterMinter != nil {
-		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovMasterMinter.Address, Code: SystemContractCodes[CONTRACT_GOV_MASTER_MINTER][systemContracts.GovMasterMinter.Version]})
-		sp, err := initializeMasterMinter(systemContracts.GovMasterMinter.Address, systemContracts.GovMasterMinter.Params)
+		code, err := getContractCode(CONTRACT_GOV_MASTER_MINTER, systemContracts.GovMasterMinter.Version)
 		if err != nil {
 			return nil, err
 		}
-		st.States = append(st.States, sp...)
+		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovMasterMinter.Address, Code: code})
+		if systemContracts.GovMasterMinter.Params != nil {
+			var sp []params.StateParam
+			if systemContracts.GovMasterMinter.Version == SYSTEM_CONTRACT_VERSION_1 {
+				sp, err = initializeMasterMinter(systemContracts.GovMasterMinter.Address, systemContracts.GovMasterMinter.Params)
+			} else {
+				sp, err = upgradeMasterMinter(systemContracts.GovMasterMinter.Address, systemContracts.GovMasterMinter.Params)
+			}
+			if err != nil {
+				return nil, err
+			}
+			st.States = append(st.States, sp...)
+		}
 	}
 
 	if systemContracts.GovCouncil != nil {
-		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovCouncil.Address, Code: SystemContractCodes[CONTRACT_GOV_COUNCIL][systemContracts.GovCouncil.Version]})
-		sp, err := initializeGovCouncil(systemContracts.GovCouncil.Address, systemContracts.GovCouncil.Params)
+		code, err := getContractCode(CONTRACT_GOV_COUNCIL, systemContracts.GovCouncil.Version)
 		if err != nil {
 			return nil, err
 		}
-		st.States = append(st.States, sp...)
+		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovCouncil.Address, Code: code})
+		if systemContracts.GovCouncil.Params != nil {
+			var sp []params.StateParam
+			if systemContracts.GovCouncil.Version == SYSTEM_CONTRACT_VERSION_1 {
+				sp, err = initializeGovCouncil(systemContracts.GovCouncil.Address, systemContracts.GovCouncil.Params)
+			} else {
+				sp, err = upgradeGovCouncil(systemContracts.GovCouncil.Address, systemContracts.GovCouncil.Params)
+			}
+			if err != nil {
+				return nil, err
+			}
+			st.States = append(st.States, sp...)
+		}
 	}
 
 	return st, nil

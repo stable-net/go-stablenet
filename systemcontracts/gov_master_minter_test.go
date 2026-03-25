@@ -531,3 +531,85 @@ func TestDefaultMaxMinterAllowance(t *testing.T) {
 		require.Equal(t, "10000000000000000000000000000", DefaultMaxMinterAllowance.String())
 	})
 }
+
+// --- upgradeMasterMinter tests ---
+
+func TestUpgradeMasterMinter_EmptyParams(t *testing.T) {
+	sp, err := upgradeMasterMinter(common.HexToAddress("0x1002"), map[string]string{})
+	require.NoError(t, err)
+	require.Equal(t, 0, len(sp), "Empty params should produce no StateParams")
+}
+
+func TestUpgradeMasterMinter_FiatTokenOnly(t *testing.T) {
+	addr := common.HexToAddress("0x1002")
+	sp, err := upgradeMasterMinter(addr, map[string]string{
+		"fiatToken": "0x0000000000000000000000000000000000002000",
+	})
+	require.NoError(t, err)
+
+	foundFiatToken := false
+	for _, p := range sp {
+		if p.Key == common.HexToHash(SLOT_GOV_MASTER_MINTER_fiatToken) {
+			foundFiatToken = true
+			require.Equal(t, common.BytesToHash(common.HexToAddress("0x2000").Bytes()), p.Value)
+		}
+	}
+	require.True(t, foundFiatToken, "fiatToken should be present")
+}
+
+func TestUpgradeMasterMinter_InvalidFiatToken(t *testing.T) {
+	_, err := upgradeMasterMinter(common.HexToAddress("0x1002"), map[string]string{
+		"fiatToken": "0x0000000000000000000000000000000000000000",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "fiatToken")
+}
+
+func TestUpgradeMasterMinter_MaxMinterAllowance(t *testing.T) {
+	sp, err := upgradeMasterMinter(common.HexToAddress("0x1002"), map[string]string{
+		"maxMinterAllowance": "99999999999999999999",
+	})
+	require.NoError(t, err)
+
+	expected, _ := new(big.Int).SetString("99999999999999999999", 10)
+	foundAllowance := false
+	for _, p := range sp {
+		if p.Key == common.HexToHash(SLOT_GOV_MASTER_MINTER_maxMinterAllowance) {
+			foundAllowance = true
+			require.Equal(t, common.BigToHash(expected), p.Value)
+		}
+	}
+	require.True(t, foundAllowance, "maxMinterAllowance should be present")
+}
+
+func TestUpgradeMasterMinter_InvalidMaxMinterAllowance(t *testing.T) {
+	_, err := upgradeMasterMinter(common.HexToAddress("0x1002"), map[string]string{
+		"maxMinterAllowance": "-1",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "maxMinterAllowance")
+}
+
+func TestUpgradeMasterMinter_PartialParams(t *testing.T) {
+	addr := common.HexToAddress("0x1002")
+	sp, err := upgradeMasterMinter(addr, map[string]string{"quorum": "3"})
+	require.NoError(t, err)
+
+	// quorum: present
+	foundQuorum := false
+	for _, p := range sp {
+		if p.Key == common.HexToHash(SLOT_GOV_BASE_quorum) {
+			foundQuorum = true
+			require.Equal(t, common.BigToHash(big.NewInt(3)), p.Value)
+		}
+	}
+	require.True(t, foundQuorum, "quorum should be present")
+
+	// fiatToken, maxMinterAllowance: absent
+	for _, p := range sp {
+		require.NotEqual(t, common.HexToHash(SLOT_GOV_MASTER_MINTER_fiatToken), p.Key,
+			"fiatToken should NOT be present")
+		require.NotEqual(t, common.HexToHash(SLOT_GOV_MASTER_MINTER_maxMinterAllowance), p.Key,
+			"maxMinterAllowance should NOT be present")
+	}
+}

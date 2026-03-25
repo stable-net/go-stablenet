@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 )
 
@@ -135,5 +136,109 @@ func TestConfigRules(t *testing.T) {
 	stamp = math.MaxInt64
 	if r := c.Rules(big.NewInt(0), true, stamp); !r.IsShanghai {
 		t.Errorf("expected %v to be shanghai", stamp)
+	}
+}
+
+func TestCollectUpgrades_Order(t *testing.T) {
+	tests := []struct {
+		name      string
+		cfg       *ChainConfig
+		wantCount int
+		wantBlock int64
+		wantVer   string
+	}{
+		{
+			name: "Boho at block 0 (genesis overlay)",
+			cfg: &ChainConfig{
+				BohoBlock: big.NewInt(0),
+				Boho: &AnzeonConfig{
+					SystemContracts: &SystemContracts{
+						GovMinter: &SystemContract{Address: common.HexToAddress("0x1003"), Version: "v2"},
+					},
+				},
+			},
+			wantCount: 1,
+			wantBlock: 0,
+			wantVer:   "v2",
+		},
+		{
+			name: "Boho at block 100 (runtime upgrade)",
+			cfg: &ChainConfig{
+				BohoBlock: big.NewInt(100),
+				Boho: &AnzeonConfig{
+					SystemContracts: &SystemContracts{
+						GovMinter: &SystemContract{Address: common.HexToAddress("0x1003"), Version: "v2"},
+					},
+				},
+			},
+			wantCount: 1,
+			wantBlock: 100,
+			wantVer:   "v2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upgrades := tt.cfg.CollectUpgrades()
+			if len(upgrades) != tt.wantCount {
+				t.Fatalf("expected %d upgrade(s), got %d", tt.wantCount, len(upgrades))
+			}
+			if upgrades[0].Block.Int64() != tt.wantBlock {
+				t.Errorf("expected block %d, got %d", tt.wantBlock, upgrades[0].Block.Int64())
+			}
+			if upgrades[0].GovMinter.Version != tt.wantVer {
+				t.Errorf("expected GovMinter %s, got %s", tt.wantVer, upgrades[0].GovMinter.Version)
+			}
+		})
+	}
+}
+
+func TestCollectUpgrades_NilHandling(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *ChainConfig
+		want int
+	}{
+		{
+			name: "BohoBlock nil",
+			cfg:  &ChainConfig{BohoBlock: nil, Boho: &AnzeonConfig{SystemContracts: &SystemContracts{}}},
+			want: 0,
+		},
+		{
+			name: "Boho nil",
+			cfg:  &ChainConfig{BohoBlock: big.NewInt(0), Boho: nil},
+			want: 0,
+		},
+		{
+			name: "Boho.SystemContracts nil",
+			cfg:  &ChainConfig{BohoBlock: big.NewInt(0), Boho: &AnzeonConfig{SystemContracts: nil}},
+			want: 0,
+		},
+		{
+			name: "both nil",
+			cfg:  &ChainConfig{},
+			want: 0,
+		},
+		{
+			name: "all set",
+			cfg: &ChainConfig{
+				BohoBlock: big.NewInt(0),
+				Boho: &AnzeonConfig{
+					SystemContracts: &SystemContracts{
+						GovMinter: &SystemContract{Address: common.HexToAddress("0x1003"), Version: "v2"},
+					},
+				},
+			},
+			want: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cfg.CollectUpgrades()
+			if len(got) != tt.want {
+				t.Errorf("CollectUpgrades() returned %d upgrades, want %d", len(got), tt.want)
+			}
+		})
 	}
 }

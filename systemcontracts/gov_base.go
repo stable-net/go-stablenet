@@ -334,3 +334,120 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 
 	return sp, nil
 }
+
+// upgradeBase performs a migration-style upgrade for GovBase storage.
+// Only parameters present in param are written to StateParam.
+// Missing keys are not appended, so state.SetState is never called for them,
+// preserving existing on-chain values automatically.
+func upgradeBase(govBaseAddress common.Address, param map[string]string) ([]params.StateParam, error) {
+	sp := make([]params.StateParam, 0)
+
+	if quorumStr, ok := param[GOV_BASE_PARAM_QUORUM]; ok {
+		quorum, err := strconv.ParseUint(quorumStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.quorum`: %w", err)
+		}
+		if quorum == 0 {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.quorum` must be greater than 0")
+		}
+		sp = append(sp, params.StateParam{
+			Address: govBaseAddress,
+			Key:     common.HexToHash(SLOT_GOV_BASE_quorum),
+			Value:   common.BigToHash(big.NewInt(int64(quorum))),
+		})
+	}
+
+	if expiryStr, ok := param[GOV_BASE_PARAM_EXPIRY]; ok {
+		expiry, err := strconv.ParseUint(expiryStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.expiry`: %w", err)
+		}
+		sp = append(sp, params.StateParam{
+			Address: govBaseAddress,
+			Key:     common.HexToHash(SLOT_GOV_BASE_proposalExpiry),
+			Value:   common.BigToHash(big.NewInt(int64(expiry))),
+		})
+	}
+
+	if maxProposalsStr, ok := param[GOV_BASE_PARAM_MAX_PROPOSALS]; ok {
+		maxProposals, err := strconv.ParseUint(maxProposalsStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.maxProposals`: %w", err)
+		}
+		if maxProposals < 1 || maxProposals > 50 {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.maxProposals` must be between 1 and 50, got %d", maxProposals)
+		}
+		sp = append(sp, params.StateParam{
+			Address: govBaseAddress,
+			Key:     common.HexToHash(SLOT_GOV_BASE_maxActiveProposalsPerMember),
+			Value:   common.BigToHash(big.NewInt(int64(maxProposals))),
+		})
+	}
+
+	// members: only process if explicitly provided. Mapping structures are preserved
+	// automatically when not appended.
+	if membersStr, ok := param[GOV_BASE_PARAM_MEMBERS]; ok {
+		memberAddresses := splitAndTrim(membersStr, ",")
+		uniqueMembers := make([]common.Address, 0)
+		seen := make(map[common.Address]struct{})
+		for _, addrStr := range memberAddresses {
+			member := common.HexToAddress(addrStr)
+			if member == (common.Address{}) {
+				return nil, fmt.Errorf("`systemContracts.govBase.params.members` contains invalid zero address")
+			}
+			if _, exists := seen[member]; !exists {
+				seen[member] = struct{}{}
+				uniqueMembers = append(uniqueMembers, member)
+			}
+		}
+
+		const MAX_MEMBERS = 255
+		if len(uniqueMembers) > MAX_MEMBERS {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.members` count (%d) exceeds maximum allowed (%d)", len(uniqueMembers), MAX_MEMBERS)
+		}
+
+		versionStr, ok2 := param[GOV_BASE_PARAM_MEMBER_VERSION]
+		if !ok2 {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.memberVersion` is required when `systemContracts.govBase.params.members` is set")
+		}
+		versionInt, err := strconv.ParseUint(versionStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("`systemContracts.govBase.params.memberVersion`: %w", err)
+		}
+		version := new(big.Int).SetUint64(versionInt)
+
+		membersSlot := common.HexToHash(SLOT_GOV_BASE_members)
+		versionedMemberListSlot := common.HexToHash(SLOT_GOV_BASE_versionedMemberList)
+		versionSlot := common.HexToHash(SLOT_GOV_BASE_version)
+		memberIndexByVersionSlot := common.HexToHash(SLOT_GOV_BASE_memberIndexByVersion)
+		quorumByVersionSlot := common.HexToHash(SLOT_GOV_BASE_quorumByVersion)
+
+		memberData := Member{IsActive: true, JoinedAt: 0}.ToHash()
+		currentIdx := uint64(0)
+		for _, member := range uniqueMembers {
+			if currentIdx >= MAX_MEMBERS {
+				return nil, fmt.Errorf("member index overflow: currentIdx (%d) >= MAX_MEMBERS (%d)", currentIdx, MAX_MEMBERS)
+			}
+			sp = append(sp,
+				params.StateParam{Address: govBaseAddress, Key: CalculateMappingSlot(membersSlot, member), Value: memberData},
+				params.StateParam{Address: govBaseAddress, Key: CalculateDynamicSlot(CalculateMappingSlot(versionedMemberListSlot, version), new(big.Int).SetUint64(currentIdx)), Value: common.BytesToHash(member.Bytes())},
+				params.StateParam{Address: govBaseAddress, Key: CalculateMappingSlot(CalculateMappingSlot(memberIndexByVersionSlot, version), member), Value: common.BigToHash(new(big.Int).SetUint64(currentIdx + 1))},
+			)
+			currentIdx++
+		}
+		if currentIdx > 0 {
+			sp = append(sp, params.StateParam{Address: govBaseAddress, Key: CalculateMappingSlot(versionedMemberListSlot, version), Value: common.BigToHash(new(big.Int).SetUint64(currentIdx))})
+		}
+		sp = append(sp, params.StateParam{Address: govBaseAddress, Key: versionSlot, Value: common.BigToHash(version)})
+
+		// quorumByVersion: only if quorum was also provided
+		if quorumStr, ok := param[GOV_BASE_PARAM_QUORUM]; ok {
+			quorum, _ := strconv.ParseUint(quorumStr, 10, 64)
+			if quorum > 0 {
+				sp = append(sp, params.StateParam{Address: govBaseAddress, Key: CalculateMappingSlot(quorumByVersionSlot, version), Value: common.BigToHash(new(big.Int).SetUint64(quorum))})
+			}
+		}
+	}
+
+	return sp, nil
+}

@@ -19,6 +19,7 @@ package systemcontracts
 
 import (
 	_ "embed"
+	"fmt"
 )
 
 const (
@@ -72,4 +73,18 @@ func init() {
 
 	SystemContractCodes[CONTRACT_GOV_COUNCIL] = make(map[string]string)
 	SystemContractCodes[CONTRACT_GOV_COUNCIL][SYSTEM_CONTRACT_VERSION_1] = GovCouncilContractV1
+}
+
+// getContractCode returns the bytecode for the given contract type and version.
+// Returns an error if the contract type or version is not registered.
+func getContractCode(contractType, version string) (string, error) {
+	versions, ok := SystemContractCodes[contractType]
+	if !ok {
+		return "", fmt.Errorf("unknown contract type: %s", contractType)
+	}
+	code, ok := versions[version]
+	if !ok || code == "" {
+		return "", fmt.Errorf("unsupported version %s for contract %s", version, contractType)
+	}
+	return code, nil
 }
