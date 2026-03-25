@@ -268,9 +268,7 @@ func SetConfigFromChainConfig(wbftCfg *wbft.Config, chainCfg *params.ChainConfig
 	// CollectUpgrades(), which is the single source of truth for hardfork
 	// registration. To add a new hardfork, append an entry in
 	// ChainConfig.CollectUpgrades() — no manual registration needed here.
-	for _, upgrade := range chainCfg.CollectUpgrades() {
-		wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, upgrade)
-	}
+	wbftCfg.SystemContractUpgrades = append(wbftCfg.SystemContractUpgrades, chainCfg.CollectUpgrades()...)
 
 	return nil
 }
