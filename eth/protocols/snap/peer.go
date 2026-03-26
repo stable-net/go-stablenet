@@ -118,12 +118,15 @@ func (p *Peer) RequestStorageRanges(id uint64, root common.Hash, accounts []comm
 		p.logger.Trace("Fetching ranges of small storage slots", "reqid", id, "root", root, "accounts", len(accounts), "first", accounts[0], "bytes", common.StorageSize(bytes))
 	}
 
-	p.tracker.Track(tracker.Request{
+	err := p.tracker.Track(tracker.Request{
 		ReqCode:  GetStorageRangesMsg,
 		RespCode: StorageRangesMsg,
 		ID:       id,
 		Size:     2 * bytes,
 	})
+	if err != nil {
+		return err
+	}
 	return p2p.Send(p.rw, GetStorageRangesMsg, &GetStorageRangesPacket{
 		ID:       id,
 		Root:     root,
