@@ -28,7 +28,7 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableNetMainnetGenesisHash = common.HexToHash("0x3fd05ec4f6efc4228301befdf85b4e8570725d7930ac9ef2e8a380a54d630a3a")
+	StableNetMainnetGenesisHash = common.HexToHash("0xf192f2ba82c9265777bad7d33b7fd561430ae5e1f60f2e99c893073c81dc5b7b")
 	StableNetTestnetGenesisHash = common.HexToHash("0x2bdf79b3d3cc49f9e6638ff81f3bb85065c79945a8fe4556cd0ff47bbfc02490")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
@@ -1294,6 +1294,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	if isForkTimestampIncompatible(c.VerkleTime, newcfg.VerkleTime, headTimestamp) {
 		return newTimestampCompatError("Verkle fork timestamp", c.VerkleTime, newcfg.VerkleTime)
 	}
+	if isForkAnzeonIncompatible(c.Anzeon, newcfg.Anzeon) {
+		return newAnzeonCompatError("Anzeon fork enable", c.Anzeon, newcfg.Anzeon)
+	}
 	return nil
 }
 
@@ -1401,6 +1404,12 @@ func configTimestampEqual(x, y *uint64) bool {
 	return *x == *y
 }
 
+// isForkAnzeonIncompatible returns true if one chain has an Anzeon fork config
+// while the other does not (i.e., exactly one of s1 or s2 is nil).
+func isForkAnzeonIncompatible(s1, s2 *AnzeonConfig) bool {
+	return (s1 == nil) != (s2 == nil)
+}
+
 // ConfigCompatError is raised if the locally-stored blockchain is initialised with a
 // ChainConfig that would alter the past.
 type ConfigCompatError struct {
@@ -1463,11 +1472,25 @@ func newTimestampCompatError(what string, storedtime, newtime *uint64) *ConfigCo
 	return err
 }
 
-func (err *ConfigCompatError) Error() string {
-	if err.StoredBlock != nil {
-		return fmt.Sprintf("mismatching %s in database (have block %d, want block %d, rewindto block %d)", err.What, err.StoredBlock, err.NewBlock, err.RewindToBlock)
+// newAnzeonCompatError creates a ConfigCompatError for Anzeon fork enable/disable
+// incompatibility. Since Anzeon is toggled by config presence (not by block or
+// timestamp), block and time fields are left at their zero values.
+func newAnzeonCompatError(what string, storedAnzeon, newAnzeon *AnzeonConfig) *ConfigCompatError {
+	return &ConfigCompatError{
+		What: fmt.Sprintf("%s (stored=%t, new=%t)", what, storedAnzeon != nil, newAnzeon != nil),
 	}
-	return fmt.Sprintf("mismatching %s in database (have timestamp %d, want timestamp %d, rewindto timestamp %d)", err.What, err.StoredTime, err.NewTime, err.RewindToTime)
+}
+
+func (err *ConfigCompatError) Error() string {
+	switch {
+	case err.StoredBlock != nil:
+		return fmt.Sprintf("mismatching %s in database (have block %d, want block %d, rewindto block %d)", err.What, err.StoredBlock, err.NewBlock, err.RewindToBlock)
+	case err.StoredTime != nil:
+		return fmt.Sprintf("mismatching %s in database (have timestamp %d, want timestamp %d, rewindto timestamp %d)", err.What, err.StoredTime, err.NewTime, err.RewindToTime)
+	default:
+		// enable/disable fork incompatibility (e.g., Anzeon)
+		return fmt.Sprintf("mismatching %s in database", err.What)
+	}
 }
 
 // Rules wraps ChainConfig and is merely syntactic sugar or can be used for functions
