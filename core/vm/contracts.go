@@ -136,6 +136,20 @@ var PrecompiledContractsAnzeon = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{9}):    &blake2F{},
 	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
 	params.BLSPoPPrecompileAddress:      &blsPoP{},
+}
+
+var PrecompiledContractsBoho = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{1}):    &ecrecover{},
+	common.BytesToAddress([]byte{2}):    &sha256hash{},
+	common.BytesToAddress([]byte{3}):    &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):    &dataCopy{},
+	common.BytesToAddress([]byte{5}):    &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):    &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):    &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):    &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):    &blake2F{},
+	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
+	params.BLSPoPPrecompileAddress:      &blsPoP{},
 
 	common.BytesToAddress([]byte{0x1, 0x00}): &p256Verify{},
 }
@@ -147,6 +161,7 @@ var PrecompiledContractsP256Verify = map[common.Address]PrecompiledContract{
 }
 
 var (
+	PrecompiledAddressesBoho      []common.Address
 	PrecompiledAddressesAnzeon    []common.Address
 	PrecompiledAddressesCancun    []common.Address
 	PrecompiledAddressesBerlin    []common.Address
@@ -174,11 +189,16 @@ func init() {
 	for k := range PrecompiledContractsAnzeon {
 		PrecompiledAddressesAnzeon = append(PrecompiledAddressesAnzeon, k)
 	}
+	for k := range PrecompiledContractsBoho {
+		PrecompiledAddressesBoho = append(PrecompiledAddressesBoho, k)
+	}
 }
 
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {
+	case rules.IsBoho:
+		return PrecompiledAddressesBoho
 	case rules.IsAnzeon:
 		return PrecompiledAddressesAnzeon
 	case rules.IsCancun:
