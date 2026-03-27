@@ -52,7 +52,7 @@ func makeGenerator(network string) *genesisGenerator {
 	return &genesisGenerator{
 		Genesis: &core.Genesis{
 			Timestamp:  uint64(time.Now().Unix()),
-			GasLimit:   4700000,
+			GasLimit:   105000000,
 			Difficulty: big.NewInt(524288),
 			Alloc:      make(types.GenesisAlloc),
 			Config: &params.ChainConfig{
@@ -67,8 +67,6 @@ func makeGenerator(network string) *genesisGenerator {
 				MuirGlacierBlock:    big.NewInt(0),
 				BerlinBlock:         big.NewInt(0),
 				LondonBlock:         big.NewInt(0),
-				ArrowGlacierBlock:   big.NewInt(0),
-				GrayGlacierBlock:    big.NewInt(0),
 				ApplepieBlock:       big.NewInt(0),
 				BohoBlock:           big.NewInt(0),
 			},
