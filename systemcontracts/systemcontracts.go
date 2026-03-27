@@ -74,6 +74,21 @@ func checkSystemContractVersions(systemContracts *params.SystemContracts) error 
 // and they set up the required storage layout (owner, quorum, members, etc.).
 // Starting with any other version will skip initialization, leaving the contract in an
 // uninitialized state with empty storage — which will cause runtime failures.
+//
+// WARNING — Upgrade Params and on-chain governance:
+// Contract parameters (e.g., quorum, owner, fee rates) can be modified at runtime
+// through governance proposals BEFORE a hardfork upgrade is applied. The upgrade*()
+// functions write ONLY the Params keys specified in the hardfork config, overwriting
+// the corresponding storage slots unconditionally. If a governance proposal has already
+// changed a value that the upgrade also sets, the governance-approved value will be
+// silently replaced by the hardfork value.
+//
+// Therefore, when defining Params for an upgrade, you MUST:
+//  1. Query the current on-chain state to identify governance-modified values.
+//  2. Decide for each Params key whether the hardfork value should override
+//     the governance-approved value, or whether it should be omitted (nil)
+//     to preserve the on-chain state.
+//  3. Only include Params keys that genuinely need to change for the upgrade.
 func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc *types.GenesisAlloc) (*params.StateTransition, error) {
 	st := &params.StateTransition{}
 
