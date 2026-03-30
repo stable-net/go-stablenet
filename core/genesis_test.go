@@ -20,8 +20,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"math/big"
+	"os"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -777,30 +777,34 @@ func TestSetupGenesis_MainnetWithAnzeonInit(t *testing.T) {
 
 // TestStableNetGenesisAllocConsistency verifies that the decodePrealloc-based
 // genesis construction (with InjectContracts applied) produces the same alloc
-// as the canonical JSON in stablenet_genesis.go.
+// as the canonical JSON files (genesis_mainnet.json, genesis_testnet.json).
 func TestStableNetGenesisAllocConsistency(t *testing.T) {
 	tests := []struct {
 		name     string
-		jsonData string
+		jsonFile string
 		genesis  func() *Genesis
 	}{
 		{
 			name:     "mainnet",
-			jsonData: stableNetMainnetGenesisJson,
+			jsonFile: "genesis_mainnet.json",
 			genesis:  DefaultStableNetMainnetGenesisBlock,
 		},
 		{
 			name:     "testnet",
-			jsonData: stableNetTestnetGenesisJson,
+			jsonFile: "genesis_testnet.json",
 			genesis:  DefaultStableNetTestnetGenesisBlock,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Decode alloc from the canonical JSON
+			// Decode alloc from the canonical JSON file
+			data, err := os.ReadFile(tt.jsonFile)
+			if err != nil {
+				t.Fatalf("failed to read %s: %v", tt.jsonFile, err)
+			}
 			var jsonGenesis Genesis
-			if err := json.NewDecoder(strings.NewReader(tt.jsonData)).Decode(&jsonGenesis); err != nil {
+			if err := json.Unmarshal(data, &jsonGenesis); err != nil {
 				t.Fatalf("failed to decode genesis JSON: %v", err)
 			}
 
