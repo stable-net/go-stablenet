@@ -156,9 +156,8 @@ func handleTransactions(peer *eth.Peer, list []*types.Transaction, directBroadca
 			if directBroadcast {
 				return errors.New("disallowed broadcast blob transaction")
 			} else {
-				// If we receive any blob transactions missing sidecars, or with
-				// sidecars that don't correspond to the versioned hashes reported
-				// in the header, disconnect from the sending peer.
+				// If we receive any blob transactions missing sidecars,
+				// disconnect from the sending peer.
 				if tx.BlobTxSidecar() == nil {
 					return errors.New("received sidecar-less blob transaction")
 				}
