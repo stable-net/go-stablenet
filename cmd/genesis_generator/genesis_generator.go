@@ -52,7 +52,7 @@ func makeGenerator(network string) *genesisGenerator {
 	return &genesisGenerator{
 		Genesis: &core.Genesis{
 			Timestamp:  uint64(time.Now().Unix()),
-			GasLimit:   4700000,
+			GasLimit:   105000000,
 			Difficulty: big.NewInt(524288),
 			Alloc:      make(types.GenesisAlloc),
 			Config: &params.ChainConfig{
@@ -67,8 +67,8 @@ func makeGenerator(network string) *genesisGenerator {
 				MuirGlacierBlock:    big.NewInt(0),
 				BerlinBlock:         big.NewInt(0),
 				LondonBlock:         big.NewInt(0),
-				ArrowGlacierBlock:   big.NewInt(0),
-				GrayGlacierBlock:    big.NewInt(0),
+				ApplepieBlock:       big.NewInt(0),
+				BohoBlock:           big.NewInt(0),
 			},
 		},
 	}
@@ -186,6 +186,17 @@ func deriveAccount(nodeKey *ecdsa.PrivateKey) (*NodeAccount, error) {
 }
 
 func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPublicKeys []string, quorum int) {
+	g.setAnzeonConfigBase(validators, blsPublicKeys, quorum)
+
+	// Boho hardfork: GovMinter v1 → v2 upgrade
+	fmt.Println()
+	fmt.Println("Enter the block number to activate Boho hardfork (GovMinter v2) (default = 0)")
+	bohoBlock := readDefaultInt(0)
+	g.setBohoConfig(bohoBlock)
+}
+
+// setAnzeonConfigBase sets up the Anzeon consensus config without interactive prompts.
+func (g *genesisGenerator) setAnzeonConfigBase(validators []common.Address, blsPublicKeys []string, quorum int) {
 	g.Genesis.Config.Anzeon = params.DefaultAnzeonConfig
 
 	var vals, blsKeys string
@@ -241,6 +252,19 @@ func (g *genesisGenerator) setAnzeonConfig(validators []common.Address, blsPubli
 		"members":       vals,
 		"memberVersion": "1",
 		"maxProposals":  "3",
+	}
+}
+
+// setBohoConfig configures the Boho hardfork with the given activation block.
+func (g *genesisGenerator) setBohoConfig(bohoBlock int) {
+	g.Genesis.Config.BohoBlock = big.NewInt(int64(bohoBlock))
+	g.Genesis.Config.Boho = &params.AnzeonConfig{
+		SystemContracts: &params.SystemContracts{
+			GovMinter: &params.SystemContract{
+				Address: params.DefaultGovMinterAddress,
+				Version: "v2",
+			},
+		},
 	}
 }
 
