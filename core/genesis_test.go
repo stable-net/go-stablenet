@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -769,6 +770,94 @@ func TestSetupGenesis_MainnetWithAnzeonInit(t *testing.T) {
 			}
 			if config.ChainID.Cmp(params.StableNetMainnetChainConfig.ChainID) != 0 {
 				t.Errorf("want chainID %v, got %v", params.StableNetMainnetChainConfig.ChainID, config.ChainID)
+			}
+		})
+	}
+}
+
+// TestStableNetGenesisAllocConsistency verifies that the decodePrealloc-based
+// genesis construction (with InjectContracts applied) produces the same alloc
+// as the canonical JSON in stablenet_genesis.go.
+func TestStableNetGenesisAllocConsistency(t *testing.T) {
+	tests := []struct {
+		name     string
+		jsonData string
+		genesis  func() *Genesis
+	}{
+		{
+			name:     "mainnet",
+			jsonData: stableNetMainnetGenesisJson,
+			genesis:  DefaultStableNetMainnetGenesisBlock,
+		},
+		{
+			name:     "testnet",
+			jsonData: stableNetTestnetGenesisJson,
+			genesis:  DefaultStableNetTestnetGenesisBlock,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Decode alloc from the canonical JSON
+			var jsonGenesis Genesis
+			if err := json.NewDecoder(strings.NewReader(tt.jsonData)).Decode(&jsonGenesis); err != nil {
+				t.Fatalf("failed to decode genesis JSON: %v", err)
+			}
+
+			// Build alloc via decodePrealloc + InjectContracts (same path as SetupGenesisBlock)
+			genesis := tt.genesis()
+			if err := initializeAnzeonGenesis(genesis); err != nil {
+				t.Fatalf("initializeAnzeonGenesis failed: %v", err)
+			}
+			builtAlloc := genesis.Alloc
+
+			// Compare address sets
+			if len(jsonGenesis.Alloc) != len(builtAlloc) {
+				t.Errorf("alloc length mismatch: json=%d, built=%d", len(jsonGenesis.Alloc), len(builtAlloc))
+				for addr := range jsonGenesis.Alloc {
+					if _, ok := builtAlloc[addr]; !ok {
+						t.Errorf("  json-only address: %s", addr.Hex())
+					}
+				}
+				for addr := range builtAlloc {
+					if _, ok := jsonGenesis.Alloc[addr]; !ok {
+						t.Errorf("  built-only address: %s", addr.Hex())
+					}
+				}
+				t.FailNow()
+			}
+
+			for addr, jsonAccount := range jsonGenesis.Alloc {
+				builtAccount, ok := builtAlloc[addr]
+				if !ok {
+					t.Errorf("address %s present in JSON but missing from built alloc", addr.Hex())
+					continue
+				}
+
+				if jsonAccount.Balance.Cmp(builtAccount.Balance) != 0 {
+					t.Errorf("address %s balance mismatch: json=%s, built=%s",
+						addr.Hex(), jsonAccount.Balance, builtAccount.Balance)
+				}
+
+				if !bytes.Equal(jsonAccount.Code, builtAccount.Code) {
+					t.Errorf("address %s code mismatch: json=%d bytes, built=%d bytes",
+						addr.Hex(), len(jsonAccount.Code), len(builtAccount.Code))
+				}
+
+				if len(jsonAccount.Storage) != len(builtAccount.Storage) {
+					t.Errorf("address %s storage length mismatch: json=%d, built=%d",
+						addr.Hex(), len(jsonAccount.Storage), len(builtAccount.Storage))
+					continue
+				}
+				for key, jsonVal := range jsonAccount.Storage {
+					if builtVal, exists := builtAccount.Storage[key]; !exists {
+						t.Errorf("address %s storage key %s present in JSON but missing from built alloc",
+							addr.Hex(), key.Hex())
+					} else if jsonVal != builtVal {
+						t.Errorf("address %s storage key %s value mismatch: json=%s, built=%s",
+							addr.Hex(), key.Hex(), jsonVal.Hex(), builtVal.Hex())
+					}
+				}
 			}
 		})
 	}

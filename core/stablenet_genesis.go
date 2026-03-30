@@ -19,6 +19,10 @@ package core
 var (
 	// TODO define mainnet genesis accounts
 	// use TestGenerateStableNetGenesisJson to generate genesis json
+	//
+	// These JSON literals are the canonical reference for the StableNet genesis.
+	// TestStableNetGenesisAllocConsistency (genesis_test.go) verifies that the
+	// decodePrealloc-based construction produces an identical alloc.
 	stableNetMainnetGenesisJson = `
 {
   "config": {
