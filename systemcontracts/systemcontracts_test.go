@@ -226,17 +226,12 @@ func TestInitializeBase_ParamPatterns(t *testing.T) {
 }
 
 // =============================================================================
-// Upgrade tests: Version != "v1" -> upgrade* functions used.
-// upgrade* functions only append keys present in Params.
-// Missing keys are not included in st.States, so state.SetState is never called,
-// preserving on-chain values automatically.
+// Upgrade tests: Version != "v1" -> code-only deployment (no state changes).
+// Hardfork upgrades only replace contract code. On-chain state is preserved.
 // =============================================================================
 
-// --- GovMinter upgrade tests ---
-
-func TestUpgrade_GovMinter_PartialParams(t *testing.T) {
-	// Version="v2" + Params={"quorum":"3"} -> upgradeMinter path
-	// Only quorum in States. maxProposals, expiry, fiatToken absent -> on-chain preserved
+func TestUpgrade_NonV1_ParamsIgnored(t *testing.T) {
+	// Version="v2" + Params present -> Params are ignored, code only
 	addr := common.HexToAddress("0x1003")
 	sc := &params.SystemContracts{
 		GovMinter: &params.SystemContract{
@@ -250,116 +245,8 @@ func TestUpgrade_GovMinter_PartialParams(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, st)
 	assert.Equal(t, 1, len(st.Codes), "Should have 1 Code (GovMinter v2)")
-
-	// quorum: present in Params -> included in States
-	quorumParam := findStateParam(st.States, common.HexToHash(SLOT_GOV_BASE_quorum))
-	require.NotNil(t, quorumParam, "quorum should be in States (key present in Params)")
-	assert.Equal(t, common.BigToHash(big.NewInt(3)), quorumParam.Value)
-
-	// maxProposals: absent from Params -> not in States -> on-chain value preserved
-	assert.Nil(t, findStateParam(st.States, common.HexToHash(SLOT_GOV_BASE_maxActiveProposalsPerMember)),
-		"maxProposals should NOT be in States (key absent -> on-chain preserved)")
-
-	// expiry: absent from Params -> not in States
-	assert.Nil(t, findStateParam(st.States, common.HexToHash(SLOT_GOV_BASE_proposalExpiry)),
-		"expiry should NOT be in States (key absent -> on-chain preserved)")
-
-	// fiatToken: absent from Params -> not in States
-	assert.Nil(t, findStateParam(st.States, common.HexToHash(SLOT_GOV_MINTER_fiatToken)),
-		"fiatToken should NOT be in States (key absent -> on-chain preserved)")
+	assert.Equal(t, 0, len(st.States), "Non-v1 upgrade should produce no States even with Params")
 }
-
-// --- GovValidator upgrade tests (direct function call — v2 bytecode not registered) ---
-
-func TestUpgrade_GovValidator_PartialParams(t *testing.T) {
-	// Direct upgradeValidator call: only change gasTip, skip maxProposals/quorum/expiry
-	addr := common.HexToAddress("0x1001")
-	sp, err := upgradeValidator(addr, map[string]string{"gasTip": "50000000000000"})
-	require.NoError(t, err)
-
-	// gasTip: present in Params -> included
-	newGasTip, _ := new(big.Int).SetString("50000000000000", 10)
-	gasTipParam := findStateParam(sp, common.HexToHash(SLOT_VALIDATOR_gasTip))
-	require.NotNil(t, gasTipParam, "gasTip should be present")
-	assert.Equal(t, common.BigToHash(newGasTip), gasTipParam.Value)
-
-	// maxProposals: absent from Params -> not included
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_GOV_BASE_maxActiveProposalsPerMember)),
-		"maxProposals should NOT be present (key absent -> on-chain preserved)")
-
-	// blsPop: not included in upgrade (already set at v1 init, immutable constant)
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_VALIDATOR_blsPop)),
-		"blsPop should NOT be present in upgrade (already set at v1 init)")
-}
-
-// --- GovMasterMinter upgrade tests (direct function call) ---
-
-func TestUpgrade_GovMasterMinter_PartialParams(t *testing.T) {
-	addr := common.HexToAddress("0x1002")
-	sp, err := upgradeMasterMinter(addr, map[string]string{"quorum": "3"})
-	require.NoError(t, err)
-
-	// quorum: included
-	quorumParam := findStateParam(sp, common.HexToHash(SLOT_GOV_BASE_quorum))
-	require.NotNil(t, quorumParam)
-	assert.Equal(t, common.BigToHash(big.NewInt(3)), quorumParam.Value)
-
-	// maxProposals, fiatToken, maxMinterAllowance: not included
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_GOV_BASE_maxActiveProposalsPerMember)),
-		"maxProposals should NOT be present")
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_GOV_MASTER_MINTER_fiatToken)),
-		"fiatToken should NOT be present")
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_GOV_MASTER_MINTER_maxMinterAllowance)),
-		"maxMinterAllowance should NOT be present")
-}
-
-// --- GovCouncil upgrade tests (direct function call) ---
-
-func TestUpgrade_GovCouncil_PartialParams(t *testing.T) {
-	addr := common.HexToAddress("0x1004")
-	sp, err := upgradeGovCouncil(addr, map[string]string{"quorum": "3"})
-	require.NoError(t, err)
-
-	// quorum: included
-	quorumParam := findStateParam(sp, common.HexToHash(SLOT_GOV_BASE_quorum))
-	require.NotNil(t, quorumParam)
-	assert.Equal(t, common.BigToHash(big.NewInt(3)), quorumParam.Value)
-
-	// maxProposals: not included
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_GOV_BASE_maxActiveProposalsPerMember)),
-		"maxProposals should NOT be present")
-
-	// accountManager: not included in upgrade (already set at v1 init)
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_GOV_COUNCIL_accountManager)),
-		"accountManager should NOT be present in upgrade (already set at v1 init)")
-}
-
-// --- CoinAdapter upgrade tests (direct function call) ---
-
-func TestUpgrade_CoinAdapter_PartialParams(t *testing.T) {
-	// upgradeCoinAdapter: partial Params should not error (unlike initializeCoinAdapter which validates required fields)
-	addr := common.HexToAddress("0x1000")
-	newMasterMinter := common.HexToAddress("0x2002")
-	sp, err := upgradeCoinAdapter(addr, map[string]string{"masterMinter": newMasterMinter.Hex()})
-	require.NoError(t, err, "Partial params should NOT error in upgrade path")
-
-	// masterMinter: included
-	mmParam := findStateParam(sp, common.HexToHash(SLOT_COIN_ADAPTER_MASTER_MINTER))
-	require.NotNil(t, mmParam)
-	assert.Equal(t, common.BytesToHash(newMasterMinter.Bytes()), mmParam.Value)
-
-	// name, symbol, decimals, currency: not included
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_COIN_ADAPTER_DECIMALS)),
-		"decimals should NOT be present (key absent -> on-chain preserved)")
-
-	// coinManager, accountManager: not included in upgrade (already set at v1 init)
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_COIN_ADAPTER_COIN_MANAGER)),
-		"coinManager should NOT be present in upgrade (already set at v1 init)")
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_COIN_ADAPTER_ACCOUNT_MANAGER)),
-		"accountManager should NOT be present in upgrade (already set at v1 init)")
-}
-
-// --- Params=nil code-only replacement (P4 behavior preserved) ---
 
 func TestUpgrade_CodeOnly_ParamsNil(t *testing.T) {
 	sc := &params.SystemContracts{
@@ -398,31 +285,3 @@ func TestGetSystemContractsTransition_CodeOnlyPath(t *testing.T) {
 	assert.Equal(t, 0, len(st.States), "Params=nil should produce no States")
 }
 
-// --- upgradeCoinAdapter detailed tests ---
-
-func TestUpgradeCoinAdapter_EmptyParams(t *testing.T) {
-	sp, err := upgradeCoinAdapter(common.HexToAddress("0x1000"), map[string]string{})
-	require.NoError(t, err)
-	assert.Equal(t, 0, len(sp), "Empty params should produce no StateParams")
-}
-
-func TestUpgradeCoinAdapter_NameOnly(t *testing.T) {
-	sp, err := upgradeCoinAdapter(common.HexToAddress("0x1000"), map[string]string{
-		"name": "NEW_TOKEN",
-	})
-	require.NoError(t, err)
-	assert.True(t, len(sp) > 0, "Should produce name-related StateParams")
-
-	// No other slots should be written
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_COIN_ADAPTER_MASTER_MINTER)))
-	assert.Nil(t, findStateParam(sp, common.HexToHash(SLOT_COIN_ADAPTER_DECIMALS)))
-}
-
-func TestUpgradeCoinAdapter_MinterWithAllowance(t *testing.T) {
-	sp, err := upgradeCoinAdapter(common.HexToAddress("0x1000"), map[string]string{
-		"minters":       "0x0000000000000000000000000000000000001003",
-		"minterAllowed": "50000000000000000000",
-	})
-	require.NoError(t, err)
-	assert.True(t, len(sp) > 0, "Should produce minter-related StateParams")
-}

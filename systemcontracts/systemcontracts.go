@@ -61,34 +61,20 @@ func checkSystemContractVersions(systemContracts *params.SystemContracts) error 
 
 // GetSystemContractsTransition builds a StateTransition for the given SystemContracts.
 //
-// Params semantics per contract:
-//   - non-nil: Code deployment + State change (initialize or upgrade depending on Version)
-//   - nil:     Code deployment only, existing on-chain state is preserved
+// Upgrade principle — Code only:
+// Hardfork upgrades ONLY deploy new contract code. On-chain state (storage slots)
+// is NEVER modified during an upgrade. State values set at genesis (v1) or changed
+// through governance proposals are always preserved as-is.
 //
-// Version-based routing:
-//   - "v1": initialize*() — Genesis initial deploy with hardcoded defaults
-//   - other: upgrade*()   — Runtime migration, only Params keys are written
+// Version-based behavior:
+//   - "v1": Code deployment + State initialization (genesis only)
+//   - other: Code deployment only, no state changes
 //
 // IMPORTANT: Each contract's initial version MUST be "v1". The initialize*() functions
 // (e.g., initializeValidator, initializeCoinAdapter) are only invoked when Version == "v1",
 // and they set up the required storage layout (owner, quorum, members, etc.).
 // Starting with any other version will skip initialization, leaving the contract in an
 // uninitialized state with empty storage — which will cause runtime failures.
-//
-// WARNING — Upgrade Params and on-chain governance:
-// Contract parameters (e.g., quorum, owner, fee rates) can be modified at runtime
-// through governance proposals BEFORE a hardfork upgrade is applied. The upgrade*()
-// functions write ONLY the Params keys specified in the hardfork config, overwriting
-// the corresponding storage slots unconditionally. If a governance proposal has already
-// changed a value that the upgrade also sets, the governance-approved value will be
-// silently replaced by the hardfork value.
-//
-// Therefore, when defining Params for an upgrade, you MUST:
-//  1. Query the current on-chain state to identify governance-modified values.
-//  2. Decide for each Params key whether the hardfork value should override
-//     the governance-approved value, or whether it should be omitted (nil)
-//     to preserve the on-chain state.
-//  3. Only include Params keys that genuinely need to change for the upgrade.
 func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc *types.GenesisAlloc) (*params.StateTransition, error) {
 	st := &params.StateTransition{}
 
@@ -98,13 +84,8 @@ func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc
 			return nil, err
 		}
 		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovValidator.Address, Code: code})
-		if systemContracts.GovValidator.Params != nil {
-			var sp []params.StateParam
-			if systemContracts.GovValidator.Version == SYSTEM_CONTRACT_VERSION_1 {
-				sp, err = initializeValidator(systemContracts.GovValidator.Address, systemContracts.GovValidator.Params)
-			} else {
-				sp, err = upgradeValidator(systemContracts.GovValidator.Address, systemContracts.GovValidator.Params)
-			}
+		if systemContracts.GovValidator.Params != nil && systemContracts.GovValidator.Version == SYSTEM_CONTRACT_VERSION_1 {
+			sp, err := initializeValidator(systemContracts.GovValidator.Address, systemContracts.GovValidator.Params)
 			if err != nil {
 				return nil, err
 			}
@@ -118,13 +99,8 @@ func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc
 			return nil, err
 		}
 		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.NativeCoinAdapter.Address, Code: code})
-		if systemContracts.NativeCoinAdapter.Params != nil {
-			var sp []params.StateParam
-			if systemContracts.NativeCoinAdapter.Version == SYSTEM_CONTRACT_VERSION_1 {
-				sp, err = initializeCoinAdapter(systemContracts.NativeCoinAdapter.Address, systemContracts.NativeCoinAdapter.Params, alloc)
-			} else {
-				sp, err = upgradeCoinAdapter(systemContracts.NativeCoinAdapter.Address, systemContracts.NativeCoinAdapter.Params)
-			}
+		if systemContracts.NativeCoinAdapter.Params != nil && systemContracts.NativeCoinAdapter.Version == SYSTEM_CONTRACT_VERSION_1 {
+			sp, err := initializeCoinAdapter(systemContracts.NativeCoinAdapter.Address, systemContracts.NativeCoinAdapter.Params, alloc)
 			if err != nil {
 				return nil, err
 			}
@@ -138,13 +114,8 @@ func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc
 			return nil, err
 		}
 		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovMinter.Address, Code: code})
-		if systemContracts.GovMinter.Params != nil {
-			var sp []params.StateParam
-			if systemContracts.GovMinter.Version == SYSTEM_CONTRACT_VERSION_1 {
-				sp, err = initializeMinter(systemContracts.GovMinter.Address, systemContracts.GovMinter.Params)
-			} else {
-				sp, err = upgradeMinter(systemContracts.GovMinter.Address, systemContracts.GovMinter.Params)
-			}
+		if systemContracts.GovMinter.Params != nil && systemContracts.GovMinter.Version == SYSTEM_CONTRACT_VERSION_1 {
+			sp, err := initializeMinter(systemContracts.GovMinter.Address, systemContracts.GovMinter.Params)
 			if err != nil {
 				return nil, err
 			}
@@ -158,13 +129,8 @@ func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc
 			return nil, err
 		}
 		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovMasterMinter.Address, Code: code})
-		if systemContracts.GovMasterMinter.Params != nil {
-			var sp []params.StateParam
-			if systemContracts.GovMasterMinter.Version == SYSTEM_CONTRACT_VERSION_1 {
-				sp, err = initializeMasterMinter(systemContracts.GovMasterMinter.Address, systemContracts.GovMasterMinter.Params)
-			} else {
-				sp, err = upgradeMasterMinter(systemContracts.GovMasterMinter.Address, systemContracts.GovMasterMinter.Params)
-			}
+		if systemContracts.GovMasterMinter.Params != nil && systemContracts.GovMasterMinter.Version == SYSTEM_CONTRACT_VERSION_1 {
+			sp, err := initializeMasterMinter(systemContracts.GovMasterMinter.Address, systemContracts.GovMasterMinter.Params)
 			if err != nil {
 				return nil, err
 			}
@@ -178,13 +144,8 @@ func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc
 			return nil, err
 		}
 		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovCouncil.Address, Code: code})
-		if systemContracts.GovCouncil.Params != nil {
-			var sp []params.StateParam
-			if systemContracts.GovCouncil.Version == SYSTEM_CONTRACT_VERSION_1 {
-				sp, err = initializeGovCouncil(systemContracts.GovCouncil.Address, systemContracts.GovCouncil.Params)
-			} else {
-				sp, err = upgradeGovCouncil(systemContracts.GovCouncil.Address, systemContracts.GovCouncil.Params)
-			}
+		if systemContracts.GovCouncil.Params != nil && systemContracts.GovCouncil.Version == SYSTEM_CONTRACT_VERSION_1 {
+			sp, err := initializeGovCouncil(systemContracts.GovCouncil.Address, systemContracts.GovCouncil.Params)
 			if err != nil {
 				return nil, err
 			}

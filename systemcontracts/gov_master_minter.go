@@ -159,67 +159,6 @@ func initializeMasterMinter(govMasterMinterAddress common.Address, param map[str
 	return sp, nil
 }
 
-// upgradeMasterMinter performs a migration-style upgrade for GovMasterMinter.
-// Only parameters present in param are written. Missing keys are skipped.
-func upgradeMasterMinter(govMasterMinterAddress common.Address, param map[string]string) ([]params.StateParam, error) {
-	sp, err := upgradeBase(govMasterMinterAddress, param)
-	if err != nil {
-		return nil, err
-	}
-
-	if fiatTokenStr, ok := param[GOV_MASTER_MINTER_PARAM_FIAT_TOKEN]; ok {
-		fiatToken := common.HexToAddress(fiatTokenStr)
-		if fiatToken == (common.Address{}) {
-			return nil, fmt.Errorf("`systemContracts.govMasterMinter.params.fiatToken`: invalid address")
-		}
-		sp = append(sp, params.StateParam{
-			Address: govMasterMinterAddress,
-			Key:     common.HexToHash(SLOT_GOV_MASTER_MINTER_fiatToken),
-			Value:   common.BytesToHash(fiatToken.Bytes()),
-		})
-	}
-
-	if mintersStr, ok := param[GOV_MASTER_MINTER_PARAM_MINTERS]; ok {
-		minterAddressStrs := splitAndTrim(mintersStr, ",")
-		if len(minterAddressStrs) == 0 {
-			return nil, fmt.Errorf("`systemContracts.govMasterMinter.params.minters`: no addresses provided")
-		}
-		var minterAddresses []common.Address
-		for i, addrStr := range minterAddressStrs {
-			minter := common.HexToAddress(strings.TrimSpace(addrStr))
-			if minter == (common.Address{}) {
-				return nil, fmt.Errorf("`systemContracts.govMasterMinter.params.minters[%d]`: invalid address %q", i, addrStr)
-			}
-			minterAddresses = append(minterAddresses, minter)
-		}
-		minterListSlot := common.HexToHash(SLOT_GOV_MASTER_MINTER_minterList)
-		sp = append(sp, params.StateParam{Address: govMasterMinterAddress, Key: minterListSlot, Value: common.BigToHash(big.NewInt(int64(len(minterAddresses))))})
-		for i, minter := range minterAddresses {
-			sp = append(sp,
-				params.StateParam{Address: govMasterMinterAddress, Key: CalculateDynamicSlot(minterListSlot, big.NewInt(int64(i))), Value: common.BytesToHash(minter.Bytes())},
-				params.StateParam{Address: govMasterMinterAddress, Key: CalculateMappingSlot(common.HexToHash(SLOT_GOV_MASTER_MINTER_isMinter), minter), Value: common.BigToHash(big.NewInt(1))},
-				params.StateParam{Address: govMasterMinterAddress, Key: CalculateMappingSlot(common.HexToHash(SLOT_GOV_MASTER_MINTER_minterIndex), minter), Value: common.BigToHash(big.NewInt(int64(i + 1)))},
-			)
-		}
-	}
-
-	if maxAllowanceStr, ok := param[GOV_MASTER_MINTER_PARAM_MAX_MINTER_ALLOWANCE]; ok {
-		maxMinterAllowance, success := new(big.Int).SetString(maxAllowanceStr, 10)
-		if !success {
-			return nil, fmt.Errorf("`systemContracts.govMasterMinter.params.maxMinterAllowance`: invalid number")
-		}
-		if maxMinterAllowance.Sign() <= 0 {
-			return nil, fmt.Errorf("`systemContracts.govMasterMinter.params.maxMinterAllowance`: must be positive")
-		}
-		sp = append(sp, params.StateParam{
-			Address: govMasterMinterAddress,
-			Key:     common.HexToHash(SLOT_GOV_MASTER_MINTER_maxMinterAllowance),
-			Value:   common.BigToHash(maxMinterAllowance),
-		})
-	}
-
-	return sp, nil
-}
 
 // Note: GetMinterAllowance removed - query FiatToken directly for minter allowances
 // Allowances are managed by FiatToken contract, not GovMasterMinter

@@ -108,44 +108,6 @@ func initializeGovCouncil(govCouncilAddress common.Address, param map[string]str
 	return sp, nil
 }
 
-// upgradeGovCouncil performs a migration-style upgrade for GovCouncil.
-// Only parameters present in param are written. Missing keys are skipped.
-func upgradeGovCouncil(govCouncilAddress common.Address, param map[string]string) ([]params.StateParam, error) {
-	sp, err := upgradeBase(govCouncilAddress, param)
-	if err != nil {
-		return nil, err
-	}
-
-	if blacklistStr, ok := param[GOV_COUNCIL_PARAM_BLACKLIST]; ok && blacklistStr != "" {
-		blacklistAddresses := splitAndTrim(blacklistStr, ",")
-		blacklistParams, err := initializeAddressSet(
-			govCouncilAddress,
-			common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values),
-			common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_positions),
-			blacklistAddresses, "blacklist",
-		)
-		if err != nil {
-			return nil, fmt.Errorf("`systemContracts.govCouncil.params.blacklist`: %w", err)
-		}
-		sp = append(sp, blacklistParams...)
-	}
-
-	if authorizedAccountsStr, ok := param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS]; ok && authorizedAccountsStr != "" {
-		authorizedAccountAddresses := splitAndTrim(authorizedAccountsStr, ",")
-		authorizedAccountParams, err := initializeAddressSet(
-			govCouncilAddress,
-			common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_values),
-			common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_positions),
-			authorizedAccountAddresses, "authorizedAccounts",
-		)
-		if err != nil {
-			return nil, fmt.Errorf("`systemContracts.govCouncil.params.authorizedAccounts`: %w", err)
-		}
-		sp = append(sp, authorizedAccountParams...)
-	}
-
-	return sp, nil
-}
 
 // initializeAddressSet initializes an AddressSet storage structure
 // Follows AddressSetLib.sol implementation:
