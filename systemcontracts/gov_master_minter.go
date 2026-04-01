@@ -159,7 +159,6 @@ func initializeMasterMinter(govMasterMinterAddress common.Address, param map[str
 	return sp, nil
 }
 
-
 // Note: GetMinterAllowance removed - query FiatToken directly for minter allowances
 // Allowances are managed by FiatToken contract, not GovMasterMinter
 

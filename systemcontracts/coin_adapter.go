@@ -167,4 +167,3 @@ func initializeCoinAdapter(coinAdapterAddress common.Address, param map[string]s
 
 	return sp, nil
 }
-

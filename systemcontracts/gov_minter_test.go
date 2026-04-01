@@ -279,4 +279,3 @@ func TestBurnProposalDataStruct(t *testing.T) {
 		require.NotNil(t, data.Requester)
 	})
 }
-

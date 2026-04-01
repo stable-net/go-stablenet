@@ -183,7 +183,6 @@ func initializeValidator(govValidatorAddress common.Address, param map[string]st
 	return sp, nil
 }
 
-
 func MakeMultipleParam(govValidatorAddress common.Address, baseSlot common.Hash, value []common.Hash) []params.StateParam {
 	result := make([]params.StateParam, 0)
 	result = append(result, params.StateParam{

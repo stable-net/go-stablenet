@@ -108,7 +108,6 @@ func initializeGovCouncil(govCouncilAddress common.Address, param map[string]str
 	return sp, nil
 }
 
-
 // initializeAddressSet initializes an AddressSet storage structure
 // Follows AddressSetLib.sol implementation:
 // - 1-based position indexing (0 means "not in set")

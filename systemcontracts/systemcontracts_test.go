@@ -284,4 +284,3 @@ func TestGetSystemContractsTransition_CodeOnlyPath(t *testing.T) {
 	assert.Equal(t, 1, len(st.Codes), "Should have 1 Code (GovMinter)")
 	assert.Equal(t, 0, len(st.States), "Params=nil should produce no States")
 }
-

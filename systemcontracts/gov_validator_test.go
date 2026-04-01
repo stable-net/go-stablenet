@@ -404,4 +404,3 @@ func TestInitializeValidator(t *testing.T) {
 		})
 	}
 }
-

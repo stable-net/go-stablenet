@@ -111,7 +111,6 @@ func initializeMinter(govMinterAddress common.Address, param map[string]string) 
 	return sp, nil
 }
 
-
 // GetReservedMintAmount returns the total reserved mint amount
 func GetReservedMintAmount(govMinterAddress common.Address, state StateReader) *big.Int {
 	slot := common.HexToHash(SLOT_GOV_MINTER_reservedMintAmount)

@@ -453,4 +453,3 @@ func TestInitializeCouncil_AllSlots(t *testing.T) {
 	storedAddress := common.BytesToAddress(accountManagerValue.Bytes())
 	require.Equal(t, params.AccountManagerAddress, storedAddress)
 }
-

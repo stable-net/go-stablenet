@@ -531,4 +531,3 @@ func TestDefaultMaxMinterAllowance(t *testing.T) {
 		require.Equal(t, "10000000000000000000000000000", DefaultMaxMinterAllowance.String())
 	})
 }
-

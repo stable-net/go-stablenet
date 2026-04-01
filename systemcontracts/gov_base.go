@@ -334,4 +334,3 @@ func initializeBase(govBaseAddress common.Address, param map[string]string) ([]p
 
 	return sp, nil
 }
-
