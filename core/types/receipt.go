@@ -26,6 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -381,7 +382,7 @@ func (atEnv *anzeonTipEnv) IsAnzeon() bool {
 
 // DeriveFields fills the receipts with their computed fields based on consensus
 // data and contextual infos like containing block and transactions.
-func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, time uint64, baseFee, blobGasPrice *big.Int, txs []*Transaction) error {
+func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, time uint64, baseFee, headerGasTip, blobGasPrice *big.Int, txs []*Transaction) error {
 	signer := MakeSigner(config, new(big.Int).SetUint64(number), time)
 
 	logIndex := uint(0)
@@ -394,6 +395,19 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		rs[i].TxHash = txs[i].Hash()
 		if !config.AnzeonEnabled() {
 			rs[i].EffectiveGasPrice = txs[i].inner.effectiveGasPrice(new(big.Int), baseFee)
+		} else if rs[i].EffectiveGasPrice == nil {
+			// In Anzeon, effectiveGasPrice may be nil for some receipts (e.g. receipts
+			// received via snap sync). Recompute it using headerGasTip and the authorized
+			// account status derived from the receipt logs.
+			gasTipCap := txs[i].GasTipCap()
+			if headerGasTip != nil && !hasAuthorizedTxLog(rs[i]) {
+				gasTipCap = headerGasTip
+			}
+			if baseFee != nil {
+				rs[i].EffectiveGasPrice = cmath.BigMin(new(big.Int).Add(gasTipCap, baseFee), txs[i].GasFeeCap())
+			} else {
+				rs[i].EffectiveGasPrice = txs[i].GasPrice()
+			}
 		}
 		// EIP-4844 blob transaction fields
 		if txs[i].Type() == BlobTxType {
@@ -433,4 +447,19 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		}
 	}
 	return nil
+}
+
+// hasAuthorizedTxLog reports whether the transaction was executed by an
+// authorized account, by checking for an AuthorizedTxExecuted event in the
+// receipt. This event is always emitted as the last log of the transaction
+// (see TransitionDb), so only the final log needs to be inspected.
+func hasAuthorizedTxLog(r *Receipt) bool {
+	if logs := r.Logs; len(logs) > 0 {
+		last := logs[len(logs)-1]
+		if last.Address == params.AccountManagerAddress &&
+			last.Topics[0] == params.AuthorizedTxExecutedEventSig {
+			return true
+		}
+	}
+	return false
 }

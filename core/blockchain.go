@@ -2107,7 +2107,7 @@ func (bc *BlockChain) collectLogs(b *types.Block, removed bool) []*types.Log {
 	}
 	receipts := rawdb.ReadRawReceipts(bc.db, b.Hash(), b.NumberU64())
 
-	if err := receipts.DeriveFields(bc.chainConfig, b.Hash(), b.NumberU64(), b.Time(), b.BaseFee(), blobGasPrice, b.Transactions()); err != nil {
+	if err := receipts.DeriveFields(bc.chainConfig, b.Hash(), b.NumberU64(), b.Time(), b.BaseFee(), b.Header().GasTip(), blobGasPrice, b.Transactions()); err != nil {
 		log.Error("Failed to derive block receipts fields", "hash", b.Hash(), "number", b.NumberU64(), "err", err)
 	}
 	var logs []*types.Log
