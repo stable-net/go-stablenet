@@ -580,6 +580,21 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		}
 	}
 
+	// Emit an AuthorizedTxExecuted event for authorized account transactions.
+	// Used by DeriveFields to determine effective gas price without state access.
+	//
+	// NOTE: Must be the last log added — DeriveFields checks only the final
+	// log of the receipt to identify authorized transactions.
+	if rules.IsAnzeon && st.state.IsAuthorized(msg.From) {
+		st.state.AddLog(&types.Log{
+			Address: params.AccountManagerAddress,
+			Topics: []common.Hash{
+				params.AuthorizedTxExecutedEventSig,
+				common.BytesToHash(common.LeftPadBytes(msg.From.Bytes(), 32)),
+			},
+		})
+	}
+
 	return &ExecutionResult{
 		UsedGas:     st.gasUsed(),
 		RefundedGas: gasRefund,
