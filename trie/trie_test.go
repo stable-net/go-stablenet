@@ -931,6 +931,7 @@ func TestCommitSequenceRandomBlobs(t *testing.T) {
 		{2000, common.FromHex("ab553a7f9aff82e3929c382908e30ef7dd17a332933e92ba3fe873fc661ef382")},
 	} {
 		// This spongeDb is used to check the sequence of disk-db-writes
+		prng := rand.New(rand.NewSource(int64(i)))
 		s := &spongeDb{sponge: crypto.NewKeccakState()}
 		db := newTestDatabase(rawdb.NewDatabase(s), rawdb.HashScheme)
 
