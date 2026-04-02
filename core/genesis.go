@@ -604,7 +604,7 @@ func (g *Genesis) MustCommit(db ethdb.Database, triedb *triedb.Database) *types.
 func DefaultStableNetMainnetGenesisBlock() *Genesis {
 	return &Genesis{
 		Config:     params.StableNetMainnetChainConfig,
-		GasLimit:   0x6422c40,
+		GasLimit:   105_000_000, //0x6422c40
 		Difficulty: big.NewInt(1),
 		Alloc:      decodePrealloc(stablenetMainnetAllocData),
 	}
