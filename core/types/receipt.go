@@ -457,6 +457,7 @@ func hasAuthorizedTxLog(r *Receipt) bool {
 	if logs := r.Logs; len(logs) > 0 {
 		last := logs[len(logs)-1]
 		if last.Address == params.AccountManagerAddress &&
+			len(last.Topics) > 0 &&
 			last.Topics[0] == params.AuthorizedTxExecutedEventSig {
 			return true
 		}
