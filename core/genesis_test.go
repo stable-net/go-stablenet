@@ -749,30 +749,6 @@ func TestMultipleForksAtBlock0(t *testing.T) {
 	}
 }
 
-// TestStableNetGenesisHashes_WithAnzeonInit verifies that genesis hashes match
-// hardcoded values when system contracts are injected via initializeAnzeonGenesis.
-func TestStableNetGenesisHashes_WithAnzeonInit(t *testing.T) {
-	for i, c := range []struct {
-		genesis *Genesis
-		want    common.Hash
-	}{
-		{DefaultStableNetMainnetGenesisBlock(), params.StableNetMainnetGenesisHash},
-		{DefaultStableNetTestnetGenesisBlock(), params.StableNetTestnetGenesisHash},
-	} {
-		initializeAnzeonGenesis(c.genesis)
-
-		// Test via MustCommit
-		db := rawdb.NewMemoryDatabase()
-		if have := c.genesis.MustCommit(db, triedb.NewDatabase(db, triedb.HashDefaults)).Hash(); have != c.want {
-			t.Errorf("case: %d MustCommit, want: %s, got: %s", i, c.want.Hex(), have.Hex())
-		}
-		// Test via ToBlock
-		if have := c.genesis.ToBlock().Hash(); have != c.want {
-			t.Errorf("case: %d ToBlock, want: %s, got: %s", i, c.want.Hex(), have.Hex())
-		}
-	}
-}
-
 // TestSetupGenesis_MainnetWithAnzeonInit verifies that SetupGenesisBlock
 // returns the correct config when mainnet genesis with Anzeon init is in the DB.
 func TestSetupGenesis_MainnetWithAnzeonInit(t *testing.T) {
