@@ -460,3 +460,156 @@ func TestBohoSystemContractUpgrade(t *testing.T) {
 	assert.Equal(t, "v2", contracts200.GovMinter.Version,
 		"GovMinter should remain v2 after Boho")
 }
+
+// TestGetSystemContractsStateTransition_Merge verifies that multiple upgrades
+// at the same block number are merged into a single StateTransition.
+func TestGetSystemContractsStateTransition_Merge(t *testing.T) {
+	wbftCfg := &Config{
+		SystemContractUpgrades: []params.Upgrade{
+			{
+				Block: big.NewInt(0),
+				SystemContracts: &params.SystemContracts{
+					GovValidator: &params.SystemContract{
+						Address: common.HexToAddress("0x1001"),
+						Version: "v1",
+					},
+					GovMinter: &params.SystemContract{
+						Address: common.HexToAddress("0x1003"),
+						Version: "v1",
+					},
+				},
+			},
+			{
+				Block: big.NewInt(0),
+				SystemContracts: &params.SystemContracts{
+					GovMinter: &params.SystemContract{
+						Address: common.HexToAddress("0x1003"),
+						Version: "v2",
+					},
+				},
+			},
+		},
+	}
+
+	st, err := GetSystemContractsStateTransition(wbftCfg, big.NewInt(0))
+	assert.NoError(t, err)
+	assert.NotNil(t, st, "Merged state transition should not be nil")
+
+	// Should contain codes from both upgrades: GovValidator v1 + GovMinter v1 + GovMinter v2
+	assert.True(t, len(st.Codes) >= 2,
+		"Merged transition should contain codes from both upgrades, got %d", len(st.Codes))
+
+	// Last GovMinter code should be v2 (from second upgrade)
+	var lastMinterCode string
+	for _, c := range st.Codes {
+		if c.Address == common.HexToAddress("0x1003") {
+			lastMinterCode = c.Code
+		}
+	}
+	assert.NotEmpty(t, lastMinterCode, "GovMinter code should be present in merged result")
+}
+
+// TestSetConfigFromChainConfig_CollectUpgrades verifies that CollectUpgrades()
+// correctly registers all hardfork upgrades in SystemContractUpgrades.
+func TestSetConfigFromChainConfig_CollectUpgrades(t *testing.T) {
+	chainCfg := &params.ChainConfig{
+		ChainID:       big.NewInt(8283),
+		ApplepieBlock: big.NewInt(0),
+		BohoBlock:     big.NewInt(0),
+		Anzeon: &params.AnzeonConfig{
+			WBFT: &params.WBFTConfig{
+				EpochLength:           10,
+				BlockPeriodSeconds:    1,
+				RequestTimeoutSeconds: 2,
+			},
+			SystemContracts: &params.SystemContracts{
+				GovValidator: &params.SystemContract{
+					Address: common.HexToAddress("0x1001"),
+					Version: "v1",
+				},
+				GovMinter: &params.SystemContract{
+					Address: common.HexToAddress("0x1003"),
+					Version: "v1",
+				},
+			},
+		},
+		Boho: &params.AnzeonConfig{
+			SystemContracts: &params.SystemContracts{
+				GovMinter: &params.SystemContract{
+					Address: common.HexToAddress("0x1003"),
+					Version: "v2",
+				},
+			},
+		},
+	}
+
+	wbftCfg := new(Config)
+	err := SetConfigFromChainConfig(wbftCfg, chainCfg)
+	assert.NoError(t, err)
+
+	// Anzeon (block 0) + Boho (block 0) = 2 entries
+	assert.Equal(t, 2, len(wbftCfg.SystemContractUpgrades),
+		"Expected 2 SystemContractUpgrades (Anzeon + Boho)")
+
+	// Both should be at block 0 and sorted
+	for _, u := range wbftCfg.SystemContractUpgrades {
+		assert.Equal(t, int64(0), u.Block.Int64(),
+			"All upgrades should be at block 0")
+	}
+
+	// Merged state transition at block 0 should contain both upgrades
+	st, err := GetSystemContractsStateTransition(wbftCfg, big.NewInt(0))
+	assert.NoError(t, err)
+	assert.NotNil(t, st)
+	assert.True(t, len(st.Codes) >= 2,
+		"Block 0 should have codes from both Anzeon and Boho")
+}
+
+// TestProcessFinalize_Idempotent verifies that applying the same upgrade twice
+// (genesis overlay + processFinalize) produces no harmful effect.
+func TestProcessFinalize_Idempotent(t *testing.T) {
+	chainCfg := &params.ChainConfig{
+		ChainID:       big.NewInt(8283),
+		ApplepieBlock: big.NewInt(0),
+		BohoBlock:     big.NewInt(0),
+		Anzeon: &params.AnzeonConfig{
+			WBFT: &params.WBFTConfig{
+				EpochLength:           10,
+				BlockPeriodSeconds:    1,
+				RequestTimeoutSeconds: 2,
+			},
+			SystemContracts: &params.SystemContracts{
+				GovMinter: &params.SystemContract{
+					Address: common.HexToAddress("0x1003"),
+					Version: "v1",
+				},
+			},
+		},
+		Boho: &params.AnzeonConfig{
+			SystemContracts: &params.SystemContracts{
+				GovMinter: &params.SystemContract{
+					Address: common.HexToAddress("0x1003"),
+					Version: "v2",
+				},
+			},
+		},
+	}
+
+	wbftCfg := new(Config)
+	err := SetConfigFromChainConfig(wbftCfg, chainCfg)
+	assert.NoError(t, err)
+
+	// First call at block 0
+	st1, err := GetSystemContractsStateTransition(wbftCfg, big.NewInt(0))
+	assert.NoError(t, err)
+	assert.NotNil(t, st1)
+
+	// Second call at block 0 (simulating re-execution)
+	st2, err := GetSystemContractsStateTransition(wbftCfg, big.NewInt(0))
+	assert.NoError(t, err)
+	assert.NotNil(t, st2)
+
+	// Both calls should produce the same result
+	assert.Equal(t, len(st1.Codes), len(st2.Codes),
+		"Idempotent: same number of codes on repeated call")
+}

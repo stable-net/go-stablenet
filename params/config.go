@@ -28,7 +28,7 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	StableNetMainnetGenesisHash = common.HexToHash("0x04701ca3d2cacf24bc6b1c1dde464eb61a522d04c9f71c410797f06e272437aa")
+	StableNetMainnetGenesisHash = common.HexToHash("0xf192f2ba82c9265777bad7d33b7fd561430ae5e1f60f2e99c893073c81dc5b7b")
 	StableNetTestnetGenesisHash = common.HexToHash("0x2bdf79b3d3cc49f9e6638ff81f3bb85065c79945a8fe4556cd0ff47bbfc02490")
 	MainnetGenesisHash          = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	HoleskyGenesisHash          = common.HexToHash("0xb5f7f912443c940f21fd611f12828d75b534364ed9e95ca4e307729a4661bde4")
@@ -1086,6 +1086,45 @@ func (c *ChainConfig) AnzeonEnabled() bool {
 	return c.Anzeon != nil
 }
 
+// CollectUpgrades returns all system contract hardfork upgrades defined in the chain config.
+// This is the single source of truth for hardfork registration — all consumers
+// (genesis initialization, WBFT engine config, runtime block finalization) rely
+// on this function to discover which upgrades exist.
+//
+// IMPORTANT — ordering contract:
+//   - Entries MUST be appended in strictly ascending block number order.
+//   - checkConfigForkOrder() enforces this at node startup; violation panics.
+//   - Block 0 hardforks are applied during genesis (via InjectContracts).
+//   - Block > 0 hardforks are applied at runtime during block finalization.
+//   - System contract versions MUST increase monotonically with block height.
+//     e.g., GovMinter v2 at block 100, v3 at block 200 is valid.
+//     GovMinter v3 at block 100, v2 at block 200 is INVALID — a higher
+//     version at a lower block implies a downgrade, which is not supported.
+//
+// To add a new hardfork (e.g., "CFork"):
+//  1. Add CForkBlock + CFork fields to ChainConfig.
+//  2. Append one entry below, AFTER the last existing hardfork (Boho).
+//     The append order here must match checkConfigForkOrder().
+func (c *ChainConfig) CollectUpgrades() []Upgrade {
+	var upgrades []Upgrade
+
+	// ── Hardfork Registry (ascending block order) ─────────
+
+	// Boho hardfork — GovMinter v2 (burn/refund mechanism)
+	if c.BohoBlock != nil && c.Boho != nil && c.Boho.SystemContracts != nil {
+		upgrades = append(upgrades, Upgrade{
+			Block:           c.BohoBlock,
+			SystemContracts: c.Boho.SystemContracts,
+		})
+	}
+
+	// NEW HARDFORKS GO HERE — always append after the last entry above.
+
+	// ──────────────────────────────────────────────────────
+
+	return upgrades
+}
+
 // CheckCompatible checks whether scheduled fork transitions have been imported
 // with a mismatching chain configuration.
 func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64, time uint64) *ConfigCompatError {
@@ -1255,6 +1294,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, headNumber *big.Int, 
 	if isForkTimestampIncompatible(c.VerkleTime, newcfg.VerkleTime, headTimestamp) {
 		return newTimestampCompatError("Verkle fork timestamp", c.VerkleTime, newcfg.VerkleTime)
 	}
+	if isForkAnzeonIncompatible(c.Anzeon, newcfg.Anzeon) {
+		return newAnzeonCompatError("Anzeon fork enable", c.Anzeon, newcfg.Anzeon)
+	}
 	return nil
 }
 
@@ -1362,6 +1404,12 @@ func configTimestampEqual(x, y *uint64) bool {
 	return *x == *y
 }
 
+// isForkAnzeonIncompatible returns true if one chain has an Anzeon fork config
+// while the other does not (i.e., exactly one of s1 or s2 is nil).
+func isForkAnzeonIncompatible(s1, s2 *AnzeonConfig) bool {
+	return (s1 == nil) != (s2 == nil)
+}
+
 // ConfigCompatError is raised if the locally-stored blockchain is initialised with a
 // ChainConfig that would alter the past.
 type ConfigCompatError struct {
@@ -1424,11 +1472,25 @@ func newTimestampCompatError(what string, storedtime, newtime *uint64) *ConfigCo
 	return err
 }
 
-func (err *ConfigCompatError) Error() string {
-	if err.StoredBlock != nil {
-		return fmt.Sprintf("mismatching %s in database (have block %d, want block %d, rewindto block %d)", err.What, err.StoredBlock, err.NewBlock, err.RewindToBlock)
+// newAnzeonCompatError creates a ConfigCompatError for Anzeon fork enable/disable
+// incompatibility. Since Anzeon is toggled by config presence (not by block or
+// timestamp), block and time fields are left at their zero values.
+func newAnzeonCompatError(what string, storedAnzeon, newAnzeon *AnzeonConfig) *ConfigCompatError {
+	return &ConfigCompatError{
+		What: fmt.Sprintf("%s (stored=%t, new=%t)", what, storedAnzeon != nil, newAnzeon != nil),
 	}
-	return fmt.Sprintf("mismatching %s in database (have timestamp %d, want timestamp %d, rewindto timestamp %d)", err.What, err.StoredTime, err.NewTime, err.RewindToTime)
+}
+
+func (err *ConfigCompatError) Error() string {
+	switch {
+	case err.StoredBlock != nil:
+		return fmt.Sprintf("mismatching %s in database (have block %d, want block %d, rewindto block %d)", err.What, err.StoredBlock, err.NewBlock, err.RewindToBlock)
+	case err.StoredTime != nil:
+		return fmt.Sprintf("mismatching %s in database (have timestamp %d, want timestamp %d, rewindto timestamp %d)", err.What, err.StoredTime, err.NewTime, err.RewindToTime)
+	default:
+		// enable/disable fork incompatibility (e.g., Anzeon)
+		return fmt.Sprintf("mismatching %s in database", err.What)
+	}
 }
 
 // Rules wraps ChainConfig and is merely syntactic sugar or can be used for functions

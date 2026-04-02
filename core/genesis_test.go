@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/systemcontracts"
 	"github.com/ethereum/go-ethereum/triedb"
 	"github.com/ethereum/go-ethereum/triedb/pathdb"
 )
@@ -199,7 +200,9 @@ func testSetupGenesis(t *testing.T, scheme string) {
 		{
 			name: "mainnet block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				DefaultStableNetMainnetGenesisBlock().MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
+				genesis := DefaultStableNetMainnetGenesisBlock()
+				initializeAnzeonGenesis(genesis)
+				genesis.MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
 				return SetupGenesisBlock(db, triedb.NewDatabase(db, newDbConfig(scheme)), nil)
 			},
 			wantHash:   params.StableNetMainnetGenesisHash,
@@ -320,6 +323,8 @@ func TestStableNetGenesisHashes(t *testing.T) {
 		{DefaultStableNetMainnetGenesisBlock(), params.StableNetMainnetGenesisHash},
 		{DefaultStableNetTestnetGenesisBlock(), params.StableNetTestnetGenesisHash},
 	} {
+		initializeAnzeonGenesis(c.genesis)
+
 		// Test via MustCommit
 		db := rawdb.NewMemoryDatabase()
 		if have := c.genesis.MustCommit(db, triedb.NewDatabase(db, triedb.HashDefaults)).Hash(); have != c.want {
@@ -524,5 +529,247 @@ func TestSetGenesisBlockBaseFee(t *testing.T) {
 		if block.BaseFee().Cmp(test.expected) != 0 {
 			t.Fatalf("invalid genesis block BaseFee, test: %d expected %v got %v", i, test.expected, block.BaseFee())
 		}
+	}
+}
+
+// newTestAnzeonConfig creates a minimal Anzeon config with all 5 system contracts (v1).
+func newTestAnzeonConfig() *params.AnzeonConfig {
+	return &params.AnzeonConfig{
+		SystemContracts: &params.SystemContracts{
+			GovValidator: &params.SystemContract{
+				Address: params.DefaultGovValidatorAddress,
+				Version: "v1",
+				Params: map[string]string{
+					"quorum":        "1",
+					"expiry":        "604800",
+					"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+					"memberVersion": "1",
+					"validators":    "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+					"blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
+					"maxProposals":  "3",
+					"gasTip":        "27600000000000",
+				},
+			},
+			NativeCoinAdapter: &params.SystemContract{
+				Address: params.DefaultNativeCoinAdapterAddress,
+				Version: "v1",
+				Params: map[string]string{
+					"masterMinter":  "0x0000000000000000000000000000000000001002",
+					"minters":       "0x0000000000000000000000000000000000001003",
+					"minterAllowed": "10000000000000000000000000000",
+					"name":          "WKRC",
+					"symbol":        "WKRC",
+					"decimals":      "18",
+					"currency":      "KRW",
+				},
+			},
+			GovMasterMinter: &params.SystemContract{
+				Address: params.DefaultGovMasterMinterAddress,
+				Version: "v1",
+				Params: map[string]string{
+					"quorum":             "1",
+					"expiry":             "604800",
+					"members":            "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+					"memberVersion":      "1",
+					"fiatToken":          "0x0000000000000000000000000000000000001000",
+					"minters":            "0x0000000000000000000000000000000000001003",
+					"maxMinterAllowance": "10000000000000000000000000000",
+					"maxProposals":       "3",
+				},
+			},
+			GovMinter: &params.SystemContract{
+				Address: params.DefaultGovMinterAddress,
+				Version: "v1",
+				Params: map[string]string{
+					"quorum":        "1",
+					"expiry":        "604800",
+					"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+					"memberVersion": "1",
+					"fiatToken":     "0x0000000000000000000000000000000000001000",
+					"maxProposals":  "3",
+				},
+			},
+			GovCouncil: &params.SystemContract{
+				Address: params.DefaultGovCouncilAddress,
+				Version: "v1",
+				Params: map[string]string{
+					"quorum":        "1",
+					"expiry":        "604800",
+					"members":       "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+					"memberVersion": "1",
+					"maxProposals":  "3",
+				},
+			},
+		},
+	}
+}
+
+func govMinterV2Code() string {
+	return systemcontracts.SystemContractCodes[systemcontracts.CONTRACT_GOV_MINTER][systemcontracts.SYSTEM_CONTRACT_VERSION_2]
+}
+
+func govMinterV1Code() string {
+	return systemcontracts.SystemContractCodes[systemcontracts.CONTRACT_GOV_MINTER][systemcontracts.SYSTEM_CONTRACT_VERSION_1]
+}
+
+// TestInjectContracts_BohoBlock0 verifies that when BohoBlock=0,
+// genesis alloc contains GovMinter v2 (not v1).
+func TestInjectContracts_BohoBlock0(t *testing.T) {
+	genesis := &Genesis{
+		Alloc: make(types.GenesisAlloc),
+		Config: &params.ChainConfig{
+			ChainID:   big.NewInt(8282),
+			BohoBlock: big.NewInt(0),
+			Anzeon:    newTestAnzeonConfig(),
+			Boho: &params.AnzeonConfig{
+				SystemContracts: &params.SystemContracts{
+					GovMinter: &params.SystemContract{
+						Address: params.DefaultGovMinterAddress,
+						Version: "v2",
+					},
+				},
+			},
+		},
+	}
+
+	err := InjectContracts(genesis, genesis.Config)
+	if err != nil {
+		t.Fatalf("InjectContracts failed: %v", err)
+	}
+
+	// GovMinter should have v2 code
+	minterAccount, ok := genesis.Alloc[params.DefaultGovMinterAddress]
+	if !ok {
+		t.Fatal("GovMinter not found in genesis alloc")
+	}
+
+	expectedCode := govMinterV2Code()
+	actualCode := common.Bytes2Hex(minterAccount.Code)
+	v1Code := govMinterV1Code()
+
+	if actualCode == common.Bytes2Hex(common.FromHex(v1Code)) {
+		t.Error("GovMinter should be v2, but found v1 code")
+	}
+	if actualCode != common.Bytes2Hex(common.FromHex(expectedCode)) {
+		t.Error("GovMinter code does not match v2")
+	}
+
+	// Other contracts should still be present
+	if _, ok := genesis.Alloc[params.DefaultGovValidatorAddress]; !ok {
+		t.Error("GovValidator should be in genesis alloc")
+	}
+	if _, ok := genesis.Alloc[params.DefaultGovCouncilAddress]; !ok {
+		t.Error("GovCouncil should be in genesis alloc")
+	}
+}
+
+// TestInjectContracts_BohoBlockN verifies that when BohoBlock=100,
+// genesis alloc contains only GovMinter v1 (no overlay applied).
+func TestInjectContracts_BohoBlockN(t *testing.T) {
+	genesis := &Genesis{
+		Alloc: make(types.GenesisAlloc),
+		Config: &params.ChainConfig{
+			ChainID:   big.NewInt(8282),
+			BohoBlock: big.NewInt(100),
+			Anzeon:    newTestAnzeonConfig(),
+			Boho: &params.AnzeonConfig{
+				SystemContracts: &params.SystemContracts{
+					GovMinter: &params.SystemContract{
+						Address: params.DefaultGovMinterAddress,
+						Version: "v2",
+					},
+				},
+			},
+		},
+	}
+
+	err := InjectContracts(genesis, genesis.Config)
+	if err != nil {
+		t.Fatalf("InjectContracts failed: %v", err)
+	}
+
+	// GovMinter should have v1 code (no overlay at block 100)
+	minterAccount, ok := genesis.Alloc[params.DefaultGovMinterAddress]
+	if !ok {
+		t.Fatal("GovMinter not found in genesis alloc")
+	}
+
+	v1Code := govMinterV1Code()
+	actualCode := common.Bytes2Hex(minterAccount.Code)
+	if actualCode != common.Bytes2Hex(common.FromHex(v1Code)) {
+		t.Error("GovMinter should be v1 when BohoBlock > 0")
+	}
+}
+
+// TestMultipleForksAtBlock0 verifies that when multiple hardforks are at block 0,
+// overlays are applied in order and the final state is correct.
+func TestMultipleForksAtBlock0(t *testing.T) {
+	genesis := &Genesis{
+		Alloc: make(types.GenesisAlloc),
+		Config: &params.ChainConfig{
+			ChainID:   big.NewInt(8282),
+			BohoBlock: big.NewInt(0),
+			Anzeon:    newTestAnzeonConfig(),
+			Boho: &params.AnzeonConfig{
+				SystemContracts: &params.SystemContracts{
+					GovMinter: &params.SystemContract{
+						Address: params.DefaultGovMinterAddress,
+						Version: "v2",
+					},
+				},
+			},
+		},
+	}
+
+	err := InjectContracts(genesis, genesis.Config)
+	if err != nil {
+		t.Fatalf("InjectContracts failed: %v", err)
+	}
+
+	// GovMinter: v2 (from Boho overlay)
+	minterAccount := genesis.Alloc[params.DefaultGovMinterAddress]
+	expectedV2 := govMinterV2Code()
+	if common.Bytes2Hex(minterAccount.Code) != common.Bytes2Hex(common.FromHex(expectedV2)) {
+		t.Error("GovMinter should be v2 after Boho overlay at block 0")
+	}
+
+	// GovMinter storage should be preserved from Phase 1
+	if minterAccount.Storage == nil {
+		t.Error("GovMinter storage should be preserved after overlay")
+	}
+	if len(minterAccount.Storage) == 0 {
+		t.Error("GovMinter storage should not be empty after overlay")
+	}
+
+	// GovValidator: should remain v1 (Boho doesn't touch it)
+	validatorAccount := genesis.Alloc[params.DefaultGovValidatorAddress]
+	v1ValidatorCode := systemcontracts.SystemContractCodes[systemcontracts.CONTRACT_GOV_VALIDATOR][systemcontracts.SYSTEM_CONTRACT_VERSION_1]
+	if common.Bytes2Hex(validatorAccount.Code) != common.Bytes2Hex(common.FromHex(v1ValidatorCode)) {
+		t.Error("GovValidator should remain v1 (Boho only upgrades GovMinter)")
+	}
+}
+
+// TestSetupGenesis_MainnetWithAnzeonInit verifies that SetupGenesisBlock
+// returns the correct config when mainnet genesis with Anzeon init is in the DB.
+func TestSetupGenesis_MainnetWithAnzeonInit(t *testing.T) {
+	for _, scheme := range []string{rawdb.HashScheme, rawdb.PathScheme} {
+		t.Run(scheme, func(t *testing.T) {
+			db := rawdb.NewMemoryDatabase()
+
+			genesis := DefaultStableNetMainnetGenesisBlock()
+			initializeAnzeonGenesis(genesis)
+			genesis.MustCommit(db, triedb.NewDatabase(db, newDbConfig(scheme)))
+
+			config, hash, err := SetupGenesisBlock(db, triedb.NewDatabase(db, newDbConfig(scheme)), nil)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if hash != params.StableNetMainnetGenesisHash {
+				t.Errorf("want hash %s, got %s", params.StableNetMainnetGenesisHash.Hex(), hash.Hex())
+			}
+			if config.ChainID.Cmp(params.StableNetMainnetChainConfig.ChainID) != 0 {
+				t.Errorf("want chainID %v, got %v", params.StableNetMainnetChainConfig.ChainID, config.ChainID)
+			}
+		})
 	}
 }

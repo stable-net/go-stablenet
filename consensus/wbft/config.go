@@ -196,16 +196,32 @@ func (c *Config) String() string {
 	return "wbft"
 }
 
-// GetSystemContractsStateTransition is used when for gov contracts needs to be set in the middle of the chain processing
+// GetSystemContractsStateTransition merges all SystemContractUpgrades
+// that match the given block number into a single StateTransition.
+// This uses initialize*() functions — intended for genesis path or code-only upgrades (Params=nil).
 func GetSystemContractsStateTransition(wbftCfg *Config, num *big.Int) (*params.StateTransition, error) {
+	var merged *params.StateTransition
+
 	for _, upgrade := range wbftCfg.SystemContractUpgrades {
 		if num.Cmp(upgrade.Block) == 0 {
-			return systemcontracts.GetSystemContractsTransition(upgrade.SystemContracts, nil)
+			if st, err := systemcontracts.GetSystemContractsTransition(upgrade.SystemContracts, nil); err == nil {
+				if st != nil {
+					if merged == nil {
+						merged = st
+					} else {
+						merged.Codes = append(merged.Codes, st.Codes...)
+						merged.States = append(merged.States, st.States...)
+					}
+				}
+			} else {
+				return nil, err
+			}
 		} else if num.Cmp(upgrade.Block) < 0 {
 			break
 		}
 	}
-	return nil, nil
+
+	return merged, nil
 }
 
 func CreateInitialExtraData(config *params.AnzeonConfig) ([]byte, error) {
