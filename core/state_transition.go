@@ -590,7 +590,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			Address: params.AccountManagerAddress,
 			Topics: []common.Hash{
 				params.AuthorizedTxExecutedEventSig,
-				common.BytesToHash(common.LeftPadBytes(msg.From.Bytes(), 32)),
 			},
 		})
 	}
