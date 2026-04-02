@@ -930,7 +930,6 @@ func TestCommitSequenceRandomBlobs(t *testing.T) {
 		{200, common.FromHex("dde92ca9812e068e6982d04b40846dc65a61a9fd4996fc0f55f2fde172a8e13c")},
 		{2000, common.FromHex("ab553a7f9aff82e3929c382908e30ef7dd17a332933e92ba3fe873fc661ef382")},
 	} {
-		// This spongeDb is used to check the sequence of disk-db-writes
 		prng := rand.New(rand.NewSource(int64(i)))
 		// This spongeDb is used to check the sequence of disk-db-writes
 		s := &spongeDb{sponge: sha3.NewLegacyKeccak256()}
