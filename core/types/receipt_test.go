@@ -258,7 +258,7 @@ var (
 			// derived fields:
 			TxHash:            txs[4].Hash(),
 			GasUsed:           5,
-			EffectiveGasPrice: big.NewInt(3000), // anzeon disabled(no sign in tx)
+			EffectiveGasPrice: big.NewInt(3000),
 			BlockHash:         blockHash,
 			BlockNumber:       blockNumber,
 			TransactionIndex:  4,
@@ -294,7 +294,10 @@ var (
 			TransactionIndex:  6,
 		},
 	}
-	authorizedReceipts = Receipts{
+
+	// anzeonReceipts represents receipts for non-authorized accounts in Anzeon.
+	// effectiveGasPrice is computed as min(headerGasTip + baseFee, GasFeeCap).
+	anzeonReceipts = Receipts{
 		&Receipt{
 			Status:            ReceiptStatusFailed,
 			CumulativeGasUsed: 1,
@@ -383,7 +386,7 @@ var (
 			// derived fields:
 			TxHash:            txs[3].Hash(),
 			GasUsed:           4,
-			EffectiveGasPrice: big.NewInt(2000),
+			EffectiveGasPrice: big.NewInt(1500), // min(headerGasTip=500 + baseFee=1000, GasFeeCap=2000) = 1500
 			BlockHash:         blockHash,
 			BlockNumber:       blockNumber,
 			TransactionIndex:  3,
@@ -396,6 +399,216 @@ var (
 			// derived fields:
 			TxHash:            txs[4].Hash(),
 			GasUsed:           5,
+			EffectiveGasPrice: big.NewInt(1500), // min(headerGasTip=500 + baseFee=1000, GasFeeCap=4000) = 1500
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  4,
+		},
+		&Receipt{
+			Type:              BlobTxType,
+			PostState:         common.Hash{6}.Bytes(),
+			CumulativeGasUsed: 21,
+			Logs: []*Log{
+				// This log has the AuthorizedTxExecutedEventSig topic but is emitted from
+				// an address other than AccountManagerAddress. This verifies that
+				// hasAuthorizedTxLog only matches when both the address and topic are correct,
+				// and does not misidentify this transaction as authorized.
+				{
+					Address: params.NativeCoinManagerAddress,
+					Topics:  []common.Hash{params.AuthorizedTxExecutedEventSig},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[5].Hash(),
+					TxIndex:     5,
+					BlockHash:   blockHash,
+					Index:       4,
+				},
+			},
+			// derived fields:
+			TxHash:            txs[5].Hash(),
+			GasUsed:           6,
+			EffectiveGasPrice: big.NewInt(1500), // min(headerGasTip=500 + baseFee=1000, GasFeeCap=2000) = 1500
+			BlobGasUsed:       params.BlobTxBlobGasPerBlob,
+			BlobGasPrice:      big.NewInt(920),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  5,
+		},
+		&Receipt{
+			Type:              BlobTxType,
+			PostState:         common.Hash{7}.Bytes(),
+			CumulativeGasUsed: 28,
+			Logs:              []*Log{},
+			// derived fields:
+			TxHash:            txs[6].Hash(),
+			GasUsed:           7,
+			EffectiveGasPrice: big.NewInt(1500), // min(headerGasTip=500 + baseFee=1000, GasFeeCap=3000) = 1500
+			BlobGasUsed:       3 * params.BlobTxBlobGasPerBlob,
+			BlobGasPrice:      big.NewInt(920),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  6,
+		},
+	}
+
+	// authorizedReceipts represents receipts for authorized accounts in Anzeon.
+	// effectiveGasPrice is computed as min(GasTipCap + baseFee, GasFeeCap), using
+	// the transaction's own GasTipCap instead of the header gas tip.
+	authorizedReceipts = Receipts{
+		&Receipt{
+			Status:            ReceiptStatusFailed,
+			CumulativeGasUsed: 1,
+			Logs: []*Log{
+				{
+					Address: common.BytesToAddress([]byte{0x11}),
+					Topics:  []common.Hash{common.HexToHash("dead"), common.HexToHash("beef")},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[0].Hash(),
+					TxIndex:     0,
+					BlockHash:   blockHash,
+					Index:       0,
+				},
+				{
+					Address: common.BytesToAddress([]byte{0x01, 0x11}),
+					Topics:  []common.Hash{common.HexToHash("dead"), common.HexToHash("beef")},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[0].Hash(),
+					TxIndex:     0,
+					BlockHash:   blockHash,
+					Index:       1,
+				},
+				{
+					Address: params.AccountManagerAddress,
+					Topics:  []common.Hash{params.AuthorizedTxExecutedEventSig},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[0].Hash(),
+					TxIndex:     0,
+					BlockHash:   blockHash,
+					Index:       2,
+				},
+			},
+			// derived fields:
+			TxHash:            txs[0].Hash(),
+			ContractAddress:   common.HexToAddress("0x5a443704dd4b594b382c22a083e2bd3090a6fef3"),
+			GasUsed:           1,
+			EffectiveGasPrice: big.NewInt(11),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  0,
+		},
+		&Receipt{
+			PostState:         common.Hash{2}.Bytes(),
+			CumulativeGasUsed: 3,
+			Logs: []*Log{
+				{
+					Address: common.BytesToAddress([]byte{0x22}),
+					Topics:  []common.Hash{common.HexToHash("dead"), common.HexToHash("beef")},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[1].Hash(),
+					TxIndex:     1,
+					BlockHash:   blockHash,
+					Index:       3,
+				},
+				{
+					Address: common.BytesToAddress([]byte{0x02, 0x22}),
+					Topics:  []common.Hash{common.HexToHash("dead"), common.HexToHash("beef")},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[1].Hash(),
+					TxIndex:     1,
+					BlockHash:   blockHash,
+					Index:       4,
+				},
+				{
+					Address: params.AccountManagerAddress,
+					Topics:  []common.Hash{params.AuthorizedTxExecutedEventSig},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[1].Hash(),
+					TxIndex:     1,
+					BlockHash:   blockHash,
+					Index:       5,
+				},
+			},
+			// derived fields:
+			TxHash:            txs[1].Hash(),
+			GasUsed:           2,
+			EffectiveGasPrice: big.NewInt(22),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  1,
+		},
+		&Receipt{
+			Type:              AccessListTxType,
+			PostState:         common.Hash{3}.Bytes(),
+			CumulativeGasUsed: 6,
+			Logs: []*Log{
+				{
+					Address: params.AccountManagerAddress,
+					Topics:  []common.Hash{params.AuthorizedTxExecutedEventSig},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[2].Hash(),
+					TxIndex:     2,
+					BlockHash:   blockHash,
+					Index:       6,
+				},
+			},
+			// derived fields:
+			TxHash:            txs[2].Hash(),
+			GasUsed:           3,
+			EffectiveGasPrice: big.NewInt(33),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  2,
+		},
+		&Receipt{
+			Type:              DynamicFeeTxType,
+			PostState:         common.Hash{4}.Bytes(),
+			CumulativeGasUsed: 10,
+			Logs: []*Log{
+				{
+					Address: params.AccountManagerAddress,
+					Topics:  []common.Hash{params.AuthorizedTxExecutedEventSig},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[3].Hash(),
+					TxIndex:     3,
+					BlockHash:   blockHash,
+					Index:       7,
+				},
+			},
+			// derived fields:
+			TxHash:            txs[3].Hash(),
+			GasUsed:           4,
+			EffectiveGasPrice: big.NewInt(2000),
+			BlockHash:         blockHash,
+			BlockNumber:       blockNumber,
+			TransactionIndex:  3,
+		},
+		&Receipt{
+			Type:              DynamicFeeTxType,
+			PostState:         common.Hash{5}.Bytes(),
+			CumulativeGasUsed: 15,
+			Logs: []*Log{
+				{
+					Address: params.AccountManagerAddress,
+					Topics:  []common.Hash{params.AuthorizedTxExecutedEventSig},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[4].Hash(),
+					TxIndex:     4,
+					BlockHash:   blockHash,
+					Index:       8,
+				},
+			},
+			// derived fields:
+			TxHash:            txs[4].Hash(),
+			GasUsed:           5,
 			EffectiveGasPrice: big.NewInt(3000),
 			BlockHash:         blockHash,
 			BlockNumber:       blockNumber,
@@ -405,7 +618,18 @@ var (
 			Type:              BlobTxType,
 			PostState:         common.Hash{6}.Bytes(),
 			CumulativeGasUsed: 21,
-			Logs:              []*Log{},
+			Logs: []*Log{
+				{
+					Address: params.AccountManagerAddress,
+					Topics:  []common.Hash{params.AuthorizedTxExecutedEventSig},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[5].Hash(),
+					TxIndex:     5,
+					BlockHash:   blockHash,
+					Index:       9,
+				},
+			},
 			// derived fields:
 			TxHash:            txs[5].Hash(),
 			GasUsed:           6,
@@ -420,7 +644,18 @@ var (
 			Type:              BlobTxType,
 			PostState:         common.Hash{7}.Bytes(),
 			CumulativeGasUsed: 28,
-			Logs:              []*Log{},
+			Logs: []*Log{
+				{
+					Address: params.AccountManagerAddress,
+					Topics:  []common.Hash{params.AuthorizedTxExecutedEventSig},
+					// derived fields:
+					BlockNumber: blockNumber.Uint64(),
+					TxHash:      txs[6].Hash(),
+					TxIndex:     6,
+					BlockHash:   blockHash,
+					Index:       10,
+				},
+			},
 			// derived fields:
 			TxHash:            txs[6].Hash(),
 			GasUsed:           7,
@@ -445,44 +680,32 @@ func TestDecodeEmptyTypedReceipt(t *testing.T) {
 
 // Tests that receipt data can be correctly derived from the contextual infos
 func TestDeriveFields(t *testing.T) {
-	// Re-derive receipts.
-	basefee := big.NewInt(1000)
-	blobGasPrice := big.NewInt(920)
-	derivedReceipts := clearComputedFieldsOnReceipts(receipts)
-	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, blobGasPrice, txs)
-	if err != nil {
-		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
-	}
+	testDeriveFields(t, receipts, params.TestChainConfig)
+}
 
-	// Check diff of receipts against derivedReceipts.
-	r1, err := json.MarshalIndent(receipts, "", "  ")
-	if err != nil {
-		t.Fatal("error marshaling input receipts:", err)
-	}
-
-	r2, err := json.MarshalIndent(derivedReceipts, "", "  ")
-	if err != nil {
-		t.Fatal("error marshaling derived receipts:", err)
-	}
-	d := diff.Diff(string(r1), string(r2))
-	if d != "" {
-		t.Fatal("receipts differ:", d)
-	}
+// Tests that receipt data can be correctly derived for non-authorized accounts in Anzeon.
+func TestDeriveFieldsAnzeon(t *testing.T) {
+	testDeriveFields(t, anzeonReceipts, params.TestWBFTChainConfig)
 }
 
 // Tests that receipt data can be correctly derived for authorized accounts
 func TestDeriveFieldsAuthorizedAccount(t *testing.T) {
+	testDeriveFields(t, authorizedReceipts, params.TestWBFTChainConfig)
+}
+
+func testDeriveFields(t *testing.T, rs Receipts, chainConfig *params.ChainConfig) {
 	// Re-derive receipts.
 	basefee := big.NewInt(1000)
 	blobGasPrice := big.NewInt(920)
-	derivedReceipts := clearComputedFieldsOnReceipts(authorizedReceipts)
-	err := Receipts(derivedReceipts).DeriveFields(params.TestChainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, blobGasPrice, txs)
+	headerGasTip := big.NewInt(500)
+	derivedReceipts := clearComputedFieldsOnReceipts(rs)
+	err := Receipts(derivedReceipts).DeriveFields(chainConfig, blockHash, blockNumber.Uint64(), blockTime, basefee, headerGasTip, blobGasPrice, txs)
 	if err != nil {
 		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
 	}
 
 	// Check diff of receipts against derivedReceipts.
-	r1, err := json.MarshalIndent(authorizedReceipts, "", "  ")
+	r1, err := json.MarshalIndent(rs, "", "  ")
 	if err != nil {
 		t.Fatal("error marshaling input receipts:", err)
 	}
@@ -673,7 +896,8 @@ func clearComputedFieldsOnReceipt(receipt *Receipt) *Receipt {
 	cpy.ContractAddress = common.Address{0xff, 0xff, 0x33}
 	cpy.GasUsed = 0xffffffff
 	cpy.Logs = clearComputedFieldsOnLogs(receipt.Logs)
-	cpy.EffectiveGasPrice = big.NewInt(0)
+	// DeriveFields always sets this; nil simulates snap sync for Anzeon.
+	cpy.EffectiveGasPrice = nil
 	cpy.BlobGasUsed = 0
 	cpy.BlobGasPrice = nil
 	return &cpy
