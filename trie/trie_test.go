@@ -898,7 +898,7 @@ func TestCommitSequence(t *testing.T) {
 	} {
 		addresses, accounts := makeAccountsWithExtra(tc.count, false)
 		// This spongeDb is used to check the sequence of disk-db-writes
-		s := &spongeDb{sponge: sha3.NewLegacyKeccak256()}
+		s := &spongeDb{sponge: crypto.NewKeccakState()}
 		db := newTestDatabase(rawdb.NewDatabase(s), rawdb.HashScheme)
 
 		// Fill the trie with elements
