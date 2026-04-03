@@ -246,6 +246,14 @@ func initializeAnzeonGenesis(genesis *Genesis) error {
 		return err
 	}
 	genesis.ExtraData = extraData
+
+	// Validate Extra bits in all alloc entries
+	for addr, account := range genesis.Alloc {
+		if err := types.ValidateExtra(account.Extra); err != nil {
+			return fmt.Errorf("invalid account extra at %s: %w", addr.Hex(), err)
+		}
+	}
+
 	return InjectContracts(genesis, genesis.Config)
 }
 
