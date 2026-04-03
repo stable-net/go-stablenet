@@ -720,6 +720,12 @@ func TestGenesisBlock() *Genesis {
 
 // InjectContracts sets WBFT SystemContracts to genesis
 func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
+	// Ensure Alloc is initialized before passing to GetSystemContractsTransition,
+	// which may write to it during system contract initialization.
+	if genesis.Alloc == nil {
+		genesis.Alloc = make(types.GenesisAlloc)
+	}
+
 	// Anzeon baseline contracts (v1)
 	transition, err := systemcontracts.GetSystemContractsTransition(config.Anzeon.SystemContracts, &genesis.Alloc)
 	if err != nil {
@@ -727,9 +733,6 @@ func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
 	}
 	if transition == nil {
 		return errors.New("Some or all of the Anzeon parameters are missing from the genesis configuration.")
-	}
-	if genesis.Alloc == nil {
-		genesis.Alloc = map[common.Address]types.Account{}
 	}
 	for _, c := range transition.Codes {
 		genesis.Alloc[c.Address] = types.Account{Code: hexutil.MustDecode(c.Code), Balance: common.Big0, Storage: make(map[common.Hash]common.Hash)}
