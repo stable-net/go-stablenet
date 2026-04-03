@@ -791,6 +791,7 @@ func decodePrealloc(data string) types.GenesisAlloc {
 				Key common.Hash
 				Val common.Hash
 			}
+			Extra *uint64 `rlp:"optional"`
 		} `rlp:"optional"`
 	}
 	if err := rlp.NewStream(strings.NewReader(data), 0).Decode(&p); err != nil {
@@ -806,6 +807,10 @@ func decodePrealloc(data string) types.GenesisAlloc {
 			acc.Storage = make(map[common.Hash]common.Hash)
 			for _, slot := range account.Misc.Slots {
 				acc.Storage[slot.Key] = slot.Val
+			}
+
+			if account.Misc.Extra != nil {
+				acc.Extra = *account.Misc.Extra
 			}
 		}
 		ga[common.BigToAddress(account.Addr)] = acc
