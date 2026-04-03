@@ -781,6 +781,7 @@ func makeAccounts(size int) (addresses [][20]byte, accounts [][]byte) {
 func makeAccountsWithExtra(size int, withExtra bool) (addresses [][20]byte, accounts [][]byte) {
 	// Make the random benchmark deterministic
 	random := rand.New(rand.NewSource(0))
+
 	// Create a realistic account trie to hash
 	addresses = make([][20]byte, size)
 	for i := 0; i < len(addresses); i++ {
@@ -801,7 +802,7 @@ func makeAccountsWithExtra(size int, withExtra bool) (addresses [][20]byte, acco
 		}
 		// The big.Rand function is not deterministic with regards to 64 vs 32 bit systems,
 		// and will consume different amount of data from the rand source.
-		//balance = new(big.Int).Rand(random, new(big.Int).Exp(common.Big2, common.Big256, nil))
+		// balance = new(big.Int).Rand(random, new(big.Int).Exp(common.Big2, common.Big256, nil))
 		// Therefore, we instead just read via byte buffer
 		numBytes := random.Uint32() % 33 // [0, 32] bytes
 		balanceBytes := make([]byte, numBytes)
@@ -862,6 +863,7 @@ func (s *spongeDb) Flush() {
 		s.sponge.Write([]byte(key))
 		s.sponge.Write([]byte(s.values[key]))
 	}
+	fmt.Println(len(s.keys))
 }
 
 // spongeBatch is a dummy batch which immediately writes to the underlying spongedb
@@ -879,10 +881,12 @@ func (b *spongeBatch) Write() error                        { return nil }
 func (b *spongeBatch) Reset()                              {}
 func (b *spongeBatch) Replay(w ethdb.KeyValueWriter) error { return nil }
 
-// TestCommitSequence tests that the trie.Commit operation writes the elements of the trie
-// in the expected order.
-// The test data was based on the 'master' code, and is basically random. It can be used
-// to check whether changes to the trie modifies the write order or data in any way.
+// TestCommitSequence tests that the trie.Commit operation writes the elements
+// of the trie in the expected order.
+//
+// The test data was based on the 'master' code, and is basically random.
+// It can be used to check whether changes to the trie modifies the write order
+// or data in any way.
 func TestCommitSequence(t *testing.T) {
 	for i, tc := range []struct {
 		count           int
@@ -896,16 +900,19 @@ func TestCommitSequence(t *testing.T) {
 		// This spongeDb is used to check the sequence of disk-db-writes
 		s := &spongeDb{sponge: sha3.NewLegacyKeccak256()}
 		db := newTestDatabase(rawdb.NewDatabase(s), rawdb.HashScheme)
-		trie := NewEmpty(db)
+
 		// Fill the trie with elements
+		trie := NewEmpty(db)
 		for i := 0; i < tc.count; i++ {
 			trie.MustUpdate(crypto.Keccak256(addresses[i][:]), accounts[i])
 		}
 		// Flush trie -> database
 		root, nodes, _ := trie.Commit(false)
 		db.Update(root, types.EmptyRootHash, trienode.NewWithNodeSet(nodes))
+
 		// Flush memdb -> disk (sponge)
 		db.Commit(root)
+
 		if got, exp := s.sponge.Sum(nil), tc.expWriteSeqHash; !bytes.Equal(got, exp) {
 			t.Errorf("test %d, disk write sequence wrong:\ngot %x exp %x\n", i, got, exp)
 		}
@@ -927,8 +934,9 @@ func TestCommitSequenceRandomBlobs(t *testing.T) {
 		// This spongeDb is used to check the sequence of disk-db-writes
 		s := &spongeDb{sponge: sha3.NewLegacyKeccak256()}
 		db := newTestDatabase(rawdb.NewDatabase(s), rawdb.HashScheme)
-		trie := NewEmpty(db)
+
 		// Fill the trie with elements
+		trie := NewEmpty(db)
 		for i := 0; i < tc.count; i++ {
 			key := make([]byte, 32)
 			var val []byte
@@ -945,6 +953,7 @@ func TestCommitSequenceRandomBlobs(t *testing.T) {
 		// Flush trie -> database
 		root, nodes, _ := trie.Commit(false)
 		db.Update(root, types.EmptyRootHash, trienode.NewWithNodeSet(nodes))
+
 		// Flush memdb -> disk (sponge)
 		db.Commit(root)
 		if got, exp := s.sponge.Sum(nil), tc.expWriteSeqHash; !bytes.Equal(got, exp) {
@@ -980,14 +989,16 @@ func TestCommitSequenceStackTrie(t *testing.T) {
 			// For the stack trie, we need to do inserts in proper order
 			key := make([]byte, 32)
 			binary.BigEndian.PutUint64(key, uint64(i))
-			var val []byte
+
 			// 50% short elements, 50% large elements
+			var val []byte
 			if prng.Intn(2) == 0 {
 				val = make([]byte, 1+prng.Intn(32))
 			} else {
 				val = make([]byte, 1+prng.Intn(1024))
 			}
 			prng.Read(val)
+
 			trie.Update(key, val)
 			stTrie.Update(key, val)
 		}
