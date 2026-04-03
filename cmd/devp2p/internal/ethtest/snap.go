@@ -100,7 +100,7 @@ func (s *Suite) TestSnapGetAccountRange(t *utesting.T) {
 			limitHash:    ffHash,
 			expAccounts:  50,
 			expFirst:     firstKey,
-			expLast:      common.HexToHash("0x420a83d9891f19593cdda9b31bb3b450e960fa87042dd428a7fa5ee69db02c75"),
+			expLast:      common.HexToHash("0x4363d332a0d4df8582a84932729892387c623fe1ec42e2cfcbe85c183ed98e0e"),
 			desc:         "In this test, we request the entire state range, but limit the response to 3000 bytes.",
 		},
 		{

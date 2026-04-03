@@ -602,21 +602,20 @@ func (g *Genesis) MustCommit(db ethdb.Database, triedb *triedb.Database) *types.
 }
 
 func DefaultStableNetMainnetGenesisBlock() *Genesis {
-	genesis := new(Genesis)
-	if err := json.NewDecoder(strings.NewReader(stableNetMainnetGenesisJson)).Decode(genesis); err != nil {
-		panic("Cannot parse default StableNet mainnet genesis.")
+	return &Genesis{
+		Config:     params.StableNetMainnetChainConfig,
+		GasLimit:   105_000_000, //0x6422c40
+		Difficulty: big.NewInt(1),
+		Alloc:      decodePrealloc(stablenetMainnetAllocData),
 	}
-	genesis.Config = params.StableNetMainnetChainConfig
-	return genesis
 }
 
 func DefaultStableNetTestnetGenesisBlock() *Genesis {
-	genesis := new(Genesis)
-	if err := json.NewDecoder(strings.NewReader(stableNetTestnetGenesisJson)).Decode(genesis); err != nil {
-		panic("Cannot parse default StableNet testnet genesis.")
+	return &Genesis{
+		Config:     params.StableNetTestnetChainConfig,
+		Difficulty: big.NewInt(0),
+		Alloc:      decodePrealloc(stablenetTestnetAllocData),
 	}
-	genesis.Config = params.StableNetTestnetChainConfig
-	return genesis
 }
 
 // DefaultGenesisBlock returns the Ethereum main net genesis block.
