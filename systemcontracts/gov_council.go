@@ -18,11 +18,13 @@
 package systemcontracts
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
-	"strings"
+	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -58,43 +60,71 @@ const (
 	SLOT_GOV_COUNCIL_accountManager                      = "0x36" // AccountManager address slot
 )
 
-// initializeGovCouncil initializes the GovCouncil contract storage
-func initializeGovCouncil(govCouncilAddress common.Address, param map[string]string) ([]params.StateParam, error) {
+// initializeGovCouncil initializes the GovCouncil contract storage.
+// Reconciles blacklist and authorized account addresses from two sources:
+// params (chain config) and alloc.Extra bits (genesis account state).
+// The final sets are the union of both sources, applied to both alloc.Extra
+// and the contract storage slots.
+func initializeGovCouncil(govCouncilAddress common.Address, param map[string]string, alloc *types.GenesisAlloc) ([]params.StateParam, error) {
 	// Initialize GovBase first
 	sp, err := initializeBase(govCouncilAddress, param)
 	if err != nil {
 		return sp, err
 	}
 
-	// Initialize blacklist if provided
-	if blacklistStr, ok := param[GOV_COUNCIL_PARAM_BLACKLIST]; ok && blacklistStr != "" {
-		blacklistAddresses := splitAndTrim(blacklistStr, ",")
-		blacklistParams, err := initializeAddressSet(
+	// Build initial sets from params.
+	blacklistSet, err := parseParamAddresses(param[GOV_COUNCIL_PARAM_BLACKLIST])
+	if err != nil {
+		return nil, fmt.Errorf("`systemContracts.govCouncil.params.blacklist`: %w", err)
+	}
+	authorizedSet, err := parseParamAddresses(param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS])
+	if err != nil {
+		return nil, fmt.Errorf("`systemContracts.govCouncil.params.authorizedAccounts`: %w", err)
+	}
+
+	if alloc != nil {
+		// Merge Extra bits from alloc into the sets (union with params).
+		for addr, account := range *alloc {
+			if types.IsBlacklisted(account.Extra) {
+				blacklistSet[addr] = struct{}{}
+			}
+			if types.IsAuthorized(account.Extra) {
+				authorizedSet[addr] = struct{}{}
+			}
+		}
+
+		// Sync alloc.Extra bits to reflect the final merged sets.
+		// Addresses present only in params are added as new alloc entries.
+		for addr := range blacklistSet {
+			account := (*alloc)[addr]
+			account.Extra = types.SetBlacklisted(account.Extra)
+			(*alloc)[addr] = account
+		}
+		for addr := range authorizedSet {
+			account := (*alloc)[addr]
+			account.Extra = types.SetAuthorized(account.Extra)
+			(*alloc)[addr] = account
+		}
+	}
+
+	// Skip slot initialization for empty sets to avoid writing a zero-length
+	// array entry to contract storage unnecessarily.
+	if len(blacklistSet) > 0 {
+		blacklistParams := initializeAddressSet(
 			govCouncilAddress,
 			common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values),
 			common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_positions),
-			blacklistAddresses,
-			"blacklist",
+			blacklistSet,
 		)
-		if err != nil {
-			return nil, fmt.Errorf("`systemContracts.govCouncil.params.blacklist`: %w", err)
-		}
 		sp = append(sp, blacklistParams...)
 	}
-
-	// Initialize authorized accounts if provided
-	if authorizedAccountsStr, ok := param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS]; ok && authorizedAccountsStr != "" {
-		authorizedAccountAddresses := splitAndTrim(authorizedAccountsStr, ",")
-		authorizedAccountParams, err := initializeAddressSet(
+	if len(authorizedSet) > 0 {
+		authorizedAccountParams := initializeAddressSet(
 			govCouncilAddress,
 			common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_values),
 			common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_positions),
-			authorizedAccountAddresses,
-			"authorizedAccounts",
+			authorizedSet,
 		)
-		if err != nil {
-			return nil, fmt.Errorf("`systemContracts.govCouncil.params.authorizedAccounts`: %w", err)
-		}
 		sp = append(sp, authorizedAccountParams...)
 	}
 
@@ -117,54 +147,41 @@ func initializeAddressSet(
 	contractAddress common.Address,
 	valuesSlot common.Hash,
 	positionsSlot common.Hash,
-	addresses []string,
-	setName string,
-) ([]params.StateParam, error) {
+	addresses map[common.Address]struct{},
+) []params.StateParam {
+	if len(addresses) == 0 {
+		return nil
+	}
+
+	// Sort addresses to ensure deterministic slot index assignment.
+	// Consistent ordering is required for a reproducible genesis block hash.
+	sorted := make([]common.Address, 0, len(addresses))
+	for addr := range addresses {
+		sorted = append(sorted, addr)
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return bytes.Compare(sorted[i].Bytes(), sorted[j].Bytes()) < 0
+	})
+
 	sp := make([]params.StateParam, 0)
-
-	// Pre-validate and deduplicate addresses
-	uniqueAddresses := make([]common.Address, 0)
-	seen := make(map[common.Address]struct{})
-
-	for _, addrStr := range addresses {
-		addr := common.HexToAddress(strings.TrimSpace(addrStr))
-
-		// Validate zero address
-		if addr == (common.Address{}) {
-			return nil, fmt.Errorf("`systemContracts.govCouncil.params.%s` contains invalid zero address", setName)
-		}
-
-		// Add to slice only if not seen before (deduplication)
-		if _, exists := seen[addr]; !exists {
-			seen[addr] = struct{}{}
-			uniqueAddresses = append(uniqueAddresses, addr)
-		}
-	}
-
-	if len(uniqueAddresses) == 0 {
-		return sp, nil
-	}
 
 	// Set array length in base slot
 	sp = append(sp, params.StateParam{
 		Address: contractAddress,
 		Key:     valuesSlot,
-		Value:   common.BigToHash(big.NewInt(int64(len(uniqueAddresses)))),
+		Value:   common.BigToHash(big.NewInt(int64(len(sorted)))),
 	})
 
-	// Initialize each address in the set
-	for i, addr := range uniqueAddresses {
-		// Calculate array element slot: keccak256(valuesSlot) + index
+	for i, addr := range sorted {
+		// Array element slot: keccak256(valuesSlot) + index
 		arraySlot := CalculateDynamicSlot(valuesSlot, big.NewInt(int64(i)))
-
-		// Store address in array
 		sp = append(sp, params.StateParam{
 			Address: contractAddress,
 			Key:     arraySlot,
 			Value:   common.BytesToHash(addr.Bytes()),
 		})
 
-		// Store position mapping: positions[addr] = index + 1 (1-based)
+		// Position mapping: positions[addr] = index + 1 (1-based)
 		positionKey := CalculateMappingSlot(positionsSlot, addr)
 		sp = append(sp, params.StateParam{
 			Address: contractAddress,
@@ -173,7 +190,21 @@ func initializeAddressSet(
 		})
 	}
 
-	return sp, nil
+	return sp
+}
+
+// parseParamAddresses parses a comma-separated address string into a map set.
+// Returns an error if a zero address is encountered.
+func parseParamAddresses(paramStr string) (map[common.Address]struct{}, error) {
+	set := make(map[common.Address]struct{})
+	for _, s := range splitAndTrim(paramStr, ",") {
+		addr := common.HexToAddress(s)
+		if addr == (common.Address{}) {
+			return nil, fmt.Errorf("contains invalid zero address")
+		}
+		set[addr] = struct{}{}
+	}
+	return set, nil
 }
 
 // IsBlacklisted checks if an address is in the blacklist
