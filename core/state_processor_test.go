@@ -657,6 +657,7 @@ func TestApplyTransactionAuthorizedAccount(t *testing.T) {
 	coinbase := common.Address{0x1} // Use a non-zero address for coinbase
 	gp := new(GasPool).AddGas(header.GasLimit)
 	usedGas := uint64(0)
+	stateDB.SetTxContext(tx.Hash(), 0)
 	receipt, err := ApplyTransaction(config, nil, &coinbase, gp, stateDB, header, tx, &usedGas, vm.Config{})
 	if err != nil {
 		t.Fatalf("failed to apply transaction: %v", err)
@@ -706,8 +707,19 @@ func TestApplyTransactionAuthorizedAccount(t *testing.T) {
 			expectedTotalGasFee, receipt.GasUsed, expectedEffectiveGasPrice, actualTotalGasFee)
 	}
 
-	t.Logf("Authorized account - GasUsed: %d, EffectiveGasPrice: %v, TotalGasFee: %v",
-		receipt.GasUsed, actualEffectiveGasPrice, actualTotalGasFee)
+	t.Logf("Authorized account - GasUsed: %d, EffectiveGasPrice: %v, TotalGasFee: %v", receipt.GasUsed, actualEffectiveGasPrice, actualTotalGasFee)
+
+	// Verify AuthorizedTxExecuted event is the last log of the receipt
+	if len(receipt.Logs) == 0 {
+		t.Fatal("expected at least one log in receipt")
+	}
+	lastLog := receipt.Logs[len(receipt.Logs)-1]
+	if lastLog.Address != params.AccountManagerAddress {
+		t.Errorf("expected last log address %v, got %v", params.AccountManagerAddress, lastLog.Address)
+	}
+	if lastLog.Topics[0] != params.AuthorizedTxExecutedEventSig {
+		t.Errorf("expected last log topic %v, got %v", params.AuthorizedTxExecutedEventSig, lastLog.Topics[0])
+	}
 }
 
 // TestApplyTransactionNormalAccount tests that normal accounts pay actual gas fee based on header's gas tip
@@ -803,6 +815,7 @@ func TestApplyTransactionNormalAccount(t *testing.T) {
 	coinbase := common.Address{0x1} // Use a non-zero address for coinbase
 	gp := new(GasPool).AddGas(header.GasLimit)
 	usedGas := uint64(0)
+	stateDB.SetTxContext(tx.Hash(), 0)
 	receipt, err := ApplyTransaction(config, nil, &coinbase, gp, stateDB, header, tx, &usedGas, vm.Config{})
 	if err != nil {
 		t.Fatalf("failed to apply transaction: %v", err)
@@ -855,4 +868,12 @@ func TestApplyTransactionNormalAccount(t *testing.T) {
 
 	t.Logf("Normal account - GasUsed: %d, EffectiveGasPrice: %v, TotalGasFee: %v",
 		receipt.GasUsed, actualEffectiveGasPrice, actualTotalGasFee)
+
+	// Verify AuthorizedTxExecuted event is NOT present in receipt logs
+	for _, log := range receipt.Logs {
+		if log.Address == params.AccountManagerAddress &&
+			len(log.Topics) > 0 && log.Topics[0] == params.AuthorizedTxExecutedEventSig {
+			t.Error("normal account should not emit AuthorizedTxExecuted event")
+		}
+	}
 }
