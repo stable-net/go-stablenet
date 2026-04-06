@@ -1013,8 +1013,8 @@ func (api *BlockChainAPI) GetBlockReceipts(ctx context.Context, blockNrOrHash rp
 	return result, nil
 }
 
-func (s *BlockChainAPI) GetReceiptsByHash(ctx context.Context, blockHash common.Hash) ([]map[string]interface{}, error) {
-	return s.GetBlockReceipts(ctx, rpc.BlockNumberOrHashWithHash(blockHash, true))
+func (api *BlockChainAPI) GetReceiptsByHash(ctx context.Context, blockHash common.Hash) ([]map[string]interface{}, error) {
+	return api.GetBlockReceipts(ctx, rpc.BlockNumberOrHashWithHash(blockHash, true))
 }
 
 // OverrideAccount indicates the overriding fields of account during the execution
