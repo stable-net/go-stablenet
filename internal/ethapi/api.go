@@ -1013,6 +1013,9 @@ func (api *BlockChainAPI) GetBlockReceipts(ctx context.Context, blockNrOrHash rp
 	return result, nil
 }
 
+// GetReceiptsByHash returns all transaction receipts for the canonical block
+// identified by the given block hash. Unlike GetBlockReceipts, this method
+// only accepts a block hash and requires the block to be on the canonical chain.
 func (api *BlockChainAPI) GetReceiptsByHash(ctx context.Context, blockHash common.Hash) ([]map[string]interface{}, error) {
 	return api.GetBlockReceipts(ctx, rpc.BlockNumberOrHashWithHash(blockHash, true))
 }
