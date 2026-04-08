@@ -237,17 +237,22 @@ func validateAnzeonGenesisConfig(config *params.ChainConfig) error {
 	return nil
 }
 
+// initializeAnzeonGenesis sets up the Anzeon-specific genesis state by
+// creating initial WBFT extra data and injecting system contracts.
 func initializeAnzeonGenesis(genesis *Genesis) error {
 	if genesis == nil || genesis.Config == nil || !genesis.Config.AnzeonEnabled() {
 		return nil
 	}
+
 	extraData, err := wbft.CreateInitialExtraData(genesis.Config.Anzeon)
 	if err != nil {
 		return err
 	}
 	genesis.ExtraData = extraData
 
-	// Validate Extra bits in all alloc entries
+	// Validate alloc Extra bits before system contract initialization.
+	// InjectContracts does not validate because it only sets defined bits
+	// and is also called from upgrade paths where alloc is nil.
 	for addr, account := range genesis.Alloc {
 		if err := types.ValidateExtra(account.Extra); err != nil {
 			return fmt.Errorf("invalid account extra at %s: %w", addr.Hex(), err)
