@@ -19,6 +19,7 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"reflect"
@@ -864,5 +865,26 @@ func TestStableNetGenesisAllocConsistency(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestInitializeAnzeonGenesis_InvalidExtraBit verifies that initializeAnzeonGenesis
+// returns an error when an alloc entry contains an undefined Extra bit.
+func TestInitializeAnzeonGenesis_InvalidExtraBit(t *testing.T) {
+	addr := common.HexToAddress("0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+	genesis := &Genesis{
+		Alloc: types.GenesisAlloc{
+			addr: {Balance: big.NewInt(0), Extra: 1}, // undefined bit
+		},
+		Config: params.TestWBFTChainConfig,
+	}
+
+	want := fmt.Sprintf("invalid account extra at %s: unknown bits set in account extra: 0x%016x", addr.Hex(), uint64(1))
+	err := initializeAnzeonGenesis(genesis)
+	if err == nil {
+		t.Fatalf("want error %q, got nil", want)
+	}
+	if err.Error() != want {
+		t.Fatalf("want %q, have %q", want, err.Error())
 	}
 }
