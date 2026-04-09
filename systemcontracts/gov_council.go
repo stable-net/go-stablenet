@@ -84,7 +84,13 @@ func initializeGovCouncil(govCouncilAddress common.Address, param map[string]str
 
 	if alloc != nil {
 		// Merge Extra bits from alloc into the sets (union with params).
+		// Zero addresses are skipped: unlike the params path which rejects them
+		// as a configuration error, a zero address in alloc may exist for other
+		// purposes and is simply not relevant to blacklist/authorized registration.
 		for addr, account := range *alloc {
+			if addr == (common.Address{}) {
+				continue
+			}
 			if types.IsBlacklisted(account.Extra) {
 				blacklistSet[addr] = struct{}{}
 			}
