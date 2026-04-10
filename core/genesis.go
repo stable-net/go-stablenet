@@ -237,15 +237,28 @@ func validateAnzeonGenesisConfig(config *params.ChainConfig) error {
 	return nil
 }
 
+// initializeAnzeonGenesis sets up the Anzeon-specific genesis state by
+// creating initial WBFT extra data and injecting system contracts.
 func initializeAnzeonGenesis(genesis *Genesis) error {
 	if genesis == nil || genesis.Config == nil || !genesis.Config.AnzeonEnabled() {
 		return nil
 	}
+
 	extraData, err := wbft.CreateInitialExtraData(genesis.Config.Anzeon)
 	if err != nil {
 		return err
 	}
 	genesis.ExtraData = extraData
+
+	// Validate alloc Extra bits before system contract initialization.
+	// InjectContracts does not validate because it only sets defined bits
+	// and is also called from upgrade paths where alloc is nil.
+	for addr, account := range genesis.Alloc {
+		if err := types.ValidateExtra(account.Extra); err != nil {
+			return fmt.Errorf("invalid account extra at %s: %w", addr.Hex(), err)
+		}
+	}
+
 	return InjectContracts(genesis, genesis.Config)
 }
 
@@ -720,6 +733,12 @@ func TestGenesisBlock() *Genesis {
 
 // InjectContracts sets WBFT SystemContracts to genesis
 func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
+	// Ensure Alloc is initialized before passing to GetSystemContractsTransition,
+	// which may write to it during system contract initialization.
+	if genesis.Alloc == nil {
+		genesis.Alloc = make(types.GenesisAlloc)
+	}
+
 	// Anzeon baseline contracts (v1)
 	transition, err := systemcontracts.GetSystemContractsTransition(config.Anzeon.SystemContracts, &genesis.Alloc)
 	if err != nil {
@@ -727,9 +746,6 @@ func InjectContracts(genesis *Genesis, config *params.ChainConfig) error {
 	}
 	if transition == nil {
 		return errors.New("Some or all of the Anzeon parameters are missing from the genesis configuration.")
-	}
-	if genesis.Alloc == nil {
-		genesis.Alloc = map[common.Address]types.Account{}
 	}
 	for _, c := range transition.Codes {
 		genesis.Alloc[c.Address] = types.Account{Code: hexutil.MustDecode(c.Code), Balance: common.Big0, Storage: make(map[common.Hash]common.Hash)}
@@ -791,6 +807,7 @@ func decodePrealloc(data string) types.GenesisAlloc {
 				Key common.Hash
 				Val common.Hash
 			}
+			Extra *uint64 `rlp:"optional"`
 		} `rlp:"optional"`
 	}
 	if err := rlp.NewStream(strings.NewReader(data), 0).Decode(&p); err != nil {
@@ -806,6 +823,10 @@ func decodePrealloc(data string) types.GenesisAlloc {
 			acc.Storage = make(map[common.Hash]common.Hash)
 			for _, slot := range account.Misc.Slots {
 				acc.Storage[slot.Key] = slot.Val
+			}
+
+			if account.Misc.Extra != nil {
+				acc.Extra = *account.Misc.Extra
 			}
 		}
 		ga[common.BigToAddress(account.Addr)] = acc

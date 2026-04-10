@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +63,7 @@ func TestInitializeCouncil_EmptyLists(t *testing.T) {
 		GOV_BASE_PARAM_MEMBER_VERSION: "1",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -94,7 +95,7 @@ func TestInitializeCouncil_WithBlacklist(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST:   "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -130,7 +131,7 @@ func TestInitializeCouncil_WithAuthorizedAccounts(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD,0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -167,7 +168,7 @@ func TestInitializeCouncil_WithBothLists(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -199,7 +200,7 @@ func TestInitializeCouncil_DuplicateAddresses(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
 	require.NoError(t, err)
 
 	// Apply state params to mock state
@@ -223,7 +224,7 @@ func TestInitializeCouncil_ZeroAddressError(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST:   "0x0000000000000000000000000000000000000000",
 	}
 
-	_, err := initializeGovCouncil(govCouncilAddress, params)
+	_, err := initializeGovCouncil(govCouncilAddress, params, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "zero address")
 }
@@ -238,7 +239,7 @@ func TestGetAllBlacklisted(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST:   "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB,0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
 	require.NoError(t, err)
 
 	// Apply state params to mock state
@@ -267,7 +268,7 @@ func TestGetAllAuthorizedAccounts(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD,0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
 	require.NoError(t, err)
 
 	// Apply state params to mock state
@@ -305,13 +306,10 @@ func TestInitializeAddressSet_StorageLayout(t *testing.T) {
 	contractAddress := common.HexToAddress("0x1000")
 	valuesSlot := common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values)
 	positionsSlot := common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_positions)
-	addresses := []string{
-		"0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-	}
-
-	stateParams, err := initializeAddressSet(contractAddress, valuesSlot, positionsSlot, addresses, "test")
+	addresses, err := parseParamAddresses("0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
 	require.NoError(t, err)
+
+	stateParams := initializeAddressSet(contractAddress, valuesSlot, positionsSlot, addresses)
 	require.NotNil(t, stateParams)
 
 	// Apply to mock state
@@ -348,24 +346,22 @@ func TestInitializeAddressSet_EmptyList(t *testing.T) {
 	contractAddress := common.HexToAddress("0x1000")
 	valuesSlot := common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values)
 	positionsSlot := common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_positions)
-	addresses := []string{}
-
-	stateParams, err := initializeAddressSet(contractAddress, valuesSlot, positionsSlot, addresses, "test")
+	addresses, err := parseParamAddresses("")
 	require.NoError(t, err)
-	require.Empty(t, stateParams, "Empty list should not generate state params")
+
+	stateParams := initializeAddressSet(contractAddress, valuesSlot, positionsSlot, addresses)
+	require.Empty(t, stateParams, "Empty map should not generate state params")
 }
 
 func TestInitializeAddressSet_WithWhitespace(t *testing.T) {
 	contractAddress := common.HexToAddress("0x1000")
 	valuesSlot := common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values)
 	positionsSlot := common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_positions)
-	addresses := []string{
-		"  0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  ",
-		"\t0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n",
-	}
 
-	stateParams, err := initializeAddressSet(contractAddress, valuesSlot, positionsSlot, addresses, "test")
+	addresses, err := parseParamAddresses("  0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA  ,\t0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\n")
 	require.NoError(t, err)
+
+	stateParams := initializeAddressSet(contractAddress, valuesSlot, positionsSlot, addresses)
 
 	// Apply to mock state
 	mockState := NewMockStateReader()
@@ -388,7 +384,7 @@ func TestInitializeCouncil_AccountManagerInitialization(t *testing.T) {
 		GOV_BASE_PARAM_MEMBER_VERSION: "1",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -423,7 +419,7 @@ func TestInitializeCouncil_AllSlots(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams, nil)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -452,4 +448,170 @@ func TestInitializeCouncil_AllSlots(t *testing.T) {
 	accountManagerValue := mockState.GetState(govCouncilAddress, accountManagerSlot)
 	storedAddress := common.BytesToAddress(accountManagerValue.Bytes())
 	require.Equal(t, params.AccountManagerAddress, storedAddress)
+}
+
+// ==================== Alloc Sync Tests ====================
+
+var (
+	govCouncilSyncTestAddress = common.HexToAddress("0x1000")
+	syncTestParam             = map[string]string{
+		GOV_BASE_PARAM_MEMBERS:        "0x1111111111111111111111111111111111111111",
+		GOV_BASE_PARAM_QUORUM:         "1",
+		GOV_BASE_PARAM_EXPIRY:         "604800",
+		GOV_BASE_PARAM_MEMBER_VERSION: "1",
+	}
+
+	addrA = common.HexToAddress("0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+	addrB = common.HexToAddress("0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
+	addrC = common.HexToAddress("0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")
+)
+
+// applyToMockState applies StateParams to a MockStateReader for verification.
+func applyToMockState(stateParams []params.StateParam) *MockStateReader {
+	mockState := NewMockStateReader()
+	for _, p := range stateParams {
+		mockState.SetState(p.Address, p.Key, p.Value)
+	}
+	return mockState
+}
+
+// TestAllocSync_ParamsOnly verifies that addresses in params but not in alloc
+// are registered in contract slots and added as new alloc entries with correct Extra bits.
+func TestAllocSync_ParamsOnly(t *testing.T) {
+	param := copyMap(syncTestParam)
+	param[GOV_COUNCIL_PARAM_BLACKLIST] = addrA.Hex()
+	param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS] = addrB.Hex()
+
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilSyncTestAddress, param, &alloc)
+	require.NoError(t, err)
+
+	// Contract slots reflect params addresses.
+	mockState := applyToMockState(stateParams)
+	require.True(t, IsBlacklisted(govCouncilSyncTestAddress, mockState, addrA))
+	require.True(t, IsAuthorizedAccount(govCouncilSyncTestAddress, mockState, addrB))
+
+	// New alloc entries are created with correct Extra bits.
+	require.True(t, types.IsBlacklisted(alloc[addrA].Extra))
+	require.True(t, types.IsAuthorized(alloc[addrB].Extra))
+}
+
+// TestAllocSync_AllocOnly verifies that addresses with Extra bits set in alloc
+// but absent from params are registered in contract slots.
+func TestAllocSync_AllocOnly(t *testing.T) {
+	param := copyMap(syncTestParam)
+
+	alloc := types.GenesisAlloc{
+		addrA: {Balance: big.NewInt(0), Extra: types.SetBlacklisted(0)},
+		addrB: {Balance: big.NewInt(0), Extra: types.SetAuthorized(0)},
+	}
+	stateParams, err := initializeGovCouncil(govCouncilSyncTestAddress, param, &alloc)
+	require.NoError(t, err)
+
+	// Contract slots reflect alloc.Extra addresses.
+	mockState := applyToMockState(stateParams)
+	require.True(t, IsBlacklisted(govCouncilSyncTestAddress, mockState, addrA))
+	require.True(t, IsAuthorizedAccount(govCouncilSyncTestAddress, mockState, addrB))
+}
+
+// TestAllocSync_Union verifies that addresses from both params and alloc.Extra
+// are merged into the final set without duplication.
+func TestAllocSync_Union(t *testing.T) {
+	param := copyMap(syncTestParam)
+	param[GOV_COUNCIL_PARAM_BLACKLIST] = addrA.Hex()
+
+	alloc := types.GenesisAlloc{
+		addrB: {Balance: big.NewInt(0), Extra: types.SetBlacklisted(0)},
+	}
+	stateParams, err := initializeGovCouncil(govCouncilSyncTestAddress, param, &alloc)
+	require.NoError(t, err)
+
+	// Both addresses appear in contract slots.
+	mockState := applyToMockState(stateParams)
+	require.True(t, IsBlacklisted(govCouncilSyncTestAddress, mockState, addrA))
+	require.True(t, IsBlacklisted(govCouncilSyncTestAddress, mockState, addrB))
+	require.Equal(t, big.NewInt(2), GetBlacklistCount(govCouncilSyncTestAddress, mockState))
+}
+
+// TestAllocSync_NoDuplication verifies that an address present in both params and alloc.Extra
+// appears only once in the contract slots.
+func TestAllocSync_NoDuplication(t *testing.T) {
+	param := copyMap(syncTestParam)
+	param[GOV_COUNCIL_PARAM_BLACKLIST] = addrA.Hex()
+
+	alloc := types.GenesisAlloc{
+		addrA: {Balance: big.NewInt(0), Extra: types.SetBlacklisted(0)},
+	}
+	stateParams, err := initializeGovCouncil(govCouncilSyncTestAddress, param, &alloc)
+	require.NoError(t, err)
+
+	mockState := applyToMockState(stateParams)
+	require.Equal(t, big.NewInt(1), GetBlacklistCount(govCouncilSyncTestAddress, mockState))
+}
+
+// TestAllocSync_BothBitsSet verifies that an address with blacklist Extra bit
+// but authorized in params ends up with both bits set and registered in both slots.
+func TestAllocSync_BothBitsSet(t *testing.T) {
+	param := copyMap(syncTestParam)
+	param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS] = addrA.Hex()
+
+	alloc := types.GenesisAlloc{
+		addrA: {Balance: big.NewInt(0), Extra: types.SetBlacklisted(0)},
+	}
+	stateParams, err := initializeGovCouncil(govCouncilSyncTestAddress, param, &alloc)
+	require.NoError(t, err)
+
+	// Both bits set in alloc.Extra.
+	require.True(t, types.IsBlacklisted(alloc[addrA].Extra))
+	require.True(t, types.IsAuthorized(alloc[addrA].Extra))
+
+	// Registered in both contract slots.
+	mockState := applyToMockState(stateParams)
+	require.True(t, IsBlacklisted(govCouncilSyncTestAddress, mockState, addrA))
+	require.True(t, IsAuthorizedAccount(govCouncilSyncTestAddress, mockState, addrA))
+}
+
+// TestAllocSync_ExtraPreserved verifies that existing alloc entries with Extra bits
+// not related to blacklist/authorized are not modified.
+func TestAllocSync_ExtraPreserved(t *testing.T) {
+	param := copyMap(syncTestParam)
+	param[GOV_COUNCIL_PARAM_BLACKLIST] = addrA.Hex()
+
+	const otherBit uint64 = 0 // no valid unrelated bits yet, use zero as baseline
+	alloc := types.GenesisAlloc{
+		addrC: {Balance: big.NewInt(1000), Extra: otherBit},
+	}
+	_, err := initializeGovCouncil(govCouncilSyncTestAddress, param, &alloc)
+	require.NoError(t, err)
+
+	// addrC is untouched.
+	require.Equal(t, otherBit, alloc[addrC].Extra)
+	require.Equal(t, big.NewInt(1000), alloc[addrC].Balance)
+}
+
+// TestAllocSync_ExtraSyncedForExistingEntry verifies that an alloc entry present
+// in params but missing the Extra bit gets its Extra bit updated.
+func TestAllocSync_ExtraSyncedForExistingEntry(t *testing.T) {
+	param := copyMap(syncTestParam)
+	param[GOV_COUNCIL_PARAM_BLACKLIST] = addrA.Hex()
+
+	// addrA exists in alloc but without the blacklist Extra bit.
+	alloc := types.GenesisAlloc{
+		addrA: {Balance: big.NewInt(500)},
+	}
+	_, err := initializeGovCouncil(govCouncilSyncTestAddress, param, &alloc)
+	require.NoError(t, err)
+
+	// Extra bit is synced; Balance is preserved.
+	require.True(t, types.IsBlacklisted(alloc[addrA].Extra))
+	require.Equal(t, big.NewInt(500), alloc[addrA].Balance)
+}
+
+// copyMap returns a shallow copy of a string map.
+func copyMap(m map[string]string) map[string]string {
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

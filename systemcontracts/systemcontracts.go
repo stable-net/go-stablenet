@@ -145,7 +145,7 @@ func GetSystemContractsTransition(systemContracts *params.SystemContracts, alloc
 		}
 		st.Codes = append(st.Codes, params.CodeParam{Address: systemContracts.GovCouncil.Address, Code: code})
 		if systemContracts.GovCouncil.Params != nil && systemContracts.GovCouncil.Version == SYSTEM_CONTRACT_VERSION_1 {
-			sp, err := initializeGovCouncil(systemContracts.GovCouncil.Address, systemContracts.GovCouncil.Params)
+			sp, err := initializeGovCouncil(systemContracts.GovCouncil.Address, systemContracts.GovCouncil.Params, alloc)
 			if err != nil {
 				return nil, err
 			}

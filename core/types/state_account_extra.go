@@ -18,6 +18,8 @@
 
 package types
 
+import "fmt"
+
 // Extra field bit masks for StateAccount.
 // The Extra field is a 64-bit value where each bit can represent a specific state or property.
 //
@@ -36,6 +38,11 @@ const (
 	// AccountExtraMaskC defines the bit mask used to mark ... (bit 61)
 	// Uncomment and adjust as needed:
 	// AccountExtraMaskC uint64 = 1 << 61
+
+	// AccountExtraValidMask is the union of all defined bit masks.
+	// When adding a new bit mask, it must also be included here;
+	// otherwise ValidateExtra will reject accounts that use the new bit.
+	AccountExtraValidMask uint64 = AccountExtraMaskBlacklisted | AccountExtraMaskAuthorized
 )
 
 // ============================================================================
@@ -89,4 +96,13 @@ func SetAuthorized(extra uint64) uint64 {
 // ClearAuthorized clears the authorized bit in extra and returns the new value.
 func ClearAuthorized(extra uint64) uint64 {
 	return clearBit(extra, AccountExtraMaskAuthorized)
+}
+
+// ValidateExtra checks that no undefined bits are set in the extra value.
+// Returns an error if any bit outside AccountExtraValidMask is set.
+func ValidateExtra(extra uint64) error {
+	if extra&^AccountExtraValidMask != 0 {
+		return fmt.Errorf("unknown bits set in account extra: 0x%016x", extra)
+	}
+	return nil
 }

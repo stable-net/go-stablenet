@@ -18,8 +18,10 @@
 package test
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
+	"sort"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -212,6 +214,15 @@ func createGovCouncilTestEnv(t *testing.T) *GovCouncilTestEnv {
 		NewEOA().Address,
 		NewEOA().Address,
 	}
+
+	// Sort to match the deterministic slot assignment order used by initializeAddressSet.
+	sortAddrs := func(addrs []common.Address) {
+		sort.Slice(addrs, func(i, j int) bool {
+			return bytes.Compare(addrs[i].Bytes(), addrs[j].Bytes()) < 0
+		})
+	}
+	sortAddrs(blacklist)
+	sortAddrs(authorizedAccounts)
 
 	// Convert address slices to comma-separated strings
 	blacklistStr := blacklist[0].Hex() + "," + blacklist[1].Hex()

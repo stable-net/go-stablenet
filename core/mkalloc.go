@@ -48,6 +48,8 @@ type allocItemMisc struct {
 	Nonce uint64
 	Code  []byte
 	Slots []allocItemStorageItem
+
+	Extra *uint64 `rlp:"optional"`
 }
 
 type allocItemStorageItem struct {
@@ -59,7 +61,7 @@ func makelist(g *core.Genesis) []allocItem {
 	items := make([]allocItem, 0, len(g.Alloc))
 	for addr, account := range g.Alloc {
 		var misc *allocItemMisc
-		if len(account.Storage) > 0 || len(account.Code) > 0 || account.Nonce != 0 {
+		if len(account.Storage) > 0 || len(account.Code) > 0 || account.Nonce != 0 || account.Extra != 0 {
 			misc = &allocItemMisc{
 				Nonce: account.Nonce,
 				Code:  account.Code,
@@ -71,6 +73,9 @@ func makelist(g *core.Genesis) []allocItem {
 			slices.SortFunc(misc.Slots, func(a, b allocItemStorageItem) int {
 				return a.Key.Cmp(b.Key)
 			})
+			if account.Extra != 0 {
+				misc.Extra = &account.Extra
+			}
 		}
 		bigAddr := new(big.Int).SetBytes(addr.Bytes())
 		items = append(items, allocItem{bigAddr, account.Balance, misc})
