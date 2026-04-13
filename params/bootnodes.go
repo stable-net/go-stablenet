@@ -30,8 +30,7 @@ var StableNetMainnetBootnodes = []string{
 }
 
 var StableNetTestnetBootnodes = []string{
-	"enode://075958386d06762b352312b2430a0e4aad483a80ba952733453c9eb63cef94de5f2b330d98d07450470a6720a0bcedd6a7b900429ec69539e7098efe608e801f@48.218.162.65:8589",
-	"enode://be2f59ade46fb09906de657a3039c9c767ca5f83d8fbb6a646d57c8d57c8acf3473f67532df39f63bba61e993b4f7aeb977856217ae23ec7edd893d719f5da08@20.196.211.177:8589",
+	"enode://ed62b9e5410eb4ae3e1f08b305c9b623faefda632d1f435934b888fda8dbc131f2894b9e9fa0107945df49b4f3e2d054589b8f5c10aa6e543d5d6aa179a9d31f@172.21.132.15:30301",
 }
 
 // MainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
