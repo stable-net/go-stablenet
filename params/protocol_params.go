@@ -137,8 +137,8 @@ const (
 
 	InitialGasTip uint64 = 27600000000000 // Initial gas tip
 
-	MaxCodeSize     = 253952          // WEMIX Maximum bytecode to permit for a contract
-	MaxInitCodeSize = 2 * MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
+	MaxCodeSize     = 253952      // WEMIX Maximum bytecode to permit for a contract
+	MaxInitCodeSize = MaxCodeSize // Maximum initcode to permit in a creation transaction and create instructions
 
 	// Precompiled contract gas prices
 
