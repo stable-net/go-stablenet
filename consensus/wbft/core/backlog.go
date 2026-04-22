@@ -49,13 +49,13 @@ const (
 // isSequenceTooFarAhead returns true if the sequence difference exceeds the threshold
 func (c *Core) isSequenceTooFarAhead(viewSeq, currSeq *big.Int, threshold int64) (*big.Int, bool) {
 	seqDiff := new(big.Int).Sub(viewSeq, currSeq)
-	return seqDiff, seqDiff.Cmp(big.NewInt(threshold)) >= 0
+	return seqDiff, seqDiff.Cmp(big.NewInt(threshold)) > 0
 }
 
 // isRoundTooFarAhead returns true if the round difference exceeds the threshold
 func (c *Core) isRoundTooFarAhead(viewRound, currRound *big.Int, threshold int64) (*big.Int, bool) {
 	roundDiff := new(big.Int).Sub(viewRound, currRound)
-	return roundDiff, roundDiff.Cmp(big.NewInt(threshold)) >= 0
+	return roundDiff, roundDiff.Cmp(big.NewInt(threshold)) > 0
 }
 
 // isTooFarFutureMessage filters out messages too far ahead in sequence or round
