@@ -47,11 +47,14 @@ func NewAnzeonTipEnv(config *params.ChainConfig, stateAt func(common.Hash) (*sta
 
 // SetCurrentBlock updates the current block header and signer.
 // This should be called when the blockchain head changes.
+// The block is refreshed if the state root or the GasTip value changes.
+// GasTip must be checked separately because empty blocks share the same root
+// as the governance-change block but carry the updated GasTip in their header.
 func (env *AnzeonTipEnv) SetCurrentBlock(header *types.Header) {
 	if header == nil {
 		return
 	}
-	if env.currentBlock == nil || env.currentBlock.Root != header.Root {
+	if env.currentBlock == nil || env.currentBlock.Root != header.Root || gasTipChanged(env.currentBlock.GasTip(), header.GasTip()) {
 		env.currentBlock = header
 		if header.Root != (common.Hash{}) {
 			env.currentState, _ = env.stateAt(header.Root)
@@ -82,6 +85,17 @@ func (env *AnzeonTipEnv) GetBaseFee() *big.Int {
 		return env.currentBlock.BaseFee
 	}
 	return nil
+}
+
+// gasTipChanged reports whether two GasTip values differ.
+func gasTipChanged(a, b *big.Int) bool {
+	if a == nil && b == nil {
+		return false
+	}
+	if a == nil || b == nil {
+		return true
+	}
+	return a.Cmp(b) != 0
 }
 
 // GetAnzeonTipCap returns the effective gas tip cap for a transaction in the Anzeon network.
