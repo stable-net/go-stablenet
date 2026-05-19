@@ -18,6 +18,7 @@
 package systemcontracts
 
 import (
+	"encoding/json"
 	"math/big"
 	"testing"
 
@@ -605,6 +606,30 @@ func TestAllocSync_ExtraSyncedForExistingEntry(t *testing.T) {
 	// Extra bit is synced; Balance is preserved.
 	require.True(t, types.IsBlacklisted(alloc[addrA].Extra))
 	require.Equal(t, big.NewInt(500), alloc[addrA].Balance)
+}
+
+// TestAllocSync_ParamsOnly_BalanceSerializable verifies that params-only alloc entries
+// can be marshaled and unmarshaled without "missing required field 'balance'" error.
+// This is a regression test for the genesis dump failure caused by nil Balance.
+func TestAllocSync_ParamsOnly_BalanceSerializable(t *testing.T) {
+	param := copyMap(syncTestParam)
+	param[GOV_COUNCIL_PARAM_BLACKLIST] = addrA.Hex()
+	param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS] = addrB.Hex()
+
+	alloc := make(types.GenesisAlloc)
+	_, err := initializeGovCouncil(govCouncilSyncTestAddress, param, &alloc)
+	require.NoError(t, err)
+
+	// Simulate genesis dump: marshal then unmarshal each alloc entry.
+	// A nil Balance serializes as "balance":null, which fails the required check.
+	for addr, account := range alloc {
+		data, err := json.Marshal(account)
+		require.NoError(t, err, "marshal failed for %s", addr.Hex())
+
+		var decoded types.Account
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err, "unmarshal failed for %s (likely nil Balance): %s", addr.Hex(), string(data))
+	}
 }
 
 // copyMap returns a shallow copy of a string map.

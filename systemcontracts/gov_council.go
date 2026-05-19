@@ -101,13 +101,21 @@ func initializeGovCouncil(govCouncilAddress common.Address, param map[string]str
 
 		// Sync alloc.Extra bits to reflect the final merged sets.
 		// Addresses present only in params are added as new alloc entries.
+		// Balance must be non-nil: nil serializes as "balance":null which fails
+		// the gencodec required check during genesis dump.
 		for addr := range blacklistSet {
 			account := (*alloc)[addr]
+			if account.Balance == nil {
+				account.Balance = new(big.Int)
+			}
 			account.Extra = types.SetBlacklisted(account.Extra)
 			(*alloc)[addr] = account
 		}
 		for addr := range authorizedSet {
 			account := (*alloc)[addr]
+			if account.Balance == nil {
+				account.Balance = new(big.Int)
+			}
 			account.Extra = types.SetAuthorized(account.Extra)
 			(*alloc)[addr] = account
 		}
