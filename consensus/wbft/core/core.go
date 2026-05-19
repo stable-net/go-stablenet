@@ -387,10 +387,13 @@ func (c *Core) newRoundChangeTimer() {
 
 	c.currentLogger(true, nil).Trace("WBFT: start new ROUND-CHANGE timer", "timeout", timeout.Seconds())
 	c.timerMu.Lock()
-	c.lastSentTimeoutCanceled = new(bool)
-	*c.lastSentTimeoutCanceled = false
+	// Capture the canceled pointer in a local variable so the callback
+	// always references this timer's own flag, not a newer one created by
+	// a subsequent newRoundChangeTimer call.
+	canceled := new(bool)
+	c.lastSentTimeoutCanceled = canceled
 	c.roundChangeTimer = time.AfterFunc(timeout, func() {
-		c.sendEvent(timeoutEvent{c.lastSentTimeoutCanceled})
+		c.sendEvent(timeoutEvent{canceled})
 	})
 	c.timerMu.Unlock()
 }
