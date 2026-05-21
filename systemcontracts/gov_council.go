@@ -72,74 +72,77 @@ func initializeGovCouncil(govCouncilAddress common.Address, param map[string]str
 		return sp, err
 	}
 
-	// Build initial sets from params.
-	blacklistSet, err := parseParamAddresses(param[GOV_COUNCIL_PARAM_BLACKLIST])
-	if err != nil {
-		return nil, fmt.Errorf("`systemContracts.govCouncil.params.blacklist`: %w", err)
+	type addrSetSpec struct {
+		paramKey   string
+		errPrefix  string
+		isSet      func(uint64) bool
+		setExtra   func(uint64) uint64
+		valuesSlot common.Hash
+		posSlot    common.Hash
 	}
-	authorizedSet, err := parseParamAddresses(param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS])
-	if err != nil {
-		return nil, fmt.Errorf("`systemContracts.govCouncil.params.authorizedAccounts`: %w", err)
+	specs := []addrSetSpec{
+		{
+			paramKey:   GOV_COUNCIL_PARAM_BLACKLIST,
+			errPrefix:  "`systemContracts.govCouncil.params.blacklist`",
+			isSet:      types.IsBlacklisted,
+			setExtra:   types.SetBlacklisted,
+			valuesSlot: common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values),
+			posSlot:    common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_positions),
+		},
+		{
+			paramKey:   GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS,
+			errPrefix:  "`systemContracts.govCouncil.params.authorizedAccounts`",
+			isSet:      types.IsAuthorized,
+			setExtra:   types.SetAuthorized,
+			valuesSlot: common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_values),
+			posSlot:    common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_positions),
+		},
+	}
+
+	// Build address sets from params first.
+	addrSets := make([]map[common.Address]struct{}, len(specs))
+	for i, spec := range specs {
+		addrSets[i], err = parseParamAddresses(param[spec.paramKey])
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", spec.errPrefix, err)
+		}
 	}
 
 	if alloc != nil {
-		// Merge Extra bits from alloc into the sets (union with params).
-		// Zero addresses are skipped: unlike the params path which rejects them
-		// as a configuration error, a zero address in alloc may exist for other
-		// purposes and is simply not relevant to blacklist/authorized registration.
+		// Merge alloc Extra bits into the param-seeded sets.
+		// Zero addresses in alloc are skipped because they are unrelated to these sets.
 		for addr, account := range *alloc {
 			if addr == (common.Address{}) {
 				continue
 			}
-			if types.IsBlacklisted(account.Extra) {
-				blacklistSet[addr] = struct{}{}
-			}
-			if types.IsAuthorized(account.Extra) {
-				authorizedSet[addr] = struct{}{}
+			for i, spec := range specs {
+				if spec.isSet(account.Extra) {
+					addrSets[i][addr] = struct{}{}
+				}
 			}
 		}
 
-		// Sync alloc.Extra bits to reflect the final merged sets.
-		// Addresses present only in params are added as new alloc entries.
-		// Balance must be non-nil: nil serializes as "balance":null which fails
-		// the gencodec required check during genesis dump.
-		for addr := range blacklistSet {
-			account := (*alloc)[addr]
-			if account.Balance == nil {
-				account.Balance = new(big.Int)
+		// Sync alloc.Extra with the final merged sets.
+		// Entries that only exist in params are added to alloc with a zero balance.
+		for i, spec := range specs {
+			for addr := range addrSets[i] {
+				account := (*alloc)[addr]
+				if account.Balance == nil {
+					account.Balance = new(big.Int)
+				}
+				account.Extra = spec.setExtra(account.Extra)
+				(*alloc)[addr] = account
 			}
-			account.Extra = types.SetBlacklisted(account.Extra)
-			(*alloc)[addr] = account
 		}
-		for addr := range authorizedSet {
-			account := (*alloc)[addr]
-			if account.Balance == nil {
-				account.Balance = new(big.Int)
-			}
-			account.Extra = types.SetAuthorized(account.Extra)
-			(*alloc)[addr] = account
-		}
-	}
 
-	// Skip slot initialization for empty sets to avoid writing a zero-length
-	// array entry to contract storage unnecessarily.
-	if len(blacklistSet) > 0 {
-		blacklistParams := initializeAddressSet(
-			govCouncilAddress,
-			common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values),
-			common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_positions),
-			blacklistSet,
-		)
-		sp = append(sp, blacklistParams...)
-	}
-	if len(authorizedSet) > 0 {
-		authorizedAccountParams := initializeAddressSet(
-			govCouncilAddress,
-			common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_values),
-			common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_positions),
-			authorizedSet,
-		)
-		sp = append(sp, authorizedAccountParams...)
+		// Initialize contract storage only when Extra bits are also synced.
+		// The hard fork path is not supported yet; if added later, storage and
+		// Extra sync must be implemented together.
+		for i, spec := range specs {
+			if len(addrSets[i]) > 0 {
+				sp = append(sp, initializeAddressSet(govCouncilAddress, spec.valuesSlot, spec.posSlot, addrSets[i])...)
+			}
+		}
 	}
 
 	// Initialize __accountManager

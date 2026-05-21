@@ -64,7 +64,8 @@ func TestInitializeCouncil_EmptyLists(t *testing.T) {
 		GOV_BASE_PARAM_MEMBER_VERSION: "1",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -96,7 +97,8 @@ func TestInitializeCouncil_WithBlacklist(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST:   "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -132,7 +134,8 @@ func TestInitializeCouncil_WithAuthorizedAccounts(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD,0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -169,7 +172,8 @@ func TestInitializeCouncil_WithBothLists(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -201,7 +205,8 @@ func TestInitializeCouncil_DuplicateAddresses(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 
 	// Apply state params to mock state
@@ -225,7 +230,8 @@ func TestInitializeCouncil_ZeroAddressError(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST:   "0x0000000000000000000000000000000000000000",
 	}
 
-	_, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	_, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "zero address")
 }
@@ -240,7 +246,8 @@ func TestGetAllBlacklisted(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST:   "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB,0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 
 	// Apply state params to mock state
@@ -269,7 +276,8 @@ func TestGetAllAuthorizedAccounts(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD,0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 
 	// Apply state params to mock state
@@ -385,7 +393,8 @@ func TestInitializeCouncil_AccountManagerInitialization(t *testing.T) {
 		GOV_BASE_PARAM_MEMBER_VERSION: "1",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -420,7 +429,8 @@ func TestInitializeCouncil_AllSlots(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
