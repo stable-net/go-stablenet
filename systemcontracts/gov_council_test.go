@@ -619,27 +619,71 @@ func TestAllocSync_ExtraSyncedForExistingEntry(t *testing.T) {
 }
 
 // TestAllocSync_ParamsOnly_BalanceSerializable verifies that params-only alloc entries
-// can be marshaled and unmarshaled without "missing required field 'balance'" error.
-// This is a regression test for the genesis dump failure caused by nil Balance.
+// have their Balance set to exactly zero (not nil), that pre-existing alloc balances
+// are preserved, and that the full GenesisAlloc survives a genesis dump without
+// // the "missing required field 'balance'" error.
 func TestAllocSync_ParamsOnly_BalanceSerializable(t *testing.T) {
 	param := copyMap(syncTestParam)
 	param[GOV_COUNCIL_PARAM_BLACKLIST] = addrA.Hex()
 	param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS] = addrB.Hex()
 
-	alloc := make(types.GenesisAlloc)
+	// addrC exists in alloc but without the blacklist Extra bit.
+	alloc := types.GenesisAlloc{
+		addrC: {Balance: big.NewInt(777)},
+	}
+
 	_, err := initializeGovCouncil(govCouncilSyncTestAddress, param, &alloc)
 	require.NoError(t, err)
 
-	// Simulate genesis dump: marshal then unmarshal each alloc entry.
-	// A nil Balance serializes as "balance":null, which fails the required check.
-	for addr, account := range alloc {
-		data, err := json.Marshal(account)
-		require.NoError(t, err, "marshal failed for %s", addr.Hex())
+	// params-only addresses must have Balance set to zero, not nil.
+	require.NotNil(t, alloc[addrA].Balance)
+	require.Equal(t, big.NewInt(0), alloc[addrA].Balance)
+	require.NotNil(t, alloc[addrB].Balance)
+	require.Equal(t, big.NewInt(0), alloc[addrB].Balance)
 
-		var decoded types.Account
-		err = json.Unmarshal(data, &decoded)
-		require.NoError(t, err, "unmarshal failed for %s (likely nil Balance): %s", addr.Hex(), string(data))
+	// pre-existing address balance must not be affected.
+	require.Equal(t, big.NewInt(777), alloc[addrC].Balance)
+
+	data, err := json.Marshal(&alloc)
+	require.NoError(t, err)
+
+	// Simulate genesis dump
+	var decoded types.GenesisAlloc
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	// verify Balance values are preserved after genesis dump.
+	require.NotNil(t, decoded[addrA].Balance)
+	require.Equal(t, big.NewInt(0), decoded[addrA].Balance)
+	require.NotNil(t, decoded[addrB].Balance)
+	require.Equal(t, big.NewInt(0), decoded[addrB].Balance)
+	require.Equal(t, big.NewInt(777), decoded[addrC].Balance)
+}
+
+// TestAllocSync_NilAlloc verifies that when alloc is nil, initializeGovCouncil
+// succeeds without error, skips address list storage initialization,
+// and still initializes __accountManager.
+func TestAllocSync_NilAlloc(t *testing.T) {
+	param := copyMap(syncTestParam)
+	param[GOV_COUNCIL_PARAM_BLACKLIST] = addrA.Hex()
+	param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS] = addrB.Hex()
+
+	stateParams, err := initializeGovCouncil(govCouncilSyncTestAddress, param, nil)
+	require.NoError(t, err)
+
+	for _, p := range stateParams {
+		require.NotEqual(t, common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values), p.Key, "blacklist storage must not be initialized when alloc is nil")
+		require.NotEqual(t, common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_values), p.Key, "authorized accounts storage must not be initialized when alloc is nil")
 	}
+
+	hasAccountManager := false
+	for _, a := range stateParams {
+		if a.Key == common.HexToHash(SLOT_GOV_COUNCIL_accountManager) {
+			hasAccountManager = true
+			break
+		}
+	}
+	require.True(t, hasAccountManager, "__accountManager must be initialized even when alloc is nil")
 }
 
 // copyMap returns a shallow copy of a string map.
