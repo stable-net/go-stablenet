@@ -637,12 +637,12 @@ func TestAllocSync_ParamsOnly_BalanceSerializable(t *testing.T) {
 
 	// params-only addresses must have Balance set to zero, not nil.
 	require.NotNil(t, alloc[addrA].Balance)
-	require.Equal(t, big.NewInt(0), alloc[addrA].Balance)
+	require.Zero(t, big.NewInt(0).Cmp(alloc[addrA].Balance))
 	require.NotNil(t, alloc[addrB].Balance)
-	require.Equal(t, big.NewInt(0), alloc[addrB].Balance)
+	require.Zero(t, big.NewInt(0).Cmp(alloc[addrB].Balance))
 
 	// pre-existing address balance must not be affected.
-	require.Equal(t, big.NewInt(777), alloc[addrC].Balance)
+	require.Zero(t, big.NewInt(777).Cmp(alloc[addrC].Balance))
 
 	data, err := json.Marshal(&alloc)
 	require.NoError(t, err)
@@ -654,10 +654,10 @@ func TestAllocSync_ParamsOnly_BalanceSerializable(t *testing.T) {
 
 	// verify Balance values are preserved after genesis dump.
 	require.NotNil(t, decoded[addrA].Balance)
-	require.Equal(t, big.NewInt(0), decoded[addrA].Balance)
+	require.Zero(t, big.NewInt(0).Cmp(decoded[addrA].Balance))
 	require.NotNil(t, decoded[addrB].Balance)
-	require.Equal(t, big.NewInt(0), decoded[addrB].Balance)
-	require.Equal(t, big.NewInt(777), decoded[addrC].Balance)
+	require.Zero(t, big.NewInt(0).Cmp(decoded[addrB].Balance))
+	require.Zero(t, big.NewInt(777).Cmp(decoded[addrC].Balance))
 }
 
 // TestAllocSync_NilAlloc verifies that when alloc is nil, initializeGovCouncil
@@ -671,16 +671,16 @@ func TestAllocSync_NilAlloc(t *testing.T) {
 	stateParams, err := initializeGovCouncil(govCouncilSyncTestAddress, param, nil)
 	require.NoError(t, err)
 
+	hasAccountManager := false
+	expectedAccountManagerValue := common.BytesToHash(params.AccountManagerAddress.Bytes())
+
 	for _, p := range stateParams {
 		require.NotEqual(t, common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values), p.Key, "blacklist storage must not be initialized when alloc is nil")
 		require.NotEqual(t, common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_values), p.Key, "authorized accounts storage must not be initialized when alloc is nil")
-	}
 
-	hasAccountManager := false
-	for _, a := range stateParams {
-		if a.Key == common.HexToHash(SLOT_GOV_COUNCIL_accountManager) {
+		if p.Key == common.HexToHash(SLOT_GOV_COUNCIL_accountManager) {
 			hasAccountManager = true
-			break
+			require.Equal(t, expectedAccountManagerValue, p.Value, "__accountManager value mismatch")
 		}
 	}
 	require.True(t, hasAccountManager, "__accountManager must be initialized even when alloc is nil")
