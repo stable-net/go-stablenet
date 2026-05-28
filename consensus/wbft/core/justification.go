@@ -115,11 +115,14 @@ func hasQuorumOfRoundChangeMessagesForPreparedRoundAndBlock(roundChangeMessages 
 // preparedRound and preparedBlockDigest of a ROUND-CHANGE wbfmessage.
 func hasMatchingRoundChangeAndPrepares(
 	roundChange *wbfmessage.RoundChange, prepareMessages []*wbfmessage.Prepare, quorumSize int) error {
-	if len(prepareMessages) < quorumSize {
+	// Deduplicate by source address to prevent quorum inflation from duplicate messages.
+	dedupedPrepares := deduplicatePrepares(prepareMessages)
+
+	if len(dedupedPrepares) < quorumSize {
 		return errors.New("number of prepare messages is less than quorum of messages")
 	}
 
-	for _, spp := range prepareMessages {
+	for _, spp := range dedupedPrepares {
 		if spp.Digest != roundChange.PreparedDigest {
 			return errors.New("prepared message digest does not match roundchange prepared digest")
 		}
@@ -132,8 +135,7 @@ func hasMatchingRoundChangeAndPrepares(
 
 // deduplicateRoundChanges returns a new slice with duplicate ROUND-CHANGE
 // messages removed, keeping only the first message per source address.
-// This prevents a byzantine proposer from inflating the quorum count by
-// repeating messages from the same validator.
+// This prevents counting multiple messages from the same validator during quorum size evaluation.
 func deduplicateRoundChanges(msgs []*wbfmessage.SignedRoundChangePayload) []*wbfmessage.SignedRoundChangePayload {
 	seen := make(map[common.Address]struct{}, len(msgs))
 	result := make([]*wbfmessage.SignedRoundChangePayload, 0, len(msgs))
@@ -151,8 +153,7 @@ func deduplicateRoundChanges(msgs []*wbfmessage.SignedRoundChangePayload) []*wbf
 
 // deduplicatePrepares returns a new slice with duplicate PREPARE messages
 // removed, keeping only the first message per source address.
-// This prevents a byzantine proposer from forging a quorum by submitting
-// multiple fake signatures for the same validator address.
+// This prevents counting multiple messages from the same validator during quorum size evaluation.
 func deduplicatePrepares(msgs []*wbfmessage.Prepare) []*wbfmessage.Prepare {
 	seen := make(map[common.Address]struct{}, len(msgs))
 	result := make([]*wbfmessage.Prepare, 0, len(msgs))
