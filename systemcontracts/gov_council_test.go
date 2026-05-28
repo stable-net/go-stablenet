@@ -18,6 +18,7 @@
 package systemcontracts
 
 import (
+	"encoding/json"
 	"math/big"
 	"testing"
 
@@ -63,7 +64,8 @@ func TestInitializeCouncil_EmptyLists(t *testing.T) {
 		GOV_BASE_PARAM_MEMBER_VERSION: "1",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -95,7 +97,8 @@ func TestInitializeCouncil_WithBlacklist(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST:   "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -131,7 +134,8 @@ func TestInitializeCouncil_WithAuthorizedAccounts(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD,0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -168,7 +172,8 @@ func TestInitializeCouncil_WithBothLists(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -200,7 +205,8 @@ func TestInitializeCouncil_DuplicateAddresses(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST: "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 
 	// Apply state params to mock state
@@ -224,7 +230,8 @@ func TestInitializeCouncil_ZeroAddressError(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST:   "0x0000000000000000000000000000000000000000",
 	}
 
-	_, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	_, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "zero address")
 }
@@ -239,7 +246,8 @@ func TestGetAllBlacklisted(t *testing.T) {
 		GOV_COUNCIL_PARAM_BLACKLIST:   "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA,0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB,0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 
 	// Apply state params to mock state
@@ -268,7 +276,8 @@ func TestGetAllAuthorizedAccounts(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD,0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, params, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, params, &alloc)
 	require.NoError(t, err)
 
 	// Apply state params to mock state
@@ -384,7 +393,8 @@ func TestInitializeCouncil_AccountManagerInitialization(t *testing.T) {
 		GOV_BASE_PARAM_MEMBER_VERSION: "1",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -419,7 +429,8 @@ func TestInitializeCouncil_AllSlots(t *testing.T) {
 		GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS: "0xDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
 	}
 
-	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams, nil)
+	alloc := make(types.GenesisAlloc)
+	stateParams, err := initializeGovCouncil(govCouncilAddress, testParams, &alloc)
 	require.NoError(t, err)
 	require.NotNil(t, stateParams)
 
@@ -605,6 +616,74 @@ func TestAllocSync_ExtraSyncedForExistingEntry(t *testing.T) {
 	// Extra bit is synced; Balance is preserved.
 	require.True(t, types.IsBlacklisted(alloc[addrA].Extra))
 	require.Equal(t, big.NewInt(500), alloc[addrA].Balance)
+}
+
+// TestAllocSync_ParamsOnly_BalanceSerializable verifies that params-only alloc entries
+// have their Balance set to exactly zero (not nil), that pre-existing alloc balances
+// are preserved, and that the full GenesisAlloc survives a genesis dump without
+// // the "missing required field 'balance'" error.
+func TestAllocSync_ParamsOnly_BalanceSerializable(t *testing.T) {
+	param := copyMap(syncTestParam)
+	param[GOV_COUNCIL_PARAM_BLACKLIST] = addrA.Hex()
+	param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS] = addrB.Hex()
+
+	// addrC exists in alloc but without the blacklist Extra bit.
+	alloc := types.GenesisAlloc{
+		addrC: {Balance: big.NewInt(777)},
+	}
+
+	_, err := initializeGovCouncil(govCouncilSyncTestAddress, param, &alloc)
+	require.NoError(t, err)
+
+	// params-only addresses must have Balance set to zero, not nil.
+	require.NotNil(t, alloc[addrA].Balance)
+	require.Zero(t, big.NewInt(0).Cmp(alloc[addrA].Balance))
+	require.NotNil(t, alloc[addrB].Balance)
+	require.Zero(t, big.NewInt(0).Cmp(alloc[addrB].Balance))
+
+	// pre-existing address balance must not be affected.
+	require.Zero(t, big.NewInt(777).Cmp(alloc[addrC].Balance))
+
+	data, err := json.Marshal(&alloc)
+	require.NoError(t, err)
+
+	// Simulate genesis dump
+	var decoded types.GenesisAlloc
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+
+	// verify Balance values are preserved after genesis dump.
+	require.NotNil(t, decoded[addrA].Balance)
+	require.Zero(t, big.NewInt(0).Cmp(decoded[addrA].Balance))
+	require.NotNil(t, decoded[addrB].Balance)
+	require.Zero(t, big.NewInt(0).Cmp(decoded[addrB].Balance))
+	require.Zero(t, big.NewInt(777).Cmp(decoded[addrC].Balance))
+}
+
+// TestAllocSync_NilAlloc verifies that when alloc is nil, initializeGovCouncil
+// succeeds without error, skips address list storage initialization,
+// and still initializes __accountManager.
+func TestAllocSync_NilAlloc(t *testing.T) {
+	param := copyMap(syncTestParam)
+	param[GOV_COUNCIL_PARAM_BLACKLIST] = addrA.Hex()
+	param[GOV_COUNCIL_PARAM_AUTHORIZED_ACCOUNTS] = addrB.Hex()
+
+	stateParams, err := initializeGovCouncil(govCouncilSyncTestAddress, param, nil)
+	require.NoError(t, err)
+
+	hasAccountManager := false
+	expectedAccountManagerValue := common.BytesToHash(params.AccountManagerAddress.Bytes())
+
+	for _, p := range stateParams {
+		require.NotEqual(t, common.HexToHash(SLOT_GOV_COUNCIL_currentBlacklist_values), p.Key, "blacklist storage must not be initialized when alloc is nil")
+		require.NotEqual(t, common.HexToHash(SLOT_GOV_COUNCIL_currentAuthorizedAccounts_values), p.Key, "authorized accounts storage must not be initialized when alloc is nil")
+
+		if p.Key == common.HexToHash(SLOT_GOV_COUNCIL_accountManager) {
+			hasAccountManager = true
+			require.Equal(t, expectedAccountManagerValue, p.Value, "__accountManager value mismatch")
+		}
+	}
+	require.True(t, hasAccountManager, "__accountManager must be initialized even when alloc is nil")
 }
 
 // copyMap returns a shallow copy of a string map.
