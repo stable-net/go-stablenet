@@ -194,7 +194,7 @@ func (c *Core) handleRoundChangeMsg(roundChange *wbfmessage.RoundChange) error {
 		}
 
 		prepareMessages := c.roundChangeSet.prepareMessages[currentRound.Uint64()]
-		if err := isJustified(proposal, rcSignedPayloads, prepareMessages, c.valSet.QuorumSize()); err != nil {
+		if err := isJustified(proposal, *c.currentView(), rcSignedPayloads, prepareMessages, c.valSet.QuorumSize()); err != nil {
 			logger.Error("WBFT: invalid ROUND-CHANGE message justification", "err", err)
 			return nil
 		}

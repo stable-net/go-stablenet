@@ -39,6 +39,7 @@ import (
 //     preparedBlockDigest match the round and block of `quorumSize` PREPARE messages.
 func isJustified(
 	proposal wbft.Proposal,
+	targetView wbft.View,
 	roundChangeMessages []*wbfmessage.SignedRoundChangePayload,
 	prepareMessages []*wbfmessage.Prepare,
 	quorumSize int) error {
@@ -49,6 +50,14 @@ func isJustified(
 	// Check the size of the set of ROUND-CHANGE messages
 	if len(dedupedRoundChanges) < quorumSize {
 		return errors.New("number of roundchange messages is less than required quorum of messages")
+	}
+
+	// Reject ROUND-CHANGE messages that don't belong to the target view.
+	// This prevents replay attacks using stale justifications from earlier rounds or sequences.
+	for _, rc := range dedupedRoundChanges {
+		if rc.Sequence.Cmp(targetView.Sequence) != 0 || rc.Round.Cmp(targetView.Round) != 0 {
+			return errors.New("round-change message view does not match target view")
+		}
 	}
 
 	// Check the size of the set of PREPARE messages

@@ -160,14 +160,14 @@ func testParameterizedCase(
 		fmt.Printf("PR %v\n", m)
 	}
 	fmt.Println("roundChangeMessages", roundChangeMessages, len(roundChangeMessages))
-	if err := isJustified(block, roundChangeMessages, prepareMessages, quorumSize); err == nil && !messageJustified {
+	if err := isJustified(block, wbft.View{Sequence: big.NewInt(1), Round: big.NewInt(round)}, roundChangeMessages, prepareMessages, quorumSize); err == nil && !messageJustified {
 		t.Errorf("quorumSize = %v, rcForNil = %v, rcEqualToTargetRound = %v, rcLowerThanTargetRound = %v, rcHigherThanTargetRound = %v, preparesForTargetRound = %v, preparesNotForTargetRound = %v (Expected: %v, Actual: %v)",
 			quorumSize, rcForNil, rcEqualToTargetRound, rcLowerThanTargetRound, rcHigherThanTargetRound, preparesForTargetRound, preparesNotForTargetRound, err == nil, !messageJustified)
 	}
 }
 
 func createRoundChangeMessage(from common.Address, round int64, preparedRound int64, preparedBlock wbft.Proposal) *wbfmessage.SignedRoundChangePayload {
-	m := wbfmessage.NewRoundChange(big.NewInt(1), big.NewInt(1), big.NewInt(preparedRound), preparedBlock)
+	m := wbfmessage.NewRoundChange(big.NewInt(1), big.NewInt(round), big.NewInt(preparedRound), preparedBlock)
 	m.SetSource(from)
 	return &m.SignedRoundChangePayload
 }
