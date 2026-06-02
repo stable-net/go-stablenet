@@ -229,33 +229,28 @@ func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum 
 		return 0, 0, 0, 0, errors.New("pass the start block number")
 	}
 
+	currentNum := api.chain.CurrentHeader().Number.Uint64()
+
 	var start, end uint64
-	var blockNumber rpc.BlockNumber
 
 	if startBlockNum == nil && endBlockNum == nil {
-		// Default: last 64 blocks
-		header := api.chain.CurrentHeader()
-		end = header.Number.Uint64()
+		// Default: last 64 blocks. When end < 63, start remains 0 (genesis included).
+		end = currentNum
 		if end >= 63 {
-			start = end - 63 // 64 blocks total
-		} else {
-			start = 1 // Start from block 1 if not enough blocks
+			start = end - 63
 		}
-		blockNumber = rpc.BlockNumber(header.Number.Int64())
 	} else {
 		end = uint64(*endBlockNum)
 		start = uint64(*startBlockNum)
 		if start > end {
 			return 0, 0, 0, 0, errors.New("start block number should be less than end block number")
 		}
-
-		if end > api.chain.CurrentHeader().Number.Uint64() {
+		if end > currentNum {
 			return 0, 0, 0, 0, errors.New("end block number should be less than or equal to current block height")
 		}
-
-		blockNumber = rpc.BlockNumber(end)
 	}
 
+	blockNumber := rpc.BlockNumber(end)
 	numBlocks := end - start + 1
 	return start, end, numBlocks, blockNumber, nil
 }
