@@ -219,6 +219,9 @@ func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNum
 	}, nil
 }
 
+// maxStatusBlockRange is the maximum number of blocks allowed per Status request to prevent DoS.
+const maxStatusBlockRange = 1024
+
 // calculateBlockRange calculates the block range for status collection
 func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNumber) (uint64, uint64, uint64, rpc.BlockNumber, error) {
 	if startBlockNum != nil && endBlockNum == nil {
@@ -232,7 +235,6 @@ func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum 
 	currentNum := api.chain.CurrentHeader().Number.Uint64()
 
 	var start, end uint64
-
 	if startBlockNum == nil && endBlockNum == nil {
 		// Default: last 64 blocks. When end < 63, start remains 0 (genesis included).
 		end = currentNum
@@ -250,8 +252,11 @@ func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum 
 		}
 	}
 
-	blockNumber := rpc.BlockNumber(end)
 	numBlocks := end - start + 1
+	if numBlocks > maxStatusBlockRange {
+		return 0, 0, 0, 0, fmt.Errorf("requested range too large: %d blocks (max %d)", numBlocks, maxStatusBlockRange)
+	}
+	blockNumber := rpc.BlockNumber(end)
 	return start, end, numBlocks, blockNumber, nil
 }
 
