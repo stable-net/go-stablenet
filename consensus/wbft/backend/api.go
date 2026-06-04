@@ -242,8 +242,22 @@ func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum 
 			start = end - 63
 		}
 	} else {
-		end = uint64(*endBlockNum)
-		start = uint64(*startBlockNum)
+		resolve := func(n rpc.BlockNumber) (uint64, error) {
+			if n >= 0 {
+				return uint64(n), nil
+			}
+			if n == rpc.LatestBlockNumber {
+				return currentNum, nil
+			}
+			return 0, fmt.Errorf("unsupported block number: %d", n)
+		}
+		var err error
+		if end, err = resolve(*endBlockNum); err != nil {
+			return 0, 0, 0, 0, err
+		}
+		if start, err = resolve(*startBlockNum); err != nil {
+			return 0, 0, 0, 0, err
+		}
 		if start > end {
 			return 0, 0, 0, 0, errors.New("start block number should be less than end block number")
 		}
