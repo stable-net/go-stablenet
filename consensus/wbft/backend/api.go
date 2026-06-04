@@ -166,25 +166,25 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 
 // Status returns validator activity statistics and round statistics for the specified block range
 func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNumber) (*Status, error) {
-	// Calculate block range
-	start, end, numBlocks, blockNumber, err := api.calculateBlockRange(startBlockNum, endBlockNum)
+	start, end, numBlocks, err := api.calculateBlockRange(startBlockNum, endBlockNum)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get validators
-	signers, err := api.GetValidators(&blockNumber)
-	if err != nil {
-		return nil, err
+	activity := SealerActivity{
+		Total:         make(map[common.Address]int),
+		Prepared:      make(map[common.Address]int),
+		Committed:     make(map[common.Address]int),
+		PrevPrepared:  make(map[common.Address]int),
+		PrevCommitted: make(map[common.Address]int),
 	}
+	authorCounts := make(map[common.Address]int)
 
-	// Initialize counters
-	authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts := api.initializeCounters(signers)
+	var cachedCurVals, cachedPrevVals []common.Address
 
-	// Analyze blocks and collect statistics
 	roundDistribution := make(map[uint64]uint64)
 	for n := start; n <= end; n++ {
-		round, err := api.analyzeBlock(n, authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts)
+		round, err := api.analyzeBlock(n, &activity, authorCounts, &cachedCurVals, &cachedPrevVals)
 		if err != nil {
 			return nil, err
 		}
@@ -192,14 +192,8 @@ func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNum
 	}
 
 	return &Status{
-		SealerActivity: SealerActivity{
-			Total:         totalSealCounts,
-			Prepared:      preparedCounts,
-			Committed:     committedCounts,
-			PrevPrepared:  prevPreparedCounts,
-			PrevCommitted: prevCommittedCounts,
-		},
-		AuthorCounts: authorCounts,
+		SealerActivity: activity,
+		AuthorCounts:   authorCounts,
 		BlockRange: BlockRange{
 			StartBlock:  start,
 			EndBlock:    end,
@@ -215,13 +209,13 @@ func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNum
 const maxStatusBlockRange = 1024
 
 // calculateBlockRange calculates the block range for status collection
-func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNumber) (uint64, uint64, uint64, rpc.BlockNumber, error) {
+func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNumber) (uint64, uint64, uint64, error) {
 	if startBlockNum != nil && endBlockNum == nil {
-		return 0, 0, 0, 0, errors.New("pass the end block number")
+		return 0, 0, 0, errors.New("pass the end block number")
 	}
 
 	if startBlockNum == nil && endBlockNum != nil {
-		return 0, 0, 0, 0, errors.New("pass the start block number")
+		return 0, 0, 0, errors.New("pass the start block number")
 	}
 
 	currentNum := api.chain.CurrentHeader().Number.Uint64()
@@ -245,50 +239,29 @@ func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum 
 		}
 		var err error
 		if end, err = resolve(*endBlockNum); err != nil {
-			return 0, 0, 0, 0, err
+			return 0, 0, 0, err
 		}
 		if start, err = resolve(*startBlockNum); err != nil {
-			return 0, 0, 0, 0, err
+			return 0, 0, 0, err
 		}
 		if start > end {
-			return 0, 0, 0, 0, errors.New("start block number should be less than end block number")
+			return 0, 0, 0, errors.New("start block number should be less than end block number")
 		}
 		if end > currentNum {
-			return 0, 0, 0, 0, errors.New("end block number should be less than or equal to current block height")
+			return 0, 0, 0, errors.New("end block number should be less than or equal to current block height")
 		}
 	}
 
 	numBlocks := end - start + 1
 	if numBlocks > maxStatusBlockRange {
-		return 0, 0, 0, 0, fmt.Errorf("requested range too large: %d blocks (max %d)", numBlocks, maxStatusBlockRange)
+		return 0, 0, 0, fmt.Errorf("requested range too large: %d blocks (max %d)", numBlocks, maxStatusBlockRange)
 	}
-	blockNumber := rpc.BlockNumber(end)
-	return start, end, numBlocks, blockNumber, nil
+	return start, end, numBlocks, nil
 }
 
-// initializeCounters initializes all counter maps for validators
-func (api *API) initializeCounters(signers []common.Address) (map[common.Address]int, map[common.Address]int, map[common.Address]int, map[common.Address]int, map[common.Address]int, map[common.Address]int) {
-	authorCounts := make(map[common.Address]int)
-	preparedCounts := make(map[common.Address]int)
-	committedCounts := make(map[common.Address]int)
-	prevPreparedCounts := make(map[common.Address]int)
-	prevCommittedCounts := make(map[common.Address]int)
-	totalSealCounts := make(map[common.Address]int)
-
-	for _, s := range signers {
-		authorCounts[s] = 0
-		preparedCounts[s] = 0
-		committedCounts[s] = 0
-		prevPreparedCounts[s] = 0
-		prevCommittedCounts[s] = 0
-		totalSealCounts[s] = 0
-	}
-
-	return authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts
-}
-
-// analyzeBlock analyzes a single block and updates counters
-func (api *API) analyzeBlock(blockNum uint64, authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts map[common.Address]int) (uint64, error) {
+// analyzeBlock analyzes a single block and updates counters.
+// Validator sets are cached and refreshed only on epoch transition to avoid redundant DB calls.
+func (api *API) analyzeBlock(blockNum uint64, activity *SealerActivity, authorCounts map[common.Address]int, cachedCurVals, cachedPrevVals *[]common.Address) (uint64, error) {
 	header := api.chain.GetHeaderByNumber(blockNum)
 	if header == nil {
 		return 0, fmt.Errorf("block %d not found", blockNum)
@@ -299,20 +272,37 @@ func (api *API) analyzeBlock(blockNum uint64, authorCounts, preparedCounts, comm
 		return 0, fmt.Errorf("block %d: failed to extract WBFT extra: %w", blockNum, err)
 	}
 
-	curValidators, prevValidators, err := api.backend.GetValidatorsForVerifying(api.chain, header, nil)
-	if err != nil {
-		return 0, fmt.Errorf("block %d: failed to get validators: %w", blockNum, err)
+	// Refresh validator cache on first block or after epoch transition
+	if *cachedCurVals == nil {
+		curValidators, prevValidators, err := api.backend.GetValidatorsForVerifying(api.chain, header, nil)
+		if err != nil {
+			return 0, fmt.Errorf("block %d: failed to get validators: %w", blockNum, err)
+		}
+		*cachedCurVals = curValidators.AddressList()
+		*cachedPrevVals = prevValidators.AddressList()
+
+		// Initialize zero baseline for validators entering the range or new epoch
+		initZero := func(addr common.Address, maps ...map[common.Address]int) {
+			for _, m := range maps {
+				if _, ok := m[addr]; !ok {
+					m[addr] = 0
+				}
+			}
+		}
+		for _, addr := range *cachedCurVals {
+			initZero(addr, activity.Prepared, activity.Committed, activity.Total, authorCounts)
+		}
+		for _, addr := range *cachedPrevVals {
+			initZero(addr, activity.PrevPrepared, activity.PrevCommitted, activity.Total, authorCounts)
+		}
 	}
-	curVals := curValidators.AddressList()
-	prevVals := prevValidators.AddressList()
+	curVals := *cachedCurVals
+	prevVals := *cachedPrevVals
 
 	// All data collected — update counters to avoid partial updates on error.
 	// Count block author (proposal creator)
 	author, err := api.backend.Author(header)
 	if err == nil {
-		if _, ok := authorCounts[author]; !ok {
-			authorCounts[author] = 0
-		}
 		authorCounts[author]++
 	}
 
@@ -320,32 +310,35 @@ func (api *API) analyzeBlock(blockNum uint64, authorCounts, preparedCounts, comm
 		for _, idx := range indices {
 			if int(idx) < len(vals) {
 				addr := vals[idx]
-				if _, ok := target[addr]; !ok {
-					target[addr] = 0
-				}
 				target[addr]++
 				// addToTotal is false for null seals to exclude them from the total count
 				if addToTotal {
-					if _, ok := totalSealCounts[addr]; !ok {
-						totalSealCounts[addr] = 0
-					}
-					totalSealCounts[addr]++
+					activity.Total[addr]++
 				}
 			}
 		}
 	}
 
 	if extra.PreparedSeal != nil {
-		addCounts(extra.PreparedSeal.Sealers.GetSealers(), curVals, preparedCounts, true)
+		addCounts(extra.PreparedSeal.Sealers.GetSealers(), curVals, activity.Prepared, true)
 	}
 	if extra.CommittedSeal != nil {
-		addCounts(extra.CommittedSeal.Sealers.GetSealers(), curVals, committedCounts, true)
+		addCounts(extra.CommittedSeal.Sealers.GetSealers(), curVals, activity.Committed, true)
 	}
 	if extra.PrevPreparedSeal != nil {
-		addCounts(extra.PrevPreparedSeal.Sealers.GetSealers(), prevVals, prevPreparedCounts, true)
+		addCounts(extra.PrevPreparedSeal.Sealers.GetSealers(), prevVals, activity.PrevPrepared, true)
 	}
 	if extra.PrevCommittedSeal != nil {
-		addCounts(extra.PrevCommittedSeal.Sealers.GetSealers(), prevVals, prevCommittedCounts, true)
+		addCounts(extra.PrevCommittedSeal.Sealers.GetSealers(), prevVals, activity.PrevCommitted, true)
+	}
+
+	if extra.EpochInfo != nil {
+		// Next block starts a new epoch: reset cache to trigger refresh.
+		// prevVals sync is skipped — GetValidatorsForVerifying will return correct values on next block.
+		*cachedCurVals = nil
+	} else {
+		// Sync prevVals to curVals for subsequent blocks in the same epoch.
+		*cachedPrevVals = *cachedCurVals
 	}
 
 	return uint64(extra.Round), nil
