@@ -185,7 +185,10 @@ func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNum
 	// Analyze blocks and collect statistics
 	roundDistribution := make(map[uint64]uint64)
 	for n := start; n <= end; n++ {
-		round := api.analyzeBlock(n, authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts)
+		round, err := api.analyzeBlock(n, authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts)
+		if err != nil {
+			return nil, err
+		}
 		roundDistribution[round]++
 	}
 
@@ -296,13 +299,25 @@ func (api *API) initializeCounters(signers []common.Address) (map[common.Address
 }
 
 // analyzeBlock analyzes a single block and updates counters
-func (api *API) analyzeBlock(blockNum uint64, authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts map[common.Address]int) uint64 {
-	// Fetch header
+func (api *API) analyzeBlock(blockNum uint64, authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts map[common.Address]int) (uint64, error) {
 	header := api.chain.GetHeaderByNumber(blockNum)
 	if header == nil {
-		return 0
+		return 0, fmt.Errorf("block %d not found", blockNum)
 	}
 
+	extra, err := types.ExtractWBFTExtra(header)
+	if err != nil {
+		return 0, fmt.Errorf("block %d: failed to extract WBFT extra: %w", blockNum, err)
+	}
+
+	curValidators, prevValidators, err := api.backend.GetValidatorsForVerifying(api.chain, header, nil)
+	if err != nil {
+		return 0, fmt.Errorf("block %d: failed to get validators: %w", blockNum, err)
+	}
+	curVals := curValidators.AddressList()
+	prevVals := prevValidators.AddressList()
+
+	// All data collected — update counters to avoid partial updates on error.
 	// Count block author (proposal creator)
 	author, err := api.backend.Author(header)
 	if err == nil {
@@ -312,30 +327,15 @@ func (api *API) analyzeBlock(blockNum uint64, authorCounts, preparedCounts, comm
 		authorCounts[author]++
 	}
 
-	// Count signers from prepared/committed and previous-round seals
-	extra, err := types.ExtractWBFTExtra(header)
-	if err != nil {
-		return 0
-	}
-
-	curValidators, prevValidators, err := api.backend.GetValidatorsForVerifying(api.chain, header, nil)
-	if err != nil {
-		return uint64(extra.Round)
-	}
-	curVals := curValidators.AddressList()
-	prevVals := prevValidators.AddressList()
-
-	// helper to add counts safely
 	addCounts := func(indices []uint32, vals []common.Address, target map[common.Address]int, addToTotal bool) {
 		for _, idx := range indices {
 			if int(idx) < len(vals) {
 				addr := vals[idx]
-				// ensure key exists on target
 				if _, ok := target[addr]; !ok {
 					target[addr] = 0
 				}
 				target[addr]++
-				// only add to total if requested (for actual seals, not null ones)
+				// addToTotal is false for null seals to exclude them from the total count
 				if addToTotal {
 					if _, ok := totalSealCounts[addr]; !ok {
 						totalSealCounts[addr] = 0
@@ -359,7 +359,7 @@ func (api *API) analyzeBlock(blockNum uint64, authorCounts, preparedCounts, comm
 		addCounts(extra.PrevCommittedSeal.Sealers.GetSealers(), prevVals, prevCommittedCounts, true)
 	}
 
-	return uint64(extra.Round)
+	return uint64(extra.Round), nil
 }
 
 func (api *API) IsValidator(blockNum *rpc.BlockNumber) (bool, error) {
