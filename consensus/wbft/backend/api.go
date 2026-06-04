@@ -69,7 +69,6 @@ type BlockRange struct {
 // RoundStats contains round distribution statistics
 type RoundStats struct {
 	RoundDistribution map[uint64]uint64 `json:"roundDistribution"` // Map of round number to occurrence count
-	TotalRounds       uint64            `json:"totalRounds"`       // Total number of rounds processed
 }
 
 // Status contains validator activity statistics
@@ -192,15 +191,6 @@ func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNum
 		roundDistribution[round]++
 	}
 
-	// Calculate total rounds (weighted sum) and remove rounds with zero count
-	var totalRounds uint64
-	for round, count := range roundDistribution {
-		if count == 0 {
-			delete(roundDistribution, round)
-		} else {
-			totalRounds += round * count
-		}
-	}
 	return &Status{
 		SealerActivity: SealerActivity{
 			Total:         totalSealCounts,
@@ -217,7 +207,6 @@ func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNum
 		},
 		RoundStats: RoundStats{
 			RoundDistribution: roundDistribution,
-			TotalRounds:       totalRounds,
 		},
 	}, nil
 }
