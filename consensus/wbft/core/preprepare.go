@@ -21,6 +21,7 @@
 package core
 
 import (
+	"errors"
 	"math/big"
 	"time"
 
@@ -133,7 +134,12 @@ func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 	// Validates PRE-PREPARE message justification
 	if preprepare.Round.Uint64() > 0 {
 		if err := isJustified(preprepare.Proposal, preprepare.View(), preprepare.JustificationRoundChanges, preprepare.JustificationPrepares, c.valSet.QuorumSize()); err != nil {
-			logger.Warn("WBFT: invalid PRE-PREPARE message justification", "err", err)
+			var je *justificationError
+			if errors.As(err, &je) {
+				logger.Warn("WBFT: invalid PRE-PREPARE message justification", je.CtxWithErr()...)
+			} else {
+				logger.Warn("WBFT: invalid PRE-PREPARE message justification", "err", err)
+			}
 			return errInvalidPreparedBlock
 		}
 	}

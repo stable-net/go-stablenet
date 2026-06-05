@@ -195,7 +195,12 @@ func (c *Core) handleRoundChangeMsg(roundChange *wbfmessage.RoundChange) error {
 
 		prepareMessages := c.roundChangeSet.prepareMessages[currentRound.Uint64()]
 		if err := isJustified(proposal, *c.currentView(), rcSignedPayloads, prepareMessages, c.valSet.QuorumSize()); err != nil {
-			logger.Error("WBFT: invalid ROUND-CHANGE message justification", "err", err)
+			var je *justificationError
+			if errors.As(err, &je) {
+				logger.Error("WBFT: invalid ROUND-CHANGE message justification", je.CtxWithErr()...)
+			} else {
+				logger.Error("WBFT: invalid ROUND-CHANGE message justification", "err", err)
+			}
 			return nil
 		}
 
@@ -265,10 +270,13 @@ func (rcs *roundChangeSet) Add(r *big.Int, msg wbfmessage.WBFTMessage, preparedR
 
 	if preparedRound != nil && (rcs.highestPreparedRound[round] == nil || preparedRound.Cmp(rcs.highestPreparedRound[round]) > 0) {
 		roundChange := msg.(*wbfmessage.RoundChange)
-		if hasMatchingRoundChangeAndPrepares(roundChange, prepareMessages, quorumSize) == nil {
+		if err := hasMatchingRoundChangeAndPrepares(roundChange, prepareMessages, quorumSize); err == nil {
 			rcs.highestPreparedRound[round] = preparedRound
 			rcs.highestPreparedBlock[round] = preparedBlock
 			rcs.prepareMessages[round] = prepareMessages
+		} else {
+			log.Warn("WBFT: ROUND-CHANGE prepared justification mismatch, ignoring prepared state",
+				"source", roundChange.Source(), "round", round, "err", err)
 		}
 	}
 
