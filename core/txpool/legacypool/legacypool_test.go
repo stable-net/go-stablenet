@@ -3209,3 +3209,98 @@ func BenchmarkMultiAccountBatchInsert(b *testing.B) {
 		pool.addRemotesSync([]*types.Transaction{tx})
 	}
 }
+
+// feeDelegateTx builds a fee delegation dynamic-fee transaction signed by both
+// the sender (over the inner DynamicFeeTx) and the fee payer (over the wrapping
+// FeeDelegateDynamicFeeTx).
+func feeDelegateTx(chainID *big.Int, nonce uint64, gas uint64, gasFeeCap, gasTipCap, value *big.Int, senderKey, feePayerKey *ecdsa.PrivateKey) *types.Transaction {
+	to := common.Address{}
+	inner := types.DynamicFeeTx{
+		ChainID:   chainID,
+		Nonce:     nonce,
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+		Gas:       gas,
+		To:        &to,
+		Value:     value,
+	}
+	signedSender := types.MustSignNewTx(senderKey, types.LatestSignerForChainID(chainID), &inner)
+	v, r, s := signedSender.RawSignatureValues()
+	inner.V, inner.R, inner.S = v, r, s
+
+	feePayer := crypto.PubkeyToAddress(feePayerKey.PublicKey)
+	fd := &types.FeeDelegateDynamicFeeTx{FeePayer: &feePayer}
+	fd.SetSenderTx(inner)
+	return types.MustSignNewTx(feePayerKey, types.NewFeeDelegateSigner(chainID), fd)
+}
+
+// TestFeeDelegationCumulativeGas verifies that the pool aggregates the gas
+// obligations of fee delegation transactions per fee payer across the many
+// sender lists it subsidises, and rejects new transactions once that aggregate
+// would overdraw the fee payer's balance, while leaving the per-sender value
+// accounting intact.
+func TestFeeDelegationCumulativeGas(t *testing.T) {
+	t.Parallel()
+
+	config := *params.TestChainConfig
+	config.ApplepieBlock = big.NewInt(0) // enable fee delegation tx type
+	pool, _ := setupPoolWithConfig(&config)
+	defer pool.Close()
+
+	chainID := config.ChainID
+	const gas = 21000
+	gasFeeCap := big.NewInt(1_000_000_000)
+	gasTipCap := big.NewInt(1)
+	value := big.NewInt(100)
+	perTxGas := new(big.Int).Mul(big.NewInt(gas), gasFeeCap) // FeeCost per tx
+
+	// Fee payer can cover exactly two transactions' gas, not three.
+	feePayerKey, _ := crypto.GenerateKey()
+	feePayer := crypto.PubkeyToAddress(feePayerKey.PublicKey)
+	testAddBalance(pool, feePayer, new(big.Int).Add(new(big.Int).Mul(perTxGas, big.NewInt(2)), new(big.Int).Div(perTxGas, big.NewInt(2))))
+
+	// Three distinct senders, each amply funded for their own value transfer.
+	senders := make([]*ecdsa.PrivateKey, 3)
+	txs := make([]*types.Transaction, 3)
+	for i := range senders {
+		senders[i], _ = crypto.GenerateKey()
+		testAddBalance(pool, crypto.PubkeyToAddress(senders[i].PublicKey), big.NewInt(1_000_000))
+		txs[i] = feeDelegateTx(chainID, 0, gas, gasFeeCap, gasTipCap, value, senders[i], feePayerKey)
+	}
+
+	// First two transactions fit within the fee payer's balance.
+	if err := pool.Add([]*types.Transaction{txs[0]}, true, true)[0]; err != nil {
+		t.Fatalf("tx 0: unexpected error: %v", err)
+	}
+	if err := pool.Add([]*types.Transaction{txs[1]}, true, true)[0]; err != nil {
+		t.Fatalf("tx 1: unexpected error: %v", err)
+	}
+
+	// The pool-wide gas index must now reflect both transactions' fees.
+	pool.mu.RLock()
+	gotGas := new(big.Int)
+	if g := pool.pendingGas[feePayer]; g != nil {
+		gotGas = g.ToBig()
+	}
+	pool.mu.RUnlock()
+	if want := new(big.Int).Mul(perTxGas, big.NewInt(2)); gotGas.Cmp(want) != 0 {
+		t.Fatalf("pendingGas[feePayer] = %v, want %v", gotGas, want)
+	}
+
+	// The third transaction is individually affordable, but pushes the fee
+	// payer's aggregate gas obligation over its balance and must be rejected.
+	if err := pool.Add([]*types.Transaction{txs[2]}, true, true)[0]; !errors.Is(err, txpool.ErrFeePayerInsufficientFunds) {
+		t.Fatalf("tx 2: error = %v, want %v", err, txpool.ErrFeePayerInsufficientFunds)
+	}
+
+	// Removing one accepted transaction frees enough of the fee payer's budget
+	// for the previously rejected one to be admitted, proving the index is also
+	// maintained on removal.
+	pool.removeTx(txs[0].Hash(), false, true)
+	if err := pool.Add([]*types.Transaction{txs[2]}, true, true)[0]; err != nil {
+		t.Fatalf("tx 2 after removal: unexpected error: %v", err)
+	}
+	if err := validatePoolInternals(pool); err != nil {
+		t.Fatalf("pool internal state corrupted: %v", err)
+	}
+}

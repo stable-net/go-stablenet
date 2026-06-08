@@ -277,16 +277,36 @@ type list struct {
 	costcap   *uint256.Int // Price of the highest costing transaction (reset only if exceeds balance)
 	gascap    uint64       // Gas limit of the highest spending transaction (reset only if exceeds block limit)
 	totalcost *uint256.Int // Total cost of all transactions in the list
+
+	// totalvalue is the cumulative tx.Value() of every transaction in the list,
+	// i.e. the amount this account owes purely as a *sender* (regardless of who
+	// pays the gas). Used for the cumulative overdraft check.
+	totalvalue *uint256.Int
+
+	// totalgas is the cumulative gas-side cost (tx.FeeCost()) of the transactions
+	// in this list for which this account is also the gas payer, i.e. every
+	// non-fee-delegated transaction. Gas owed via fee delegation is attributed to
+	// the fee payer through pendingGas instead, since that account may not have a
+	// list of its own.
+	totalgas *uint256.Int
+
+	// pendingGas is a pool-wide map (shared by reference across all per-account
+	// lists) tracking the cumulative gas (tx.FeeCost()) each account owes when it
+	// acts as the fee payer of fee-delegated transactions. nil is tolerated
+	// (e.g. in unit tests), in which case fee-delegation gas is simply not tracked.
+	pendingGas map[common.Address]*uint256.Int
 }
 
 // newList creates a new transaction list for maintaining nonce-indexable fast,
 // gapped, sortable transaction lists.
 func newList(strict bool) *list {
 	return &list{
-		strict:    strict,
-		txs:       newSortedMap(),
-		costcap:   new(uint256.Int),
-		totalcost: new(uint256.Int),
+		strict:     strict,
+		txs:        newSortedMap(),
+		costcap:    new(uint256.Int),
+		totalcost:  new(uint256.Int),
+		totalvalue: new(uint256.Int),
+		totalgas:   new(uint256.Int),
 	}
 }
 
@@ -333,6 +353,7 @@ func (l *list) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Transa
 		return false, nil
 	}
 	l.totalcost.Add(l.totalcost, cost)
+	l.addCost(tx)
 
 	// Otherwise overwrite the old transaction with the current one
 	l.txs.Put(tx)
@@ -471,6 +492,60 @@ func (l *list) subTotalCost(txs []*types.Transaction) {
 		if underflow {
 			panic("totalcost underflow")
 		}
+		l.subCost(tx)
+	}
+}
+
+// addCost attributes a transaction's value and gas obligations to the right
+// accounts: the value is always owed by the sender (this list's owner), while
+// the gas is owed by the sender for normal transactions or by the fee payer for
+// fee-delegated transactions (tracked pool-wide via pendingGas).
+func (l *list) addCost(tx *types.Transaction) {
+	l.totalvalue.Add(l.totalvalue, uint256.MustFromBig(tx.Value()))
+
+	feeCost := uint256.MustFromBig(tx.FeeCost())
+	if tx.Type() == types.FeeDelegateDynamicFeeTxType && tx.FeePayer() != nil {
+		if l.pendingGas == nil {
+			return
+		}
+		payer := *tx.FeePayer()
+		acc := l.pendingGas[payer]
+		if acc == nil {
+			acc = new(uint256.Int)
+			l.pendingGas[payer] = acc
+		}
+		acc.Add(acc, feeCost)
+		return
+	}
+	l.totalgas.Add(l.totalgas, feeCost)
+}
+
+// subCost reverses addCost for a removed transaction.
+func (l *list) subCost(tx *types.Transaction) {
+	if _, underflow := l.totalvalue.SubOverflow(l.totalvalue, uint256.MustFromBig(tx.Value())); underflow {
+		panic("totalvalue underflow")
+	}
+
+	feeCost := uint256.MustFromBig(tx.FeeCost())
+	if tx.Type() == types.FeeDelegateDynamicFeeTxType && tx.FeePayer() != nil {
+		if l.pendingGas == nil {
+			return
+		}
+		payer := *tx.FeePayer()
+		acc := l.pendingGas[payer]
+		if acc == nil {
+			panic("pendingGas underflow")
+		}
+		if _, underflow := acc.SubOverflow(acc, feeCost); underflow {
+			panic("pendingGas underflow")
+		}
+		if acc.IsZero() {
+			delete(l.pendingGas, payer)
+		}
+		return
+	}
+	if _, underflow := l.totalgas.SubOverflow(l.totalgas, feeCost); underflow {
+		panic("totalgas underflow")
 	}
 }
 
