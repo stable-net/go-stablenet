@@ -30,8 +30,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// Returns true if the `proposal` is justified by the set `roundChangeMessages` of ROUND-CHANGE messages
-// and by the set `prepareMessages` of PREPARE messages.
+// isJustified returns nil if the `proposal` is justified by the set `roundChangeMessages` of
+// ROUND-CHANGE messages and by the set `prepareMessages` of PREPARE messages for `targetView`.
+// All ROUND-CHANGE messages must belong to `targetView` to prevent replay attacks using stale
+// justifications from earlier rounds or sequences.
 // For this we must either have:
 //   - a quorum of ROUND-CHANGE messages with preparedRound and preparedBlockDigest equal to nil; or
 //   - a ROUND-CHANGE message (1) whose preparedRound is not nil and is equal or higher than the
@@ -39,6 +41,7 @@ import (
 //     preparedBlockDigest match the round and block of `quorumSize` PREPARE messages.
 func isJustified(
 	proposal wbft.Proposal,
+	targetView wbft.View,
 	roundChangeMessages []*wbfmessage.SignedRoundChangePayload,
 	prepareMessages []*wbfmessage.Prepare,
 	quorumSize int) error {
@@ -51,6 +54,15 @@ func isJustified(
 		return errors.New("number of roundchange messages is less than required quorum of messages")
 	}
 
+	// Reject ROUND-CHANGE messages that don't belong to the target view.
+	// This prevents replay attacks using stale justifications from earlier rounds or sequences.
+	for _, rc := range dedupedRoundChanges {
+		if rc.Sequence.Cmp(targetView.Sequence) != 0 || rc.Round.Cmp(targetView.Round) != 0 {
+			return newJustificationError("round-change message view does not match target view",
+				"rc.seq", rc.Sequence, "rc.round", rc.Round)
+		}
+	}
+
 	// Check the size of the set of PREPARE messages
 	if len(dedupedPrepares) != 0 && len(dedupedPrepares) < quorumSize {
 		return errors.New("number of prepared messages is less than required quorum of messages")
@@ -61,8 +73,13 @@ func isJustified(
 	if len(dedupedPrepares) > 0 {
 		preparedRound = dedupedPrepares[0].Round
 		for _, spp := range dedupedPrepares {
-			if preparedRound.Cmp(spp.Round) != 0 || proposal.Hash() != spp.Digest {
-				return errors.New("prepared messages do not have same round or do not match proposal")
+			if preparedRound.Cmp(spp.Round) != 0 {
+				return newJustificationError("prepare message round mismatch",
+					"expected", preparedRound, "got", spp.Round)
+			}
+			if proposal.Hash() != spp.Digest {
+				return newJustificationError("prepare message digest mismatch",
+					"proposalHash", proposal.Hash().Hex(), "digest", spp.Digest.Hex())
 			}
 		}
 	}

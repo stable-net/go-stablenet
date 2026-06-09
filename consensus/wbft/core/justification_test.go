@@ -160,14 +160,14 @@ func testParameterizedCase(
 		fmt.Printf("PR %v\n", m)
 	}
 	fmt.Println("roundChangeMessages", roundChangeMessages, len(roundChangeMessages))
-	if err := isJustified(block, roundChangeMessages, prepareMessages, quorumSize); err == nil && !messageJustified {
+	if err := isJustified(block, wbft.View{Sequence: big.NewInt(1), Round: big.NewInt(round)}, roundChangeMessages, prepareMessages, quorumSize); err == nil && !messageJustified {
 		t.Errorf("quorumSize = %v, rcForNil = %v, rcEqualToTargetRound = %v, rcLowerThanTargetRound = %v, rcHigherThanTargetRound = %v, preparesForTargetRound = %v, preparesNotForTargetRound = %v (Expected: %v, Actual: %v)",
 			quorumSize, rcForNil, rcEqualToTargetRound, rcLowerThanTargetRound, rcHigherThanTargetRound, preparesForTargetRound, preparesNotForTargetRound, err == nil, !messageJustified)
 	}
 }
 
 func createRoundChangeMessage(from common.Address, round int64, preparedRound int64, preparedBlock wbft.Proposal) *wbfmessage.SignedRoundChangePayload {
-	m := wbfmessage.NewRoundChange(big.NewInt(1), big.NewInt(1), big.NewInt(preparedRound), preparedBlock)
+	m := wbfmessage.NewRoundChange(big.NewInt(1), big.NewInt(round), big.NewInt(preparedRound), preparedBlock)
 	m.SetSource(from)
 	return &m.SignedRoundChangePayload
 }
@@ -196,4 +196,115 @@ func makeBlock(number int64) *types.Block {
 	}
 	block := &types.Block{}
 	return block.WithSeal(header)
+}
+
+// Tests that isJustified rejects stale-view replay attacks
+// and accepts valid justifications with the correct view.
+func TestJustifyStaleViewReplay(t *testing.T) {
+	quorumSize := 4
+	pp := wbft.NewRoundRobinProposerPolicy()
+	pp.Use(wbft.ValidatorSortByByte())
+	validatorSet := validator.NewSetByValidators(generateValidators(quorumSize), pp)
+	block := makeBlock(1)
+
+	// target view fixed at Sequence 1, Round 2 for all cases
+	targetView := wbft.View{
+		Sequence: big.NewInt(1),
+		Round:    big.NewInt(2),
+	}
+
+	tests := []struct {
+		name            string
+		rcSequence      int64         // Sequence field of the ROUND-CHANGE messages
+		rcRound         int64         // Round field of the ROUND-CHANGE messages
+		rcPreparedRound *big.Int      // PreparedRound of the ROUND-CHANGE messages (nil = not prepared)
+		rcPreparedBlock wbft.Proposal // PreparedBlock carried in the ROUND-CHANGE messages
+		proposedBlock   wbft.Proposal // block the proposer submits in the PRE-PREPARE
+		expectJustify   bool          // expected outcome of isJustified
+	}{
+		// valid: correct-view justifications that must be accepted.
+		{
+			name:            "valid/nil_rc_quorum",
+			rcSequence:      1,
+			rcRound:         2,
+			rcPreparedRound: nil,
+			rcPreparedBlock: nil,
+			proposedBlock:   block,
+			expectJustify:   true,
+		},
+		{
+			name:            "valid/prepared_rc_quorum",
+			rcSequence:      1,
+			rcRound:         2,
+			rcPreparedRound: big.NewInt(1),
+			rcPreparedBlock: block,
+			proposedBlock:   block,
+			expectJustify:   true,
+		},
+		// invalid: malformed justifications with no adversarial gain — the proposer
+		// still proposes the correct prepared block but with wrong-view RCs.
+		{
+			name:            "invalid/stale_round_prepared_rc",
+			rcSequence:      1,
+			rcRound:         1, // replayed from an earlier round
+			rcPreparedRound: big.NewInt(1),
+			rcPreparedBlock: block,
+			proposedBlock:   block,
+			expectJustify:   false,
+		},
+		// attack: proposer replays stale nil RCs to hide an existing
+		// prepared lock and substitute an arbitrary block.
+		{
+			name:            "attack/suppress_prepared_lock",
+			rcSequence:      1,
+			rcRound:         1, // replayed from an earlier round
+			rcPreparedRound: nil,
+			rcPreparedBlock: nil,
+			proposedBlock:   makeBlock(2), // proposes a different block instead of the locked one
+			expectJustify:   false,
+		},
+		{
+			name:            "attack/stale_sequence_rc",
+			rcSequence:      0, // replayed from a previous sequence
+			rcRound:         2,
+			rcPreparedRound: nil,
+			rcPreparedBlock: nil,
+			proposedBlock:   makeBlock(2), // proposes a different block instead of the locked one
+			expectJustify:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// build ROUND-CHANGE messages
+			rcs := make([]*wbfmessage.SignedRoundChangePayload, 0, quorumSize)
+			for _, v := range validatorSet.List() {
+				m := wbfmessage.NewRoundChange(big.NewInt(tc.rcSequence), big.NewInt(tc.rcRound), tc.rcPreparedRound, tc.rcPreparedBlock)
+				m.SetSource(v.Address())
+				rcs = append(rcs, &m.SignedRoundChangePayload)
+			}
+
+			// build PREPARE messages when rcPreparedRound is set
+			var prepares []*wbfmessage.Prepare
+			if tc.rcPreparedRound != nil {
+				prepares = make([]*wbfmessage.Prepare, 0, quorumSize)
+				for _, v := range validatorSet.List() {
+					prepares = append(prepares, createPrepareMessage(v.Address(), tc.rcPreparedRound.Int64(), tc.rcPreparedBlock))
+				}
+			}
+
+			err := isJustified(tc.proposedBlock, targetView, rcs, prepares, quorumSize)
+			if tc.expectJustify {
+				if err != nil {
+					t.Errorf("expected justification to succeed, but it failed: %v (targetView: Seq=%v Rd=%v, rcView: Seq=%v Rd=%v)",
+						err, targetView.Sequence, targetView.Round, tc.rcSequence, tc.rcRound)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("expected justification to fail, but it succeeded (targetView: Seq=%v Rd=%v, rcView: Seq=%v Rd=%v)",
+						targetView.Sequence, targetView.Round, tc.rcSequence, tc.rcRound)
+				}
+			}
+		})
+	}
 }

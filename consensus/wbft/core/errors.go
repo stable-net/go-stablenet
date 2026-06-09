@@ -50,3 +50,22 @@ var (
 	// significantly ahead of the current view (in sequence or round).
 	errFutureViewTooFar = errors.New("future view too far ahead: sequence or round difference too large")
 )
+
+// justificationError is returned by isJustified when a validation check fails.
+// Error() returns a fixed string for monitoring grouping; Ctx() returns raw
+// diagnostic key-value pairs; CtxWithErr() prepends "err" to Ctx() for direct
+// use in structured logger calls.
+type justificationError struct {
+	msg string
+	ctx []interface{}
+}
+
+func newJustificationError(msg string, ctx ...interface{}) *justificationError {
+	return &justificationError{msg: msg, ctx: ctx}
+}
+
+func (e *justificationError) Error() string      { return e.msg }
+func (e *justificationError) Ctx() []interface{} { return e.ctx }
+func (e *justificationError) CtxWithErr() []interface{} {
+	return append([]interface{}{"err", e}, e.ctx...)
+}
