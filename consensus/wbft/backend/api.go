@@ -427,23 +427,37 @@ func DecodeVanityData(vanity []byte) string {
 	}
 
 	var val []interface{}
+	if err := rlp.DecodeBytes(clean, &val); err != nil || len(val) < 4 {
+		return unknownVanity(clean)
+	}
 
-	err := rlp.DecodeBytes(clean, &val)
-	versionBytes := val[0].([]uint8)
+	versionBytes, ok := val[0].([]uint8)
+	if !ok {
+		return unknownVanity(clean)
+	}
+
 	if len(versionBytes) < 3 {
 		tempBytes := make([]uint8, 3)
 		copy(tempBytes[3-len(versionBytes):], versionBytes)
 		versionBytes = tempBytes
 	}
-	version := uint32(versionBytes[0])<<16 | uint32(versionBytes[1])<<8 | uint32(versionBytes[2])
-	if err == nil && version > 0 {
-		major, minor, patch := versionBytes[0], versionBytes[1], versionBytes[2]
-		clientBytes := val[1].([]byte)
-		goVerBytes := val[2].([]byte)
-		goOSBytes := val[3].([]byte)
-		return fmt.Sprintf("[version: v%d.%d.%d, client: %s, go: %s, os: %s]", major, minor, patch, string(clientBytes), string(goVerBytes), string(goOSBytes))
+
+	major, minor, patch := versionBytes[0], versionBytes[1], versionBytes[2]
+	if uint32(major)<<16|uint32(minor)<<8|uint32(patch) == 0 {
+		return unknownVanity(clean)
 	}
 
+	clientBytes, ok1 := val[1].([]byte)
+	goVerBytes, ok2 := val[2].([]byte)
+	goOSBytes, ok3 := val[3].([]byte)
+	if !ok1 || !ok2 || !ok3 {
+		return unknownVanity(clean)
+	}
+
+	return fmt.Sprintf("[version: v%d.%d.%d, client: %s, go: %s, os: %s]", major, minor, patch, string(clientBytes), string(goVerBytes), string(goOSBytes))
+}
+
+func unknownVanity(clean []byte) string {
 	return fmt.Sprintf("Unknown vanityData format, hex: 0x%s", hex.EncodeToString(clean))
 }
 
