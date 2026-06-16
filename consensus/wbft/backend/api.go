@@ -21,18 +21,15 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
-	"unicode/utf8"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	wbftcommon "github.com/ethereum/go-ethereum/consensus/wbft/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -417,50 +414,6 @@ func epochForJSON(epoch *types.EpochInfo) map[string]interface{} {
 	}
 }
 
-// DecodeVanityData decodes a 32-byte vanityData field.
-// It detects if the input is UTF-8 or RLP encoded, and decodes accordingly.
-func DecodeVanityData(vanity []byte) string {
-	clean := bytes.TrimRight(vanity, "\x00")
-
-	if utf8.Valid(clean) {
-		return string(clean)
-	}
-
-	var val []interface{}
-	if err := rlp.DecodeBytes(clean, &val); err != nil || len(val) < 4 {
-		return unknownVanity(clean)
-	}
-
-	versionBytes, ok := val[0].([]uint8)
-	if !ok {
-		return unknownVanity(clean)
-	}
-
-	if len(versionBytes) < 3 {
-		tempBytes := make([]uint8, 3)
-		copy(tempBytes[3-len(versionBytes):], versionBytes)
-		versionBytes = tempBytes
-	}
-
-	major, minor, patch := versionBytes[0], versionBytes[1], versionBytes[2]
-	if uint32(major)<<16|uint32(minor)<<8|uint32(patch) == 0 {
-		return unknownVanity(clean)
-	}
-
-	clientBytes, ok1 := val[1].([]byte)
-	goVerBytes, ok2 := val[2].([]byte)
-	goOSBytes, ok3 := val[3].([]byte)
-	if !ok1 || !ok2 || !ok3 {
-		return unknownVanity(clean)
-	}
-
-	return fmt.Sprintf("[version: v%d.%d.%d, client: %s, go: %s, os: %s]", major, minor, patch, string(clientBytes), string(goVerBytes), string(goOSBytes))
-}
-
-func unknownVanity(clean []byte) string {
-	return fmt.Sprintf("Unknown vanityData format, hex: 0x%s", hex.EncodeToString(clean))
-}
-
 func (api *API) GetWbftExtraInfo(number rpc.BlockNumber) (map[string]interface{}, error) {
 	bNumber := big.NewInt(int64(number))
 
@@ -484,7 +437,7 @@ func (api *API) GetWbftExtraInfo(number rpc.BlockNumber) (map[string]interface{}
 	}
 
 	result := map[string]interface{}{
-		"vanityData":        DecodeVanityData(extra.VanityData),
+		"vanityData":        "0x" + hex.EncodeToString(extra.VanityData),
 		"randaoReveal":      "0x" + hex.EncodeToString(extra.RandaoReveal),
 		"prevRound":         fmt.Sprintf("0x%x", extra.PrevRound),
 		"prevPreparedSeal":  sealForJSON(extra.PrevPreparedSeal, prevValidators.AddressList()),
