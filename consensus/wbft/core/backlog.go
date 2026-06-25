@@ -50,6 +50,14 @@ const (
 	maxBacklogSizePerValidator = 4 * (roundThreshold + 1) * (sequenceThreshold + 1)
 )
 
+// backlogKey identifies a message slot within a single validator's backlog
+// by message type, sequence, and round.
+type backlogKey struct {
+	code     uint64
+	sequence uint64
+	round    uint64
+}
+
 // isSequenceTooFarAhead returns true if the sequence difference exceeds the threshold
 func (c *Core) isSequenceTooFarAhead(viewSeq, currSeq *big.Int, threshold int64) (*big.Int, bool) {
 	seqDiff := new(big.Int).Sub(viewSeq, currSeq)
@@ -211,17 +219,27 @@ func (c *Core) addToBacklog(msg wbfmessage.WBFTMessage) {
 	defer c.backlogsMu.Unlock()
 
 	backlog := c.backlogs[src]
+	view := msg.View()
+	pkey := backlogKey{msg.Code(), view.Sequence.Uint64(), view.Round.Uint64()}
+
 	if backlog == nil {
+		// First message from this validator: size and dedup checks are unnecessary.
 		backlog = prque.New[int64, wbfmessage.WBFTMessage](nil)
 		c.backlogs[src] = backlog
+		c.backlogKeys[src] = make(map[backlogKey]struct{})
 	} else {
+		// Drop the message if the same (code, sequence, round) slot is already queued for this validator.
+		if _, exists := c.backlogKeys[src][pkey]; exists {
+			logger.Trace("WBFT: duplicate backlog message, dropping", "src", src)
+			return
+		}
 		// Reject messages from a validator whose backlog exceeds the size limit.
 		if backlog.Size() >= maxBacklogSizePerValidator {
 			logger.Warn("WBFT: backlog is full, dropping message", "src", src, "size", backlog.Size())
 			return
 		}
 	}
-	view := msg.View()
+	c.backlogKeys[src][pkey] = struct{}{}
 	backlog.Push(msg, toNegatePriority(msg.Code(), &view))
 }
 
@@ -241,6 +259,7 @@ func (c *Core) processBacklog() {
 		if src == nil {
 			// validator is not available
 			delete(c.backlogs, srcAddress)
+			delete(c.backlogKeys, srcAddress) // purge all keys for the departing validator
 			continue
 		}
 		logger := c.logger.New("from", src, "state", c.state)
@@ -261,6 +280,7 @@ func (c *Core) processBacklog() {
 			code = msg.Code()
 			view = msg.View()
 			event.msg = msg
+			pkey := backlogKey{msg.Code(), view.Sequence.Uint64(), view.Round.Uint64()}
 
 			// Push back if it's a future message
 			err := c.checkMessage(code, &view)
@@ -272,9 +292,12 @@ func (c *Core) processBacklog() {
 					isFuture = true
 					break
 				}
+				// Message is expired or invalid and will never be processable; remove its key.
+				delete(c.backlogKeys[srcAddress], pkey)
 				logger.Trace("WBFT: skip backlog message", "msg", msg, "err", err)
 				continue
 			}
+			delete(c.backlogKeys[srcAddress], pkey) // remove key on dispatch
 			logger.Trace("WBFT: post backlog event", "msg", msg)
 
 			event.src = src

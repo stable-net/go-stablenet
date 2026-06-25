@@ -62,6 +62,7 @@ func New(backend Backend, config *wbft.Config) *Core {
 		logger:             log.New("address", backend.Address()),
 		backend:            backend,
 		backlogs:           make(map[common.Address]*prque.Prque[int64, wbftmessage.WBFTMessage]),
+		backlogKeys:        make(map[common.Address]map[backlogKey]struct{}),
 		backlogsMu:         new(sync.Mutex),
 		prepareExtraSeals:  make(map[common.Address]*wbftmessage.Prepare),
 		commitExtraSeals:   make(map[common.Address]*wbftmessage.Commit),
@@ -94,8 +95,9 @@ type Core struct {
 	valSet     wbft.ValidatorSet
 	validateFn func([]byte, []byte, wbft.View) (common.Address, error)
 
-	backlogs   map[common.Address]*prque.Prque[int64, wbftmessage.WBFTMessage]
-	backlogsMu *sync.Mutex
+	backlogs    map[common.Address]*prque.Prque[int64, wbftmessage.WBFTMessage]
+	backlogKeys map[common.Address]map[backlogKey]struct{}
+	backlogsMu  *sync.Mutex
 
 	prepareExtraSeals map[common.Address]*wbftmessage.Prepare
 	commitExtraSeals  map[common.Address]*wbftmessage.Commit
