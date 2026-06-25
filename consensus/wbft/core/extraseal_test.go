@@ -68,6 +68,7 @@ func makeCoreForTest(priorRound, currentRound, currentSequence *big.Int, lastPro
 		logger:             log.New("address", crypto.PubkeyToAddress(signers[0].PublicKey)),
 		backend:            nil,
 		backlogs:           make(map[common.Address]*prque.Prque[int64, messages.WBFTMessage]),
+		backlogKeys:        make(map[common.Address]map[backlogKey]struct{}),
 		backlogsMu:         new(sync.Mutex),
 		prepareExtraSeals:  make(map[common.Address]*messages.Prepare),
 		commitExtraSeals:   make(map[common.Address]*messages.Commit),
