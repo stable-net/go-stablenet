@@ -44,7 +44,19 @@ var (
 const (
 	sequenceThreshold = 1  // Allow up to 1 future sequence
 	roundThreshold    = 10 // Allow up to 10 future rounds
+
+	// maxBacklogSizePerValidator caps the number of backlog messages per validator,
+	// computed as an upper bound over all 4 message types, rounds, and sequences.
+	maxBacklogSizePerValidator = 4 * (roundThreshold + 1) * (sequenceThreshold + 1)
 )
+
+// backlogKey identifies a message slot within a single validator's backlog
+// by message type, sequence, and round.
+type backlogKey struct {
+	code     uint64
+	sequence uint64
+	round    uint64
+}
 
 // isSequenceTooFarAhead returns true if the sequence difference exceeds the threshold
 func (c *Core) isSequenceTooFarAhead(viewSeq, currSeq *big.Int, threshold int64) (*big.Int, bool) {
@@ -71,6 +83,16 @@ func (c *Core) isTooFarFutureMessage(view *wbft.View) bool {
 				"msg_seq", view.Sequence.String(),
 				"curr_seq", curr.Sequence.String(),
 				"diff", seqDiff.String(),
+			)
+			return true
+		}
+		// Reject future sequence messages with an excessively high round number.
+		// All rounds in a future sequence are future rounds; rounds 0 to roundThreshold-1 are allowed.
+		if view.Round.Cmp(big.NewInt(roundThreshold)) >= 0 {
+			c.logger.Trace("WBFT: future sequence message too far ahead in round, dropped",
+				"msg_view", view.String(),
+				"curr_view", curr.String(),
+				"threshold", roundThreshold,
 			)
 			return true
 		}
@@ -197,11 +219,27 @@ func (c *Core) addToBacklog(msg wbfmessage.WBFTMessage) {
 	defer c.backlogsMu.Unlock()
 
 	backlog := c.backlogs[src]
+	view := msg.View()
+	pkey := backlogKey{msg.Code(), view.Sequence.Uint64(), view.Round.Uint64()}
+
 	if backlog == nil {
+		// First message from this validator: size and dedup checks are unnecessary.
 		backlog = prque.New[int64, wbfmessage.WBFTMessage](nil)
 		c.backlogs[src] = backlog
+		c.backlogKeys[src] = make(map[backlogKey]struct{})
+	} else {
+		// Drop the message if the same (code, sequence, round) slot is already queued for this validator.
+		if _, exists := c.backlogKeys[src][pkey]; exists {
+			logger.Trace("WBFT: duplicate backlog message, dropping", "src", src)
+			return
+		}
+		// Reject messages from a validator whose backlog exceeds the size limit.
+		if backlog.Size() >= maxBacklogSizePerValidator {
+			logger.Warn("WBFT: backlog is full, dropping message", "src", src, "size", backlog.Size())
+			return
+		}
 	}
-	view := msg.View()
+	c.backlogKeys[src][pkey] = struct{}{}
 	backlog.Push(msg, toNegatePriority(msg.Code(), &view))
 }
 
@@ -221,6 +259,7 @@ func (c *Core) processBacklog() {
 		if src == nil {
 			// validator is not available
 			delete(c.backlogs, srcAddress)
+			delete(c.backlogKeys, srcAddress) // purge all keys for the departing validator
 			continue
 		}
 		logger := c.logger.New("from", src, "state", c.state)
@@ -241,6 +280,7 @@ func (c *Core) processBacklog() {
 			code = msg.Code()
 			view = msg.View()
 			event.msg = msg
+			pkey := backlogKey{msg.Code(), view.Sequence.Uint64(), view.Round.Uint64()}
 
 			// Push back if it's a future message
 			err := c.checkMessage(code, &view)
@@ -252,9 +292,12 @@ func (c *Core) processBacklog() {
 					isFuture = true
 					break
 				}
+				// Message is expired or invalid and will never be processable; remove its key.
+				delete(c.backlogKeys[srcAddress], pkey)
 				logger.Trace("WBFT: skip backlog message", "msg", msg, "err", err)
 				continue
 			}
+			delete(c.backlogKeys[srcAddress], pkey) // remove key on dispatch
 			logger.Trace("WBFT: post backlog event", "msg", msg)
 
 			event.src = src
