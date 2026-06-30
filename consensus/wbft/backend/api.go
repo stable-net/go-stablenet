@@ -278,7 +278,8 @@ func (api *API) analyzeBlock(blockNum uint64, activity *SealerActivity, authorCo
 		*cachedCurVals = curValidators.AddressList()
 		*cachedPrevVals = prevValidators.AddressList()
 
-		// Initialize zero baseline for validators entering the range or new epoch
+		// Initialize zero baseline for validators entering the range or new epoch.
+		// Only sets missing keys — existing counts are preserved.
 		initZero := func(addr common.Address, maps ...map[common.Address]int) {
 			for _, m := range maps {
 				if _, ok := m[addr]; !ok {
@@ -286,8 +287,10 @@ func (api *API) analyzeBlock(blockNum uint64, activity *SealerActivity, authorCo
 				}
 			}
 		}
+		// curVals are also pre-registered in the prev maps: on epoch transition they become
+		// prevVals on the next block and must appear in the response even with no signatures.
 		for _, addr := range *cachedCurVals {
-			initZero(addr, activity.Prepared, activity.Committed, activity.Total, authorCounts)
+			initZero(addr, activity.Prepared, activity.Committed, activity.Total, authorCounts, activity.PrevPrepared, activity.PrevCommitted)
 		}
 		for _, addr := range *cachedPrevVals {
 			initZero(addr, activity.PrevPrepared, activity.PrevCommitted, activity.Total, authorCounts)
