@@ -132,12 +132,8 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 
 	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
 		// Make sure the transaction is signed properly.
-		if tx.FeePayer() == nil {
-			return ErrInvalidFeePayer
-		}
-		feePayer, err := types.FeePayer(types.NewFeeDelegateSigner(opts.Config.ChainID), tx)
-		if err != nil || *tx.FeePayer() != feePayer {
-			return ErrInvalidFeePayer
+		if _, err := types.RecoverFeePayer(opts.Config.ChainID, tx); err != nil {
+			return err
 		}
 	}
 
