@@ -1949,6 +1949,10 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 func (s *TransactionAPI) SendTransaction(ctx context.Context, args TransactionArgs) (common.Hash, error) {
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.from()}
+	// fee delegation
+	if args.FeePayer != nil {
+		account = accounts.Account{Address: *args.FeePayer}
+	}
 
 	wallet, err := s.b.AccountManager().Find(account)
 	if err != nil {
