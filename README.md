@@ -178,12 +178,12 @@ Here's a sample code snippet for the Anzeon config:
       "address": "0x0000000000000000000000000000000000001001",
       "version": "v1",
       "params": {
-          "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229",
+          "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
           "quorum": "2",
           "expiry": "604800",
           "memberVersion": "1",
-          "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
-          "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
+          "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697,0x1aa18ec0b3131171b1b1ddba2dffd81410b30a5a",
+          "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b,0x80bd166ebfdb29553801dc22f5b83534945cc2a6dacf39d422383cb3041c8afab8cd430ffc29e9297ba2e114efae487f"
       }
     },
     "nativeCoinAdapter": {
@@ -207,7 +207,7 @@ Here's a sample code snippet for the Anzeon config:
         "expiry": "604800",
         "fiatToken": "0x0000000000000000000000000000000000001000",
         "memberVersion": "1",
-        "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+        "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
         "quorum": "2"
       }
     },
@@ -219,7 +219,7 @@ Here's a sample code snippet for the Anzeon config:
         "fiatToken": "0x0000000000000000000000000000000000001000",
         "maxMinterAllowance": "10000000000000000000000000000",
         "memberVersion": "1",
-        "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+        "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
         "quorum": "2"
       }
     },
@@ -229,7 +229,7 @@ Here's a sample code snippet for the Anzeon config:
       "params": {
         "expiry": "604800",
         "memberVersion": "1",
-        "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+        "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
         "quorum": "2"
       }
     }
@@ -472,12 +472,12 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
           "address": "0x0000000000000000000000000000000000001001",
           "version": "v1",
           "params": {
-            "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
+            "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b,0x80bd166ebfdb29553801dc22f5b83534945cc2a6dacf39d422383cb3041c8afab8cd430ffc29e9297ba2e114efae487f",
             "expiry": "604800",
             "memberVersion": "1",
-            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+            "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
             "quorum": "2",
-            "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697"
+            "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697,0x1aa18ec0b3131171b1b1ddba2dffd81410b30a5a"
           }
         },
         "nativeCoinAdapter": {
@@ -499,7 +499,7 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
           "params": {
             "expiry": "604800",
             "memberVersion": "1",
-            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+            "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
             "quorum": "2"
           }
         },
@@ -509,7 +509,7 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
           "params": {
             "expiry": "604800",
             "memberVersion": "1",
-            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+            "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
             "quorum": "2"
           }
         },
@@ -519,7 +519,7 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
           "params": {
             "expiry": "604800",
             "memberVersion": "1",
-            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
+            "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
             "quorum": "2"
           }
         }
