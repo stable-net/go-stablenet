@@ -30,8 +30,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// Returns true if the `proposal` is justified by the set `roundChangeMessages` of ROUND-CHANGE messages
-// and by the set `prepareMessages` of PREPARE messages.
+// isJustified returns nil if the `proposal` is justified by the set `roundChangeMessages` of
+// ROUND-CHANGE messages and by the set `prepareMessages` of PREPARE messages for `targetView`.
+// All ROUND-CHANGE messages must belong to `targetView` to prevent replay attacks using stale
+// justifications from earlier rounds or sequences.
 // For this we must either have:
 //   - a quorum of ROUND-CHANGE messages with preparedRound and preparedBlockDigest equal to nil; or
 //   - a ROUND-CHANGE message (1) whose preparedRound is not nil and is equal or higher than the
@@ -39,34 +41,53 @@ import (
 //     preparedBlockDigest match the round and block of `quorumSize` PREPARE messages.
 func isJustified(
 	proposal wbft.Proposal,
+	targetView wbft.View,
 	roundChangeMessages []*wbfmessage.SignedRoundChangePayload,
 	prepareMessages []*wbfmessage.Prepare,
 	quorumSize int) error {
+	// Deduplicate by source address to prevent quorum inflation via repeated messages.
+	dedupedRoundChanges := deduplicateRoundChanges(roundChangeMessages)
+	dedupedPrepares := deduplicatePrepares(prepareMessages)
+
 	// Check the size of the set of ROUND-CHANGE messages
-	if len(roundChangeMessages) < quorumSize {
+	if len(dedupedRoundChanges) < quorumSize {
 		return errors.New("number of roundchange messages is less than required quorum of messages")
 	}
 
+	// Reject ROUND-CHANGE messages that don't belong to the target view.
+	// This prevents replay attacks using stale justifications from earlier rounds or sequences.
+	for _, rc := range dedupedRoundChanges {
+		if rc.Sequence.Cmp(targetView.Sequence) != 0 || rc.Round.Cmp(targetView.Round) != 0 {
+			return newJustificationError("round-change message view does not match target view",
+				"rc.seq", rc.Sequence, "rc.round", rc.Round)
+		}
+	}
+
 	// Check the size of the set of PREPARE messages
-	if len(prepareMessages) != 0 && len(prepareMessages) < quorumSize {
+	if len(dedupedPrepares) != 0 && len(dedupedPrepares) < quorumSize {
 		return errors.New("number of prepared messages is less than required quorum of messages")
 	}
 
 	// If there are PREPARE messages, they all need to have the same round and match `proposal`
 	var preparedRound *big.Int
-	if len(prepareMessages) > 0 {
-		preparedRound = prepareMessages[0].Round
-		for _, spp := range prepareMessages {
-			if preparedRound.Cmp(spp.Round) != 0 || proposal.Hash() != spp.Digest {
-				return errors.New("prepared messages do not have same round or do not match proposal")
+	if len(dedupedPrepares) > 0 {
+		preparedRound = dedupedPrepares[0].Round
+		for _, spp := range dedupedPrepares {
+			if preparedRound.Cmp(spp.Round) != 0 {
+				return newJustificationError("prepare message round mismatch",
+					"expected", preparedRound, "got", spp.Round)
+			}
+			if proposal.Hash() != spp.Digest {
+				return newJustificationError("prepare message digest mismatch",
+					"proposalHash", proposal.Hash().Hex(), "digest", spp.Digest.Hex())
 			}
 		}
 	}
 
 	if preparedRound == nil {
-		return hasQuorumOfRoundChangeMessagesForNil(roundChangeMessages, quorumSize)
+		return hasQuorumOfRoundChangeMessagesForNil(dedupedRoundChanges, quorumSize)
 	} else {
-		return hasQuorumOfRoundChangeMessagesForPreparedRoundAndBlock(roundChangeMessages, preparedRound, proposal, quorumSize)
+		return hasQuorumOfRoundChangeMessagesForPreparedRoundAndBlock(dedupedRoundChanges, preparedRound, proposal, quorumSize)
 	}
 }
 
@@ -111,11 +132,14 @@ func hasQuorumOfRoundChangeMessagesForPreparedRoundAndBlock(roundChangeMessages 
 // preparedRound and preparedBlockDigest of a ROUND-CHANGE wbfmessage.
 func hasMatchingRoundChangeAndPrepares(
 	roundChange *wbfmessage.RoundChange, prepareMessages []*wbfmessage.Prepare, quorumSize int) error {
-	if len(prepareMessages) < quorumSize {
+	// Deduplicate by source address to prevent quorum inflation from duplicate messages.
+	dedupedPrepares := deduplicatePrepares(prepareMessages)
+
+	if len(dedupedPrepares) < quorumSize {
 		return errors.New("number of prepare messages is less than quorum of messages")
 	}
 
-	for _, spp := range prepareMessages {
+	for _, spp := range dedupedPrepares {
 		if spp.Digest != roundChange.PreparedDigest {
 			return errors.New("prepared message digest does not match roundchange prepared digest")
 		}
@@ -124,4 +148,40 @@ func hasMatchingRoundChangeAndPrepares(
 		}
 	}
 	return nil
+}
+
+// deduplicateRoundChanges returns a new slice with duplicate ROUND-CHANGE
+// messages removed, keeping only the first message per source address.
+// This prevents counting multiple messages from the same validator during quorum size evaluation.
+func deduplicateRoundChanges(msgs []*wbfmessage.SignedRoundChangePayload) []*wbfmessage.SignedRoundChangePayload {
+	seen := make(map[common.Address]struct{}, len(msgs))
+	result := make([]*wbfmessage.SignedRoundChangePayload, 0, len(msgs))
+	for _, m := range msgs {
+		addr := m.Source()
+		if _, dup := seen[addr]; dup {
+			log.Warn("WBFT: duplicate ROUND-CHANGE from same source, skipping", "source", addr)
+			continue
+		}
+		seen[addr] = struct{}{}
+		result = append(result, m)
+	}
+	return result
+}
+
+// deduplicatePrepares returns a new slice with duplicate PREPARE messages
+// removed, keeping only the first message per source address.
+// This prevents counting multiple messages from the same validator during quorum size evaluation.
+func deduplicatePrepares(msgs []*wbfmessage.Prepare) []*wbfmessage.Prepare {
+	seen := make(map[common.Address]struct{}, len(msgs))
+	result := make([]*wbfmessage.Prepare, 0, len(msgs))
+	for _, m := range msgs {
+		addr := m.Source()
+		if _, dup := seen[addr]; dup {
+			log.Warn("WBFT: duplicate PREPARE from same source, skipping", "source", addr)
+			continue
+		}
+		seen[addr] = struct{}{}
+		result = append(result, m)
+	}
+	return result
 }

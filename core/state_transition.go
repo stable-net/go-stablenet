@@ -190,9 +190,14 @@ func TransactionToMessage(tx *types.Transaction, s types.Signer, baseFee, header
 	if baseFee != nil {
 		msg.GasPrice = cmath.BigMin(msg.GasPrice.Add(msg.GasTipCap, baseFee), msg.GasFeeCap)
 	}
-	// WEMIX fee delegation
-	if tx.FeePayer() != nil {
-		msg.FeePayer = tx.FeePayer()
+	// For fee-delegated tx, verify that FeePayer is set and that
+	// FV/FR/FS recover to the claimed feePayer address.
+	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
+		feePayer, err := types.RecoverFeePayer(s.ChainID(), tx)
+		if err != nil {
+			return msg, err
+		}
+		msg.FeePayer = &feePayer
 	}
 
 	msg.From = from
@@ -333,8 +338,7 @@ func (st *StateTransition) buyGas() error {
 	if err := st.gp.SubGas(st.msg.GasLimit); err != nil {
 		return err
 	}
-
-	st.gasRemaining += st.msg.GasLimit
+	st.gasRemaining = st.msg.GasLimit
 
 	st.initialGas = st.msg.GasLimit
 	mgvalU256, _ := uint256.FromBig(mgval)

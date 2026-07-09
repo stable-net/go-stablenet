@@ -21,6 +21,8 @@
 package core
 
 import (
+	"errors"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -131,8 +133,13 @@ func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 
 	// Validates PRE-PREPARE message justification
 	if preprepare.Round.Uint64() > 0 {
-		if err := isJustified(preprepare.Proposal, preprepare.JustificationRoundChanges, preprepare.JustificationPrepares, c.valSet.QuorumSize()); err != nil {
-			logger.Warn("WBFT: invalid PRE-PREPARE message justification", "err", err)
+		if err := isJustified(preprepare.Proposal, preprepare.View(), preprepare.JustificationRoundChanges, preprepare.JustificationPrepares, c.valSet.QuorumSize()); err != nil {
+			var je *justificationError
+			if errors.As(err, &je) {
+				logger.Warn("WBFT: invalid PRE-PREPARE message justification", je.CtxWithErr()...)
+			} else {
+				logger.Warn("WBFT: invalid PRE-PREPARE message justification", "err", err)
+			}
 			return errInvalidPreparedBlock
 		}
 	}
@@ -165,8 +172,17 @@ func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 	if c.state == StateAcceptRequest {
 		c.logger.Debug("WBFT: accepted PRE-PREPARE message")
 
-		// Re-initialize ROUND-CHANGE timer
-		c.newRoundChangeTimer()
+		// Re-initialize ROUND-CHANGE timer.
+		// Snapshot the current view under RLock; newRoundChangeTimer no longer
+		// reads c.current and relies solely on the passed-in values.
+		var seq, round *big.Int
+		c.currentMutex.RLock()
+		if c.current != nil {
+			seq = new(big.Int).Set(c.current.Sequence())
+			round = new(big.Int).Set(c.current.Round())
+		}
+		c.currentMutex.RUnlock()
+		c.newRoundChangeTimer(seq, round)
 		c.consensusTimestamp = time.Now()
 
 		// Update current state

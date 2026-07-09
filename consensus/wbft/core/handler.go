@@ -305,6 +305,12 @@ func (c *Core) verifySignatures(m wbfmessage.WBFTMessage) error {
 				return err
 			}
 		}
+		signedPreparePayloads := msgType.JustificationPrepares
+		for _, p := range signedPreparePayloads {
+			if err := verify(p); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

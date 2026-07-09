@@ -21,18 +21,15 @@
 package backend
 
 import (
-	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
-	"unicode/utf8"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	wbftcommon "github.com/ethereum/go-ethereum/consensus/wbft/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -69,7 +66,6 @@ type BlockRange struct {
 // RoundStats contains round distribution statistics
 type RoundStats struct {
 	RoundDistribution map[uint64]uint64 `json:"roundDistribution"` // Map of round number to occurrence count
-	TotalRounds       uint64            `json:"totalRounds"`       // Total number of rounds processed
 }
 
 // Status contains validator activity statistics
@@ -167,46 +163,34 @@ func (api *API) GetValidatorsAtHash(hash common.Hash) ([]common.Address, error) 
 
 // Status returns validator activity statistics and round statistics for the specified block range
 func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNumber) (*Status, error) {
-	// Calculate block range
-	start, end, numBlocks, blockNumber, err := api.calculateBlockRange(startBlockNum, endBlockNum)
+	start, end, numBlocks, err := api.calculateBlockRange(startBlockNum, endBlockNum)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get validators
-	signers, err := api.GetValidators(&blockNumber)
-	if err != nil {
-		return nil, err
+	activity := SealerActivity{
+		Total:         make(map[common.Address]int),
+		Prepared:      make(map[common.Address]int),
+		Committed:     make(map[common.Address]int),
+		PrevPrepared:  make(map[common.Address]int),
+		PrevCommitted: make(map[common.Address]int),
 	}
+	authorCounts := make(map[common.Address]int)
 
-	// Initialize counters
-	authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts := api.initializeCounters(signers)
+	var cachedCurVals, cachedPrevVals []common.Address
 
-	// Analyze blocks and collect statistics
 	roundDistribution := make(map[uint64]uint64)
 	for n := start; n <= end; n++ {
-		round := api.analyzeBlock(n, authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts)
+		round, err := api.analyzeBlock(n, &activity, authorCounts, &cachedCurVals, &cachedPrevVals)
+		if err != nil {
+			return nil, err
+		}
 		roundDistribution[round]++
 	}
 
-	// Calculate total rounds (weighted sum) and remove rounds with zero count
-	var totalRounds uint64
-	for round, count := range roundDistribution {
-		if count == 0 {
-			delete(roundDistribution, round)
-		} else {
-			totalRounds += round * count
-		}
-	}
 	return &Status{
-		SealerActivity: SealerActivity{
-			Total:         totalSealCounts,
-			Prepared:      preparedCounts,
-			Committed:     committedCounts,
-			PrevPrepared:  prevPreparedCounts,
-			PrevCommitted: prevCommittedCounts,
-		},
-		AuthorCounts: authorCounts,
+		SealerActivity: activity,
+		AuthorCounts:   authorCounts,
 		BlockRange: BlockRange{
 			StartBlock:  start,
 			EndBlock:    end,
@@ -214,138 +198,150 @@ func (api *API) Status(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNum
 		},
 		RoundStats: RoundStats{
 			RoundDistribution: roundDistribution,
-			TotalRounds:       totalRounds,
 		},
 	}, nil
 }
 
+// maxStatusBlockRange is the maximum number of blocks allowed per Status request to prevent DoS.
+const maxStatusBlockRange = 1024
+
 // calculateBlockRange calculates the block range for status collection
-func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNumber) (uint64, uint64, uint64, rpc.BlockNumber, error) {
+func (api *API) calculateBlockRange(startBlockNum *rpc.BlockNumber, endBlockNum *rpc.BlockNumber) (uint64, uint64, uint64, error) {
 	if startBlockNum != nil && endBlockNum == nil {
-		return 0, 0, 0, 0, errors.New("pass the end block number")
+		return 0, 0, 0, errors.New("pass the end block number")
 	}
 
 	if startBlockNum == nil && endBlockNum != nil {
-		return 0, 0, 0, 0, errors.New("pass the start block number")
+		return 0, 0, 0, errors.New("pass the start block number")
 	}
 
+	currentNum := api.chain.CurrentHeader().Number.Uint64()
+
 	var start, end uint64
-	var blockNumber rpc.BlockNumber
-
 	if startBlockNum == nil && endBlockNum == nil {
-		// Default: last 64 blocks
-		header := api.chain.CurrentHeader()
-		end = header.Number.Uint64()
+		// Default: last 64 blocks. When end < 63, start remains 0 (genesis included).
+		end = currentNum
 		if end >= 63 {
-			start = end - 63 // 64 blocks total
-		} else {
-			start = 1 // Start from block 1 if not enough blocks
+			start = end - 63
 		}
-		blockNumber = rpc.BlockNumber(header.Number.Int64())
 	} else {
-		end = uint64(*endBlockNum)
-		start = uint64(*startBlockNum)
+		resolve := func(n rpc.BlockNumber) (uint64, error) {
+			if n >= 0 {
+				return uint64(n), nil
+			}
+			if n == rpc.LatestBlockNumber {
+				return currentNum, nil
+			}
+			return 0, fmt.Errorf("unsupported block number: %d", n)
+		}
+		var err error
+		if end, err = resolve(*endBlockNum); err != nil {
+			return 0, 0, 0, err
+		}
+		if start, err = resolve(*startBlockNum); err != nil {
+			return 0, 0, 0, err
+		}
 		if start > end {
-			return 0, 0, 0, 0, errors.New("start block number should be less than end block number")
+			return 0, 0, 0, errors.New("start block number should be less than end block number")
 		}
-
-		if end > api.chain.CurrentHeader().Number.Uint64() {
-			return 0, 0, 0, 0, errors.New("end block number should be less than or equal to current block height")
+		if end > currentNum {
+			return 0, 0, 0, errors.New("end block number should be less than or equal to current block height")
 		}
-
-		blockNumber = rpc.BlockNumber(end)
 	}
 
 	numBlocks := end - start + 1
-	return start, end, numBlocks, blockNumber, nil
-}
-
-// initializeCounters initializes all counter maps for validators
-func (api *API) initializeCounters(signers []common.Address) (map[common.Address]int, map[common.Address]int, map[common.Address]int, map[common.Address]int, map[common.Address]int, map[common.Address]int) {
-	authorCounts := make(map[common.Address]int)
-	preparedCounts := make(map[common.Address]int)
-	committedCounts := make(map[common.Address]int)
-	prevPreparedCounts := make(map[common.Address]int)
-	prevCommittedCounts := make(map[common.Address]int)
-	totalSealCounts := make(map[common.Address]int)
-
-	for _, s := range signers {
-		authorCounts[s] = 0
-		preparedCounts[s] = 0
-		committedCounts[s] = 0
-		prevPreparedCounts[s] = 0
-		prevCommittedCounts[s] = 0
-		totalSealCounts[s] = 0
+	if numBlocks > maxStatusBlockRange {
+		return 0, 0, 0, fmt.Errorf("requested range too large: %d blocks (max %d)", numBlocks, maxStatusBlockRange)
 	}
-
-	return authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts
+	return start, end, numBlocks, nil
 }
 
-// analyzeBlock analyzes a single block and updates counters
-func (api *API) analyzeBlock(blockNum uint64, authorCounts, preparedCounts, committedCounts, prevPreparedCounts, prevCommittedCounts, totalSealCounts map[common.Address]int) uint64 {
-	// Fetch header
+// analyzeBlock analyzes a single block and updates counters.
+// Validator sets are cached and refreshed only on epoch transition to avoid redundant DB calls.
+func (api *API) analyzeBlock(blockNum uint64, activity *SealerActivity, authorCounts map[common.Address]int, cachedCurVals, cachedPrevVals *[]common.Address) (uint64, error) {
 	header := api.chain.GetHeaderByNumber(blockNum)
 	if header == nil {
-		return 0
+		return 0, fmt.Errorf("block %d not found", blockNum)
 	}
 
+	extra, err := types.ExtractWBFTExtra(header)
+	if err != nil {
+		return 0, fmt.Errorf("block %d: failed to extract WBFT extra: %w", blockNum, err)
+	}
+
+	// Refresh validator cache on first block or after epoch transition
+	if *cachedCurVals == nil {
+		curValidators, prevValidators, err := api.backend.GetValidatorsForVerifying(api.chain, header, nil)
+		if err != nil {
+			return 0, fmt.Errorf("block %d: failed to get validators: %w", blockNum, err)
+		}
+		*cachedCurVals = curValidators.AddressList()
+		*cachedPrevVals = prevValidators.AddressList()
+
+		// Initialize zero baseline for validators entering the range or new epoch.
+		// Only sets missing keys — existing counts are preserved.
+		initZero := func(addr common.Address, maps ...map[common.Address]int) {
+			for _, m := range maps {
+				if _, ok := m[addr]; !ok {
+					m[addr] = 0
+				}
+			}
+		}
+		// curVals are also pre-registered in the prev maps: on epoch transition they become
+		// prevVals on the next block and must appear in the response even with no signatures.
+		for _, addr := range *cachedCurVals {
+			initZero(addr, activity.Prepared, activity.Committed, activity.Total, authorCounts, activity.PrevPrepared, activity.PrevCommitted)
+		}
+		for _, addr := range *cachedPrevVals {
+			initZero(addr, activity.PrevPrepared, activity.PrevCommitted, activity.Total, authorCounts)
+		}
+	}
+	curVals := *cachedCurVals
+	prevVals := *cachedPrevVals
+
+	// All data collected — update counters to avoid partial updates on error.
 	// Count block author (proposal creator)
 	author, err := api.backend.Author(header)
 	if err == nil {
-		if _, ok := authorCounts[author]; !ok {
-			authorCounts[author] = 0
-		}
 		authorCounts[author]++
 	}
 
-	// Count signers from prepared/committed and previous-round seals
-	extra, err := types.ExtractWBFTExtra(header)
-	if err != nil {
-		return 0
-	}
-
-	curValidators, prevValidators, err := api.backend.GetValidatorsForVerifying(api.chain, header, nil)
-	if err != nil {
-		return uint64(extra.Round)
-	}
-	curVals := curValidators.AddressList()
-	prevVals := prevValidators.AddressList()
-
-	// helper to add counts safely
 	addCounts := func(indices []uint32, vals []common.Address, target map[common.Address]int, addToTotal bool) {
 		for _, idx := range indices {
 			if int(idx) < len(vals) {
 				addr := vals[idx]
-				// ensure key exists on target
-				if _, ok := target[addr]; !ok {
-					target[addr] = 0
-				}
 				target[addr]++
-				// only add to total if requested (for actual seals, not null ones)
+				// addToTotal is false for null seals to exclude them from the total count
 				if addToTotal {
-					if _, ok := totalSealCounts[addr]; !ok {
-						totalSealCounts[addr] = 0
-					}
-					totalSealCounts[addr]++
+					activity.Total[addr]++
 				}
 			}
 		}
 	}
 
 	if extra.PreparedSeal != nil {
-		addCounts(extra.PreparedSeal.Sealers.GetSealers(), curVals, preparedCounts, true)
+		addCounts(extra.PreparedSeal.Sealers.GetSealers(), curVals, activity.Prepared, true)
 	}
 	if extra.CommittedSeal != nil {
-		addCounts(extra.CommittedSeal.Sealers.GetSealers(), curVals, committedCounts, true)
+		addCounts(extra.CommittedSeal.Sealers.GetSealers(), curVals, activity.Committed, true)
 	}
 	if extra.PrevPreparedSeal != nil {
-		addCounts(extra.PrevPreparedSeal.Sealers.GetSealers(), prevVals, prevPreparedCounts, true)
+		addCounts(extra.PrevPreparedSeal.Sealers.GetSealers(), prevVals, activity.PrevPrepared, true)
 	}
 	if extra.PrevCommittedSeal != nil {
-		addCounts(extra.PrevCommittedSeal.Sealers.GetSealers(), prevVals, prevCommittedCounts, true)
+		addCounts(extra.PrevCommittedSeal.Sealers.GetSealers(), prevVals, activity.PrevCommitted, true)
 	}
 
-	return uint64(extra.Round)
+	if extra.EpochInfo != nil {
+		// Next block starts a new epoch: reset cache to trigger refresh.
+		// prevVals sync is skipped — GetValidatorsForVerifying will return correct values on next block.
+		*cachedCurVals = nil
+	} else {
+		// Sync prevVals to curVals for subsequent blocks in the same epoch.
+		*cachedPrevVals = *cachedCurVals
+	}
+
+	return uint64(extra.Round), nil
 }
 
 func (api *API) IsValidator(blockNum *rpc.BlockNumber) (bool, error) {
@@ -417,36 +413,6 @@ func epochForJSON(epoch *types.EpochInfo) map[string]interface{} {
 	}
 }
 
-// DecodeVanityData decodes a 32-byte vanityData field.
-// It detects if the input is UTF-8 or RLP encoded, and decodes accordingly.
-func DecodeVanityData(vanity []byte) string {
-	clean := bytes.TrimRight(vanity, "\x00")
-
-	if utf8.Valid(clean) {
-		return string(clean)
-	}
-
-	var val []interface{}
-
-	err := rlp.DecodeBytes(clean, &val)
-	versionBytes := val[0].([]uint8)
-	if len(versionBytes) < 3 {
-		tempBytes := make([]uint8, 3)
-		copy(tempBytes[3-len(versionBytes):], versionBytes)
-		versionBytes = tempBytes
-	}
-	version := uint32(versionBytes[0])<<16 | uint32(versionBytes[1])<<8 | uint32(versionBytes[2])
-	if err == nil && version > 0 {
-		major, minor, patch := versionBytes[0], versionBytes[1], versionBytes[2]
-		clientBytes := val[1].([]byte)
-		goVerBytes := val[2].([]byte)
-		goOSBytes := val[3].([]byte)
-		return fmt.Sprintf("[version: v%d.%d.%d, client: %s, go: %s, os: %s]", major, minor, patch, string(clientBytes), string(goVerBytes), string(goOSBytes))
-	}
-
-	return fmt.Sprintf("Unknown vanityData format, hex: 0x%s", hex.EncodeToString(clean))
-}
-
 func (api *API) GetWbftExtraInfo(number rpc.BlockNumber) (map[string]interface{}, error) {
 	bNumber := big.NewInt(int64(number))
 
@@ -470,7 +436,7 @@ func (api *API) GetWbftExtraInfo(number rpc.BlockNumber) (map[string]interface{}
 	}
 
 	result := map[string]interface{}{
-		"vanityData":        DecodeVanityData(extra.VanityData),
+		"vanityData":        "0x" + hex.EncodeToString(extra.VanityData),
 		"randaoReveal":      "0x" + hex.EncodeToString(extra.RandaoReveal),
 		"prevRound":         fmt.Sprintf("0x%x", extra.PrevRound),
 		"prevPreparedSeal":  sealForJSON(extra.PrevPreparedSeal, prevValidators.AddressList()),

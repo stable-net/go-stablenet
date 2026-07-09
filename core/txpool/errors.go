@@ -65,9 +65,6 @@ var (
 	ErrKZGVerificationError = errors.New("KZG verification error")
 
 	// WEMIX fee delegation
-	// ErrInvalidFeePayer is returned if the transaction contains an invalid feePayer's signature.
-	ErrInvalidFeePayer = errors.New("fee delegation: invalid feePayer")
-
 	// WEMIX ErrFeePayerInsufficientFunds is returned if the fee cost of executing a transaction
 	// is higher than the balance of the feePayer's account.
 	ErrFeePayerInsufficientFunds = errors.New("fee delegation: insufficient feePayer's funds for gas * price")

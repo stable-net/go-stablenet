@@ -50,3 +50,12 @@ profile.cov
 logs/
 
 tests/spec-tests/
+
+# Sensitive files (do not commit)
+.env
+.env.*
+*.pem
+*.key
+.aws/
+.azure/
+.ssh/
