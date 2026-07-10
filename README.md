@@ -61,8 +61,12 @@ This forms the basis for the necessity of governance within our chain. Without c
   - The group responsible for managing the registration and removal of such base coin minters is termed Master Minter Governance.
   - This concept mirrors the master minter role in existing FiatToken implementations.
   - While Minter Governance membership (joining/leaving) is decided by its members' votes, the registration/removal of minters for the base coin is determined by Master Minter Governance.
+- Council Governance:
+  - This group manages the chain's blacklist and the list of Authorized Accounts (accounts permitted to specify their own priority fee).
+  - Blacklisting and authorized-account changes are enacted through council member votes (proposal + approval), following the same governance mechanism as the other bodies.
+  - It is realized by the GovCouncil contract.
 
-The governance system is realized through the GovValidator, GovMinter, and GovMasterMinter contracts, which are deployed by the system at genesis without an owner. Upgrades are exclusively possible through hard forks, a testament to StableNet's unwavering commitment to the philosophy of decentralization.
+The governance system is realized through the GovValidator, GovMinter, GovMasterMinter, and GovCouncil contracts, which are deployed by the system at genesis without an owner. Upgrades are exclusively possible through hard forks, a testament to StableNet's unwavering commitment to the philosophy of decentralization.
 
 #### Mint/Burn Protocol
 As previously explained, the authority to mint and burn the base coin resides with the GovMinter. The GovMinter is composed of minter members, all of whom possess equal rights and responsibilities.
@@ -146,7 +150,7 @@ Further changes include:
 - Elimination of Block Rewards (including the associated Brioche hard fork logic).
 - Overhaul of the Governance System:
   - Deprecated existing contracts: GovStaking, GovConfig, GovNCP, GovRewardeeImp.
-  - Introduced new governance contracts: GovValidator, GovMinter, GovMasterMinter.
+  - Introduced new governance contracts: GovValidator, GovMinter, GovMasterMinter, GovCouncil.
 - Transition from Croissant config to Anzeon config:
   - The Croissant configuration could be activated via a hard fork at a specific block; the Anzeon configuration is applied from genesis.
 - Removal of specific properties: stabilizingStakersThreshold, targetValidators, and useNCP.
@@ -174,12 +178,12 @@ Here's a sample code snippet for the Anzeon config:
       "address": "0x0000000000000000000000000000000000001001",
       "version": "v1",
       "params": {
-          "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229",
-          "quorum": "1",
+          "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
+          "quorum": "2",
           "expiry": "604800",
           "memberVersion": "1",
-          "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
-          "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b"
+          "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697,0x1aa18ec0b3131171b1b1ddba2dffd81410b30a5a",
+          "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b,0x80bd166ebfdb29553801dc22f5b83534945cc2a6dacf39d422383cb3041c8afab8cd430ffc29e9297ba2e114efae487f"
       }
     },
     "nativeCoinAdapter": {
@@ -203,8 +207,8 @@ Here's a sample code snippet for the Anzeon config:
         "expiry": "604800",
         "fiatToken": "0x0000000000000000000000000000000000001000",
         "memberVersion": "1",
-        "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
-        "quorum": "1"
+        "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
+        "quorum": "2"
       }
     },
     "govMasterMinter": {
@@ -215,8 +219,18 @@ Here's a sample code snippet for the Anzeon config:
         "fiatToken": "0x0000000000000000000000000000000000001000",
         "maxMinterAllowance": "10000000000000000000000000000",
         "memberVersion": "1",
-        "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
-        "quorum": "1"
+        "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
+        "quorum": "2"
+      }
+    },
+    "govCouncil": {
+      "address": "0x0000000000000000000000000000000000001004",
+      "version": "v1",
+      "params": {
+        "expiry": "604800",
+        "memberVersion": "1",
+        "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
+        "quorum": "2"
       }
     }
   }
@@ -240,7 +254,7 @@ Here's a sample code snippet for the Anzeon config:
 
 For prerequisites and detailed build instructions please read the [Installation Instructions](https://geth.ethereum.org/docs/getting-started/installing-geth).
 
-Building `gstable` requires both a Go (version 1.22 or later) and a C compiler. You can install
+Building `gstable` requires both a Go (version 1.23 or later) and a C compiler. You can install
 them using your favourite package manager. Once the dependencies are installed, run
 
 ```shell
@@ -458,12 +472,12 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
           "address": "0x0000000000000000000000000000000000001001",
           "version": "v1",
           "params": {
-            "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b",
+            "blsPublicKeys": "0xaec493af8fa358a1c6f05499f2dd712721ade88c477d21b799d38e9b84582b6fbe4f4adc21e1e454bc37522eb3478b9b,0x80bd166ebfdb29553801dc22f5b83534945cc2a6dacf39d422383cb3041c8afab8cd430ffc29e9297ba2e114efae487f",
             "expiry": "604800",
             "memberVersion": "1",
-            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
-            "quorum": "1",
-            "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697"
+            "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
+            "quorum": "2",
+            "validators": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697,0x1aa18ec0b3131171b1b1ddba2dffd81410b30a5a"
           }
         },
         "nativeCoinAdapter": {
@@ -485,8 +499,8 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
           "params": {
             "expiry": "604800",
             "memberVersion": "1",
-            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
-            "quorum": "1"
+            "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
+            "quorum": "2"
           }
         },
         "govMasterMinter": {
@@ -495,8 +509,18 @@ aware of and agree upon. This consists of a small JSON file (e.g. call it `genes
           "params": {
             "expiry": "604800",
             "memberVersion": "1",
-            "members": "0xaa5faa65e9cc0f74a85b6fdfb5f6991f5c094697",
-            "quorum": "1"
+            "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
+            "quorum": "2"
+          }
+        },
+        "govCouncil": {
+          "address": "0x0000000000000000000000000000000000001004",
+          "version": "v1",
+          "params": {
+            "expiry": "604800",
+            "memberVersion": "1",
+            "members": "0xC3C49d11659170e525c3ed3E0D4560d485EF9229,0xE0E5BDD44F679A9A5047A00A51bec82C2288f453",
+            "quorum": "2"
           }
         }
       }
