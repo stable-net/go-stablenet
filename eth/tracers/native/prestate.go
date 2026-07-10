@@ -126,6 +126,12 @@ func (t *prestateTracer) CaptureStart(from common.Address, to common.Address, cr
 		t.pre[to].Balance = toBal
 	}
 
+	// EIP-158 sets the nonce of a newly created contract to 1 before this hook
+	// runs, but the pre-state must reflect the account as it did not exist yet.
+	if create && t.env.ChainConfig().IsEIP158(t.env.Context.BlockNumber) {
+		t.pre[to].Nonce--
+	}
+
 	// The sender balance is after reducing: value and gasLimit.
 	// We need to re-add them to get the pre-tx balance.
 	//
