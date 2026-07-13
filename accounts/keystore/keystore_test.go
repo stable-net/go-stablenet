@@ -17,6 +17,7 @@
 package keystore
 
 import (
+	"math/big"
 	"math/rand"
 	"os"
 	"runtime"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
 )
@@ -112,6 +114,179 @@ func TestSignWithPassphrase(t *testing.T) {
 
 	if _, err = ks.SignHashWithPassphrase(acc, "invalid passwd", testSigData); err == nil {
 		t.Fatal("expected SignHashWithPassphrase to fail with invalid password")
+	}
+}
+
+type signTxCase struct {
+	name    string
+	buildTx func(addr common.Address) *types.Transaction
+}
+
+func signTxCases(chainID *big.Int) []signTxCase {
+	return []signTxCase{
+		{
+			name: "legacy tx",
+			buildTx: func(addr common.Address) *types.Transaction {
+				return types.NewTx(&types.LegacyTx{
+					GasPrice: big.NewInt(1),
+					Gas:      21000,
+					To:       &addr,
+					Value:    big.NewInt(0),
+				})
+			},
+		},
+		{
+			name: "access list tx",
+			buildTx: func(addr common.Address) *types.Transaction {
+				return types.NewTx(&types.AccessListTx{
+					ChainID:  chainID,
+					GasPrice: big.NewInt(1),
+					Gas:      21000,
+					To:       &addr,
+					Value:    big.NewInt(0),
+				})
+			},
+		},
+		{
+			name: "dynamic fee tx",
+			buildTx: func(addr common.Address) *types.Transaction {
+				return types.NewTx(&types.DynamicFeeTx{
+					ChainID:   chainID,
+					GasTipCap: big.NewInt(1),
+					GasFeeCap: big.NewInt(1),
+					Gas:       21000,
+					To:        &addr,
+					Value:     big.NewInt(0),
+				})
+			},
+		},
+		{
+			name: "fee delegated tx",
+			buildTx: func(addr common.Address) *types.Transaction {
+				return types.NewTx(&types.FeeDelegateDynamicFeeTx{
+					SenderTx: types.DynamicFeeTx{
+						ChainID:   chainID,
+						GasTipCap: big.NewInt(1),
+						GasFeeCap: big.NewInt(1),
+						Gas:       21000,
+						To:        &addr,
+						Value:     big.NewInt(0),
+						// Dummy values simulating that the sender has already
+						// signed the transaction before fee delegation.
+						V: big.NewInt(1),
+						R: big.NewInt(1),
+						S: big.NewInt(1),
+					},
+					FeePayer: &addr,
+				})
+			},
+		},
+	}
+}
+
+func TestSignTx(t *testing.T) {
+	t.Parallel()
+	chainID := big.NewInt(1)
+
+	for _, tc := range signTxCases(chainID) {
+		t.Run(tc.name, func(t *testing.T) {
+			_, ks := tmpKeyStore(t, true)
+
+			acc, err := ks.NewAccount("")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ks.Unlock(acc, ""); err != nil {
+				t.Fatal(err)
+			}
+
+			unsigned := tc.buildTx(acc.Address)
+			signed, err := ks.SignTx(acc, unsigned, chainID)
+			if err != nil {
+				t.Fatalf("SignTx failed: %v", err)
+			}
+			verifySigner(t, chainID, unsigned, signed, acc.Address)
+		})
+	}
+}
+
+func TestSignTxLocked(t *testing.T) {
+	t.Parallel()
+	chainID := big.NewInt(1)
+
+	for _, tc := range signTxCases(chainID) {
+		t.Run(tc.name, func(t *testing.T) {
+			_, ks := tmpKeyStore(t, true)
+
+			acc, err := ks.NewAccount("")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if _, err := ks.SignTx(acc, tc.buildTx(acc.Address), chainID); err != ErrLocked {
+				t.Fatalf("expected ErrLocked, got %v", err)
+			}
+		})
+	}
+}
+
+func TestSignTxWithPassphrase(t *testing.T) {
+	t.Parallel()
+	chainID := big.NewInt(1)
+	pass := "passwd"
+
+	for _, tc := range signTxCases(chainID) {
+		t.Run(tc.name, func(t *testing.T) {
+			_, ks := tmpKeyStore(t, true)
+
+			acc, err := ks.NewAccount(pass)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			tx := tc.buildTx(acc.Address)
+			signed, err := ks.SignTxWithPassphrase(acc, pass, tx, chainID)
+			if err != nil {
+				t.Fatalf("SignTxWithPassphrase failed: %v", err)
+			}
+			verifySigner(t, chainID, tx, signed, acc.Address)
+
+			if _, err := ks.SignTxWithPassphrase(acc, "invalid passwd", tx, chainID); err == nil {
+				t.Fatal("expected SignTxWithPassphrase to fail with invalid password")
+			}
+		})
+	}
+}
+
+func verifySigner(t *testing.T, chainID *big.Int, unsigned, signed *types.Transaction, want common.Address) {
+	t.Helper()
+	var (
+		isDelegated = unsigned.Type() == types.FeeDelegateDynamicFeeTxType
+		got         common.Address
+		err         error
+	)
+
+	if isDelegated {
+		got, err = types.FeePayer(types.NewFeeDelegateSigner(chainID), signed)
+	} else {
+		got, err = types.Sender(types.LatestSignerForChainID(chainID), signed)
+	}
+	if err != nil {
+		t.Fatalf("failed to recover signer: %v", err)
+	}
+	if got != want {
+		t.Fatalf("signer mismatch: have %s, want %s", got, want)
+	}
+
+	if isDelegated {
+		// Fee-payer signing must only fill FV/FR/FS and never touch the
+		// sender's own signature already embedded in SenderTx.
+		wantV, wantR, wantS := unsigned.RawSignatureValues()
+		gotV, gotR, gotS := signed.RawSignatureValues()
+		if wantV.Cmp(gotV) != 0 || wantR.Cmp(gotR) != 0 || wantS.Cmp(gotS) != 0 {
+			t.Fatalf("SenderTx signature changed by signing: have (%s,%s,%s), want (%s,%s,%s)",
+				gotV, gotR, gotS, wantV, wantR, wantS)
+		}
 	}
 }
 

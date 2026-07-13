@@ -412,19 +412,41 @@ func allBlobTxs(addr common.Address, config *params.ChainConfig) []txData {
 	}
 }
 
-func newTestAccountManager(t *testing.T) (*accounts.Manager, accounts.Account) {
+type testAccount struct {
+	key    *ecdsa.PrivateKey
+	unlock bool
+}
+
+// defaultSenderKey is the key of the default sender account provisioned by
+// newTestAccountManager.
+var defaultSenderKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+
+func newTestAccountManager(t *testing.T, extraAccs []testAccount) (*accounts.Manager, accounts.Account) {
 	var (
-		dir        = t.TempDir()
-		am         = accounts.NewManager(&accounts.Config{InsecureUnlockAllowed: true})
-		b          = keystore.NewKeyStore(dir, 2, 1)
-		testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		dir = t.TempDir()
+		am  = accounts.NewManager(&accounts.Config{InsecureUnlockAllowed: true})
+		b   = keystore.NewKeyStore(dir, 2, 1)
 	)
-	acc, err := b.ImportECDSA(testKey, "")
+	acc, err := b.ImportECDSA(defaultSenderKey, "")
 	if err != nil {
 		t.Fatalf("failed to create test account: %v", err)
 	}
 	if err := b.Unlock(acc, ""); err != nil {
 		t.Fatalf("failed to unlock account: %v\n", err)
+	}
+	// Extra accounts must be imported up front: accounts imported after
+	// AddBackend are picked up asynchronously, so a test registering them
+	// on the fly can fail unexpectedly.
+	for _, ta := range extraAccs {
+		extra, err := b.ImportECDSA(ta.key, "")
+		if err != nil {
+			t.Fatalf("failed to import test account: %v", err)
+		}
+		if ta.unlock {
+			if err := b.Unlock(extra, ""); err != nil {
+				t.Fatalf("failed to unlock account: %v\n", err)
+			}
+		}
 	}
 	am.AddBackend(b)
 	return am, acc
@@ -436,9 +458,16 @@ type testBackend struct {
 	pending *types.Block
 	accman  *accounts.Manager
 	acc     accounts.Account
+
+	// sentTx records the last transaction passed to SendTx.
+	sentTx *types.Transaction
 }
 
 func newTestBackend(t *testing.T, n int, gspec *core.Genesis, engine consensus.Engine, generator func(i int, b *core.BlockGen)) *testBackend {
+	return newTestBackendWithAccounts(t, n, gspec, engine, generator, nil)
+}
+
+func newTestBackendWithAccounts(t *testing.T, n int, gspec *core.Genesis, engine consensus.Engine, generator func(i int, b *core.BlockGen), extraAccs []testAccount) *testBackend {
 	var (
 		cacheConfig = &core.CacheConfig{
 			TrieCleanLimit:    256,
@@ -448,7 +477,7 @@ func newTestBackend(t *testing.T, n int, gspec *core.Genesis, engine consensus.E
 			TrieDirtyDisabled: true, // Archive mode
 		}
 	)
-	accman, acc := newTestAccountManager(t)
+	accman, acc := newTestAccountManager(t, extraAccs)
 	gspec.Alloc[acc.Address] = types.Account{Balance: big.NewInt(params.Ether)}
 	// Generate blocks for testing
 	db, blocks, _ := core.GenerateChainWithGenesis(gspec, engine, n, generator)
@@ -587,8 +616,9 @@ func (b testBackend) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) even
 func (b testBackend) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription {
 	panic("implement me")
 }
-func (b testBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
-	panic("implement me")
+func (b *testBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
+	b.sentTx = signedTx
+	return nil
 }
 func (b testBackend) GetTransaction(ctx context.Context, txHash common.Hash) (bool, *types.Transaction, common.Hash, uint64, uint64, error) {
 	tx, blockHash, blockNumber, index := rawdb.ReadTransaction(b.db, txHash)
@@ -1088,7 +1118,30 @@ func TestCall(t *testing.T) {
 	}
 }
 
+func TestSendTransaction(t *testing.T) {
+	testTransactionAPI(t, func(api *TransactionAPI, b *testBackend, args TransactionArgs) (*types.Transaction, error) {
+		b.sentTx = nil
+		if _, err := api.SendTransaction(context.Background(), args); err != nil {
+			return nil, err
+		}
+		if b.sentTx == nil {
+			return nil, errors.New("transaction was not submitted")
+		}
+		return b.sentTx, nil
+	})
+}
+
 func TestSignTransaction(t *testing.T) {
+	testTransactionAPI(t, func(api *TransactionAPI, b *testBackend, args TransactionArgs) (*types.Transaction, error) {
+		res, err := api.SignTransaction(context.Background(), args)
+		if err != nil {
+			return nil, err
+		}
+		return res.Tx, nil
+	})
+}
+
+func testTransactionAPI(t *testing.T, exec func(api *TransactionAPI, b *testBackend, args TransactionArgs) (*types.Transaction, error)) {
 	t.Parallel()
 	// Initialize test accounts
 	var (
@@ -1104,30 +1157,165 @@ func TestSignTransaction(t *testing.T) {
 
 		config = wbft.DefaultConfig
 		memDB  = rawdb.NewMemoryDatabase()
+
+		// The fee payer key is fixed so the fee payer signature stays deterministic.
+		feePayerKey, _ = crypto.HexToECDSA("45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8")
+		lockedKey, _   = crypto.GenerateKey()
+		feePayer       = crypto.PubkeyToAddress(feePayerKey.PublicKey)
+		locked         = crypto.PubkeyToAddress(lockedKey.PublicKey)
+		unknown        = newAccounts(1)[0].addr
 	)
-	b := newTestBackend(t, 1, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {})
+	b := newTestBackendWithAccounts(t, 1, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {}, []testAccount{
+		{key: feePayerKey, unlock: true},
+		{key: lockedKey},
+	})
 	api := NewTransactionAPI(b, nil)
 
-	res, err := api.FillTransaction(context.Background(), TransactionArgs{
+	// Prepare a filled transfer and a sender-signed copy shared by the cases.
+	filled, err := api.FillTransaction(context.Background(), TransactionArgs{
 		From:  &b.acc.Address,
 		To:    &to,
 		Value: (*hexutil.Big)(big.NewInt(1)),
 	})
 	if err != nil {
-		t.Fatalf("failed to fill tx defaults: %v\n", err)
+		t.Fatalf("failed to fill tx defaults: %v", err)
+	}
+	signedBySender, err := types.SignTx(filled.Tx, types.LatestSignerForChainID(b.ChainConfig().ChainID), defaultSenderKey)
+	if err != nil {
+		t.Fatalf("failed to sign tx as sender: %v", err)
 	}
 
-	res, err = api.SignTransaction(context.Background(), argsFromTransaction(res.Tx, b.acc.Address))
+	replaceSigner := func(args TransactionArgs, signer common.Address) TransactionArgs {
+		if args.FeePayer != nil {
+			args.FeePayer = &signer
+		} else {
+			args.From = &signer
+		}
+		return args
+	}
+
+	tests := []struct {
+		name string
+		args TransactionArgs
+		want string
+	}{
+		{
+			name: "dynamic fee tx",
+			args: argsFromTransaction(filled.Tx, b.acc.Address),
+			want: `{"type":"0x2","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x246139ca8000","value":"0x1","input":"0x","accessList":[],"v":"0x1","r":"0xf6e60d9afcb3290e058787dd6c51c562b60e618b492bab36405dd4c7d024c67","s":"0x6fdc4fb02f379f479a169a7e02dc7852fe971dd2e4001a0cdee2d28ea376db18","yParity":"0x1","hash":"0xdac7688851dd29610f6edd65e6b656409e9a3b9011be1abfeeb246a17676e27d"}`,
+		},
+		{
+			name: "fee delegated tx",
+			args: feeDelegateArgs(signedBySender, b.acc.Address, feePayer),
+			want: `{"type":"0x16","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x246139ca8000","value":"0x1","input":"0x","accessList":[],"v":"0x1","r":"0xf6e60d9afcb3290e058787dd6c51c562b60e618b492bab36405dd4c7d024c67","s":"0x6fdc4fb02f379f479a169a7e02dc7852fe971dd2e4001a0cdee2d28ea376db18","yParity":"0x1","hash":"0x698b7391d214775b1406f9e3cd1628fa7c67991dd339fa79cc9f3ea3ae168a12","feePayer":"0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b","fv":"0x0","fr":"0x5247578e653ed1488c2a2c246a743f40dcfa51b30dc98854a0a08e7d82c61b6c","fs":"0x25aa81b2531fc6350ba6eaea224a795186a14a466be582060c033a88ab6e8112"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Requests must fail while the signing account is unavailable.
+			if _, err := exec(api, b, replaceSigner(tt.args, unknown)); !errors.Is(err, accounts.ErrUnknownAccount) {
+				t.Fatalf("error mismatch for unknown account: have %v, want %v", err, accounts.ErrUnknownAccount)
+			}
+			if _, err := exec(api, b, replaceSigner(tt.args, locked)); !errors.Is(err, keystore.ErrLocked) {
+				t.Fatalf("error mismatch for locked account: have %v, want %v", err, keystore.ErrLocked)
+			}
+
+			signed, err := exec(api, b, tt.args)
+			if err != nil {
+				t.Fatalf("failed to process tx: %v", err)
+			}
+			tx, err := json.Marshal(signed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(tx, []byte(tt.want)) {
+				t.Errorf("result mismatch. Have:\n%s\nWant:\n%s\n", tx, tt.want)
+			}
+		})
+	}
+}
+
+func feeDelegateArgs(signedTx *types.Transaction, from, feePayer common.Address) TransactionArgs {
+	args := argsFromTransaction(signedTx, from)
+	v, r, s := signedTx.RawSignatureValues()
+	args.FeePayer = &feePayer
+	args.V = (*hexutil.Big)(v)
+	args.R = (*hexutil.Big)(r)
+	args.S = (*hexutil.Big)(s)
+	return args
+}
+
+func TestSignRawFeeDelegateTransaction(t *testing.T) {
+	t.Parallel()
+	// Initialize test accounts
+	var (
+		nodeKey, _ = crypto.HexToECDSA("9c1d1ede9b6cb8cdcd1991d9cd911dfc40ca95d31451f7a2f17dd955f2f6956e")
+		key, _     = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
+		to         = crypto.PubkeyToAddress(key.PublicKey)
+		genesis    = &core.Genesis{
+			Config:     params.AllDevChainProtocolChanges,
+			Alloc:      types.GenesisAlloc{},
+			Difficulty: big.NewInt(1),
+			ExtraData:  genExtraData(nodeKey),
+		}
+
+		config = wbft.DefaultConfig
+		memDB  = rawdb.NewMemoryDatabase()
+
+		// The fee payer key is fixed so the fee payer signature stays deterministic.
+		feePayerKey, _ = crypto.HexToECDSA("45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8")
+		feePayer       = crypto.PubkeyToAddress(feePayerKey.PublicKey)
+	)
+	b := newTestBackendWithAccounts(t, 1, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {}, []testAccount{
+		{key: feePayerKey, unlock: true},
+	})
+	api := NewTransactionAPI(b, nil)
+
+	// signRaw returns the raw bytes of tx signed by the default sender.
+	signRaw := func(tx *types.Transaction) []byte {
+		signed, err := types.SignTx(tx, types.LatestSignerForChainID(b.ChainConfig().ChainID), defaultSenderKey)
+		if err != nil {
+			t.Fatalf("failed to sign tx as sender: %v", err)
+		}
+		raw, err := signed.MarshalBinary()
+		if err != nil {
+			t.Fatalf("failed to encode tx: %v", err)
+		}
+		return raw
+	}
+
+	filled, err := api.FillTransaction(context.Background(), TransactionArgs{
+		From:  &b.acc.Address,
+		To:    &to,
+		Value: (*hexutil.Big)(big.NewInt(1)),
+	})
 	if err != nil {
-		t.Fatalf("failed to sign tx: %v\n", err)
+		t.Fatalf("failed to fill tx defaults: %v", err)
+	}
+	rawTx := signRaw(filled.Tx)
+
+	// FeePayer is mandatory.
+	if _, err := api.SignRawFeeDelegateTransaction(context.Background(), TransactionArgs{}, rawTx); err == nil {
+		t.Fatal("expected error for missing fee payer")
+	}
+
+	// Only dynamic fee transactions can be fee-delegated.
+	rawLegacy := signRaw(types.NewTx(&types.LegacyTx{GasPrice: big.NewInt(1), Gas: 21000, To: &to}))
+	if _, err := api.SignRawFeeDelegateTransaction(context.Background(), TransactionArgs{FeePayer: &feePayer}, rawLegacy); err == nil {
+		t.Fatal("expected error for non dynamic fee sender tx")
+	}
+
+	res, err := api.SignRawFeeDelegateTransaction(context.Background(), TransactionArgs{FeePayer: &feePayer}, rawTx)
+	if err != nil {
+		t.Fatalf("failed to sign tx as fee payer: %v", err)
 	}
 	tx, err := json.Marshal(res.Tx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	expect := `{"type":"0x2","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x246139ca8000","value":"0x1","input":"0x","accessList":[],"v":"0x1","r":"0xf6e60d9afcb3290e058787dd6c51c562b60e618b492bab36405dd4c7d024c67","s":"0x6fdc4fb02f379f479a169a7e02dc7852fe971dd2e4001a0cdee2d28ea376db18","yParity":"0x1","hash":"0xdac7688851dd29610f6edd65e6b656409e9a3b9011be1abfeeb246a17676e27d"}`
-	if !bytes.Equal(tx, []byte(expect)) {
-		t.Errorf("result mismatch. Have:\n%s\nWant:\n%s\n", tx, expect)
+	want := `{"type":"0x16","chainId":"0x539","nonce":"0x0","to":"0x703c4b2bd70c169f5717101caee543299fc946c7","gas":"0x5208","gasPrice":null,"maxPriorityFeePerGas":"0x0","maxFeePerGas":"0x246139ca8000","value":"0x1","input":"0x","accessList":[],"v":"0x1","r":"0xf6e60d9afcb3290e058787dd6c51c562b60e618b492bab36405dd4c7d024c67","s":"0x6fdc4fb02f379f479a169a7e02dc7852fe971dd2e4001a0cdee2d28ea376db18","yParity":"0x1","hash":"0x698b7391d214775b1406f9e3cd1628fa7c67991dd339fa79cc9f3ea3ae168a12","feePayer":"0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b","fv":"0x0","fr":"0x5247578e653ed1488c2a2c246a743f40dcfa51b30dc98854a0a08e7d82c61b6c","fs":"0x25aa81b2531fc6350ba6eaea224a795186a14a466be582060c033a88ab6e8112"}`
+	if !bytes.Equal(tx, []byte(want)) {
+		t.Errorf("result mismatch. Have:\n%s\nWant:\n%s\n", tx, want)
 	}
 }
 
