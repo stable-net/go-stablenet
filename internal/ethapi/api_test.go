@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -1317,6 +1318,131 @@ func TestSignRawFeeDelegateTransaction(t *testing.T) {
 	if !bytes.Equal(tx, []byte(want)) {
 		t.Errorf("result mismatch. Have:\n%s\nWant:\n%s\n", tx, want)
 	}
+}
+
+func TestSendTransactionFeeDelegateTypeMismatch(t *testing.T) {
+	testFeeDelegateTypeMismatch(t, func(api *TransactionAPI, args TransactionArgs) error {
+		_, err := api.SendTransaction(context.Background(), args)
+		return err
+	})
+}
+
+func TestSignTransactionFeeDelegateTypeMismatch(t *testing.T) {
+	testFeeDelegateTypeMismatch(t, func(api *TransactionAPI, args TransactionArgs) error {
+		_, err := api.SignTransaction(context.Background(), args)
+		return err
+	})
+}
+
+// testFeeDelegateTypeMismatch checks that a fee-delegated request is rejected
+// before the fee payer signs it whenever the assembled transaction is not a
+// fee-delegated one, while a complete request is still accepted.
+func testFeeDelegateTypeMismatch(t *testing.T, exec func(api *TransactionAPI, args TransactionArgs) error) {
+	t.Parallel()
+	var (
+		nodeKey, _ = crypto.HexToECDSA("9c1d1ede9b6cb8cdcd1991d9cd911dfc40ca95d31451f7a2f17dd955f2f6956e")
+		key, _     = crypto.HexToECDSA("8a1f9a8f95be41cd7ccb6168179afb4504aefe388d1e14474d32c45c72ce7b7a")
+		to         = crypto.PubkeyToAddress(key.PublicKey)
+		genesis    = &core.Genesis{
+			Config:     params.AllDevChainProtocolChanges,
+			Alloc:      types.GenesisAlloc{},
+			Difficulty: big.NewInt(1),
+			ExtraData:  genExtraData(nodeKey),
+		}
+
+		config = wbft.DefaultConfig
+		memDB  = rawdb.NewMemoryDatabase()
+
+		// The fee payer key is fixed so the fee payer signature stays deterministic.
+		feePayerKey, _ = crypto.HexToECDSA("45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8")
+		feePayer       = crypto.PubkeyToAddress(feePayerKey.PublicKey)
+	)
+	b := newTestBackendWithAccounts(t, 1, genesis, wbftBackend.New(config, nodeKey, memDB), func(i int, b *core.BlockGen) {}, []testAccount{
+		{key: feePayerKey, unlock: true},
+	})
+	api := NewTransactionAPI(b, nil)
+	signer := types.LatestSignerForChainID(b.ChainConfig().ChainID)
+
+	// signAsSender signs tx with the default sender and returns its raw
+	// signature values.
+	signAsSender := func(tx *types.Transaction) (v, r, s *big.Int) {
+		signed, err := types.SignTx(tx, signer, defaultSenderKey)
+		if err != nil {
+			t.Fatalf("failed to sign tx as sender: %v", err)
+		}
+		return signed.RawSignatureValues()
+	}
+
+	t.Run("missing sender signature", func(t *testing.T) {
+		filled, err := api.FillTransaction(context.Background(), TransactionArgs{
+			From:  &b.acc.Address,
+			To:    &to,
+			Value: (*hexutil.Big)(big.NewInt(1)),
+		})
+		if err != nil {
+			t.Fatalf("failed to fill tx defaults: %v", err)
+		}
+		// A request missing the sender's signature assembles a plain dynamic fee
+		// transaction instead of a fee-delegated one.
+		args := argsFromTransaction(filled.Tx, b.acc.Address)
+		args.FeePayer = &feePayer
+
+		if err := exec(api, args); err == nil || !strings.Contains(err.Error(), "fee delegate tx type mismatch") {
+			t.Fatalf("expected fee delegate tx type mismatch error, got %v", err)
+		}
+	})
+	t.Run("legacy sender tx", func(t *testing.T) {
+		nonce := hexutil.Uint64(0)
+		gas := hexutil.Uint64(params.TxGas)
+		gasPrice := big.NewInt(1)
+		legacyTx := types.NewTx(&types.LegacyTx{
+			Nonce:    uint64(nonce),
+			GasPrice: gasPrice,
+			Gas:      uint64(gas),
+			To:       &to,
+			Value:    big.NewInt(1),
+		})
+		legacyV, legacyR, legacyS := signAsSender(legacyTx)
+		// A request carrying a legacy (gasPrice) sender transaction assembles a
+		// legacy transaction: FeePayer and the sender signature are present, but
+		// the type is still not fee-delegated.
+		args := TransactionArgs{
+			From:     &b.acc.Address,
+			To:       &to,
+			Gas:      &gas,
+			GasPrice: (*hexutil.Big)(gasPrice),
+			Value:    (*hexutil.Big)(big.NewInt(1)),
+			Nonce:    &nonce,
+			FeePayer: &feePayer,
+			V:        (*hexutil.Big)(legacyV),
+			R:        (*hexutil.Big)(legacyR),
+			S:        (*hexutil.Big)(legacyS),
+		}
+
+		if err := exec(api, args); err == nil || !strings.Contains(err.Error(), "fee delegate tx type mismatch") {
+			t.Fatalf("expected fee delegate tx type mismatch error, got %v", err)
+		}
+	})
+	t.Run("complete fee-delegated request", func(t *testing.T) {
+		filled, err := api.FillTransaction(context.Background(), TransactionArgs{
+			From:  &b.acc.Address,
+			To:    &to,
+			Value: (*hexutil.Big)(big.NewInt(1)),
+		})
+		if err != nil {
+			t.Fatalf("failed to fill tx defaults: %v", err)
+		}
+		senderV, senderR, senderS := signAsSender(filled.Tx)
+		args := argsFromTransaction(filled.Tx, b.acc.Address)
+		args.FeePayer = &feePayer
+		args.V = (*hexutil.Big)(senderV)
+		args.R = (*hexutil.Big)(senderR)
+		args.S = (*hexutil.Big)(senderS)
+
+		if err := exec(api, args); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }
 
 func TestSignBlobTransaction(t *testing.T) {
