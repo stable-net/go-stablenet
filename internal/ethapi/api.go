@@ -449,7 +449,8 @@ func (s *PersonalAccountAPI) signTransaction(ctx context.Context, args *Transact
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.from()}
 	// WEMIX fee delegation
-	if args.FeePayer != nil {
+	feeDelegated := args.FeePayer != nil
+	if feeDelegated {
 		account = accounts.Account{Address: *args.FeePayer}
 	}
 	wallet, err := s.am.Find(account)
@@ -462,6 +463,10 @@ func (s *PersonalAccountAPI) signTransaction(ctx context.Context, args *Transact
 	}
 	// Assemble the transaction and sign with the wallet
 	tx := args.toTransaction()
+	// Prevent the fee payer from signing an unintended transaction.
+	if err := checkFeeDelegateTx(feeDelegated, tx); err != nil {
+		return nil, err
+	}
 
 	return wallet.SignTxWithPassphrase(account, passwd, tx, s.b.ChainConfig().ChainID)
 }
@@ -1949,8 +1954,9 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 func (s *TransactionAPI) SendTransaction(ctx context.Context, args TransactionArgs) (common.Hash, error) {
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.from()}
-	// fee delegation
-	if args.FeePayer != nil {
+	// WEMIX fee delegation
+	feeDelegated := args.FeePayer != nil
+	if feeDelegated {
 		account = accounts.Account{Address: *args.FeePayer}
 	}
 
@@ -1975,6 +1981,10 @@ func (s *TransactionAPI) SendTransaction(ctx context.Context, args TransactionAr
 	}
 	// Assemble the transaction and sign with the wallet
 	tx := args.toTransaction()
+	// Prevent the fee payer from signing an unintended transaction.
+	if err := checkFeeDelegateTx(feeDelegated, tx); err != nil {
+		return common.Hash{}, err
+	}
 
 	signed, err := wallet.SignTx(account, tx, s.b.ChainConfig().ChainID)
 	if err != nil {
@@ -2069,6 +2079,10 @@ func (s *TransactionAPI) SignTransaction(ctx context.Context, args TransactionAr
 	}
 	// WEMIX fee delegation
 	if args.FeePayer != nil {
+		// Prevent the fee payer from signing an unintended transaction.
+		if err := checkFeeDelegateTx(true, tx); err != nil {
+			return nil, err
+		}
 		signed, err := s.sign(*args.FeePayer, tx)
 		if err != nil {
 			return nil, err
@@ -2407,6 +2421,15 @@ func checkTxFee(gasPrice *big.Int, gas uint64, cap float64) error {
 	feeFloat, _ := feeEth.Float64()
 	if feeFloat > cap {
 		return fmt.Errorf("tx fee (%.2f ether) exceeds the configured cap (%.2f ether)", feeFloat, cap)
+	}
+	return nil
+}
+
+// checkFeeDelegateTx is an internal function used to check whether the
+// assembled transaction's type matches a fee-delegated request.
+func checkFeeDelegateTx(feeDelegated bool, tx *types.Transaction) error {
+	if feeDelegated && tx.Type() != types.FeeDelegateDynamicFeeTxType {
+		return fmt.Errorf("fee delegate tx type mismatch: got %#x, want %#x", tx.Type(), types.FeeDelegateDynamicFeeTxType)
 	}
 	return nil
 }
