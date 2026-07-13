@@ -166,7 +166,7 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		ApplepieBlock:       big.NewInt(0),
-		BohoBlock:           big.NewInt(100),
+		BohoBlock:           big.NewInt(14408500),
 		Anzeon: &AnzeonConfig{
 			WBFT: &WBFTConfig{
 				EpochLength:           140,
