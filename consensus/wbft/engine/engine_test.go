@@ -366,6 +366,71 @@ func TestWriteGasTip(t *testing.T) {
 	}
 }
 
+func TestVerifyGasTip(t *testing.T) {
+	contractGasTip := big.NewInt(int64(params.InitialGasTip))
+	govValidatorAddr := params.DefaultGovValidatorAddress
+
+	makeChainWithGasTip := func(gasTip *big.Int) *fakeChain {
+		mockState, _ := state.New(types.EmptyRootHash, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+		if gasTip != nil {
+			mockState.SetState(govValidatorAddr, common.HexToHash(systemcontracts.SLOT_VALIDATOR_gasTip), common.BigToHash(gasTip))
+		}
+		return &fakeChain{
+			chainConfig: params.TestWBFTChainConfig,
+			headers:     []*types.Header{{Number: big.NewInt(0), Root: types.EmptyRootHash}},
+			statedb:     mockState,
+		}
+	}
+
+	makeHeader := func(gasTip *big.Int) *types.Header {
+		extra := &types.WBFTExtra{GasTip: gasTip}
+		payload, _ := rlp.EncodeToBytes(extra)
+		return &types.Header{
+			Number: big.NewInt(1),
+			Extra:  payload,
+		}
+	}
+
+	tests := []struct {
+		name         string
+		headerGasTip *big.Int
+		expectErr    bool
+	}{
+		{
+			name:         "nil GasTip is rejected",
+			headerGasTip: nil,
+			expectErr:    true,
+		},
+		{
+			name:         "mismatched GasTip is rejected",
+			headerGasTip: big.NewInt(1),
+			expectErr:    true,
+		},
+		{
+			name:         "matching GasTip is accepted",
+			headerGasTip: new(big.Int).Set(contractGasTip),
+			expectErr:    false,
+		},
+	}
+
+	engine := NewEngine(nil, common.Address{}, nil, nil)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fc := makeChainWithGasTip(contractGasTip)
+			header := makeHeader(tc.headerGasTip)
+			err := engine.verifyGasTip(fc, header)
+			if tc.expectErr {
+				require.Error(t, err)
+				var mismatchErr *wbft.GasTipMismatchError
+				require.ErrorAs(t, err, &mismatchErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestSortCandidates(t *testing.T) {
 	candidates := []PoweredCandidate{
 		{Addr: common.HexToAddress("0x1"), Power: new(big.Int).SetUint64(10001), Diligence: 100},

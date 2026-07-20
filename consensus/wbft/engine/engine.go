@@ -1288,7 +1288,7 @@ func (e *Engine) verifyGasTip(chain consensus.ChainHeaderReader, header *types.H
 		return err
 	}
 
-	if extra.GasTip != nil && extra.GasTip.Cmp(gastip) != 0 {
+	if extra.GasTip == nil || extra.GasTip.Cmp(gastip) != 0 {
 		return &wbft.GasTipMismatchError{Have: extra.GasTip, Want: gastip}
 	}
 	return nil
