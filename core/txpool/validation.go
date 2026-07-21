@@ -217,13 +217,20 @@ type ValidationOptionsWithState struct {
 	UsedAndLeftSlots func(addr common.Address) (int, int)
 
 	// ExistingExpenditure is a mandatory callback to retrieve the cumulative
-	// cost of the already pooled transactions to check for overdrafts.
+	// expenditure of the already pooled transactions to check for overdrafts. The
+	// expenditure includes sender value, self-paid gas, and delegated gas charged to
+	// the fee payer.
 	ExistingExpenditure func(addr common.Address) *big.Int
 
 	// ExistingCost is a mandatory callback to retrieve an already pooled
 	// transaction's cost with the given nonce to check for overdrafts.
 	ExistingCost func(addr common.Address, nonce uint64) *big.Int
 
+	// ExistingTx returns a pooled transaction with the same sender and nonce, if one
+	// exists. It is used by replacement validation to subtract the replaced
+	// transaction's value and gas from the correct accounts. When nil, ExistingCost
+	// is used as a sender-paid fallback.
+	ExistingTx func(addr common.Address, nonce uint64) *types.Transaction
 	// AnzeonTipEnv is an optional environment for computing and caching
 	// the Anzeon gas tip cap during validation to avoid repeated state queries during reheap.
 	AnzeonTipEnv types.AnzeonGasTipEnv
@@ -298,35 +305,109 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		}
 	}
 
-	// go-stablenet skips cumulative balance validation for fee delegation tx compatibility.
-	// Fee delegation transactions split costs between sender (value only) and feePayer (gas fees),
-	// but ExistingExpenditure callback sums total tx.Cost() which is incompatible with this model.
-	// Enabling this validation would incorrectly reject transactions when fee delegation txs exist
-	// in the pending pool, as it would compare sender's balance against the full cost (value + gas).
-	// Transaction replacement is still supported via legacypool's price bump mechanism.
-	/*
-		// Ensure the transactor has enough funds to cover for replacements or nonce
-		// expansions without overdrafts
-		spent := opts.ExistingExpenditure(from)
-		if prev := opts.ExistingCost(from, tx.Nonce()); prev != nil {
-			bump := new(big.Int).Sub(cost, prev)
-			need := new(big.Int).Add(spent, bump)
-			if balance.Cmp(need) < 0 {
-				return fmt.Errorf("%w: balance %v, queued cost %v, tx bumped %v, overshot %v", core.ErrInsufficientFunds, balance, spent, bump, new(big.Int).Sub(need, balance))
+	// Cumulative overdraft protection.
+	//
+	// A transaction can pass the per-tx balance checks above but still become
+	// unaffordable when combined with the account's other pending expenditure. This
+	// allows individually valid but collectively unfundable transactions to occupy
+	// txpool resources.
+	//
+	// Fee delegation splits the expenditure across two accounts: the sender owes
+	// value and the fee payer owes gas. ExistingExpenditure reports each account's
+	// cumulative pending expenditure across all roles, so the checks below work for
+	// both ordinary and fee-delegated transactions.
+	if opts.ExistingExpenditure != nil {
+		// Determine who is responsible for the gas fee of the incoming transaction.
+		gasPayer := from
+		if tx.Type() == types.FeeDelegateDynamicFeeTxType {
+			gasPayer = *tx.FeePayer()
+		}
+		txValue := tx.Value()
+		txGasCost := tx.FeeCost() // tx.Cost() - tx.Value()
+
+		// If a transaction with the same sender and nonce is already pooled, the
+		// incoming one replaces it, so its contribution must be subtracted from
+		// whichever account currently carries it (value -> sender, gas -> its own
+		// gas payer, which may differ from the new transaction's gas payer).
+		var (
+			isReplacement bool
+			prevGasPayer  = from
+			prevValue     = new(big.Int)
+			prevGasCost   = new(big.Int)
+		)
+		if opts.ExistingTx != nil {
+			if prev := opts.ExistingTx(from, tx.Nonce()); prev != nil {
+				isReplacement = true
+				prevValue = prev.Value()
+				prevGasCost = prev.FeeCost()
+				if prev.Type() == types.FeeDelegateDynamicFeeTxType {
+					prevGasPayer = *prev.FeePayer()
+				}
+			}
+		} else if prev := opts.ExistingCost(from, tx.Nonce()); prev != nil {
+			// Pools without fee-delegation support (e.g. the blob pool): the replaced
+			// transaction is fully sender-paid, so its whole cost belongs to the sender.
+			isReplacement = true
+			prevGasCost = prev
+		}
+
+		// need computes an account's total pooled expenditure across sender value and
+		// fee-payer gas,augmented by the incoming transaction's deltas and discounted
+		// by any transaction being replaced.
+		need := func(addr common.Address, curValue, curGasCost *big.Int) (*big.Int, error) {
+			n := new(big.Int).Set(opts.ExistingExpenditure(addr))
+			if isReplacement {
+				if addr == from {
+					n.Sub(n, prevValue)
+				}
+				if addr == prevGasPayer {
+					n.Sub(n, prevGasCost)
+				}
+				if n.Sign() < 0 {
+					return nil, fmt.Errorf("%w: addr %v, underflow %v",
+						core.ErrTxPoolAccountingUnderflow, addr, new(big.Int).Neg(n))
+				}
+			}
+			// Incoming tx contribution.
+			if addr == from {
+				n.Add(n, curValue)
+			}
+			if addr == gasPayer {
+				n.Add(n, curGasCost)
+			}
+			return n, nil
+		}
+		if from == gasPayer {
+			// Self-paid: value and gas are drawn from the same balance and must be
+			// checked combined, otherwise an account could overdraft by splitting
+			// its expenditure across two independent checks.
+			combinedNeed, err := need(from, txValue, txGasCost)
+			if err != nil {
+				return err
+			}
+			if balance.Cmp(combinedNeed) < 0 {
+				return fmt.Errorf("%w: balance %v, needed %v, overshot %v", core.ErrInsufficientFunds, balance, combinedNeed, new(big.Int).Sub(combinedNeed, balance))
 			}
 		} else {
-			need := new(big.Int).Add(spent, cost)
-			if balance.Cmp(need) < 0 {
-				return fmt.Errorf("%w: balance %v, queued cost %v, tx cost %v, overshot %v", core.ErrInsufficientFunds, balance, spent, cost, new(big.Int).Sub(need, balance))
+			// Fee delegation: the sender covers its value expenditure, the fee
+			// payer covers its gas expenditure, each against its own balance.
+			senderNeed, err := need(from, txValue, txGasCost)
+			if err != nil {
+				return err
 			}
-			// Transaction takes a new nonce value out of the pool. Ensure it doesn't
-			// overflow the number of permitted transactions from a single account
-			// (i.e. max cancellable via out-of-bound transaction).
-			if used, left := opts.UsedAndLeftSlots(from); left <= 0 {
-				return fmt.Errorf("%w: pooled %d txs", ErrAccountLimitExceeded, used)
+			if balance.Cmp(senderNeed) < 0 {
+				return fmt.Errorf("%w: sender balance %v, needed %v, overshot %v", ErrSenderInsufficientFunds, balance, senderNeed, new(big.Int).Sub(senderNeed, balance))
+			}
+			feePayerBalance := opts.State.GetBalance(gasPayer).ToBig()
+			feePayerNeed, err := need(gasPayer, txValue, txGasCost)
+			if err != nil {
+				return err
+			}
+			if feePayerBalance.Cmp(feePayerNeed) < 0 {
+				return fmt.Errorf("%w: fee payer balance %v, needed %v, overshot %v", ErrFeePayerInsufficientFunds, feePayerBalance, feePayerNeed, new(big.Int).Sub(feePayerNeed, feePayerBalance))
 			}
 		}
-	*/
+	}
 
 	// Cache the Anzeon tip cap to avoid repeated state queries during reheap
 	// Only cache if not already set (to preserve original value during reinject)

@@ -1052,7 +1052,7 @@ func TestAdd(t *testing.T) {
 				{ // New account, 2 pooled tx with 42200 wei spent: reject nonce 2 with 21100 wei spend (1 wei overflow)
 					from: "alice",
 					tx:   makeUnsignedTx(2, 1, 1, 1),
-					err:  nil, // core.ErrInsufficientFunds; WEMIX does not return error; please refer validation.go:251
+					err:  core.ErrInsufficientFunds,
 				},
 			},
 		},
@@ -1181,7 +1181,7 @@ func TestAdd(t *testing.T) {
 				{ // New account, 2 pooled tx with 325344 wei spent: reject nonce 0 with 599684 wei spend (173072 extra) (would overflow balance at nonce 1)
 					from: "alice",
 					tx:   makeUnsignedTx(0, 2, 5, 2),
-					err:  nil, //core.ErrInsufficientFunds,; WEMIX does not return error
+					err:  core.ErrInsufficientFunds,
 				},
 				{ // New account, 2 pooled tx with 325344 wei spent: reject nonce 0 with no-gastip-bump
 					from: "alice",
@@ -1201,7 +1201,7 @@ func TestAdd(t *testing.T) {
 				{ // New account, 2 pooled tx with 325344 wei spent: accept nonce 0 with 84100 wei spend (42000 extra)
 					from: "alice",
 					tx:   makeUnsignedTx(0, 2, 4, 2),
-					err:  txpool.ErrReplaceUnderpriced,
+					err:  nil,
 				},
 			},
 		},

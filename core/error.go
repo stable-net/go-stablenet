@@ -132,6 +132,13 @@ var (
 	ErrAuthorizationNonceMismatch      = errors.New("EIP-7702 authorization nonce does not match current account nonce")
 )
 
+// Internal invariant errors. These indicate bugs in the node's bookkeeping
+// rather than invalid user input, and should be treated as such by callers
+// (e.g. surfaced loudly rather than counted as ordinary validation failures).
+var (
+	ErrTxPoolAccountingUnderflow = errors.New("txpool accounting underflow")
+)
+
 type ErrBlacklistedAccount struct {
 	Address common.Address
 }
