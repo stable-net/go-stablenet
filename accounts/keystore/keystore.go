@@ -283,8 +283,13 @@ func (ks *KeyStore) SignTx(a accounts.Account, tx *types.Transaction, chainID *b
 	if !found {
 		return nil, ErrLocked
 	}
-	// Depending on the presence of the chain ID, sign with 2718 or homestead
-	signer := types.LatestSignerForChainID(chainID)
+	var signer types.Signer
+	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
+		signer = types.NewFeeDelegateSigner(chainID)
+	} else {
+		// Depending on the presence of the chain ID, sign with 2718 or homestead
+		signer = types.LatestSignerForChainID(chainID)
+	}
 	return types.SignTx(tx, signer, unlockedKey.PrivateKey)
 }
 
@@ -308,13 +313,13 @@ func (ks *KeyStore) SignTxWithPassphrase(a accounts.Account, passphrase string, 
 		return nil, err
 	}
 	defer zeroKey(key.PrivateKey)
-	// fee delegation
+	var signer types.Signer
 	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
-		signer := types.NewFeeDelegateSigner(chainID)
-		return types.SignTx(tx, signer, key.PrivateKey)
+		signer = types.NewFeeDelegateSigner(chainID)
+	} else {
+		// Depending on the presence of the chain ID, sign with or without replay protection.
+		signer = types.LatestSignerForChainID(chainID)
 	}
-	// Depending on the presence of the chain ID, sign with or without replay protection.
-	signer := types.LatestSignerForChainID(chainID)
 	return types.SignTx(tx, signer, key.PrivateKey)
 }
 

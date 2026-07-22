@@ -699,7 +699,12 @@ func (w *Wallet) signHash(account accounts.Account, hash []byte) ([]byte, error)
 // the needed details via SignTxWithPassphrase, or by other means (e.g. unlock
 // the account in a keystore).
 func (w *Wallet) SignTx(account accounts.Account, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
-	signer := types.LatestSignerForChainID(chainID)
+	var signer types.Signer
+	if tx.Type() == types.FeeDelegateDynamicFeeTxType {
+		signer = types.NewFeeDelegateSigner(chainID)
+	} else {
+		signer = types.LatestSignerForChainID(chainID)
+	}
 	hash := signer.Hash(tx)
 	sig, err := w.signHash(account, hash[:])
 	if err != nil {
