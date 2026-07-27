@@ -3770,3 +3770,78 @@ func TestFeeDelegationFilterShortCircuitGate(t *testing.T) {
 		t.Fatalf("fee-delegation accounting drift: %v", err)
 	}
 }
+
+// TestFeeDelegationSelfPayCumulativeAccounting verifies the accounting path for
+// a fee-delegated transaction whose sender is also its fee payer.
+func TestFeeDelegationSelfPayCumulativeAccounting(t *testing.T) {
+	t.Parallel()
+
+	config := *params.TestChainConfig
+	config.ApplepieBlock = big.NewInt(0)
+	pool, _ := setupPoolWithConfig(&config)
+	defer pool.Close()
+
+	const gasLimit = 21000
+	gasFeeCap := big.NewInt(1_000_000_000)
+	gasTipCap := big.NewInt(1)
+	value := big.NewInt(100)
+
+	senderKey, _ := crypto.GenerateKey()
+	sender := crypto.PubkeyToAddress(senderKey.PublicKey)
+
+	first := feeDelegateTx(config.ChainID, 0, gasLimit, gasFeeCap, gasTipCap, value, senderKey, senderKey)
+	second := feeDelegateTx(config.ChainID, 1, gasLimit, gasFeeCap, gasTipCap, value, senderKey, senderKey)
+
+	// The account can afford either transaction in isolation, but not both
+	// cumulatively. This ensures the second rejection comes from the cumulative
+	// self-pay check rather than either per-transaction balance check.
+	perTxCost := first.Cost()
+	balance := new(big.Int).Add(
+		new(big.Int).Set(perTxCost),
+		new(big.Int).Div(new(big.Int).Set(perTxCost), big.NewInt(2)),
+	)
+	testAddBalance(pool, sender, balance)
+
+	if err := pool.Add([]*types.Transaction{first}, true, true)[0]; err != nil {
+		t.Fatalf("first self-pay FD tx rejected: %v", err)
+	}
+
+	// addCost must keep the two roles in their respective buckets even
+	// though both roles resolve to the same address.
+	expectPendingTotalCost(t, pool, sender, first.Value())
+	expectPendingGas(t, pool, sender, first.FeeCost())
+
+	// For a self-paying FD transaction, the two buckets must reconstruct tx.Cost().
+	pool.mu.RLock()
+	existingExpenditure := new(big.Int)
+	if list := pool.pending[sender]; list != nil {
+		existingExpenditure.Add(existingExpenditure, list.totalcost.ToBig())
+	}
+	if pendingGas := pool.pendingGas[sender]; pendingGas != nil {
+		existingExpenditure.Add(existingExpenditure, pendingGas.ToBig())
+	}
+	pool.mu.RUnlock()
+	if existingExpenditure.Cmp(first.Cost()) != 0 {
+		t.Fatalf("ExistingExpenditure(self) = %v, want tx.Cost() %v", existingExpenditure, first.Cost())
+	}
+
+	// The second tx is individually affordable, but the cumulative
+	// expenditure of the two transactions exceeds the account's balance.
+	if err := pool.Add([]*types.Transaction{second}, true, true)[0]; !errors.Is(err, core.ErrInsufficientFunds) {
+		t.Fatalf("second self-pay FD tx error = %v, want %v", err, core.ErrInsufficientFunds)
+	}
+	if status := pool.Status(second.Hash()); status != txpool.TxStatusUnknown {
+		t.Fatalf("rejected self-pay FD tx status = %v, want unknown", status)
+	}
+
+	// A rejected transaction must not alter the accounting established by the
+	// first accepted transaction.
+	expectPendingTotalCost(t, pool, sender, first.Value())
+	expectPendingGas(t, pool, sender, first.FeeCost())
+	if err := validateFeeDelegationAccounting(pool); err != nil {
+		t.Fatalf("fee-delegation accounting drift: %v", err)
+	}
+	if err := validatePoolInternals(pool); err != nil {
+		t.Fatalf("pool internal state corrupted: %v", err)
+	}
+}
