@@ -17,12 +17,12 @@
 package simulated
 
 import (
+	"errors"
 	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
@@ -64,7 +64,7 @@ type simClient struct {
 // Backend is a simulated blockchain. You can use it to test your contracts or
 // other code that interacts with the Ethereum chain.
 type Backend struct {
-	eth    *eth.Ethereum
+	node   *node.Node
 	beacon *catalyst.SimulatedBeacon
 	client simClient
 }
@@ -136,7 +136,7 @@ func newWithNode(stack *node.Node, conf *eth.Config, blockPeriod uint64) (*Backe
 		return nil, err
 	}
 	return &Backend{
-		eth:    backend,
+		node:   stack,
 		beacon: beacon,
 		client: simClient{ethclient.NewClient(stack.Attach())},
 	}, nil
@@ -149,16 +149,16 @@ func (n *Backend) Close() error {
 		n.client.Close()
 		n.client = simClient{}
 	}
+	var err error
 	if n.beacon != nil {
-		err := n.beacon.Stop()
+		err = n.beacon.Stop()
 		n.beacon = nil
-		return err
 	}
-	return nil
-}
-
-func (n *Backend) Engine() consensus.Engine {
-	return n.eth.Engine()
+	if n.node != nil {
+		err = errors.Join(err, n.node.Close())
+		n.node = nil
+	}
+	return err
 }
 
 // Commit seals a block and moves the chain forward to a new empty block.
