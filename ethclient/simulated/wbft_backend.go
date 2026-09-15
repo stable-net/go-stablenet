@@ -2,6 +2,7 @@ package simulated
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 // other code that interacts with the Ethereum chain.
 type WBFTBackend struct {
 	eth    *eth.Ethereum
+	stack  *node.Node
 	client WBFTClient
 }
 
@@ -151,6 +153,7 @@ func newWBFTWithNode(stack *node.Node, conf *eth.Config) (*WBFTBackend, error) {
 
 	return &WBFTBackend{
 		eth:    backend,
+		stack:  stack,
 		client: WBFTClient{ethclient.NewClient(stack.Attach())},
 	}, nil
 }
@@ -158,19 +161,24 @@ func newWBFTWithNode(stack *node.Node, conf *eth.Config) (*WBFTBackend, error) {
 // Close shuts down the simWBFTBackend.
 // The simulated backend can't be used afterwards.
 func (n *WBFTBackend) Close() error {
+	// Accumulate errors so all resources are cleaned up even if one step fails.
+	var errs []error
+
 	if n.client.Client != nil {
 		n.client.Close()
 		n.client = WBFTClient{}
 	}
 	if wbftEngine, ok := n.Engine().(*wbftBackend.Backend); ok {
 		if err := wbftEngine.Stop(); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	if n.eth.Miner().Mining() {
-		n.eth.Miner().Close()
+	// Closing the stack invokes eth.Ethereum.Stop() through the node lifecycle,
+	// which closes the miner, so it must not be closed directly here.
+	if err := n.stack.Close(); err != nil {
+		errs = append(errs, err)
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (n *WBFTBackend) Engine() consensus.Engine {
