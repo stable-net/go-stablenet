@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"golang.org/x/crypto/sha3"
 )
 
 // HashScheme is the legacy hash-based state scheme with which trie nodes are
@@ -50,7 +49,7 @@ const PathScheme = "path"
 type hasher struct{ sha crypto.KeccakState }
 
 var hasherPool = sync.Pool{
-	New: func() interface{} { return &hasher{sha: sha3.NewLegacyKeccak256().(crypto.KeccakState)} },
+	New: func() interface{} { return &hasher{sha: crypto.NewKeccakState()} },
 }
 
 func newHasher() *hasher {
