@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"math/big"
 	"testing"
 	"time"
@@ -268,5 +269,51 @@ func TestCalcGasLimit(t *testing.T) {
 		if have, want := CalcGasLimit(tc.pGasLimit, tc.pGasLimit), tc.pGasLimit; have != want {
 			t.Errorf("test %d: have %d want %d", i, have, want)
 		}
+	}
+}
+
+func TestValidateBodyBlockOversized(t *testing.T) {
+	gspec := &Genesis{Config: params.TestChainConfig}
+	chain, err := NewBlockChain(rawdb.NewMemoryDatabase(), nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create blockchain: %v", err)
+	}
+	defer chain.Stop()
+
+	validator := NewBlockValidator(params.TestChainConfig, chain, ethash.NewFaker())
+
+	// A normal block (<= MaxBlockSize) must not be rejected as oversized.
+	if err := validator.ValidateBody(chain.Genesis()); errors.Is(err, ErrBlockOversized) {
+		t.Fatalf("expected normal block not to return ErrBlockOversized, got %v", err)
+	}
+
+	// Accumulate 200KB txs until the block's RLP size exceeds MaxBlockSize.
+	payload200KB := make([]byte, 200*1024)
+	var txs []*types.Transaction
+	var totalSize uint64
+	for nonce := uint64(0); totalSize <= params.MaxBlockSize; nonce++ {
+		tx := types.NewTx(&types.LegacyTx{
+			Nonce:    nonce,
+			To:       &common.Address{},
+			Value:    big.NewInt(0),
+			Gas:      500_000,
+			GasPrice: big.NewInt(1),
+			Data:     payload200KB,
+		})
+		txs = append(txs, tx)
+		totalSize += tx.Size()
+	}
+
+	oversizedBlock := types.NewBlockWithHeader(&types.Header{
+		Number: big.NewInt(1),
+		Time:   1001,
+	}).WithBody(txs, nil)
+
+	if oversizedBlock.Size() <= params.MaxBlockSize {
+		t.Fatalf("expected oversized block size > %d, got %v", params.MaxBlockSize, oversizedBlock.Size())
+	}
+
+	if err := validator.ValidateBody(oversizedBlock); !errors.Is(err, ErrBlockOversized) {
+		t.Fatalf("expected ErrBlockOversized, got %v", err)
 	}
 }
