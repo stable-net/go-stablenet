@@ -37,6 +37,7 @@ import (
 	wbftcommon "github.com/ethereum/go-ethereum/consensus/wbft/common"
 	"github.com/ethereum/go-ethereum/consensus/wbft/core"
 	"github.com/ethereum/go-ethereum/consensus/wbft/validator"
+	ethcore "github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -158,6 +159,13 @@ func writeRoundNumber(round *big.Int) ApplyWBFTExtra {
 }
 
 func (e *Engine) VerifyBlockProposal(chain consensus.ChainHeaderReader, block *types.Block, validators wbft.ValidatorSet, prevValidators wbft.ValidatorSet) (time.Duration, error) {
+	// Reject oversized proposals before consensus commits (EIP-7934). Without this,
+	// an over-limit block would only be caught at ValidateBody on chain insertion,
+	// after the quorum has already committed, stalling the chain at that height.
+	if err := ethcore.ValidateBlockSize(block); err != nil {
+		return 0, err
+	}
+
 	// check block body
 	txnHash := types.DeriveSha(block.Transactions(), trie.NewStackTrie(nil))
 	if txnHash != block.Header().TxHash {
