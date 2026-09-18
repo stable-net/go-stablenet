@@ -106,6 +106,7 @@ type environment struct {
 	receipts []*types.Receipt
 	sidecars []*types.BlobTxSidecar
 	blobs    int
+	size     uint64 // size of the block we are building
 }
 
 // copy creates a deep copy of environment.
@@ -117,6 +118,7 @@ func (env *environment) copy() *environment {
 		coinbase: env.coinbase,
 		header:   types.CopyHeader(env.header),
 		receipts: copyReceipts(env.receipts),
+		size:     env.size,
 	}
 	if env.gasPool != nil {
 		gasPool := *env.gasPool
@@ -129,6 +131,15 @@ func (env *environment) copy() *environment {
 	copy(cpy.sidecars, env.sidecars)
 
 	return cpy
+}
+
+// maxBlockSizeBufferZone is subtracted from params.MaxBlockSize when producing
+// blocks, to stay below the cap after auxiliary data is added into the block.
+const maxBlockSizeBufferZone = 1_000_000
+
+// txFitsSize reports whether the transaction fits into the block size limit.
+func (env *environment) txFitsSize(tx *types.Transaction) bool {
+	return env.size+tx.Size() < params.MaxBlockSize-maxBlockSizeBufferZone
 }
 
 // discard terminates the background prefetcher go-routine. It should
@@ -909,6 +920,7 @@ func (w *worker) makeEnv(parent *types.Header, header *types.Header, coinbase co
 		state:    state,
 		coinbase: coinbase,
 		header:   header,
+		size:     uint64(header.Size()),
 	}
 	// Keep track of transactions which return errors so they can be removed
 	env.tcount = 0
@@ -941,6 +953,7 @@ func (w *worker) commitTransaction(env *environment, tx *types.Transaction) ([]*
 	}
 	env.txs = append(env.txs, tx)
 	env.receipts = append(env.receipts, receipt)
+	env.size += tx.Size()
 	return receipt.Logs, nil
 }
 
@@ -960,10 +973,12 @@ func (w *worker) commitBlobTransaction(env *environment, tx *types.Transaction) 
 	if err != nil {
 		return nil, err
 	}
-	env.txs = append(env.txs, tx.WithoutBlobTxSidecar())
+	txNoBlob := tx.WithoutBlobTxSidecar()
+	env.txs = append(env.txs, txNoBlob)
 	env.receipts = append(env.receipts, receipt)
 	env.sidecars = append(env.sidecars, sc)
 	env.blobs += len(sc.Blobs)
+	env.size += txNoBlob.Size()
 	*env.header.BlobGasUsed += receipt.BlobGasUsed
 	return receipt.Logs, nil
 }
@@ -1048,6 +1063,11 @@ func (w *worker) commitTransactions(env *environment, plainTxs, blobTxs *transac
 			log.Trace("Ignoring evicted transaction", "hash", ltx.Hash)
 			txs.Pop()
 			continue
+		}
+		// If including the transaction would push the block over the size cap,
+		// stop packing any further transactions (EIP-7934).
+		if !env.txFitsSize(tx) {
+			break
 		}
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
@@ -1285,14 +1305,25 @@ func (w *worker) fillTransactions(interrupt *atomic.Int32, env *environment) err
 }
 
 // generateWork generates a sealing block based on the given parameters.
-func (w *worker) generateWork(params *generateParams) *newPayloadResult {
-	work, err := w.prepareWork(params)
+func (w *worker) generateWork(genParams *generateParams) *newPayloadResult {
+	work, err := w.prepareWork(genParams)
 	if err != nil {
 		return &newPayloadResult{err: err}
 	}
 	defer work.discard()
 
-	if !params.noTxs {
+	// Check withdrawals fit max block size.
+	// Due to the cap on withdrawal count, this can actually never happen, but we still
+	// need to check to ensure the CL notices there's a problem if the withdrawal cap is
+	// ever lifted (EIP-7934).
+	maxBlockSize := params.MaxBlockSize - maxBlockSizeBufferZone
+	if genParams.withdrawals.Size() > maxBlockSize {
+		return &newPayloadResult{err: errors.New("withdrawals exceed max block size")}
+	}
+	// Also add size of withdrawals to work block size.
+	work.size += uint64(genParams.withdrawals.Size())
+
+	if !genParams.noTxs {
 		interrupt := new(atomic.Int32)
 		timer := time.AfterFunc(w.newpayloadTimeout, func() {
 			interrupt.Store(commitInterruptTimeout)
@@ -1304,7 +1335,7 @@ func (w *worker) generateWork(params *generateParams) *newPayloadResult {
 			log.Warn("Block building is interrupted", "allowance", common.PrettyDuration(w.newpayloadTimeout))
 		}
 	}
-	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, params.withdrawals)
+	block, err := w.engine.FinalizeAndAssemble(w.chain, work.header, work.state, work.txs, nil, work.receipts, genParams.withdrawals)
 	if err != nil {
 		return &newPayloadResult{err: err}
 	}
