@@ -421,6 +421,12 @@ func (sb *Backend) GetValidatorsForVerifying(chain consensus.ChainHeaderReader, 
 	var valSet, prevValSet wbft.ValidatorSet
 	var err error
 
+	// The lookups below narrow the number with Uint64, so an oversized number
+	// would resolve the validator set of an aliased height.
+	if header.Number == nil || !header.Number.IsUint64() {
+		return nil, nil, wbftcommon.ErrInvalidBlockNumber
+	}
+
 	// Retrieve the ValidatorSet for the block height
 	if valSet, err = sb.Engine().GetValidators(chain, header.Number, header.ParentHash, parents); err != nil {
 		return nil, nil, consensus.ErrUnknownAncestor

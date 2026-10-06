@@ -34,6 +34,10 @@ var (
 	// that is not part of the local blockchain.
 	ErrUnknownBlock = errors.New("unknown block")
 
+	// ErrInvalidBlockNumber is returned if a block number does not fit in 64 bits.
+	// Such a number aliases a valid height wherever it is narrowed with Uint64.
+	ErrInvalidBlockNumber = errors.New("invalid block number")
+
 	// ErrUnauthorized is returned if a header is signed by a non authorized entity.
 	ErrUnauthorized = errors.New("unauthorized")
 

@@ -197,6 +197,10 @@ func (e *Engine) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 	if header.Number == nil {
 		return wbftcommon.ErrUnknownBlock
 	}
+	// Every height lookup below narrows the number with Uint64.
+	if !header.Number.IsUint64() {
+		return wbftcommon.ErrInvalidBlockNumber
+	}
 
 	// Don't waste time checking blocks from the future (adjusting for allowed threshold)
 	adjustedTimeNow := time.Now().Add(time.Duration(e.cfg.AllowedFutureBlockTime) * time.Second).Unix()
@@ -260,7 +264,7 @@ func (e *Engine) verifyCascadingFields(chain consensus.ChainHeaderReader, header
 		parent = chain.GetHeader(header.ParentHash, number-1)
 	}
 	// Ensure that the block's parent has right number and hash
-	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
+	if parent == nil || new(big.Int).Add(parent.Number, common.Big1).Cmp(header.Number) != 0 || parent.Hash() != header.ParentHash {
 		return consensus.ErrUnknownAncestor
 	}
 

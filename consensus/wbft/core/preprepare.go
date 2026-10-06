@@ -125,8 +125,9 @@ func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 		return errNotFromProposer
 	}
 
-	// Reject if sequence ≠ proposal number
-	if preprepare.Sequence.Uint64() != preprepare.Proposal.Number().Uint64() {
+	// Reject if sequence ≠ proposal number. Compare the full values: Uint64 keeps
+	// only the low 64 bits, so 2^64+s would pass as s.
+	if preprepare.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
 		logger.Warn("WBFT: ignore PRE-PREPARE with mismatched sequence and proposal number")
 		return errInvalidPreparedBlock
 	}
