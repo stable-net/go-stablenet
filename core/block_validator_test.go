@@ -287,7 +287,22 @@ func TestValidateBodyBlockOversized(t *testing.T) {
 		t.Fatalf("expected normal block not to return ErrBlockOversized, got %v", err)
 	}
 
-	// Accumulate 200KB txs until the block's RLP size exceeds MaxBlockSize.
+	oversizedBlock := types.NewBlockWithHeader(&types.Header{
+		Number: big.NewInt(1),
+		Time:   1001,
+	}).WithBody(makeOversizedTxs(), nil)
+
+	if oversizedBlock.Size() <= params.MaxBlockSize {
+		t.Fatalf("expected oversized block size > %d, got %v", params.MaxBlockSize, oversizedBlock.Size())
+	}
+
+	if err := validator.ValidateBody(oversizedBlock); !errors.Is(err, ErrBlockOversized) {
+		t.Fatalf("expected ErrBlockOversized, got %v", err)
+	}
+}
+
+// makeOversizedTxs returns 200KB txs whose total size exceeds MaxBlockSize.
+func makeOversizedTxs() []*types.Transaction {
 	payload200KB := make([]byte, 200*1024)
 	var txs []*types.Transaction
 	var totalSize uint64
@@ -303,17 +318,5 @@ func TestValidateBodyBlockOversized(t *testing.T) {
 		txs = append(txs, tx)
 		totalSize += tx.Size()
 	}
-
-	oversizedBlock := types.NewBlockWithHeader(&types.Header{
-		Number: big.NewInt(1),
-		Time:   1001,
-	}).WithBody(txs, nil)
-
-	if oversizedBlock.Size() <= params.MaxBlockSize {
-		t.Fatalf("expected oversized block size > %d, got %v", params.MaxBlockSize, oversizedBlock.Size())
-	}
-
-	if err := validator.ValidateBody(oversizedBlock); !errors.Is(err, ErrBlockOversized) {
-		t.Fatalf("expected ErrBlockOversized, got %v", err)
-	}
+	return txs
 }
