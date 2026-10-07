@@ -1111,6 +1111,10 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 					i, block.NumberU64(), block.Hash().Bytes()[:4], block.ParentHash().Bytes()[:4])
 			}
 		}
+		// InsertReceiptChain does not run ValidateBody, so enforce the block size cap directly.
+		if err := ValidateBlockSize(block); err != nil {
+			return i, err
+		}
 		if block.NumberU64() <= ancientLimit {
 			ancientBlocks, ancientReceipts = append(ancientBlocks, block), append(ancientReceipts, receiptChain[i])
 		} else {
