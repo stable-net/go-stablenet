@@ -115,7 +115,9 @@ func (c *Core) sendPreprepareMsg(request *Request) {
 func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 	logger := c.currentLogger(true, preprepare)
 
-	logger = logger.New("proposal.number", preprepare.Proposal.Number().Uint64(), "proposal.hash", preprepare.Proposal.Hash().String())
+	// Log the full number, not Number().Uint64(): an oversized number (2^64+s,
+	// rejected by the guard below) would otherwise be logged as s and hide the attack.
+	logger = logger.New("proposal.number", preprepare.Proposal.Number(), "proposal.hash", preprepare.Proposal.Hash().String())
 
 	c.logger.Debug("WBFT: handle PRE-PREPARE message")
 
