@@ -56,7 +56,7 @@ func Fuzz(data []byte) int {
 	fmt.Printf("untrusted: %v\n", untrustedComment)
 	fmt.Printf("trusted: %v\n", trustedComment)
 
-	err = SignifySignFile(tmpFile.Name(), tmpFile.Name()+".sig", testSecKey, untrustedComment, trustedComment)
+	err = SignFile(tmpFile.Name(), tmpFile.Name()+".sig", testSecKey, untrustedComment, trustedComment)
 	if err != nil {
 		panic(err)
 	}
@@ -68,7 +68,7 @@ func Fuzz(data []byte) int {
 		signify = path
 	}
 
-	_, err := exec.LookPath(signify)
+	_, err = exec.LookPath(signify)
 	if err != nil {
 		panic(err)
 	}
@@ -134,6 +134,7 @@ func createKeyPair() (string, string) {
 	defer os.Remove(tmpKey.Name())
 	defer os.Remove(tmpKey.Name() + ".pub")
 	defer os.Remove(tmpKey.Name() + ".sec")
+	defer tmpKey.Close()
 	cmd := exec.Command("signify", "-G", "-n", "-p", tmpKey.Name()+".pub", "-s", tmpKey.Name()+".sec")
 	if output, err := cmd.CombinedOutput(); err != nil {
 		panic(fmt.Sprintf("could not verify the file: %v, output: \n%s", err, output))
