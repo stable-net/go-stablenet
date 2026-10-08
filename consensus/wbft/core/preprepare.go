@@ -115,7 +115,9 @@ func (c *Core) sendPreprepareMsg(request *Request) {
 func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 	logger := c.currentLogger(true, preprepare)
 
-	logger = logger.New("proposal.number", preprepare.Proposal.Number().Uint64(), "proposal.hash", preprepare.Proposal.Hash().String())
+	// Log the full number, not Number().Uint64(): an oversized number (2^64+s,
+	// rejected by the guard below) would otherwise be logged as s and hide the attack.
+	logger = logger.New("proposal.number", preprepare.Proposal.Number(), "proposal.hash", preprepare.Proposal.Hash().String())
 
 	c.logger.Debug("WBFT: handle PRE-PREPARE message")
 
@@ -125,8 +127,9 @@ func (c *Core) handlePreprepareMsg(preprepare *wbfmessage.Preprepare) error {
 		return errNotFromProposer
 	}
 
-	// Reject if sequence ≠ proposal number
-	if preprepare.Sequence.Uint64() != preprepare.Proposal.Number().Uint64() {
+	// Reject if sequence ≠ proposal number. Compare the full values: Uint64 keeps
+	// only the low 64 bits, so 2^64+s would pass as s.
+	if preprepare.Sequence.Cmp(preprepare.Proposal.Number()) != 0 {
 		logger.Warn("WBFT: ignore PRE-PREPARE with mismatched sequence and proposal number")
 		return errInvalidPreparedBlock
 	}
