@@ -996,3 +996,29 @@ func TestVerifyProposalBug(t *testing.T) {
 		t.Errorf("error is not ErrInvalidPrevCommittedSeals: %v", err)
 	}
 }
+
+// TestVerifyBlockProposalOversized ensures a proposal whose RLP-encoded size
+// exceeds the EIP-7934 cap is rejected during proposal verification, before the
+// quorum commits (which would otherwise stall the chain at ValidateBody).
+func TestVerifyBlockProposalOversized(t *testing.T) {
+	chain, engine, _ := newBlockChainWithCustom(1, func(config *wbft.Config) {
+		config.BlockPeriod = 1
+	})
+	defer engine.Stop()
+
+	firstBlock := makeBlock(chain, engine, chain.Genesis())
+	if _, err := chain.InsertChain(types.Blocks{firstBlock}); err != nil {
+		t.Fatalf("failed to insert block: %v", err)
+	}
+
+	// Inflate the proposal past the size cap via the header extra. The size check
+	// runs first in VerifyBlockProposal, so other body/header fields are irrelevant.
+	header := makeBlockWithoutSeal(chain, engine, firstBlock).Header()
+	header.Extra = make([]byte, params.MaxBlockSize+1)
+	oversized := types.NewBlockWithHeader(header)
+
+	valSet, _ := engine.Engine().GetValidators(chain, firstBlock.Number(), firstBlock.ParentHash(), nil)
+	if _, err := engine.Engine().VerifyBlockProposal(chain, oversized, valSet, valSet); !errors.Is(err, core.ErrBlockOversized) {
+		t.Fatalf("expected ErrBlockOversized, got %v", err)
+	}
+}

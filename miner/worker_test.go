@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -562,5 +563,75 @@ func testGetSealingWork(t *testing.T, chainConfig *params.ChainConfig, engine co
 			}
 			assertBlock(r.block, c.expectNumber, c.coinbase, c.random)
 		}
+	}
+}
+
+// TestCommitTransactionsBlockSizeLimit feeds an oversized set of pending
+// transactions into the commit loop and asserts packing stops before the block
+// exceeds the size limit (EIP-7934).
+func TestCommitTransactionsBlockSizeLimit(t *testing.T) {
+	w, b := newTestWorker(t, ethashChainConfig, ethash.NewFaker(), rawdb.NewMemoryDatabase(), 0)
+	defer w.close()
+
+	var (
+		limit  = uint64(params.MaxBlockSize - maxBlockSizeBufferZone)
+		key, _ = crypto.GenerateKey()
+		addr   = crypto.PubkeyToAddress(key.PublicKey)
+	)
+
+	// Gas limit set high enough that packing stops on block size, not gas.
+	header := &types.Header{
+		Number:     big.NewInt(1),
+		Difficulty: big.NewInt(1),
+		GasLimit:   105_000_000,
+		BaseFee:    big.NewInt(params.InitialBaseFee),
+		Time:       1000,
+	}
+	env, err := w.makeEnv(b.chain.CurrentBlock(), header, testBankAddress)
+	if err != nil {
+		t.Fatalf("failed to make env: %v", err)
+	}
+	env.state.SetBalance(addr, uint256.MustFromBig(math.MaxBig256))
+
+	// Emit txs until their total exceeds the limit so packing stops on size, not
+	// tx count; identical payloads keep every tx's RLP size the same.
+	payload200KB := make([]byte, 200*1024)
+	groups := make(map[common.Address][]*txpool.LazyTransaction)
+	for size := uint64(header.Size()); size <= limit; {
+		tx := types.MustSignNewTx(key, env.signer, &types.LegacyTx{
+			Nonce:    uint64(len(groups[addr])),
+			To:       &testUserAddress,
+			Value:    big.NewInt(1),
+			Gas:      5_000_000,
+			GasPrice: big.NewInt(10 * params.InitialBaseFee),
+			Data:     payload200KB,
+		})
+		groups[addr] = append(groups[addr], &txpool.LazyTransaction{
+			Hash:      tx.Hash(),
+			Tx:        tx,
+			Time:      tx.Time(),
+			GasFeeCap: uint256.MustFromBig(tx.GasFeeCap()),
+			GasTipCap: uint256.MustFromBig(tx.GasTipCap()),
+			Gas:       tx.Gas(),
+			BlobGas:   tx.BlobGas(),
+		})
+		size += tx.Size()
+	}
+	txSize := groups[addr][0].Tx.Size()
+
+	anzeonEnabled := w.chainConfig.AnzeonEnabled()
+	plainTxs := newTransactionsByPriceAndNonce(env.signer, groups, env.header.BaseFee, env.header.GasTip(), anzeonEnabled, env.state)
+	blobTxs := newTransactionsByPriceAndNonce(env.signer, nil, env.header.BaseFee, env.header.GasTip(), anzeonEnabled, env.state)
+	if err := w.commitTransactions(env, plainTxs, blobTxs, nil); err != nil {
+		t.Fatalf("commitTransactions failed: %v", err)
+	}
+
+	// The block stays under the limit, and one more tx would exceed it: size (not
+	// gas or tx exhaustion) stopped packing.
+	if env.size >= limit {
+		t.Fatalf("packed block size (%d) reached or exceeded the limit (%d)", env.size, limit)
+	}
+	if env.size+txSize < limit {
+		t.Fatalf("packing stopped early, another tx would still fit (size=%d, txSize=%d, limit=%d)", env.size, txSize, limit)
 	}
 }

@@ -4423,3 +4423,34 @@ func TestEIP7702(t *testing.T) {
 		t.Fatalf("addr2 storage wrong: expected %d, got %d", fortyTwo, actual)
 	}
 }
+
+func TestInsertReceiptChainBlockOversized(t *testing.T) {
+	gspec := &Genesis{Config: params.TestChainConfig}
+	chain, err := NewBlockChain(rawdb.NewMemoryDatabase(), nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create blockchain: %v", err)
+	}
+	defer chain.Stop()
+
+	normal := types.NewBlockWithHeader(&types.Header{
+		ParentHash: chain.Genesis().Hash(),
+		Number:     big.NewInt(1),
+		Time:       1001,
+	})
+	oversized := types.NewBlockWithHeader(&types.Header{
+		ParentHash: normal.Hash(),
+		Number:     big.NewInt(2),
+		Time:       1002,
+	}).WithBody(makeOversizedTxs(), nil)
+
+	blocks := types.Blocks{normal, oversized}
+	receipts := []types.Receipts{nil, nil}
+
+	n, err := chain.InsertReceiptChain(blocks, receipts, 0)
+	if !errors.Is(err, ErrBlockOversized) {
+		t.Fatalf("expected ErrBlockOversized, got %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("expected failing block index 1, got %d", n)
+	}
+}
