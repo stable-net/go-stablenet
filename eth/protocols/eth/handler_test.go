@@ -17,6 +17,7 @@
 package eth
 
 import (
+	"errors"
 	"math"
 	"math/big"
 	"math/rand"
@@ -589,9 +590,27 @@ const testBlockGasLimit = 105_000_000
 
 // Tests that a receipts response carrying a block whose receipts reach the
 // maximum size at testBlockGasLimit is accepted instead of dropping the peer.
-func TestLargeReceiptsResponse68(t *testing.T) { testLargeReceiptsResponse(t, ETH68) }
+func TestLargeReceiptsResponse68(t *testing.T) {
+	// The server keeps adding blocks while below softResponseLimit, so the worst case
+	// is just under softResponseLimit followed by one block of maximum receipts size.
+	blocks := []types.Receipts{
+		{{Status: types.ReceiptStatusSuccessful, Logs: []*types.Log{{Data: make([]byte, softResponseLimit-1024)}}}},
+		{{Status: types.ReceiptStatusSuccessful, Logs: []*types.Log{{Data: make([]byte, testBlockGasLimit/params.LogDataGas)}}}},
+	}
+	testReceiptsResponse(t, ETH68, blocks, nil)
+}
 
-func testLargeReceiptsResponse(t *testing.T, protocol uint) {
+// Tests that a receipts response exceeding maxMessageSize is rejected
+// with errMsgTooLarge and causes the peer to be dropped.
+func TestOverlargeReceiptsResponse68(t *testing.T) {
+	blocks := []types.Receipts{
+		{{Status: types.ReceiptStatusSuccessful, Logs: []*types.Log{{Data: make([]byte, maxMessageSize)}}}},
+	}
+	testReceiptsResponse(t, ETH68, blocks, errMsgTooLarge)
+}
+
+func testReceiptsResponse(t *testing.T, protocol uint, blocks []types.Receipts, expectErr error) {
+	t.Helper()
 	t.Parallel()
 
 	backend := newTestBackend(0)
@@ -600,12 +619,6 @@ func testLargeReceiptsResponse(t *testing.T, protocol uint) {
 	peer, errc := newTestPeer("peer", protocol, backend)
 	defer peer.close()
 
-	// The server keeps adding blocks while below softResponseLimit, so the worst case
-	// is just under softResponseLimit followed by one block of maximum receipts size.
-	blocks := []types.Receipts{
-		{{Status: types.ReceiptStatusSuccessful, Logs: []*types.Log{{Data: make([]byte, softResponseLimit-1024)}}}},
-		{{Status: types.ReceiptStatusSuccessful, Logs: []*types.Log{{Data: make([]byte, testBlockGasLimit/params.LogDataGas)}}}},
-	}
 	var receipts rlp.RawList[rlp.RawList[*types.Receipt]]
 	for _, block := range blocks {
 		receipts.Append(encodeRL(block))
@@ -623,21 +636,37 @@ func testLargeReceiptsResponse(t *testing.T, protocol uint) {
 		p2p.Send(peer.app, ReceiptsMsg, &ReceiptsPacket{RequestId: query.RequestId, List: receipts})
 	}()
 
+	hashes := make([]common.Hash, len(blocks))
+	for i := range hashes {
+		hashes[i] = common.Hash{byte(i + 1)}
+	}
+
 	sink := make(chan *Response, 1)
-	req, err := peer.RequestReceipts([]common.Hash{{0x01}, {0x02}}, sink)
+	req, err := peer.RequestReceipts(hashes, sink)
 	if err != nil {
 		t.Fatalf("failed to request receipts: %v", err)
 	}
 	defer req.Close()
 
-	select {
-	case res := <-sink:
-		if got := len(*res.Res.(*ReceiptsResponse)); got != len(blocks) {
-			t.Errorf("receipts count mismatch: have %d, want %d", got, len(blocks))
+	if expectErr == nil {
+		select {
+		case res := <-sink:
+			if got := len(*res.Res.(*ReceiptsResponse)); got != len(blocks) {
+				t.Errorf("receipts count mismatch: have %d, want %d", got, len(blocks))
+			}
+			res.Done <- nil
+		case err := <-errc:
+			t.Fatalf("peer dropped on large receipts response: %v", err)
 		}
-		res.Done <- nil
-	case err := <-errc:
-		t.Fatalf("peer dropped on large receipts response: %v", err)
+	} else {
+		select {
+		case <-sink:
+			t.Fatal("expected message to be rejected, but response was received")
+		case err := <-errc:
+			if !errors.Is(err, expectErr) {
+				t.Fatalf("unexpected error: have %v, want %v", err, expectErr)
+			}
+		}
 	}
 }
 
