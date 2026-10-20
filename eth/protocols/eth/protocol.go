@@ -46,7 +46,6 @@ var ProtocolVersions = []uint{ETH68}
 var protocolLengths = map[uint]uint64{ETH68: 17}
 
 // maxMessageSize is the maximum cap on the size of a protocol message.
-// maxMessageSize is the maximum cap on the size of a protocol message.
 // It must stay below the RLPx message size limit (16 MiB) and account for the
 // block gas limit, since some message sizes such as receipts responses grow
 // with it.
