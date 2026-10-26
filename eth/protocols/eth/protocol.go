@@ -46,7 +46,18 @@ var ProtocolVersions = []uint{ETH68}
 var protocolLengths = map[uint]uint64{ETH68: 17}
 
 // maxMessageSize is the maximum cap on the size of a protocol message.
-const maxMessageSize = 10 * 1024 * 1024
+// It must stay below the RLPx message size limit (16 MiB) and account for the
+// block gas limit, since some message sizes such as receipts responses grow
+// with it.
+//
+// The block gas limit is bounded by the validators' gas ceiling
+// (--miner.gaslimit, 105M by default), which operators keep at 105M. Consensus
+// does not enforce this value. At 105M, the largest receipts response is:
+// softResponseLimit (2 MiB) + 105M / LogDataGas (≈ 12.5 MiB) ≈ 14.5 MiB < 15 MiB
+//
+// This cap is exceeded once the block gas limit reaches about 109M. Revisit
+// before raising the validators' gas ceiling.
+const maxMessageSize = 15 * 1024 * 1024
 
 // This is the maximum number of transactions in a Transactions message.
 const maxTransactionAnnouncements = 5000
